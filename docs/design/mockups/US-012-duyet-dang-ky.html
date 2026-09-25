@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Duyệt đăng ký khóa học miễn phí — Quản trị</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+  <div class="flex">
+    <aside class="hidden lg:flex flex-col w-60 bg-white border-r border-gray-200 min-h-screen p-4 shrink-0">
+      <div class="flex items-center gap-2 mb-8 px-2">
+        <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+        <span class="font-bold text-brand-600">Quản trị</span>
+      </div>
+      <nav class="space-y-1 text-sm">
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">📘 Khóa học</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🏷 Chuyên đề</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🧾 Đơn hàng</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🎟 Mã giảm giá</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-50 text-brand-700 font-semibold">✅ Duyệt đăng ký <span class="ml-auto bg-amber-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center">7</span></a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 p-4 lg:p-6 max-w-3xl">
+      <nav class="text-xs text-gray-500 mb-2">Khóa học / Khởi động Đại số lớp 9 cơ bản</nav>
+      <h1 class="text-xl font-bold mb-1">Yêu cầu đăng ký chờ duyệt</h1>
+      <p class="text-sm text-gray-500 mb-4">Khóa học: Khởi động Đại số lớp 9 cơ bản (Miễn phí)</p>
+
+      <div class="bg-white rounded-xl border border-gray-100 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="text-left px-4 py-3">Học sinh</th>
+              <th class="text-left px-4 py-3">Lớp</th>
+              <th class="text-left px-4 py-3">Thời điểm gửi yêu cầu</th>
+              <th class="text-right px-4 py-3">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr>
+              <td class="px-4 py-3 font-medium">Phạm Thu Trang</td>
+              <td class="px-4 py-3">Lớp 9</td>
+              <td class="px-4 py-3 text-gray-500">25/09/2026 08:12</td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <button class="bg-emerald-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold">Duyệt</button>
+                <button class="bg-rose-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold">Từ chối</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Đỗ Quang Huy</td>
+              <td class="px-4 py-3">Lớp 9</td>
+              <td class="px-4 py-3 text-gray-500">25/09/2026 10:45</td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <button class="bg-emerald-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold">Duyệt</button>
+                <button class="bg-rose-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold">Từ chối</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Vũ Ngọc Linh</td>
+              <td class="px-4 py-3">Lớp 8</td>
+              <td class="px-4 py-3 text-gray-500">25/09/2026 13:20</td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <button class="bg-emerald-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold">Duyệt</button>
+                <button class="bg-rose-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold">Từ chối</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Modal từ chối -->
+      <div class="mt-8 max-w-sm">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — MODAL TỪ CHỐI (AC3)</p>
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-5">
+          <h3 class="font-bold mb-1">Từ chối yêu cầu của Vũ Ngọc Linh</h3>
+          <label class="block text-sm font-medium mt-3 mb-1">Lý do (không bắt buộc)</label>
+          <textarea rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="VD: Khóa học chưa phù hợp với lớp 8"></textarea>
+          <div class="flex gap-2 mt-4">
+            <button class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium">Huỷ</button>
+            <button class="flex-1 bg-rose-600 text-white rounded-lg py-2 text-sm font-semibold">Xác nhận từ chối</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rỗng -->
+      <div class="mt-6 max-w-sm bg-white rounded-xl border border-gray-100 p-8 text-center">
+        <p class="text-xs font-semibold text-gray-400 mb-3">ANNOTATION — TRẠNG THÁI RỖNG</p>
+        <div class="text-3xl mb-2">✅</div>
+        <p class="font-semibold">Hiện không có yêu cầu nào đang chờ duyệt</p>
+      </div>
+
+      <!-- 403 -->
+      <div class="mt-6 max-w-sm bg-white rounded-xl border border-rose-100 p-8 text-center">
+        <p class="text-xs font-semibold text-gray-400 mb-3">ANNOTATION — GIÁO VIÊN KHÔNG PHỤ TRÁCH (AC6)</p>
+        <div class="text-3xl mb-2">🚫</div>
+        <p class="font-semibold">Bạn không có quyền truy cập trang này</p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

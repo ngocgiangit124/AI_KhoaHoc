@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quên / Đổi mật khẩu — VitaminVui</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+
+  <header class="bg-white border-b border-gray-200 py-4">
+    <div class="max-w-md mx-auto px-4 flex items-center gap-2">
+      <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+      <span class="font-bold text-lg text-brand-600">VitaminVui</span>
+    </div>
+  </header>
+
+  <!-- 2.1: /quen-mat-khau -->
+  <main class="max-w-md mx-auto px-4 py-10">
+    <p class="text-center text-xs font-semibold text-gray-400 mb-3">/quen-mat-khau</p>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <h1 class="text-2xl font-bold mb-1">Quên mật khẩu?</h1>
+      <p class="text-sm text-gray-500 mb-6">Nhập email hoặc số điện thoại đã đăng ký, chúng tôi sẽ gửi mã xác nhận qua email để bạn đặt lại mật khẩu.</p>
+
+      <form class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1" for="login_id">Email hoặc số điện thoại <span class="text-rose-600">*</span></label>
+          <input id="login_id" type="text" placeholder="email@vidu.com hoặc 09xxxxxxxx" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-600">
+        </div>
+
+        <div class="rounded-lg border border-gray-300 bg-gray-50 px-3 py-3 flex items-center gap-3">
+          <div class="w-5 h-5 rounded border-2 border-gray-400"></div>
+          <span class="text-sm text-gray-600">Xác minh bạn không phải robot (Cloudflare Turnstile)</span>
+        </div>
+
+        <button type="button" disabled class="w-full bg-brand-300 text-white font-semibold rounded-lg py-3 text-base cursor-not-allowed">Gửi mã xác nhận</button>
+        <p class="text-center text-sm text-gray-500"><a href="US-001-dang-nhap.html" class="text-brand-600 font-medium">Quay lại đăng nhập</a></p>
+      </form>
+    </div>
+
+    <!-- Annotation: luôn cùng 1 thông điệp -->
+    <div class="mt-6 bg-white rounded-2xl shadow-sm border border-sky-200 p-4">
+      <p class="text-xs font-semibold text-gray-500 mb-2">TRẠNG THÁI: ĐÃ GỬI (BR2 — LUÔN CÙNG THÔNG ĐIỆP, KHÔNG LỘ TÀI KHOẢN CÓ TỒN TẠI HAY KHÔNG)</p>
+      <div class="rounded-lg bg-sky-50 border border-sky-200 px-3 py-2 text-sm text-sky-800">
+        Nếu thông tin tồn tại, chúng tôi đã gửi mã xác nhận đến email của bạn.
+      </div>
+    </div>
+
+    <!-- Annotation: vượt giới hạn -->
+    <div class="mt-4 bg-white rounded-2xl shadow-sm border border-amber-200 p-4">
+      <p class="text-xs font-semibold text-gray-500 mb-2">TRẠNG THÁI: VƯỢT GIỚI HẠN GỬI (AC6)</p>
+      <div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+        Bạn đã yêu cầu quá nhiều lần, vui lòng thử lại sau 42 phút.
+      </div>
+    </div>
+  </main>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- 2.2: /quen-mat-khau/dat-lai -->
+  <main class="max-w-md mx-auto px-4 py-10">
+    <p class="text-center text-xs font-semibold text-gray-400 mb-3">/quen-mat-khau/dat-lai</p>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
+      <div class="w-14 h-14 rounded-full bg-brand-50 flex items-center justify-center mx-auto mb-4 text-2xl">✉️</div>
+      <h1 class="text-xl font-bold mb-1">Đặt lại mật khẩu</h1>
+      <p class="text-sm text-gray-500 mb-6">Nếu thông tin tồn tại, chúng tôi đã gửi mã gồm 6 chữ số tới email của bạn.</p>
+
+      <form class="space-y-4 text-left">
+        <div class="flex justify-center gap-2">
+          <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600" value="4">
+          <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600" value="8">
+          <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-rose-400 focus:ring-2 focus:ring-rose-500" value="2">
+          <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600">
+          <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600">
+          <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600">
+        </div>
+        <p class="text-sm text-rose-600 text-center">Mã xác nhận không đúng, vui lòng thử lại.</p>
+
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-gray-400">Mã hết hạn sau 08:47</span>
+          <button type="button" disabled class="text-gray-400 font-medium cursor-not-allowed">Gửi lại mã (45s)</button>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1" for="new_password">Mật khẩu mới <span class="text-rose-600">*</span></label>
+          <input id="new_password" type="password" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-600">
+          <p class="mt-1 text-xs text-gray-500">Tối thiểu 8 ký tự</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1" for="new_password_confirm">Xác nhận mật khẩu mới <span class="text-rose-600">*</span></label>
+          <input id="new_password_confirm" type="password" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-600">
+        </div>
+
+        <button type="button" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg py-3 text-base transition">Đặt lại mật khẩu</button>
+        <p class="text-xs text-gray-400 text-center">Sau khi đặt lại, bạn sẽ được đăng xuất khỏi mọi thiết bị khác đang đăng nhập.</p>
+      </form>
+    </div>
+  </main>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- 2.3: /tai-khoan/doi-mat-khau -->
+  <main class="max-w-md mx-auto px-4 py-10">
+    <p class="text-center text-xs font-semibold text-gray-400 mb-3">/tai-khoan/doi-mat-khau (đang đăng nhập)</p>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <h1 class="text-xl font-bold mb-1">Đổi mật khẩu</h1>
+      <p class="text-sm text-gray-500 mb-6">Đổi mật khẩu định kỳ giúp bảo vệ tài khoản của bạn tốt hơn.</p>
+
+      <form class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1" for="current_password">Mật khẩu hiện tại <span class="text-rose-600">*</span></label>
+          <input id="current_password" type="password" value="******" class="w-full rounded-lg border border-rose-400 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-rose-500">
+          <p class="mt-1 text-sm text-rose-600">Mật khẩu hiện tại không đúng</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1" for="new_password2">Mật khẩu mới <span class="text-rose-600">*</span></label>
+          <input id="new_password2" type="password" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-600">
+          <p class="mt-1 text-xs text-gray-500">Tối thiểu 8 ký tự</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1" for="new_password2_confirm">Xác nhận mật khẩu mới <span class="text-rose-600">*</span></label>
+          <input id="new_password2_confirm" type="password" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-600">
+        </div>
+
+        <button type="button" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg py-3 text-base transition">Đổi mật khẩu</button>
+        <p class="text-xs text-gray-400 text-center">Phiên đăng nhập hiện tại của bạn sẽ được giữ nguyên. Các thiết bị khác (nếu có) sẽ bị đăng xuất.</p>
+      </form>
+    </div>
+
+    <!-- Annotation: thành công -->
+    <div class="mt-6 bg-white rounded-2xl shadow-sm border border-emerald-200 p-4">
+      <p class="text-xs font-semibold text-gray-500 mb-2">TRẠNG THÁI: ĐỔI MẬT KHẨU THÀNH CÔNG (AC4)</p>
+      <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-800">
+        ✔ Đã đổi mật khẩu. Các thiết bị khác (nếu có) đã được đăng xuất.
+      </div>
+    </div>
+  </main>
+</body>
+</html>

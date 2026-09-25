@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đăng xuất do thiết bị khác — VitaminVui</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+
+  <!-- Nền mờ mô phỏng trang học video đang bị chặn -->
+  <div class="relative">
+    <header class="bg-white border-b border-gray-200">
+      <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+        <span class="font-bold text-brand-600">VitaminVui</span>
+      </div>
+    </header>
+    <main class="max-w-5xl mx-auto px-4 py-6 grid lg:grid-cols-[1fr_320px] gap-4 filter blur-sm pointer-events-none select-none opacity-60">
+      <div class="aspect-video bg-black rounded-xl"></div>
+      <aside class="bg-white rounded-xl border border-gray-100 p-4 h-40"></aside>
+    </main>
+
+    <!-- Overlay chặn toàn màn hình — code = SESSION_REPLACED -->
+    <div class="fixed inset-0 bg-gray-900/60 flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center">
+        <p class="text-[11px] font-mono text-amber-700 bg-amber-100 rounded px-2 py-0.5 inline-block mb-3">code: SESSION_REPLACED</p>
+        <div class="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4 text-3xl">⚠️</div>
+        <h1 class="text-lg font-bold mb-2">Tài khoản của bạn vừa đăng nhập trên một thiết bị khác</h1>
+        <p class="text-sm text-gray-600 mb-6">Vì lý do bảo mật, mỗi tài khoản học sinh chỉ được đăng nhập trên 1 thiết bị tại một thời điểm. Nếu không phải bạn, hãy đổi mật khẩu ngay sau khi đăng nhập lại.</p>
+        <button class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg py-3">Đăng nhập lại</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Biến thể khác cùng component <ForcedLogoutOverlay code={...}> -->
+  <section class="max-w-md mx-auto px-4 pt-10 space-y-6">
+    <p class="text-center text-xs font-semibold text-gray-400">CÁC BIẾN THỂ KHÁC CỦA CÙNG COMPONENT (không dùng amber/rose — tránh gây hiểu nhầm bị chiếm tài khoản)</p>
+
+    <!-- SESSION_EXPIRED -->
+    <div class="bg-white rounded-2xl shadow-xl border border-gray-100 max-w-sm mx-auto p-6 text-center">
+      <p class="text-[11px] font-mono text-sky-700 bg-sky-100 rounded px-2 py-0.5 inline-block mb-3">code: SESSION_EXPIRED</p>
+      <div class="w-16 h-16 rounded-full bg-sky-50 flex items-center justify-center mx-auto mb-4 text-3xl">ℹ️</div>
+      <h1 class="text-lg font-bold mb-2">Phiên đăng nhập đã hết hạn</h1>
+      <p class="text-sm text-gray-600 mb-6">Phiên làm việc trước đó trên thiết bị này đã kết thúc. Vui lòng đăng nhập lại để tiếp tục.</p>
+      <button class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg py-3">Đăng nhập lại</button>
+    </div>
+
+    <!-- SESSION_REVOKED -->
+    <div class="bg-white rounded-2xl shadow-xl border border-gray-100 max-w-sm mx-auto p-6 text-center">
+      <p class="text-[11px] font-mono text-sky-700 bg-sky-100 rounded px-2 py-0.5 inline-block mb-3">code: SESSION_REVOKED</p>
+      <div class="w-16 h-16 rounded-full bg-sky-50 flex items-center justify-center mx-auto mb-4 text-3xl">🔑</div>
+      <h1 class="text-lg font-bold mb-2">Mật khẩu đã được thay đổi</h1>
+      <p class="text-sm text-gray-600 mb-6">Mật khẩu của tài khoản này vừa được thay đổi (do bạn hoặc yêu cầu đặt lại mật khẩu). Vui lòng đăng nhập lại bằng mật khẩu mới.</p>
+      <button class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg py-3">Đăng nhập lại</button>
+    </div>
+  </section>
+
+  <section class="max-w-md mx-auto px-4 py-10">
+    <p class="text-xs font-semibold text-gray-400 mb-2">GHI CHÚ THIẾT KẾ</p>
+    <ul class="text-sm text-gray-600 list-disc pl-5 space-y-1">
+      <li>Overlay không có nút đóng/huỷ ở cả 3 biến thể — phiên đã thực sự vô hiệu.</li>
+      <li><code>SESSION_REPLACED</code> dùng màu amber (cảnh báo bảo mật); <code>SESSION_EXPIRED</code>/<code>SESSION_REVOKED</code> dùng màu sky (thông tin trung tính) — không gây hoảng loạn khi chỉ là đăng nhập lại/đổi mật khẩu bình thường.</li>
+      <li>Dùng đúng trường <code>code</code> trong body lỗi 401 (api-contract §1.7), không dùng <code>reason</code>.</li>
+      <li>Áp dụng chung cho mọi trang đã đăng nhập: học video, làm quiz, giỏ hàng, checkout...</li>
+      <li>Chỉ áp dụng cho vai trò Học sinh (US-014 BR4).</li>
+    </ul>
+  </section>
+</body>
+</html>

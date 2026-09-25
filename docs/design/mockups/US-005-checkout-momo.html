@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thanh toán — VitaminVui</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen pb-10">
+
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+      <span class="font-bold text-brand-600">VitaminVui</span>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-6">
+    <h1 class="text-2xl font-bold mb-4">Xác nhận thanh toán</h1>
+
+    <div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800 mb-4">
+      Khóa học "Số học nâng cao lớp 7" đã ngừng bán và được loại khỏi đơn hàng.
+    </div>
+
+    <!-- 2.1c: CHECKOUT_CHANGED -->
+    <div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800 mb-4 flex items-start gap-2">
+      <span>⚠</span>
+      <span>Giỏ hàng của bạn đã thay đổi (giá, mã giảm giá hoặc khóa học không còn khả dụng). Vui lòng kiểm tra lại trước khi thanh toán tiếp.</span>
+    </div>
+
+    <div class="grid lg:grid-cols-[1fr_340px] gap-6">
+      <div class="bg-white rounded-xl border border-gray-100 p-4">
+        <h2 class="font-semibold mb-3">Khóa học trong đơn (2)</h2>
+        <div class="flex justify-between text-sm py-2 border-b border-gray-100">
+          <span>Hình học nâng cao lớp 9 — Ôn thi vào 10</span><span class="font-medium">590.000đ</span>
+        </div>
+        <div class="flex justify-between text-sm py-2">
+          <span>Luyện đề thi vào lớp 10 — Toàn diện</span><span class="font-medium">790.000đ</span>
+        </div>
+      </div>
+
+      <aside>
+        <div class="bg-white rounded-xl border border-gray-100 p-5 mb-4">
+          <div class="space-y-2 text-sm mb-4">
+            <div class="flex justify-between"><span class="text-gray-500">Tạm tính</span><span>1.380.000đ</span></div>
+            <div class="flex justify-between text-emerald-600"><span>Giảm giá (TOAN2026)</span><span>-59.000đ</span></div>
+            <div class="flex justify-between font-bold text-base border-t border-gray-100 pt-2"><span>Tổng cộng</span><span class="text-brand-600">1.321.000đ</span></div>
+          </div>
+
+          <h3 class="font-semibold text-sm mb-2">Phương thức thanh toán</h3>
+          <label class="flex items-center gap-2 border border-brand-600 bg-brand-50 rounded-lg px-3 py-2 mb-4">
+            <input type="radio" checked class="text-brand-600">
+            <span class="font-semibold text-pink-600">MoMo</span>
+            <span class="text-xs text-gray-500 ml-auto">Ví điện tử</span>
+          </label>
+
+          <button class="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold rounded-lg py-3 mb-2">Thanh toán qua MoMo</button>
+          <p class="text-xs text-center text-gray-400">Bạn sẽ được chuyển sang MoMo để hoàn tất thanh toán.</p>
+        </div>
+      </aside>
+    </div>
+
+    <div class="mt-4 bg-white rounded-xl border border-rose-200 p-4">
+      <p class="text-xs text-gray-400 mb-2">ANNOTATION — Lỗi kết nối MoMo khi khởi tạo (AC6)</p>
+      <div class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700">
+        Không thể kết nối tới cổng thanh toán MoMo, vui lòng thử lại sau.
+      </div>
+    </div>
+
+    <!-- 2.1a: Tổng 0đ — hoàn tất ngay, không qua MoMo -->
+    <div class="mt-4 bg-white rounded-xl border border-sky-200 p-4">
+      <p class="text-xs text-gray-400 mb-2">ANNOTATION — TỔNG SAU GIẢM = 0Đ (mã 100%, hoàn tất ngay không qua MoMo)</p>
+      <div class="rounded-lg bg-sky-50 border border-sky-200 px-3 py-2 text-sm text-sky-800 mb-3">
+        Đơn hàng của bạn được miễn phí hoàn toàn nhờ mã giảm giá. Bấm bên dưới để hoàn tất ngay, không cần thanh toán.
+      </div>
+      <button class="w-full bg-brand-600 text-white font-semibold rounded-lg py-3">Hoàn tất đăng ký</button>
+    </div>
+
+    <!-- 2.1b: Tổng 1-999đ — chặn tại checkout -->
+    <div class="mt-4 bg-white rounded-xl border border-rose-200 p-4">
+      <p class="text-xs text-gray-400 mb-2">ANNOTATION — TỔNG SAU GIẢM 1–999Đ, CHẶN TẠI CHECKOUT <span class="ml-1 inline-block text-[11px] font-medium text-amber-700 bg-amber-100 rounded px-1.5 py-0.5 align-middle">⚠ Chờ PO xác nhận</span></p>
+      <div class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700 mb-3">
+        Số tiền 500đ quá nhỏ để thanh toán qua MoMo. Vui lòng quay lại giỏ hàng để điều chỉnh mã giảm giá hoặc thêm khóa học.
+      </div>
+      <button class="w-full border border-gray-300 rounded-lg py-3 text-sm font-medium bg-white">Quay lại giỏ hàng</button>
+    </div>
+  </main>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- Màn kết quả sau khi MoMo redirect -->
+  <section class="max-w-md mx-auto px-4 space-y-8">
+    <p class="text-center text-xs font-semibold text-gray-400">/checkout/ket-qua — 6 BIẾN THỂ TRẠNG THÁI</p>
+
+    <!-- Đang xác nhận -->
+    <div class="bg-white rounded-2xl border border-sky-200 p-8 text-center">
+      <div class="w-14 h-14 rounded-full bg-sky-50 flex items-center justify-center mx-auto mb-4">
+        <svg class="animate-spin h-7 w-7 text-sky-600" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+      </div>
+      <h2 class="text-lg font-bold mb-2">Đang xác nhận thanh toán...</h2>
+      <p class="text-sm text-gray-500 mb-4">Hệ thống đang xác nhận giao dịch với MoMo, vui lòng đợi trong giây lát. Trang sẽ tự cập nhật.</p>
+      <button disabled class="text-gray-400 text-sm font-medium cursor-not-allowed">Kiểm tra lại thanh toán (28s)</button>
+      <p class="text-[11px] text-gray-400 mt-1">Giới hạn 1 lần mỗi 30 giây</p>
+    </div>
+
+    <!-- Thành công -->
+    <div class="bg-white rounded-2xl border border-emerald-200 p-8 text-center">
+      <div class="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4 text-3xl text-emerald-600">✔</div>
+      <h2 class="text-lg font-bold mb-2">Thanh toán thành công!</h2>
+      <p class="text-sm text-gray-500 mb-5">Bạn đã sở hữu 2 khóa học. Chúc bạn học tốt!</p>
+      <button class="w-full bg-brand-600 text-white font-semibold rounded-lg py-3 mb-2">Vào học ngay</button>
+      <button class="w-full border border-gray-300 rounded-lg py-3 text-sm font-medium">Xem đơn hàng</button>
+    </div>
+
+    <!-- Thất bại -->
+    <div class="bg-white rounded-2xl border border-rose-200 p-8 text-center">
+      <div class="w-14 h-14 rounded-full bg-rose-50 flex items-center justify-center mx-auto mb-4 text-3xl text-rose-600">✕</div>
+      <h2 class="text-lg font-bold mb-2">Thanh toán không thành công</h2>
+      <p class="text-sm text-gray-500 mb-5">Giao dịch đã bị huỷ hoặc không hoàn tất trên MoMo. Giỏ hàng của bạn vẫn được giữ nguyên.</p>
+      <button class="w-full bg-brand-600 text-white font-semibold rounded-lg py-3 mb-2">Thử thanh toán lại</button>
+      <button class="w-full border border-gray-300 rounded-lg py-3 text-sm font-medium">Về giỏ hàng</button>
+    </div>
+
+    <!-- Link thanh toán đã hết hạn — MỚI -->
+    <div class="bg-white rounded-2xl border border-amber-200 p-8 text-center">
+      <p class="text-[11px] font-semibold text-amber-700 bg-amber-100 rounded px-2 py-0.5 inline-block mb-3">MỚI — khác biến thể "Thất bại"</p>
+      <div class="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4 text-3xl text-amber-600">🔗</div>
+      <h2 class="text-lg font-bold mb-2">Link thanh toán đã hết hạn</h2>
+      <p class="text-sm text-gray-500 mb-5">Liên kết thanh toán MoMo trước đó đã hết hạn nhưng đơn hàng #DH20260925007 của bạn vẫn còn hiệu lực. Bấm bên dưới để tạo liên kết thanh toán mới.</p>
+      <button class="w-full bg-brand-600 text-white font-semibold rounded-lg py-3">Tạo lại giao dịch</button>
+    </div>
+
+    <!-- Hết chỗ mã giảm giá khi tạo lại giao dịch — MỚI -->
+    <div class="bg-white rounded-2xl border border-amber-200 p-8 text-center">
+      <p class="text-[11px] font-semibold text-amber-700 bg-amber-100 rounded px-2 py-0.5 inline-block mb-3">MỚI — 409 COUPON_EXHAUSTED từ /orders/{code}/pay</p>
+      <div class="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4 text-3xl text-amber-600">🎟</div>
+      <h2 class="text-lg font-bold mb-2">Mã giảm giá đã hết lượt sử dụng</h2>
+      <p class="text-sm text-gray-500 mb-5">Mã giảm giá áp dụng cho đơn này đã hết lượt trong lúc chờ thanh toán. Đơn hàng đã được huỷ, vui lòng tạo đơn mới.</p>
+      <button class="w-full bg-brand-600 text-white font-semibold rounded-lg py-3">Tạo đơn hàng mới</button>
+    </div>
+
+    <!-- Hết hạn -->
+    <div class="bg-white rounded-2xl border border-amber-200 p-8 text-center">
+      <div class="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4 text-3xl text-amber-600">⏱</div>
+      <h2 class="text-lg font-bold mb-2">Đơn hàng đã hết hạn</h2>
+      <p class="text-sm text-gray-500 mb-5">Đơn hàng chưa được thanh toán trong 12 giờ nên đã tự động huỷ. Giỏ hàng của bạn không bị ảnh hưởng.</p>
+      <button class="w-full bg-brand-600 text-white font-semibold rounded-lg py-3">Tạo đơn hàng mới</button>
+    </div>
+  </section>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- Đơn hàng của tôi -->
+  <section class="max-w-3xl mx-auto px-4">
+    <p class="text-xs font-semibold text-gray-400 mb-2">/tai-khoan/don-hang</p>
+    <h2 class="text-xl font-bold mb-4">Đơn hàng của tôi</h2>
+    <div class="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100">
+      <div class="p-4 flex justify-between items-center">
+        <div>
+          <p class="font-semibold text-sm">#DH20260921001</p>
+          <p class="text-xs text-gray-500">2 khóa học · 25/09/2026 · MoMo</p>
+        </div>
+        <div class="text-right">
+          <p class="font-semibold text-sm">1.321.000đ</p>
+          <span class="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded px-2 py-0.5 mt-1">Đã thanh toán</span>
+        </div>
+      </div>
+      <div class="p-4 flex justify-between items-center">
+        <div>
+          <p class="font-semibold text-sm">#DH20260920004</p>
+          <p class="text-xs text-gray-500">1 khóa học · 20/09/2026 · MoMo</p>
+        </div>
+        <div class="text-right">
+          <p class="font-semibold text-sm">590.000đ</p>
+          <span class="inline-block text-[11px] font-semibold text-gray-600 bg-gray-100 rounded px-2 py-0.5 mt-1">Đã huỷ</span>
+        </div>
+      </div>
+      <div class="p-4 flex justify-between items-center">
+        <div>
+          <p class="font-semibold text-sm">#DH20260918002</p>
+          <p class="text-xs text-gray-500">1 khóa học · 18/09/2026 · MoMo</p>
+        </div>
+        <div class="text-right">
+          <p class="font-semibold text-sm">790.000đ</p>
+          <span class="inline-block text-[11px] font-semibold text-rose-700 bg-rose-100 rounded px-2 py-0.5 mt-1">Đã hoàn tiền</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

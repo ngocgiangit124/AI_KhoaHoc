@@ -1,0 +1,10 @@
+{
+  "name": "@vitaminvui/config",
+  "private": true,
+  "version": "0.0.0",
+  "files": [
+    "tsconfig.base.json",
+    "eslint",
+    "prettier.config.mjs"
+  ]
+}

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giỏ hàng — VitaminVui</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen pb-24">
+
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+      <span class="font-bold text-brand-600">VitaminVui</span>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-6 grid lg:grid-cols-[1fr_340px] gap-6">
+    <div>
+      <h1 class="text-2xl font-bold mb-4">Giỏ hàng của bạn</h1>
+
+      <!-- Item cảnh báo unpublish -->
+      <div class="bg-white rounded-xl border border-amber-300 p-4 mb-3 flex gap-3">
+        <div class="w-20 h-14 rounded bg-gray-200 shrink-0"></div>
+        <div class="flex-1">
+          <p class="font-semibold text-sm">Số học nâng cao lớp 7</p>
+          <span class="inline-block text-[11px] font-semibold text-amber-700 bg-amber-100 rounded px-1.5 py-0.5 mt-1">Ngừng bán — vui lòng xoá khỏi giỏ</span>
+        </div>
+        <button class="text-rose-600 text-sm font-medium self-start">Xoá</button>
+      </div>
+
+      <!-- Item bình thường -->
+      <div class="bg-white rounded-xl border border-gray-100 p-4 mb-3 flex gap-3 items-center">
+        <div class="w-20 h-14 rounded bg-gradient-to-br from-indigo-400 to-indigo-600 shrink-0"></div>
+        <div class="flex-1">
+          <p class="font-semibold text-sm">Hình học nâng cao lớp 9 — Ôn thi vào 10</p>
+          <p class="text-xs text-gray-500">Lớp 9 · Hình học</p>
+        </div>
+        <div class="text-right">
+          <p class="font-semibold text-sm text-brand-600">590.000đ</p>
+          <button class="text-rose-600 text-xs font-medium mt-1">Xoá</button>
+        </div>
+      </div>
+
+      <!-- Item ngoài phạm vi mã giảm giá -->
+      <div class="bg-white rounded-xl border border-gray-100 p-4 mb-3 flex gap-3 items-center">
+        <div class="w-20 h-14 rounded bg-gradient-to-br from-sky-400 to-sky-600 shrink-0"></div>
+        <div class="flex-1">
+          <p class="font-semibold text-sm">Luyện đề thi vào lớp 10 — Toàn diện</p>
+          <p class="text-xs text-gray-500">Lớp 9 · Ôn thi vào 10</p>
+          <span class="inline-block text-[11px] text-gray-400 mt-1">Không áp dụng mã</span>
+        </div>
+        <div class="text-right">
+          <p class="font-semibold text-sm text-brand-600">790.000đ</p>
+          <button class="text-rose-600 text-xs font-medium mt-1">Xoá</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tóm tắt -->
+    <aside>
+      <div class="bg-white rounded-xl border border-gray-100 p-5 sticky top-20">
+        <h2 class="font-semibold mb-3">Mã giảm giá</h2>
+
+        <!-- Đã áp dụng -->
+        <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 mb-3 flex items-center justify-between">
+          <span class="text-sm text-emerald-700 font-medium">✓ Mã "TOAN2026" đã áp dụng</span>
+          <button class="text-emerald-700 text-sm">✕</button>
+        </div>
+
+        <div class="text-xs text-gray-400 mb-4">
+          ⚠ Chờ PO xác nhận: lượt dùng mã chỉ trừ khi đơn hàng thanh toán thành công (không giữ chỗ ở bước này)
+        </div>
+
+        <div class="space-y-2 text-sm mb-4 border-t border-gray-100 pt-4">
+          <div class="flex justify-between"><span class="text-gray-500">Tạm tính</span><span>1.380.000đ</span></div>
+          <div class="flex justify-between text-emerald-600"><span>Giảm giá (TOAN2026)</span><span>-59.000đ</span></div>
+          <div class="flex justify-between font-bold text-base border-t border-gray-100 pt-2"><span>Tổng cộng</span><span class="text-brand-600">1.321.000đ</span></div>
+        </div>
+
+        <button class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg py-3">Tiến hành thanh toán</button>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ANNOTATIONS -->
+  <section class="max-w-4xl mx-auto px-4 py-10 space-y-4">
+    <p class="text-xs font-semibold text-gray-400">ANNOTATION — CÁC TRẠNG THÁI KHÁC</p>
+
+    <div class="bg-white rounded-xl border border-gray-100 p-6 text-center">
+      <p class="text-xs text-gray-400 mb-3">Giỏ hàng trống</p>
+      <div class="text-4xl mb-2">🛒</div>
+      <p class="font-semibold">Giỏ hàng của bạn đang trống</p>
+      <button class="text-brand-600 text-sm font-medium mt-2">Khám phá khóa học</button>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-100 p-4">
+      <p class="text-xs text-gray-400 mb-2">Ô nhập mã — trạng thái lỗi</p>
+      <div class="flex gap-2">
+        <input value="HETHAN2024" class="flex-1 rounded-lg border border-rose-400 px-3 py-2 text-sm">
+        <button class="bg-gray-200 text-gray-500 rounded-lg px-4 text-sm font-medium">Áp dụng</button>
+      </div>
+      <p class="text-sm text-rose-600 mt-1">Mã giảm giá đã hết hạn</p>
+    </div>
+
+    <div class="bg-white rounded-xl border border-amber-200 p-4">
+      <p class="text-xs text-gray-400 mb-2">Mã tự động bị gỡ (AC10)</p>
+      <div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+        Mã giảm giá đã được gỡ vì không còn khóa học phù hợp trong giỏ hàng.
+      </div>
+    </div>
+  </section>
+</body>
+</html>

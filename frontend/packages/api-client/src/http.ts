@@ -1,0 +1,39 @@
+import { ApiError, NetworkError } from "./errors";
+import type { ApiErrorBody } from "./types";
+
+/** Bọc `fetch` để phân biệt lỗi mạng (NetworkError) với lỗi HTTP có body (ApiError). */
+export async function doFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (cause) {
+    throw new NetworkError(cause);
+  }
+}
+
+/** Đọc body JSON theo envelope api-contract, ném `ApiError` khi response không `ok`. */
+export async function parseJsonResponse<T>(res: Response): Promise<T> {
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await res.text();
+  let body: unknown = undefined;
+  if (text.length > 0) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      if (res.ok) {
+        return undefined as T;
+      }
+      throw new ApiError(res.status, {
+        message: "Đã có lỗi xảy ra, vui lòng thử lại sau.",
+      });
+    }
+  }
+
+  if (!res.ok) {
+    throw new ApiError(res.status, (body ?? {}) as ApiErrorBody);
+  }
+
+  return body as T;
+}

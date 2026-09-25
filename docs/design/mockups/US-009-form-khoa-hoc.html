@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sửa khóa học — Quản trị</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+  <div class="flex">
+    <aside class="hidden lg:flex flex-col w-60 bg-white border-r border-gray-200 min-h-screen p-4 shrink-0">
+      <div class="flex items-center gap-2 mb-8 px-2">
+        <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+        <span class="font-bold text-brand-600">Quản trị</span>
+      </div>
+      <nav class="space-y-1 text-sm">
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-50 text-brand-700 font-semibold">📘 Khóa học</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🏷 Chuyên đề</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🧾 Đơn hàng</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🎟 Mã giảm giá</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">✅ Duyệt đăng ký</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 p-4 lg:p-6 max-w-4xl">
+      <nav class="text-xs text-gray-500 mb-2">Khóa học / Sửa khóa học</nav>
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-xl font-bold">Hình học nâng cao lớp 9</h1>
+        <span class="inline-block text-[11px] font-semibold text-gray-600 bg-gray-100 rounded px-2 py-0.5">Nháp</span>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-1 border-b border-gray-200 mb-5">
+        <button class="px-4 py-2 text-sm font-semibold text-brand-600 border-b-2 border-brand-600">Thông tin chung</button>
+        <button class="px-4 py-2 text-sm font-medium text-gray-500">Chương & bài học</button>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 p-5 grid md:grid-cols-[1fr_280px] gap-6">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">Tên khóa học <span class="text-rose-600">*</span></label>
+            <input value="Hình học nâng cao lớp 9 — Ôn thi vào 10" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            <p class="text-xs text-gray-400 mt-1">URL: /khoa-hoc/hinh-hoc-nang-cao-lop-9</p>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-1">Lớp học <span class="text-rose-600">*</span></label>
+              <select class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"><option selected>Lớp 9</option></select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Học phí (đ) <span class="text-rose-600">*</span></label>
+              <input value="590000" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Chuyên đề <span class="text-rose-600">*</span></label>
+            <div class="flex flex-wrap gap-2 border border-gray-300 rounded-lg p-2">
+              <span class="bg-brand-50 text-brand-700 text-xs font-medium rounded px-2 py-1 flex items-center gap-1">Hình học ✕</span>
+              <span class="bg-brand-50 text-brand-700 text-xs font-medium rounded px-2 py-1 flex items-center gap-1">Ôn thi vào 10 ✕</span>
+              <input placeholder="+ Thêm chuyên đề" class="text-sm flex-1 outline-none min-w-[120px]">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Mô tả ngắn <span class="text-rose-600">*</span></label>
+            <textarea rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">Khóa học giúp học sinh lớp 9 nắm chắc các dạng bài Hình học trọng tâm ôn thi vào 10.</textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Giáo viên phụ trách <span class="text-rose-600">*</span></label>
+            <div class="flex flex-wrap gap-2 border border-gray-300 rounded-lg p-2">
+              <span class="bg-gray-100 text-xs font-medium rounded px-2 py-1 flex items-center gap-1">Thầy Trần Hùng ✕</span>
+              <span class="bg-gray-100 text-xs font-medium rounded px-2 py-1 flex items-center gap-1">Cô Lê Hoa ✕</span>
+              <input placeholder="+ Thêm giáo viên" class="text-sm flex-1 outline-none min-w-[120px]">
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Cần giữ lại ít nhất 1 giáo viên phụ trách</p>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1">Ảnh đại diện <span class="text-rose-600">*</span></label>
+          <div class="aspect-video rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 mb-2"></div>
+          <button class="w-full border border-gray-300 rounded-lg py-2 text-sm font-medium bg-white">Đổi ảnh</button>
+          <p class="text-xs text-gray-400 mt-1">JPG/PNG/WebP, tối đa 2MB. Không nhận SVG.</p>
+        </div>
+      </div>
+
+      <div class="flex justify-between mt-4">
+        <button class="border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium bg-white">Lưu nháp</button>
+        <button disabled title="Khóa học cần có ít nhất 1 chương và 1 bài học để xuất bản" class="bg-emerald-300 text-white rounded-lg px-4 py-2 text-sm font-semibold cursor-not-allowed">Xuất bản</button>
+      </div>
+
+      <!-- Toggle video source -->
+      <div class="mt-10 max-w-md">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — TOGGLE NGUỒN VIDEO KHI THÊM BÀI HỌC</p>
+        <div class="bg-white rounded-xl border border-gray-100 p-4">
+          <div class="flex rounded-lg border border-gray-300 overflow-hidden mb-3 text-sm">
+            <button class="flex-1 py-2 bg-brand-600 text-white font-medium">Tải video lên hệ thống</button>
+            <button disabled title="Chỉ bài cho xem thử mới được dùng link video ngoài" class="flex-1 py-2 bg-gray-50 text-gray-400 cursor-not-allowed">Dán link video ngoài</button>
+          </div>
+          <p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-3">Bật "Cho phép xem thử" để mở khoá tuỳ chọn dán link video ngoài.</p>
+          <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-sm text-gray-500">
+            Kéo thả file video vào đây hoặc bấm để chọn file
+          </div>
+        </div>
+      </div>
+
+      <!-- Trạng thái xử lý video -->
+      <div class="mt-6 max-w-md">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — TRẠNG THÁI XỬ LÝ VIDEO SAU TẢI LÊN</p>
+        <div class="bg-white rounded-xl border border-gray-100 p-4 space-y-2 text-sm">
+          <div class="flex items-center justify-between"><span>Bài 3: Ứng dụng thực tế</span><span class="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 bg-sky-100 rounded px-2 py-0.5">Đang tải lên… 62%</span></div>
+          <div class="flex items-center justify-between"><span>Bài 4: Ôn tập chương 1</span><span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-100 rounded px-2 py-0.5">Đang xử lý video</span></div>
+          <div class="flex items-center justify-between"><span>Bài 5: Kiểm tra 15 phút</span><span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded px-2 py-0.5">Sẵn sàng phát</span></div>
+          <div class="flex items-center justify-between"><span>Bài 6: Bài tập nâng cao</span><span class="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-100 rounded px-2 py-0.5">Xử lý thất bại</span></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

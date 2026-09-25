@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản trị — Đơn hàng</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+  <div class="flex">
+    <aside class="hidden lg:flex flex-col w-60 bg-white border-r border-gray-200 min-h-screen p-4 shrink-0">
+      <div class="flex items-center gap-2 mb-8 px-2">
+        <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+        <span class="font-bold text-brand-600">Quản trị</span>
+      </div>
+      <nav class="space-y-1 text-sm">
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">📘 Khóa học</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🏷 Chuyên đề</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-50 text-brand-700 font-semibold">🧾 Đơn hàng</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🎟 Mã giảm giá</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">✅ Duyệt đăng ký</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 p-4 lg:p-6">
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h1 class="text-xl font-bold">Quản lý đơn hàng</h1>
+        <button class="bg-emerald-600 text-white font-semibold rounded-lg px-4 py-2 text-sm">⬇ Xuất file</button>
+      </div>
+
+      <!-- Tabs trạng thái -->
+      <div class="flex gap-1 mb-4 overflow-x-auto">
+        <button class="shrink-0 px-4 py-2 text-sm font-semibold text-white bg-brand-600 rounded-lg">Tất cả (128.402)</button>
+        <button class="shrink-0 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg">Chờ thanh toán (312)</button>
+        <button class="shrink-0 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg">Đã thanh toán (121.204)</button>
+        <button class="shrink-0 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg">Thất bại/Đã huỷ (6.502)</button>
+        <button class="shrink-0 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg">Đã hoàn tiền (384)</button>
+      </div>
+
+      <div class="flex flex-wrap gap-2 mb-4 items-center">
+        <input type="date" value="2026-08-26" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        <span class="self-center text-gray-400 text-sm">đến</span>
+        <input type="date" value="2026-09-25" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        <span class="text-[11px] text-gray-400">(tối đa 366 ngày, bắt buộc chọn)</span>
+        <input type="text" placeholder="Tìm theo mã đơn / tên / email / SĐT" class="rounded-lg border border-gray-300 px-3 py-2 text-sm flex-1 min-w-[220px]">
+      </div>
+
+      <p class="text-xs text-gray-500 mb-2">Tìm thấy khoảng 121.204 đơn hàng khớp bộ lọc</p>
+
+      <div class="bg-white rounded-xl border border-gray-100 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="text-left px-4 py-3">Mã đơn</th>
+              <th class="text-left px-4 py-3">Học sinh</th>
+              <th class="text-left px-4 py-3">Khóa học</th>
+              <th class="text-left px-4 py-3">Tổng tiền</th>
+              <th class="text-left px-4 py-3">Phương thức</th>
+              <th class="text-left px-4 py-3">Trạng thái</th>
+              <th class="text-left px-4 py-3">Ngày tạo</th>
+              <th class="text-right px-4 py-3">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr>
+              <td class="px-4 py-3 font-medium">#DH20260921001</td>
+              <td class="px-4 py-3">
+                <p>Nguyễn Minh An</p>
+                <p class="text-[11px] text-gray-400">ng***@gmail.com · 09****321</p>
+              </td>
+              <td class="px-4 py-3">2 khóa học</td>
+              <td class="px-4 py-3">1.321.000đ <span class="text-xs text-emerald-600">(-59.000đ)</span></td>
+              <td class="px-4 py-3">MoMo</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded px-2 py-0.5">Đã thanh toán</span></td>
+              <td class="px-4 py-3 text-gray-500">25/09/2026 14:02</td>
+              <td class="px-4 py-3 text-right"><button class="text-brand-600 font-medium">Xem</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">#DH20260921002</td>
+              <td class="px-4 py-3">
+                <p>Trần Bảo Ngọc</p>
+                <p class="text-[11px] text-gray-400">tr***@gmail.com · 09****045</p>
+              </td>
+              <td class="px-4 py-3">1 khóa học</td>
+              <td class="px-4 py-3">590.000đ</td>
+              <td class="px-4 py-3">MoMo</td>
+              <td class="px-4 py-3">
+                <span class="inline-block text-[11px] font-semibold text-amber-700 bg-amber-100 rounded px-2 py-0.5">Chờ thanh toán</span>
+                <span class="block text-[10px] text-gray-400 mt-0.5">còn 9 giờ</span>
+              </td>
+              <td class="px-4 py-3 text-gray-500">25/09/2026 09:10</td>
+              <td class="px-4 py-3 text-right"><button class="text-brand-600 font-medium">Xem</button></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">#DH20260920004</td>
+              <td class="px-4 py-3">
+                <p>Lê Gia Hân</p>
+                <p class="text-[11px] text-gray-400">le***@yahoo.com · 09****112</p>
+              </td>
+              <td class="px-4 py-3">1 khóa học</td>
+              <td class="px-4 py-3">590.000đ</td>
+              <td class="px-4 py-3">MoMo</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-gray-600 bg-gray-100 rounded px-2 py-0.5">Đã huỷ</span></td>
+              <td class="px-4 py-3 text-gray-500">20/09/2026 21:44</td>
+              <td class="px-4 py-3 text-right"><button class="text-brand-600 font-medium">Xem</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-[11px] text-gray-400 mt-1">Email/SĐT đã được che bớt. Mở chi tiết đơn để xem đầy đủ (được ghi vào nhật ký hệ thống).</p>
+
+      <!-- Cursor pagination: chỉ Trước/Tiếp + tổng số, KHÔNG nhảy trang N (DBA #9) -->
+      <div class="flex items-center justify-center gap-3 mt-4">
+        <button disabled class="px-4 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-400 text-sm font-medium cursor-not-allowed">‹ Trước</button>
+        <span class="text-xs text-gray-400">Trang hiện tại · khoảng 121.204 đơn khớp bộ lọc</span>
+        <button class="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium hover:bg-gray-50">Tiếp ›</button>
+      </div>
+
+      <!-- Trạng thái rỗng -->
+      <div class="mt-8 max-w-md bg-white rounded-xl border border-gray-100 p-8 text-center">
+        <p class="text-xs font-semibold text-gray-400 mb-3">ANNOTATION — KHÔNG CÓ ĐƠN KHỚP FILTER (AC5)</p>
+        <div class="text-3xl mb-2">🧾</div>
+        <p class="font-semibold">Không tìm thấy đơn hàng phù hợp với bộ lọc</p>
+      </div>
+
+      <!-- Modal tuỳ chọn xuất file (ExportOptionsModal) -->
+      <div class="mt-10 max-w-md">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — MODAL XUẤT FILE, VAI TRÒ ADMIN (mặc định KHÔNG kèm liên hệ)</p>
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-5">
+          <h3 class="font-bold mb-4">Xuất danh sách đơn hàng</h3>
+          <div class="space-y-4 text-sm">
+            <div>
+              <label class="block font-medium mb-1">Định dạng</label>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-1"><input type="radio" name="fmt" checked> CSV</label>
+                <label class="flex items-center gap-1"><input type="radio" name="fmt"> XLSX</label>
+              </div>
+            </div>
+            <label class="flex items-center gap-2">
+              <input id="include_contact" type="checkbox" class="rounded text-brand-600">
+              Kèm email/SĐT học sinh <span class="text-[11px] text-gray-400">(chỉ Admin)</span>
+            </label>
+            <div>
+              <label class="block font-medium mb-1">Lý do <span class="text-rose-600">*</span> <span class="text-[11px] text-gray-400">(bắt buộc khi kèm liên hệ)</span></label>
+              <textarea rows="2" placeholder="VD: đối chiếu công nợ với kế toán" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"></textarea>
+            </div>
+            <div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+              Tệp xuất sẽ chứa email/số điện thoại học sinh. Hành động này được ghi vào nhật ký hệ thống.
+            </div>
+            <p class="text-[11px] text-gray-400">Tệp xuất không bao giờ chứa thông tin liên hệ phụ huynh.</p>
+          </div>
+          <div class="flex gap-2 mt-5">
+            <button class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium">Huỷ</button>
+            <button class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Tạo yêu cầu xuất</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal xuất file, vai trò Quản lý trang (không có tuỳ chọn kèm liên hệ) -->
+      <div class="mt-6 max-w-md">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — MODAL XUẤT FILE, VAI TRÒ QUẢN LÝ TRANG (không có quyền kèm liên hệ)</p>
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-5">
+          <h3 class="font-bold mb-4">Xuất danh sách đơn hàng</h3>
+          <div class="space-y-3 text-sm">
+            <div>
+              <label class="block font-medium mb-1">Định dạng</label>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-1"><input type="radio" name="fmt2" checked> CSV</label>
+                <label class="flex items-center gap-1"><input type="radio" name="fmt2"> XLSX</label>
+              </div>
+            </div>
+            <p class="text-[11px] text-gray-400">Tệp xuất không bao gồm email/số điện thoại học sinh.</p>
+          </div>
+          <div class="flex gap-2 mt-5">
+            <button class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium">Huỷ</button>
+            <button class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Tạo yêu cầu xuất</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lịch sử xuất file -->
+      <div class="mt-8 max-w-lg">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — LỊCH SỬ XUẤT FILE (luôn chạy nền, không có nhánh đồng bộ)</p>
+        <div class="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100">
+          <div class="p-3 flex items-center justify-between text-sm">
+            <div>
+              <p class="font-medium">orders-20260925-1420.csv</p>
+              <p class="text-xs text-gray-400">25/09/2026 14:20 · Không kèm liên hệ</p>
+            </div>
+            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 bg-sky-100 rounded px-2 py-0.5">
+              <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+              Đang xử lý
+            </span>
+          </div>
+          <div class="p-3 flex items-center justify-between text-sm">
+            <div>
+              <p class="font-medium">orders-20260925-0905.xlsx</p>
+              <p class="text-xs text-gray-400">25/09/2026 09:05 · Kèm liên hệ (lý do: đối chiếu công nợ)</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded px-2 py-0.5">Sẵn sàng tải</span>
+              <button class="text-brand-600 text-xs font-medium">Tải xuống</button>
+            </div>
+          </div>
+          <div class="p-3 flex items-center justify-between text-sm">
+            <div>
+              <p class="font-medium">orders-20260920-1130.csv</p>
+              <p class="text-xs text-gray-400">20/09/2026 11:30</p>
+            </div>
+            <span class="text-[11px] font-semibold text-gray-500 bg-gray-100 rounded px-2 py-0.5">Đã hết hạn</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Đạt giới hạn xuất/ngày -->
+      <div class="mt-6 max-w-md">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — ĐÃ ĐẠT GIỚI HẠN 10 LẦN XUẤT/NGÀY</p>
+        <div class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700">
+          Bạn đã đạt giới hạn 10 lần xuất file trong hôm nay. Vui lòng thử lại vào ngày mai.
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

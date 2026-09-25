@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xác nhận của phụ huynh — VitaminVui</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+
+  <header class="bg-white border-b border-gray-200 py-4">
+    <div class="max-w-md mx-auto px-4 flex items-center gap-2">
+      <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+      <span class="font-bold text-lg text-brand-600">VitaminVui</span>
+    </div>
+  </header>
+
+  <p class="text-center text-xs font-semibold text-gray-400 pt-6">/xac-nhan-phu-huynh/{token} — trang công khai, KHÔNG cần đăng nhập</p>
+
+  <!-- Biến thể mặc định: còn hiệu lực, chờ xác nhận -->
+  <main class="max-w-md mx-auto px-4 py-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <h1 class="text-xl font-bold mb-4">Xác nhận đồng ý cho con em sử dụng VitaminVui</h1>
+
+      <div class="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-sm mb-4">
+        <p class="text-gray-500 text-xs mb-0.5">Học sinh</p>
+        <p class="font-medium">Nguyễn Minh A** (lớp 9)</p>
+      </div>
+
+      <p class="text-sm text-gray-600 mb-4">VitaminVui cần sự đồng ý của phụ huynh/người giám hộ trước khi học sinh dưới 18 tuổi có thể mua khóa học trên hệ thống. Việc đồng ý bao gồm việc xử lý dữ liệu cá nhân của học sinh theo Chính sách xử lý dữ liệu cá nhân bên dưới.</p>
+
+      <a href="#" class="text-sm text-brand-600 underline block mb-6">Xem Chính sách xử lý dữ liệu cá nhân (phiên bản 2026-09)</a>
+
+      <div class="flex gap-3">
+        <button class="flex-1 border border-gray-300 rounded-lg py-3 text-sm font-semibold bg-white">Từ chối</button>
+        <button class="flex-1 bg-brand-600 text-white rounded-lg py-3 text-sm font-semibold">Đồng ý</button>
+      </div>
+
+      <p class="text-xs text-gray-400 mt-4 text-center">Liên kết này chỉ dành riêng cho phụ huynh/người giám hộ của học sinh nêu trên và có hiệu lực trong 72 giờ kể từ khi gửi.</p>
+    </div>
+  </main>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- Biến thể: đã xác nhận thành công -->
+  <p class="text-center text-xs font-semibold text-gray-400">BIẾN THỂ — ĐÃ XÁC NHẬN THÀNH CÔNG (AC4)</p>
+  <main class="max-w-md mx-auto px-4 py-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-emerald-200 p-6 text-center">
+      <div class="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4 text-3xl text-emerald-600">✔</div>
+      <h1 class="text-lg font-bold mb-2">Cảm ơn bạn đã xác nhận</h1>
+      <p class="text-sm text-gray-500 mb-4">Bạn đã đồng ý cho Nguyễn Minh A** sử dụng VitaminVui. Con của bạn có thể mua khóa học ngay bây giờ.</p>
+      <button class="text-xs text-gray-400 underline">Đổi ý? Rút lại đồng ý</button>
+    </div>
+  </main>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- Modal: rút lại đồng ý -->
+  <p class="text-center text-xs font-semibold text-gray-400">ANNOTATION — MODAL RÚT LẠI ĐỒNG Ý</p>
+  <main class="max-w-md mx-auto px-4 py-6">
+    <div class="bg-white rounded-2xl shadow-lg border border-rose-200 p-5">
+      <h3 class="font-bold text-rose-700 mb-1">Rút lại đồng ý?</h3>
+      <p class="text-sm text-gray-600 mb-4">Sau khi rút lại, con em bạn sẽ KHÔNG thể mua khóa học mới hoặc đăng ký khóa học miễn phí cho tới khi có xác nhận đồng ý lại. Các khóa học đã mua trước đó không bị ảnh hưởng.</p>
+      <div class="flex gap-2">
+        <button class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium">Huỷ</button>
+        <button class="flex-1 bg-rose-600 text-white rounded-lg py-2 text-sm font-semibold">Rút lại đồng ý</button>
+      </div>
+    </div>
+  </main>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- Biến thể: hết hạn / đã dùng -->
+  <p class="text-center text-xs font-semibold text-gray-400">BIẾN THỂ — LIÊN KẾT ĐÃ HẾT HẠN HOẶC ĐÃ ĐƯỢC SỬ DỤNG (AC5)</p>
+  <main class="max-w-md mx-auto px-4 py-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-amber-200 p-6 text-center">
+      <div class="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4 text-3xl text-amber-600">⏱</div>
+      <h1 class="text-lg font-bold mb-2">Liên kết không còn hiệu lực</h1>
+      <p class="text-sm text-gray-500">Liên kết xác nhận này đã hết hạn hoặc đã được sử dụng trước đó. Vui lòng nhờ con em bạn gửi lại email xác nhận mới từ tài khoản VitaminVui của mình.</p>
+    </div>
+  </main>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- Biến thể: đã từ chối -->
+  <p class="text-center text-xs font-semibold text-gray-400">BIẾN THỂ — ĐÃ TỪ CHỐI <span class="ml-1 inline-block text-[11px] font-medium text-amber-700 bg-amber-100 rounded px-1.5 py-0.5 align-middle">⚠ Chờ PO xác nhận có giữ nút "Từ chối" không</span></p>
+  <main class="max-w-md mx-auto px-4 py-6 pb-16">
+    <div class="bg-white rounded-2xl shadow-sm border border-sky-200 p-6 text-center">
+      <div class="w-14 h-14 rounded-full bg-sky-50 flex items-center justify-center mx-auto mb-4 text-3xl text-sky-600">ℹ</div>
+      <h1 class="text-lg font-bold mb-2">Đã ghi nhận phản hồi của bạn</h1>
+      <p class="text-sm text-gray-500 mb-4">Chúng tôi đã ghi nhận bạn chưa đồng ý. Con em bạn sẽ không thể mua khóa học cho tới khi có xác nhận đồng ý.</p>
+      <button class="text-sm text-brand-600 underline">Đổi ý, xác nhận đồng ý</button>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đăng nhập quản trị / MFA / Quản lý tài khoản staff — VitaminVui Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+
+  <!-- ============ PHẦN A: ĐĂNG NHẬP QUẢN TRỊ ============ -->
+  <p class="text-center text-xs font-semibold text-gray-400 pt-6">admin.vitaminvui.vn/dang-nhap</p>
+  <main class="max-w-md mx-auto px-4 py-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div class="flex items-center gap-2 mb-6">
+        <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+        <span class="font-bold text-brand-600">Quản trị VitaminVui</span>
+      </div>
+      <h1 class="text-xl font-bold mb-1">Đăng nhập quản trị</h1>
+      <p class="text-sm text-gray-500 mb-6">Dành cho Admin, Quản lý trang, Giáo viên.</p>
+
+      <form class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Email <span class="text-rose-600">*</span></label>
+          <input type="email" value="admin@vitaminvui.vn" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-600">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Mật khẩu <span class="text-rose-600">*</span></label>
+          <input type="password" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-600">
+        </div>
+        <button type="button" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg py-3 text-base transition">Đăng nhập</button>
+        <p class="text-center text-xs text-gray-400">Quên mật khẩu? Liên hệ Admin để được đặt lại.</p>
+      </form>
+    </div>
+
+    <div class="mt-4 bg-white rounded-2xl shadow-sm border border-rose-200 p-4">
+      <p class="text-xs font-semibold text-gray-500 mb-2">TRẠNG THÁI: SAI CỔNG (học sinh đăng nhập nhầm admin)</p>
+      <div class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700">Vui lòng đăng nhập tại trang dành cho bạn.</div>
+    </div>
+  </main>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- ============ PHẦN A2: MFA (Admin/QLT) ============ -->
+  <p class="text-center text-xs font-semibold text-gray-400">Màn MFA — chỉ Admin/Quản lý trang</p>
+  <main class="max-w-md mx-auto px-4 py-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
+      <div class="w-14 h-14 rounded-full bg-brand-50 flex items-center justify-center mx-auto mb-4 text-2xl">🛡️</div>
+      <h1 class="text-xl font-bold mb-1">Xác thực 2 lớp</h1>
+      <p class="text-sm text-gray-500 mb-6">Vì tài khoản của bạn có quyền truy cập dữ liệu học sinh, chúng tôi đã gửi mã xác nhận tới email ad***@vitaminvui.vn.</p>
+      <div class="flex justify-center gap-2 mb-4">
+        <input maxlength="1" value="7" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600">
+        <input maxlength="1" value="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600">
+        <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600">
+        <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600">
+        <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600">
+        <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-600">
+      </div>
+      <div class="flex items-center justify-between text-sm mb-4">
+        <span class="text-gray-400">Mã hết hạn sau 09:12</span>
+        <button disabled class="text-gray-400 cursor-not-allowed">Gửi lại mã (52s)</button>
+      </div>
+      <button class="w-full bg-brand-600 text-white font-semibold rounded-lg py-3">Xác nhận</button>
+      <p class="text-xs text-gray-400 mt-3">Đăng nhập bằng tài khoản khác</p>
+    </div>
+  </main>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- ============ PHẦN A3: BUỘC ĐỔI MẬT KHẨU LẦN ĐẦU ============ -->
+  <p class="text-center text-xs font-semibold text-gray-400">Màn buộc đổi mật khẩu lần đầu (must_change_password = true)</p>
+  <main class="max-w-md mx-auto px-4 py-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-amber-200 p-6">
+      <h1 class="text-xl font-bold mb-1">Đổi mật khẩu để tiếp tục</h1>
+      <p class="text-sm text-gray-500 mb-6">Đây là lần đăng nhập đầu tiên (hoặc mật khẩu của bạn vừa được Admin đặt lại). Vui lòng đặt mật khẩu mới trước khi sử dụng hệ thống.</p>
+      <form class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Mật khẩu mới <span class="text-rose-600">*</span></label>
+          <input type="password" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-600">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Xác nhận mật khẩu mới <span class="text-rose-600">*</span></label>
+          <input type="password" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-600">
+        </div>
+        <button type="button" class="w-full bg-brand-600 text-white font-semibold rounded-lg py-3">Đặt mật khẩu mới và tiếp tục</button>
+      </form>
+    </div>
+  </main>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- ============ PHẦN B: DANH SÁCH TÀI KHOẢN STAFF ============ -->
+  <div class="flex">
+    <aside class="hidden lg:flex flex-col w-60 bg-white border-r border-gray-200 min-h-screen p-4 shrink-0">
+      <div class="flex items-center gap-2 mb-8 px-2">
+        <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+        <span class="font-bold text-brand-600">Quản trị</span>
+      </div>
+      <nav class="space-y-1 text-sm">
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">📘 Khóa học</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🧾 Đơn hàng</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-50 text-brand-700 font-semibold">👤 Tài khoản staff</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">📜 Nhật ký thao tác</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 p-4 lg:p-6">
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h1 class="text-xl font-bold">Tài khoản staff</h1>
+        <button class="bg-brand-600 text-white font-semibold rounded-lg px-4 py-2 text-sm">+ Tạo tài khoản</button>
+      </div>
+
+      <div class="flex flex-wrap gap-2 mb-4">
+        <select class="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
+          <option>Tất cả vai trò</option><option>Admin</option><option>Quản lý trang</option><option>Giáo viên</option>
+        </select>
+        <select class="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
+          <option>Tất cả trạng thái</option><option>Đang hoạt động</option><option>Đã khóa</option>
+        </select>
+        <input type="text" placeholder="Tìm theo tên / email" class="rounded-lg border border-gray-300 px-3 py-2 text-sm flex-1 min-w-[200px]">
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="text-left px-4 py-3">Họ tên</th>
+              <th class="text-left px-4 py-3">Email</th>
+              <th class="text-left px-4 py-3">Vai trò</th>
+              <th class="text-left px-4 py-3">Trạng thái</th>
+              <th class="text-left px-4 py-3">Đăng nhập gần nhất</th>
+              <th class="text-right px-4 py-3">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr>
+              <td class="px-4 py-3 font-medium">Nguyễn Văn Admin (bạn)</td>
+              <td class="px-4 py-3">admin@vitaminvui.vn</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-indigo-700 bg-indigo-100 rounded px-2 py-0.5">Admin</span></td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded px-2 py-0.5">Đang hoạt động</span></td>
+              <td class="px-4 py-3 text-gray-500">Hôm nay 08:15</td>
+              <td class="px-4 py-3 text-right">
+                <button disabled title="Không thể tự khóa tài khoản của chính mình" class="text-gray-300 font-medium cursor-not-allowed mr-3">Khóa</button>
+                <button class="text-brand-600 font-medium">Đặt lại mật khẩu</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Trần Thị Quản Lý</td>
+              <td class="px-4 py-3">qlt.tran@vitaminvui.vn</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-sky-700 bg-sky-100 rounded px-2 py-0.5">Quản lý trang</span></td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded px-2 py-0.5">Đang hoạt động</span></td>
+              <td class="px-4 py-3 text-gray-500">Hôm qua 21:40</td>
+              <td class="px-4 py-3 text-right">
+                <button class="text-rose-600 font-medium mr-3">Khóa</button>
+                <button class="text-brand-600 font-medium">Đặt lại mật khẩu</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Lê Văn Hùng</td>
+              <td class="px-4 py-3">hung.le@vitaminvui.vn</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-gray-600 bg-gray-100 rounded px-2 py-0.5">Giáo viên</span></td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-gray-500 bg-gray-100 rounded px-2 py-0.5">Đã khóa</span></td>
+              <td class="px-4 py-3 text-gray-500">20/09/2026 09:02</td>
+              <td class="px-4 py-3 text-right">
+                <button class="text-emerald-600 font-medium mr-3">Mở khóa</button>
+                <button class="text-brand-600 font-medium">Đặt lại mật khẩu</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Modal: Tạo tài khoản staff -->
+      <div class="mt-10 max-w-md">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — MODAL TẠO TÀI KHOẢN STAFF</p>
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-5">
+          <h3 class="font-bold mb-4">Tạo tài khoản staff mới</h3>
+          <div class="space-y-3 text-sm">
+            <div>
+              <label class="block font-medium mb-1">Họ và tên <span class="text-rose-600">*</span></label>
+              <input class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" value="Phạm Thị Mai">
+            </div>
+            <div>
+              <label class="block font-medium mb-1">Email <span class="text-rose-600">*</span></label>
+              <input class="w-full rounded-lg border border-rose-400 px-3 py-2 text-sm" value="hung.le@vitaminvui.vn">
+              <p class="text-xs text-rose-600 mt-1">Email đã được sử dụng</p>
+            </div>
+            <div>
+              <label class="block font-medium mb-1">Vai trò <span class="text-rose-600">*</span></label>
+              <select class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
+                <option>Giáo viên</option><option>Quản lý trang</option><option>Admin</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-5">
+            <button class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium">Huỷ</button>
+            <button class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Tạo tài khoản</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal: Mật khẩu khởi tạo (chỉ hiện 1 lần) -->
+      <div class="mt-6 max-w-md">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — MẬT KHẨU KHỞI TẠO (CHỈ HIỆN 1 LẦN)</p>
+        <div class="bg-white rounded-2xl shadow-lg border border-amber-200 p-5">
+          <h3 class="font-bold mb-1">Đã tạo tài khoản cho Phạm Thị Mai</h3>
+          <p class="text-sm text-gray-500 mb-4">Mật khẩu khởi tạo bên dưới chỉ hiển thị 1 lần.</p>
+          <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-3">
+            <code class="flex-1 font-mono text-sm">xK9!mQ2pLr7@vT4w</code>
+            <button class="text-brand-600 text-xs font-semibold">Sao chép</button>
+          </div>
+          <div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 mb-4">
+            Vui lòng gửi cho Phạm Thị Mai qua kênh an toàn và yêu cầu đổi mật khẩu ngay khi đăng nhập lần đầu.
+          </div>
+          <button class="w-full bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Đã sao chép, đóng</button>
+        </div>
+      </div>
+
+      <!-- Modal xác nhận khóa -->
+      <div class="mt-6 max-w-md">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — MODAL XÁC NHẬN KHÓA TÀI KHOẢN</p>
+        <div class="bg-white rounded-2xl shadow-lg border border-rose-200 p-5">
+          <h3 class="font-bold text-rose-700 mb-1">Khóa tài khoản Trần Thị Quản Lý?</h3>
+          <p class="text-sm text-gray-600 mb-4">Tài khoản này sẽ không đăng nhập được và bị từ chối truy cập ngay ở lượt thao tác tiếp theo (nếu đang có phiên hoạt động), cho tới khi được mở khóa lại.</p>
+          <div class="flex gap-2">
+            <button class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium">Huỷ</button>
+            <button class="flex-1 bg-rose-600 text-white rounded-lg py-2 text-sm font-semibold">Khóa tài khoản</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chặn khóa Admin cuối cùng -->
+      <div class="mt-6 max-w-md">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — CHẶN KHÓA ADMIN ĐANG HOẠT ĐỘNG CUỐI CÙNG (AC5)</p>
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-5">
+          <h3 class="font-bold mb-1">Khóa tài khoản Nguyễn Văn Admin?</h3>
+          <div class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700 mb-4">
+            Không thể khóa vì đây là tài khoản Admin đang hoạt động duy nhất.
+          </div>
+          <button class="w-full border border-gray-300 rounded-lg py-2 text-sm font-medium">Đóng</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <hr class="my-10 border-gray-200">
+
+  <!-- ============ /quan-tri/nhat-ky — AUDIT LOG ============ -->
+  <div class="flex">
+    <aside class="hidden lg:flex flex-col w-60 bg-white border-r border-gray-200 min-h-screen p-4 shrink-0">
+      <div class="flex items-center gap-2 mb-8 px-2">
+        <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+        <span class="font-bold text-brand-600">Quản trị</span>
+      </div>
+      <nav class="space-y-1 text-sm">
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">📘 Khóa học</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🧾 Đơn hàng</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">👤 Tài khoản staff</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-50 text-brand-700 font-semibold">📜 Nhật ký thao tác</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 p-4 lg:p-6">
+      <h1 class="text-xl font-bold mb-4">Nhật ký thao tác</h1>
+
+      <div class="flex flex-wrap gap-2 mb-4">
+        <input type="date" value="2026-09-18" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        <span class="self-center text-gray-400 text-sm">đến</span>
+        <input type="date" value="2026-09-25" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        <select class="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white">
+          <option>Tất cả hành động</option><option>Đăng nhập</option><option>Khóa/Mở khóa tài khoản</option><option>Tạo tài khoản</option><option>Xuất file</option><option>Hoàn tiền</option>
+        </select>
+        <input type="text" placeholder="Tìm theo người thực hiện" class="rounded-lg border border-gray-300 px-3 py-2 text-sm flex-1 min-w-[200px]">
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="text-left px-4 py-3">Thời điểm</th>
+              <th class="text-left px-4 py-3">Người thực hiện</th>
+              <th class="text-left px-4 py-3">Hành động</th>
+              <th class="text-left px-4 py-3">Đối tượng</th>
+              <th class="text-left px-4 py-3">IP</th>
+              <th class="text-left px-4 py-3">Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr>
+              <td class="px-4 py-3 text-gray-500">25/09/2026 08:15</td>
+              <td class="px-4 py-3">Nguyễn Văn Admin</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold bg-gray-100 rounded px-2 py-0.5">staff.login</span></td>
+              <td class="px-4 py-3 text-gray-500">—</td>
+              <td class="px-4 py-3 text-gray-500 font-mono text-xs">118.70.x.x</td>
+              <td class="px-4 py-3 text-gray-400">—</td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-gray-500">24/09/2026 21:40</td>
+              <td class="px-4 py-3">Nguyễn Văn Admin</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold bg-gray-100 rounded px-2 py-0.5">user.lock</span></td>
+              <td class="px-4 py-3">Staff · Lê Văn Hùng</td>
+              <td class="px-4 py-3 text-gray-500 font-mono text-xs">118.70.x.x</td>
+              <td class="px-4 py-3 text-gray-400">—</td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 text-gray-500">24/09/2026 09:05</td>
+              <td class="px-4 py-3">Nguyễn Văn Admin</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold bg-gray-100 rounded px-2 py-0.5">order.export</span></td>
+              <td class="px-4 py-3">Export #4821</td>
+              <td class="px-4 py-3 text-gray-500 font-mono text-xs">118.70.x.x</td>
+              <td class="px-4 py-3 text-gray-400">kèm liên hệ · lý do: đối chiếu công nợ</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-[11px] text-gray-400 mt-2">Chỉ xem — không có API/nút sửa hoặc xoá bản ghi nhật ký (BR8).</p>
+    </main>
+  </div>
+</body>
+</html>

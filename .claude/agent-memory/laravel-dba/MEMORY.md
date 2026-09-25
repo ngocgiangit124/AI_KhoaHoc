@@ -1,0 +1,2 @@
+- [VitaminVui dùng MySQL, không phải SQL Server](project_vitaminvui_stack.md) — điều chỉnh mọi đề xuất DBA theo MySQL 8/InnoDB cho dự án này
+- [Pattern MySQL đã review trong VitaminVui](mysql_vitaminvui_patterns.md) — bảng lớn, generated-column-unique, isolation level, thứ tự khoá, collation

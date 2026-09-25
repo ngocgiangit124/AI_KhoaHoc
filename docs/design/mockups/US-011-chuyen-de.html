@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản trị — Chuyên đề</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+  <div class="flex">
+    <aside class="hidden lg:flex flex-col w-60 bg-white border-r border-gray-200 min-h-screen p-4 shrink-0">
+      <div class="flex items-center gap-2 mb-8 px-2">
+        <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+        <span class="font-bold text-brand-600">Quản trị</span>
+      </div>
+      <nav class="space-y-1 text-sm">
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">📘 Khóa học</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-50 text-brand-700 font-semibold">🏷 Chuyên đề</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🧾 Đơn hàng</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🎟 Mã giảm giá</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">✅ Duyệt đăng ký</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 p-4 lg:p-6 max-w-3xl">
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-xl font-bold">Quản lý chuyên đề</h1>
+        <button class="bg-brand-600 text-white font-semibold rounded-lg px-4 py-2 text-sm">+ Tạo chuyên đề</button>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="text-left px-4 py-3">Tên chuyên đề</th>
+              <th class="text-left px-4 py-3">Số khóa học đang gán</th>
+              <th class="text-left px-4 py-3">Trạng thái</th>
+              <th class="text-right px-4 py-3">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr>
+              <td class="px-4 py-3 font-medium">Đại số</td>
+              <td class="px-4 py-3">18</td>
+              <td class="px-4 py-3">
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                  <span class="w-9 h-5 bg-brand-600 rounded-full relative"><span class="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full"></span></span>
+                  <span class="text-xs text-emerald-700 font-medium">Active</span>
+                </label>
+              </td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <button class="text-brand-600 font-medium">Sửa</button>
+                <button class="text-gray-300 font-medium cursor-not-allowed" title="Đang gán 18 khóa học">Xoá</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Hình học</td>
+              <td class="px-4 py-3">22</td>
+              <td class="px-4 py-3">
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                  <span class="w-9 h-5 bg-brand-600 rounded-full relative"><span class="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full"></span></span>
+                  <span class="text-xs text-emerald-700 font-medium">Active</span>
+                </label>
+              </td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <button class="text-brand-600 font-medium">Sửa</button>
+                <button class="text-gray-300 font-medium cursor-not-allowed">Xoá</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium text-gray-400">Số học (đã ẩn)</td>
+              <td class="px-4 py-3 text-gray-400">3</td>
+              <td class="px-4 py-3">
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                  <span class="w-9 h-5 bg-gray-300 rounded-full relative"><span class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full"></span></span>
+                  <span class="text-xs text-gray-500 font-medium">Ẩn</span>
+                </label>
+              </td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <button class="text-brand-600 font-medium">Sửa</button>
+                <button class="text-gray-300 font-medium cursor-not-allowed">Xoá</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium">Xác suất thống kê</td>
+              <td class="px-4 py-3">0</td>
+              <td class="px-4 py-3">
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                  <span class="w-9 h-5 bg-brand-600 rounded-full relative"><span class="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full"></span></span>
+                  <span class="text-xs text-emerald-700 font-medium">Active</span>
+                </label>
+              </td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <button class="text-brand-600 font-medium">Sửa</button>
+                <button class="text-rose-600 font-medium">Xoá</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Modal tạo/sửa -->
+      <div class="mt-8 max-w-sm">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — MODAL TẠO/SỬA CHUYÊN ĐỀ</p>
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-5">
+          <h3 class="font-bold mb-4">Tạo chuyên đề mới</h3>
+          <label class="block text-sm font-medium mb-1">Tên chuyên đề <span class="text-rose-600">*</span></label>
+          <input value="Đại số" class="w-full rounded-lg border border-rose-400 px-3 py-2 text-sm">
+          <p class="text-sm text-rose-600 mt-1 mb-3">Chuyên đề đã tồn tại</p>
+          <div class="flex gap-2 mt-2">
+            <button class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium">Huỷ</button>
+            <button class="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold">Lưu</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chặn xoá -->
+      <div class="mt-6 max-w-sm">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — CHẶN XOÁ, GỢI Ý ẨN (AC3)</p>
+        <div class="bg-white rounded-2xl shadow-lg border border-amber-200 p-5">
+          <h3 class="font-bold mb-1">Không thể xoá</h3>
+          <p class="text-sm text-gray-600 mb-4">Chuyên đề này đang được gán cho 18 khóa học nên không thể xoá. Bạn có thể chuyển sang trạng thái Ẩn thay thế.</p>
+          <div class="flex gap-2">
+            <button class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium">Đã hiểu</button>
+            <button class="flex-1 bg-amber-500 text-white rounded-lg py-2 text-sm font-semibold">Ẩn chuyên đề này</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Khóa học Toán lớp 9 — VitaminVui</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen pb-20">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold shrink-0">V</div>
+      <span class="font-bold text-brand-600 hidden sm:block shrink-0">VitaminVui</span>
+      <div class="flex-1 relative">
+        <input type="text" placeholder="Tìm khóa học, ví dụ: hình học lớp 9" class="w-full rounded-full border border-gray-300 pl-4 pr-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600">
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+      </div>
+      <button class="relative shrink-0">
+        <span class="text-xl">🛒</span>
+        <span class="absolute -top-1 -right-1 bg-rose-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">2</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-4">
+    <!-- Breadcrumb + H1 SEO cho trang /lop-9 -->
+    <nav class="text-xs text-gray-500 mb-2">Trang chủ / Lớp 9</nav>
+    <h1 class="text-2xl font-bold mb-1">Khóa học Toán lớp 9</h1>
+    <p class="text-sm text-gray-500 mb-4">Tổng hợp các khóa học Toán lớp 9 bám sát chương trình SGK và ôn thi vào lớp 10, giúp học sinh nắm chắc kiến thức Đại số, Hình học.</p>
+
+    <!-- Chip lớp (cuộn ngang, mobile) -->
+    <div class="flex gap-2 overflow-x-auto pb-2 mb-3 lg:hidden">
+      <button class="shrink-0 px-4 py-1.5 rounded-full text-sm border border-gray-300 bg-white">Lớp 6</button>
+      <button class="shrink-0 px-4 py-1.5 rounded-full text-sm border border-gray-300 bg-white">Lớp 7</button>
+      <button class="shrink-0 px-4 py-1.5 rounded-full text-sm border border-gray-300 bg-white">Lớp 8</button>
+      <button class="shrink-0 px-4 py-1.5 rounded-full text-sm bg-brand-600 text-white font-medium">Lớp 9</button>
+      <button class="shrink-0 px-4 py-1.5 rounded-full text-sm border border-gray-300 bg-white">Lớp 10</button>
+      <button class="shrink-0 px-4 py-1.5 rounded-full text-sm border border-gray-300 bg-white">Lớp 11</button>
+      <button class="shrink-0 px-4 py-1.5 rounded-full text-sm border border-gray-300 bg-white">Lớp 12</button>
+    </div>
+
+    <div class="flex gap-2 mb-4 lg:hidden">
+      <button class="flex-1 border border-gray-300 bg-white rounded-lg py-2 text-sm font-medium">⚙ Bộ lọc</button>
+      <select class="flex-1 border border-gray-300 bg-white rounded-lg py-2 text-sm px-2">
+        <option>Mới nhất</option>
+        <option>Phổ biến nhất</option>
+        <option>Nổi bật</option>
+      </select>
+    </div>
+
+    <div class="grid lg:grid-cols-[240px_1fr] gap-6">
+      <!-- Sidebar desktop -->
+      <aside class="hidden lg:block">
+        <div class="bg-white rounded-xl border border-gray-100 p-4 mb-4">
+          <h3 class="font-semibold text-sm mb-3">Chuyên đề</h3>
+          <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" checked class="rounded text-brand-600"> Đại số</label>
+          <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" class="rounded text-brand-600"> Hình học</label>
+          <label class="flex items-center gap-2 text-sm mb-2"><input type="checkbox" class="rounded text-brand-600"> Ôn thi vào 10</label>
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" class="rounded text-brand-600"> Số học</label>
+        </div>
+        <button class="text-sm text-brand-600 font-medium">Xoá bộ lọc</button>
+      </aside>
+
+      <div>
+        <div class="hidden lg:flex justify-between items-center mb-4">
+          <p class="text-sm text-gray-500">Tìm thấy 42 khóa học</p>
+          <select class="border border-gray-300 bg-white rounded-lg py-2 text-sm px-3">
+            <option>Sắp xếp: Mới nhất</option>
+            <option>Phổ biến nhất</option>
+            <option>Nổi bật</option>
+          </select>
+        </div>
+
+        <!-- Lưới khóa học -->
+        <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
+          <!-- Course card -->
+          <div class="bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition">
+            <div class="aspect-video bg-gradient-to-br from-indigo-400 to-indigo-600 relative">
+              <span class="absolute top-2 left-2 bg-white/90 text-xs font-semibold px-2 py-0.5 rounded">Lớp 9</span>
+            </div>
+            <div class="p-3">
+              <span class="inline-block text-[11px] text-brand-600 bg-brand-50 rounded px-1.5 py-0.5 mb-1">Hình học</span>
+              <h3 class="font-semibold text-sm leading-snug mb-1">Hình học nâng cao lớp 9 — Ôn thi vào 10</h3>
+              <p class="text-xs text-gray-500 mb-2">1.240 học sinh đã đăng ký</p>
+              <p class="font-bold text-brand-600">590.000đ</p>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition">
+            <div class="aspect-video bg-gradient-to-br from-emerald-400 to-emerald-600 relative">
+              <span class="absolute top-2 left-2 bg-white/90 text-xs font-semibold px-2 py-0.5 rounded">Lớp 9</span>
+              <span class="absolute top-2 right-2 bg-amber-500 text-white text-xs font-semibold px-2 py-0.5 rounded">Miễn phí</span>
+            </div>
+            <div class="p-3">
+              <span class="inline-block text-[11px] text-brand-600 bg-brand-50 rounded px-1.5 py-0.5 mb-1">Đại số</span>
+              <h3 class="font-semibold text-sm leading-snug mb-1">Khởi động Đại số lớp 9 cơ bản</h3>
+              <p class="text-xs text-gray-500 mb-2">Chưa có học sinh đăng ký</p>
+              <p class="font-bold text-emerald-600">Miễn phí</p>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition">
+            <div class="aspect-video bg-gradient-to-br from-sky-400 to-sky-600 relative">
+              <span class="absolute top-2 left-2 bg-white/90 text-xs font-semibold px-2 py-0.5 rounded">Lớp 9</span>
+            </div>
+            <div class="p-3">
+              <span class="inline-block text-[11px] text-brand-600 bg-brand-50 rounded px-1.5 py-0.5 mb-1">Ôn thi vào 10</span>
+              <h3 class="font-semibold text-sm leading-snug mb-1">Luyện đề thi vào lớp 10 — Toàn diện</h3>
+              <p class="text-xs text-gray-500 mb-2">856 học sinh đã đăng ký</p>
+              <p class="font-bold text-brand-600">790.000đ</p>
+            </div>
+          </div>
+
+          <!-- Skeleton loading card -->
+          <div class="bg-white rounded-xl border border-gray-100 overflow-hidden animate-pulse">
+            <div class="aspect-video bg-gray-200"></div>
+            <div class="p-3 space-y-2">
+              <div class="h-3 bg-gray-200 rounded w-1/3"></div>
+              <div class="h-4 bg-gray-200 rounded w-full"></div>
+              <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex justify-center gap-1 mt-6">
+          <button class="w-9 h-9 rounded-lg border border-gray-300 bg-white text-sm">‹</button>
+          <button class="w-9 h-9 rounded-lg bg-brand-600 text-white text-sm font-medium">1</button>
+          <button class="w-9 h-9 rounded-lg border border-gray-300 bg-white text-sm">2</button>
+          <button class="w-9 h-9 rounded-lg border border-gray-300 bg-white text-sm">3</button>
+          <button class="w-9 h-9 rounded-lg border border-gray-300 bg-white text-sm">›</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trạng thái rỗng do lọc không khớp -->
+    <div class="mt-10 bg-white rounded-xl border border-gray-100 p-10 text-center">
+      <p class="text-xs font-semibold text-gray-400 mb-4">ANNOTATION — TRẠNG THÁI: KHÔNG KHỚP BỘ LỌC (AC3)</p>
+      <div class="text-4xl mb-3">🔍</div>
+      <h3 class="font-semibold text-lg mb-1">Không tìm thấy khóa học phù hợp</h3>
+      <p class="text-sm text-gray-500 mb-4">Hãy thử bỏ bớt điều kiện lọc để xem thêm khóa học.</p>
+      <button class="text-brand-600 font-medium text-sm border border-brand-600 rounded-lg px-4 py-2">Xoá bộ lọc</button>
+    </div>
+
+    <!-- Trạng thái rỗng toàn hệ thống -->
+    <div class="mt-6 bg-white rounded-xl border border-gray-100 p-10 text-center">
+      <p class="text-xs font-semibold text-gray-400 mb-4">ANNOTATION — TRẠNG THÁI: CHƯA CÓ KHÓA HỌC NÀO PUBLISHED</p>
+      <div class="text-4xl mb-3">📚</div>
+      <h3 class="font-semibold text-lg mb-1">Chưa có khóa học nào</h3>
+      <p class="text-sm text-gray-500">Quay lại sau nhé, chúng tôi đang chuẩn bị nội dung mới!</p>
+    </div>
+  </main>
+
+  <!-- Bottom nav mobile -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around py-2 lg:hidden">
+    <a class="flex flex-col items-center text-xs text-gray-400"><span class="text-lg">🏠</span>Trang chủ</a>
+    <a class="flex flex-col items-center text-xs text-brand-600 font-medium"><span class="text-lg">📚</span>Danh mục</a>
+    <a class="flex flex-col items-center text-xs text-gray-400"><span class="text-lg">🛒</span>Giỏ hàng</a>
+    <a class="flex flex-col items-center text-xs text-gray-400"><span class="text-lg">🎓</span>Của tôi</a>
+    <a class="flex flex-col items-center text-xs text-gray-400"><span class="text-lg">👤</span>Tài khoản</a>
+  </nav>
+</body>
+</html>

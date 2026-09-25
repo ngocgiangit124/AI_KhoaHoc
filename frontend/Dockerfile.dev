@@ -1,0 +1,15 @@
+# Ảnh dev dùng cho `docker compose` (apps/web, apps/admin) và cho các lệnh pnpm
+# một lần (install/build/lint/test) qua scripts/pnpm.sh.
+# Không dùng để build production image — FE0 chỉ cần môi trường chạy local.
+FROM node:22-bookworm-slim
+
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+WORKDIR /workspace
+
+# UID/GID được ghi đè lúc build hoặc lúc chạy (xem scripts/pnpm.sh và docker-compose.yml)
+# để file tạo ra trên WSL2 thuộc về user hiện tại, không phải root.
+ENV PNPM_HOME=/workspace/.pnpm-store
+ENV PATH="$PNPM_HOME:$PATH"
+
+CMD ["sh"]

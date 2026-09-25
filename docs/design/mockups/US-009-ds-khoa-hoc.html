@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản trị — Khóa học</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+  <div class="flex">
+    <!-- Sidebar -->
+    <aside class="hidden lg:flex flex-col w-60 bg-white border-r border-gray-200 min-h-screen p-4 shrink-0">
+      <div class="flex items-center gap-2 mb-8 px-2">
+        <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+        <span class="font-bold text-brand-600">Quản trị</span>
+      </div>
+      <nav class="space-y-1 text-sm">
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-50 text-brand-700 font-semibold">📘 Khóa học</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🏷 Chuyên đề</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🧾 Đơn hàng</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">🎟 Mã giảm giá</a>
+        <a class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50">✅ Duyệt đăng ký</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 p-4 lg:p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-xl font-bold">Quản lý khóa học</h1>
+        <button class="bg-brand-600 text-white font-semibold rounded-lg px-4 py-2 text-sm">+ Tạo khóa học mới</button>
+      </div>
+
+      <div class="flex flex-wrap gap-2 mb-4">
+        <input type="text" placeholder="Tìm theo tên khóa học" class="rounded-lg border border-gray-300 px-3 py-2 text-sm flex-1 min-w-[200px]">
+        <select class="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"><option>Tất cả lớp</option><option>Lớp 9</option></select>
+        <select class="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"><option>Tất cả trạng thái</option><option>Nháp</option><option>Đã xuất bản</option><option>Ngừng bán</option></select>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="text-left px-4 py-3">Khóa học</th>
+              <th class="text-left px-4 py-3">Lớp</th>
+              <th class="text-left px-4 py-3">Giáo viên</th>
+              <th class="text-left px-4 py-3">Giá</th>
+              <th class="text-left px-4 py-3">Trạng thái</th>
+              <th class="text-left px-4 py-3">Học sinh</th>
+              <th class="text-right px-4 py-3">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr>
+              <td class="px-4 py-3 flex items-center gap-2"><div class="w-10 h-7 rounded bg-indigo-500 shrink-0"></div> Hình học nâng cao lớp 9</td>
+              <td class="px-4 py-3">9</td>
+              <td class="px-4 py-3">Thầy Hùng, Cô Hoa</td>
+              <td class="px-4 py-3">590.000đ</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded px-2 py-0.5">Đã xuất bản</span></td>
+              <td class="px-4 py-3">1.240</td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <button class="text-brand-600 font-medium">Sửa</button>
+                <button class="text-amber-600 font-medium">Ngừng bán</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 flex items-center gap-2"><div class="w-10 h-7 rounded bg-emerald-500 shrink-0"></div> Khởi động Đại số lớp 9 cơ bản</td>
+              <td class="px-4 py-3">9</td>
+              <td class="px-4 py-3">Cô Hoa</td>
+              <td class="px-4 py-3">Miễn phí</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-gray-600 bg-gray-100 rounded px-2 py-0.5">Nháp</span></td>
+              <td class="px-4 py-3">0</td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <button class="text-brand-600 font-medium">Sửa</button>
+                <button class="text-emerald-600 font-medium" title="Chặn: chưa có chương/bài">Xuất bản</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 flex items-center gap-2"><div class="w-10 h-7 rounded bg-rose-400 shrink-0"></div> Số học nâng cao lớp 7</td>
+              <td class="px-4 py-3">7</td>
+              <td class="px-4 py-3">Thầy Hùng</td>
+              <td class="px-4 py-3">450.000đ</td>
+              <td class="px-4 py-3"><span class="inline-block text-[11px] font-semibold text-amber-700 bg-amber-100 rounded px-2 py-0.5">Ngừng bán</span></td>
+              <td class="px-4 py-3">312</td>
+              <td class="px-4 py-3 text-right space-x-2">
+                <button class="text-brand-600 font-medium">Sửa</button>
+                <button class="text-gray-300 font-medium cursor-not-allowed" title="Đã có học sinh mua, không thể xoá">Xoá</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Modal xoá -->
+      <div class="mt-8 max-w-sm">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — MODAL XÁC NHẬN XOÁ (chưa có enrollment)</p>
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-5">
+          <h3 class="font-bold mb-1">Xoá khóa học "Đại số cơ bản lớp 6"?</h3>
+          <p class="text-sm text-gray-500 mb-4">Hành động này không thể hoàn tác.</p>
+          <div class="flex gap-2">
+            <button class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium">Huỷ</button>
+            <button class="flex-1 bg-rose-600 text-white rounded-lg py-2 text-sm font-semibold">Xoá</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chặn xuất bản -->
+      <div class="mt-6 max-w-md">
+        <p class="text-xs font-semibold text-gray-400 mb-2">ANNOTATION — CHẶN XUẤT BẢN (AC3)</p>
+        <div class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700">
+          Khóa học cần có ít nhất 1 chương và 1 bài học để xuất bản.
+        </div>
+      </div>
+
+      <!-- Rỗng cho giáo viên -->
+      <div class="mt-6 max-w-md bg-white rounded-xl border border-gray-100 p-8 text-center">
+        <p class="text-xs font-semibold text-gray-400 mb-3">ANNOTATION — GIÁO VIÊN CHƯA PHỤ TRÁCH KHÓA HỌC NÀO</p>
+        <div class="text-3xl mb-2">📘</div>
+        <p class="font-semibold mb-1">Bạn chưa phụ trách khóa học nào</p>
+        <button class="text-brand-600 text-sm font-medium mt-2">Tạo khóa học mới</button>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

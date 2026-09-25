@@ -1,0 +1,2 @@
+- [Stack: Laravel 13 + MySQL 8.4 + 2 Next.js apps](project_stack_mysql_nextjs.md) — CLAUDE.md is truth; ignore SQL Server/Blade in agent templates/design names
+- [MVP architecture & key decisions](project_mvp_architecture.md) — docs/architecture + ADR-001..004 (Accepted after review); check README §8 "Chờ PO" + US-015..018 first

@@ -1,0 +1,59 @@
+import { clearCsrfToken, getCsrfToken } from "./csrfToken";
+import { getDeviceId } from "./deviceId";
+import { dispatchAuthEventIfNeeded, ApiError } from "./errors";
+import { doFetch, parseJsonResponse } from "./http";
+
+const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+export type AuthFetchOptions = Omit<RequestInit, "cache" | "credentials">;
+
+/**
+ * Gọi endpoint cần đăng nhập: `credentials: 'include'`, `cache: 'no-store'` luôn luôn
+ * (ADR-004 §2.5, S16 — không bao giờ cache dữ liệu theo người dùng), tự gắn
+ * `X-Device-Id`, tự gắn `X-CSRF-TOKEN` cho method thay đổi dữ liệu, tự thử lại 1 lần khi
+ * gặp 419 (CSRF hết hạn — api-contract §1.2). Khi lỗi có `code` khớp mã mất phiên, phát
+ * sự kiện `forced-logout`/`login-required` để `ForcedLogoutOverlay` xử lý.
+ *
+ * Trang cần đăng nhập ở Server Component phải đặt `export const dynamic = 'force-dynamic'`
+ * và gọi qua wrapper `server-only` của app (forward cookie thủ công) — `authFetch` của
+ * package này không tự đọc cookie server, chỉ set `credentials: 'include'` cho trình duyệt.
+ */
+export async function authFetch<T>(
+  baseUrl: string,
+  path: string,
+  options: AuthFetchOptions = {},
+  _internal: { retriedAfter419?: boolean } = {},
+): Promise<T> {
+  const method = (options.method ?? "GET").toUpperCase();
+  const needsCsrf = WRITE_METHODS.has(method);
+
+  const headers = new Headers(options.headers);
+  headers.set("Accept", "application/json");
+  if (!headers.has("X-Device-Id")) {
+    headers.set("X-Device-Id", getDeviceId());
+  }
+  if (needsCsrf && !headers.has("X-CSRF-TOKEN")) {
+    headers.set("X-CSRF-TOKEN", await getCsrfToken(baseUrl));
+  }
+
+  const res = await doFetch(`${baseUrl}${path}`, {
+    ...options,
+    headers,
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (res.status === 419 && needsCsrf && !_internal.retriedAfter419) {
+    clearCsrfToken(baseUrl);
+    return authFetch<T>(baseUrl, path, options, { retriedAfter419: true });
+  }
+
+  try {
+    return await parseJsonResponse<T>(res);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      dispatchAuthEventIfNeeded(err.code);
+    }
+    throw err;
+  }
+}

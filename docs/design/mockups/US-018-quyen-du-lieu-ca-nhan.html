@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quyền dữ liệu cá nhân — VitaminVui</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { brand: { 50:'#eef2ff',600:'#4f46e5',700:'#4338ca' } } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen pb-16">
+
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">V</div>
+      <span class="font-bold text-brand-600">VitaminVui</span>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-4 py-6">
+    <!-- Tabs trang tài khoản -->
+    <div class="flex gap-1 border-b border-gray-200 mb-5 text-sm overflow-x-auto">
+      <button class="shrink-0 px-4 py-2 text-gray-500">Hồ sơ</button>
+      <button class="shrink-0 px-4 py-2 text-gray-500">Đơn hàng</button>
+      <button class="shrink-0 px-4 py-2 text-gray-500">Đổi mật khẩu</button>
+      <button class="shrink-0 px-4 py-2 font-semibold text-brand-600 border-b-2 border-brand-600">Quyền dữ liệu cá nhân</button>
+    </div>
+
+    <h1 class="text-xl font-bold mb-4">Quyền dữ liệu cá nhân</h1>
+
+    <!-- Khối 1: trạng thái đồng ý -->
+    <section class="bg-white rounded-xl border border-gray-100 p-5 mb-4">
+      <h2 class="font-semibold mb-3">Trạng thái đồng ý</h2>
+      <div class="space-y-2 text-sm">
+        <div class="flex justify-between items-center">
+          <span>Điều khoản sử dụng</span>
+          <span class="text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded px-2 py-0.5">Đã đồng ý · 12/09/2026</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span>Chính sách xử lý dữ liệu cá nhân</span>
+          <span class="text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded px-2 py-0.5">Đã đồng ý · 12/09/2026</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span>Xác nhận của phụ huynh</span>
+          <span class="text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded px-2 py-0.5">Đã xác nhận</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Khối 2: tải dữ liệu -->
+    <section class="bg-white rounded-xl border border-gray-100 p-5 mb-4">
+      <h2 class="font-semibold mb-2">Tải dữ liệu của tôi</h2>
+      <p class="text-sm text-gray-500 mb-4">Bạn có thể tải toàn bộ dữ liệu cá nhân mà VitaminVui đang lưu về bạn, bao gồm hồ sơ, lịch sử đơn hàng, khóa học đã ghi danh, tiến độ học tập và lịch sử đồng ý.</p>
+      <button class="border border-gray-300 rounded-lg px-4 py-2.5 text-sm font-semibold bg-white">Tải dữ liệu của tôi</button>
+    </section>
+
+    <!-- Annotation: đang tải / thành công / lỗi -->
+    <div class="grid sm:grid-cols-3 gap-3 mb-4">
+      <div class="bg-white rounded-xl border border-gray-100 p-3">
+        <p class="text-[11px] font-semibold text-gray-400 mb-2">ĐANG XỬ LÝ</p>
+        <button disabled class="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-semibold bg-gray-50 text-gray-400 flex items-center justify-center gap-1 cursor-not-allowed">
+          <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+          Đang chuẩn bị dữ liệu...
+        </button>
+      </div>
+      <div class="bg-white rounded-xl border border-emerald-200 p-3">
+        <p class="text-[11px] font-semibold text-gray-400 mb-2">THÀNH CÔNG</p>
+        <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1.5 text-xs text-emerald-800">Đã tải xong dữ liệu cá nhân của bạn</div>
+      </div>
+      <div class="bg-white rounded-xl border border-rose-200 p-3">
+        <p class="text-[11px] font-semibold text-gray-400 mb-2">LỖI</p>
+        <div class="rounded-lg bg-rose-50 border border-rose-200 px-2 py-1.5 text-xs text-rose-700">Không thể tạo file lúc này, thử lại sau.</div>
+      </div>
+    </div>
+
+    <!-- Khối 3: xóa tài khoản -->
+    <section class="bg-white rounded-xl border border-rose-200 p-5">
+      <h2 class="font-semibold text-rose-700 mb-2">Xóa tài khoản</h2>
+      <p class="text-sm text-gray-600 mb-4">Xóa tài khoản sẽ ẩn danh hóa toàn bộ thông tin cá nhân của bạn (họ tên, email, số điện thoại, ngày sinh, liên hệ phụ huynh). Bạn sẽ không thể đăng nhập lại bằng thông tin hiện tại. Lịch sử đơn hàng vẫn được lưu lại theo quy định kế toán nhưng không còn gắn với thông tin cá nhân của bạn. Hành động này không thể hoàn tác.</p>
+      <button class="bg-rose-600 text-white font-semibold rounded-lg px-4 py-2.5 text-sm">Xóa tài khoản</button>
+    </section>
+  </main>
+
+  <hr class="my-10 border-gray-200 max-w-2xl mx-auto">
+
+  <!-- Modal cảnh báo hậu quả -->
+  <section class="max-w-md mx-auto px-4">
+    <p class="text-xs font-semibold text-gray-400 mb-2 text-center">ANNOTATION — MODAL CẢNH BÁO HẬU QUẢ (BƯỚC 1)</p>
+    <div class="bg-white rounded-2xl shadow-lg border border-rose-200 p-5">
+      <h3 class="font-bold text-rose-700 mb-3">Bạn chắc chắn muốn xóa tài khoản?</h3>
+      <ul class="text-sm text-gray-600 space-y-2 mb-4 list-disc pl-5">
+        <li>Bạn sẽ bị đăng xuất ngay lập tức và không thể đăng nhập lại bằng email/số điện thoại hiện tại.</li>
+        <li>Họ tên, email, số điện thoại, ngày sinh và thông tin liên hệ phụ huynh sẽ bị ẩn danh hóa.</li>
+        <li>Không thể hoàn tác sau khi hoàn tất.</li>
+      </ul>
+      <div class="flex gap-2">
+        <button class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-medium">Huỷ</button>
+        <button class="flex-1 bg-rose-600 text-white rounded-lg py-2 text-sm font-semibold">Tiếp tục xóa tài khoản</button>
+      </div>
+    </div>
+  </section>
+
+  <hr class="my-10 border-gray-200 max-w-2xl mx-auto">
+
+  <!-- Bước 2: OTP -->
+  <section class="max-w-md mx-auto px-4">
+    <p class="text-xs font-semibold text-gray-400 mb-2 text-center">BƯỚC 2 — XÁC NHẬN OTP</p>
+    <div class="bg-white rounded-2xl shadow-sm border border-rose-200 p-6 text-center">
+      <div class="w-14 h-14 rounded-full bg-rose-50 flex items-center justify-center mx-auto mb-4 text-2xl">⚠️</div>
+      <h1 class="text-lg font-bold mb-1">Xác nhận xóa tài khoản</h1>
+      <p class="text-sm text-gray-500 mb-5">Nhập mã gồm 6 chữ số vừa được gửi tới mi***@gmail.com để hoàn tất xóa tài khoản.</p>
+      <div class="flex justify-center gap-2 mb-4">
+        <input maxlength="1" value="3" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500">
+        <input maxlength="1" value="9" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500">
+        <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500">
+        <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500">
+        <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500">
+        <input maxlength="1" class="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500">
+      </div>
+      <div class="flex items-center justify-between text-sm mb-5">
+        <span class="text-gray-400">Mã hết hạn sau 09:41</span>
+        <button disabled class="text-gray-400 cursor-not-allowed">Gửi lại mã (58s)</button>
+      </div>
+      <button class="w-full bg-rose-600 text-white font-semibold rounded-lg py-3 mb-2">Xác nhận xóa tài khoản</button>
+      <button class="w-full border border-gray-300 rounded-lg py-3 text-sm font-medium bg-white">Huỷ, giữ lại tài khoản của tôi</button>
+    </div>
+  </section>
+
+  <hr class="my-10 border-gray-200 max-w-2xl mx-auto">
+
+  <!-- Hoàn tất -->
+  <section class="max-w-md mx-auto px-4">
+    <p class="text-xs font-semibold text-gray-400 mb-2 text-center">MÀN HOÀN TẤT (sau khi ẩn danh hoá, đã đăng xuất)</p>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
+      <div class="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 text-2xl">👋</div>
+      <h1 class="text-lg font-bold mb-2">Tài khoản của bạn đã được xóa</h1>
+      <p class="text-sm text-gray-500">Cảm ơn bạn đã sử dụng VitaminVui.</p>
+    </div>
+  </section>
+</body>
+</html>

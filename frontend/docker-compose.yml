@@ -1,0 +1,46 @@
+# Compose CHỈ cho frontend (không đụng infra/docker-compose.yml của laravel-dev).
+# Chạy: HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f frontend/docker-compose.yml up
+# (KHÔNG dùng tên biến "UID" — đó là biến readonly có sẵn của bash, gán đè sẽ báo lỗi
+# "readonly variable" và bị bỏ qua âm thầm.)
+#
+# Backend Laravel (T01) chưa tích hợp vào đây. Khi infra/docker-compose.yml có network
+# chung, cần: (1) join network đó để SSR gọi được api.localhost/admin-api.localhost từ
+# trong container, hoặc (2) dùng API_INTERNAL_URL=http://host.docker.internal:8000 (đã
+# hoạt động sẵn trên Docker Desktop/WSL2 nếu backend publish cổng 8000 ra host).
+# Ghi yêu cầu phối hợp cụ thể trong README.md §Tích hợp Docker.
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: vitaminvui-frontend-dev:latest
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    working_dir: /workspace
+    command: pnpm --filter @vitaminvui/web run dev
+    ports:
+      - "3000:3000"
+    environment:
+      # HOME KHÔNG được nằm trong /workspace — xem giải thích ở scripts/pnpm.sh.
+      HOME: /home/node
+    env_file:
+      - apps/web/.env.local
+    volumes:
+      - .:/workspace
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: vitaminvui-frontend-dev:latest
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    working_dir: /workspace
+    command: pnpm --filter @vitaminvui/admin run dev
+    ports:
+      - "3001:3001"
+    environment:
+      HOME: /home/node
+    env_file:
+      - apps/admin/.env.local
+    volumes:
+      - .:/workspace
