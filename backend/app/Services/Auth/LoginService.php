@@ -78,7 +78,7 @@ class LoginService
         // "giả" hợp lệ cùng driver/cost cấu hình thật (Hash::make() đọc
         // config('hashing') mặc định) — không rẽ nhánh sớm bằng `||` (đoản
         // mạch) như trước, vì đoản mạch bỏ qua hoàn toàn việc gọi Hash::check.
-        $passwordOk = Hash::check($password, $user?->password ?? self::dummyHash());
+        $passwordOk = Hash::check($password, $user !== null ? $user->password : self::dummyHash());
 
         if ($user === null || ! $passwordOk) {
             // Chỉ trường hợp THẬT SỰ sai thông tin đăng nhập mới tính là "lần

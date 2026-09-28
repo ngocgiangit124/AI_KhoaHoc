@@ -1,0 +1,16 @@
+---
+name: feedback-vitaminvui-infra-dual-fix
+description: VitaminVui frontend has two Docker entry points using the same image/UID trick — a fix applied to one often misses the other
+metadata:
+  type: feedback
+---
+
+The VitaminVui frontend (`frontend/`) has **two separate places** that run the same `vitaminvui-frontend-dev:latest` image (built from `frontend/Dockerfile.dev`) with the same "run as host UID/GID so files aren't root-owned" trick:
+1. `frontend/scripts/pnpm.sh` — used for one-shot commands (install/lint/typecheck/test/build), sets `HOME` explicitly per run.
+2. `frontend/docker-compose.yml` — used for the actual `pnpm dev` server (`HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f frontend/docker-compose.yml up`, documented as the primary way to run the dev server in `frontend/README.md`).
+
+**Why this matters:** In the 2026-09-28 local-setup review (first macOS/UID-501 setup after prior work was done on WSL2/UID-1000), the dev fixed `pnpm.sh` + `Dockerfile.dev` for non-1000 UIDs (changed `HOME=/home/node` → `HOME=/tmp`, moved corepack's home out of `/root`), with a good comment explaining `/home/node` in `node:22-bookworm-slim` is only writable by UID 1000. But `frontend/docker-compose.yml` still hard-coded `HOME: /home/node` for both the `web` and `admin` services, even though it uses the identical image and the identical `--user ${HOST_UID}:${HOST_GID}` pattern. This meant the documented day-to-day dev-server command was very likely still broken on any non-1000-UID host, even though the "fix HOME/UID" task was nominally done. Flagged as BLOCKER, not SHOULD, because it breaks the primary documented workflow (`pnpm dev`) on the exact machine class the fix claimed to support.
+
+**Resolved 2026-09-28 (round 2):** dev applied the identical `HOME: /tmp` change to both services in `frontend/docker-compose.yml`. Verified independently, not just by trusting the dev's report — `git diff frontend/docker-compose.yml` confirmed the exact change, and `curl` against the already-running `frontend-web-1`/`frontend-admin-1` containers (started by the dev's own test run) returned 200 on both `:3000` and `:3001`. See `docs/reviews/review-local-setup.md` R1 for the closed writeup. This confirms the fix pattern below is worth checking on *every* future Docker/UID change in this repo, not just this once.
+
+**How to apply:** Whenever a dev fix touches `frontend/Dockerfile.dev` or `frontend/scripts/pnpm.sh` for a Docker/UID/permission issue, always check whether `frontend/docker-compose.yml` (same image, same UID pattern, both `web` and `admin` services) needs the identical fix — grep for the changed setting (`HOME`, `COREPACK_HOME`, etc.) across all three files before approving. More generally for this repo: when a task description explicitly names a risk to double-check ("Xem cả docker-compose frontend nếu dùng cùng image") but the diff doesn't touch that file, treat it as an open finding, not a closed one — the dev's own risk note is a strong signal, not proof the check was done. When a fix is later reported as done, re-verify by reading the actual diff and, where practical (e.g. containers already left running), hitting the real port — don't just accept the dev's "it works" at face value.
