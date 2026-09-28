@@ -49,7 +49,7 @@ class CourseCatalogService
     /**
      * @param  Builder<Course>  $query
      */
-    private function applySort($query, string $sort): void
+    private function applySort(Builder $query, string $sort): void
     {
         match ($sort) {
             'popular' => $query->orderByDesc('enrollments_count')->orderByDesc('id'),

@@ -87,6 +87,28 @@ test riêng cho T07 (không có bảng nào của T07 dùng nhiều SELECT thư�
 1 transaction theo kiểu rủi ro nêu ở design-review §2.1 — CRUD nội dung không
 có luồng "đọc rồi khoá coupon" như đơn hàng).
 
+## 4bis. Review local (MySQL 8.4 thật, Docker) + truy vấn danh mục T10
+
+Chi tiết đầy đủ, EXPLAIN, khuyến nghị: `docs/db/T07-review.md`. Kết luận:
+**REQUEST CHANGES (1 mục MEDIUM)**. DB test: `vitaminvui_testing_t10`
+(MySQL 8.4 container, không phải MySQL 8.0 của cloud) — seed ~4.000
+`courses` + 1.500 `enrollments` + 4.500 `lesson_progress` để EXPLAIN ở quy
+mô lớn hơn "vài trăm khóa" giả định MVP. `vendor/bin/pest -c phpunit.t10.xml
+tests/Feature/T07 tests/Feature/T10`: **51/51 PASS**.
+
+| # | Mục | Đạt/Không đạt | Ghi chú |
+|---|---|---|---|
+| 1 | Kiểu cột/NOT NULL/FK/ON DELETE/CHECK/generated column khớp data-model | ✅ Đạt | `SHOW CREATE TABLE` khớp trên MySQL 8.4 thật; migrate + rollback sạch |
+| 2 | Unique + collation `utf8mb4_0900_ai_ci` cho `subjects.name` (kể cả `đ/ơ/ư`, không chỉ nguyên âm có dấu) | ✅ Đạt | Test trực tiếp `'Đại số'` vs `'Dai so'` → `1062 Duplicate entry` (client phải dùng charset `utf8mb4`, xem lưu ý ở T07-review.md §3) |
+| 3 | Soft delete + unique (`courses.slug`) không có lỗ hổng | ✅ Đạt (có 1 lưu ý cho T08) | Unique đúng trên cả dòng đã xoá mềm (chủ đích, tránh chiếm slug cũ) — T08 phải dùng `withTrashed()` khi kiểm trùng slug, ghi chú trong T07-review.md §3 |
+| 4 | Xung đột `subjects` T06 vs T07 — bản T07 đủ cho T06 | ✅ Đạt | Đối chiếu `origin/claude/zen-dirac-fmucf7-t06`: `SubjectService::delete()` dựa vào FK 1451 của `course_subject.subject_id` (T07) — không cần sửa gì để gộp. T06 có thêm `index('status')` mà T07 không có — LOW, không chặn |
+| 5 | Index cho `GET /courses` mặc định "mới nhất" (`published_at`) | ❌ **Không đạt (MEDIUM)** | `EXPLAIN`: `type=ALL` + `Using filesort` cho case phổ biến nhất (không filter). `docs/stories/US-002-...md` yêu cầu tường minh index trên `published_at` — migration T07 thiếu. Đề xuất + SQL/migration ở T07-review.md §2.1 |
+| 6 | Index cho sort `popular`/`featured` | ⚠️ Chấp nhận được, không sửa ngay | Full scan + filesort ở quy mô hiện tại; không thêm index trên `enrollments_count` (cột ghi nhiều) — theo dõi ngưỡng ở T07-review.md §2.2 |
+| 7 | `search_text LIKE '%...%'` | ✅ Đạt (đúng thiết kế MVP) | Xác nhận lại ở 4.000 dòng vẫn nhanh; ngưỡng theo dõi đề xuất ở T07-review.md §2.3 |
+| 8 | Lọc `subject_ids` (`whereHas` EXISTS) kết hợp `ORDER BY` | ℹ️ Thông tin, không chặn | `EXPLAIN FORMAT=JSON` cho thấy filesort + bảng tạm ở tầng ngoài; chấp nhận được ở quy mô MVP, ghi nhận cho load test FW2 (T07-review.md §2.4) |
+| 9 | `resume_lesson_id` (viewer-state, `lesson_progress`) | ✅ Đạt, tối ưu | Backward index scan trên `(user_id,course_id,last_accessed_at)`, không filesort |
+| 10 | Đếm `enrollments_count` cho `GET /courses` | ✅ Đạt | Đọc cột denormalize sẵn có, không có truy vấn COUNT trực tiếp trong request danh mục |
+
 ## Ngoài phạm vi checklist §5 mục 1–3 (để lại cho task sau)
 
 - Mục 4 (EXPLAIN ANALYZE với seed ≥100k đơn/1M lesson_progress): cần dữ liệu

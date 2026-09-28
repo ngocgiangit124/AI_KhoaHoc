@@ -63,9 +63,16 @@ class CourseViewerStateService
             return $lastProgress->lesson_id;
         }
 
+        // Review R2 (docs/reviews/review-T07-T10.md) — `join()` thô không
+        // được Eloquent tự thêm `chapters.deleted_at IS NULL` (khác với
+        // `Lesson::query()` tự áp SoftDeletingScope cho `lessons`); loại
+        // tường minh để không resume vào bài thuộc chương đã xoá mềm (T09).
         $firstLesson = Lesson::query()
             ->where('lessons.course_id', $course->id)
-            ->join('chapters', 'chapters.id', '=', 'lessons.chapter_id')
+            ->join('chapters', function ($join): void {
+                $join->on('chapters.id', '=', 'lessons.chapter_id')
+                    ->whereNull('chapters.deleted_at');
+            })
             ->orderBy('chapters.position')
             ->orderBy('lessons.position')
             ->select('lessons.*')

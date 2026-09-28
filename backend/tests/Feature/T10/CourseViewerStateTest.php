@@ -83,6 +83,33 @@ test('viewer-state tra owned + resume_lesson_id la bai dau tien khi chua hoc bai
     $response->assertJson(['viewer_state' => 'owned', 'resume_lesson_id' => $firstLesson->id]);
 });
 
+test('viewer-state resume_lesson_id bo qua chuong dau da bi xoa mem (R2)', function () {
+    $course = Course::factory()->published()->create();
+    $deletedChapter = Chapter::factory()->create(['course_id' => $course->id, 'position' => 1]);
+    Lesson::factory()->create([
+        'course_id' => $course->id, 'chapter_id' => $deletedChapter->id, 'position' => 1,
+    ]);
+    $deletedChapter->delete();
+
+    $chapter2 = Chapter::factory()->create(['course_id' => $course->id, 'position' => 2]);
+    $firstLessonOfRemainingChapter = Lesson::factory()->create([
+        'course_id' => $course->id, 'chapter_id' => $chapter2->id, 'position' => 1,
+    ]);
+    $user = User::factory()->student()->verified()->create();
+    Enrollment::factory()->create(['user_id' => $user->id, 'course_id' => $course->id]);
+
+    $response = test()->actingAs($user)->getJson(
+        'http://'.config('app.api_host')."/api/v1/courses/{$course->slug}/viewer-state",
+        ['Origin' => config('app.frontend_url')]
+    );
+
+    $response->assertOk();
+    $response->assertJson([
+        'viewer_state' => 'owned',
+        'resume_lesson_id' => $firstLessonOfRemainingChapter->id,
+    ]);
+});
+
 test('viewer-state tra owned + resume_lesson_id la bai dang hoc do gan nhat (BR6)', function () {
     $course = Course::factory()->published()->create();
     $chapter = Chapter::factory()->create(['course_id' => $course->id, 'position' => 1]);

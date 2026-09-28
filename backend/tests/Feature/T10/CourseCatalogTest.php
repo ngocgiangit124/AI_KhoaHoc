@@ -191,6 +191,17 @@ test('GET /courses/{slug} tra outline khong chua URL/ID video (S13, AC1)', funct
         ->not->toHaveKey('video_url');
 });
 
+test('GET /courses/{slug} chua co chuong/bai tra outline rong, khong loi (R4)', function () {
+    $course = Course::factory()->published()->create();
+
+    $response = test()->getJson('http://'.config('app.api_host')."/api/v1/courses/{$course->slug}", [
+        'Origin' => config('app.frontend_url'),
+    ]);
+
+    $response->assertOk();
+    $response->assertJsonPath('outline', []);
+});
+
 test('GET /courses/{slug} tra 404 khi khoa unpublished (BR4)', function () {
     $course = Course::factory()->unpublished()->create();
 
