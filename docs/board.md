@@ -31,7 +31,47 @@ Nhánh chính `claude/zen-dirac-fmucf7`: T03 + FW1 phần 1 đã qua review và 
 | `claude/zen-dirac-fmucf7-t07-t10` | T07 schema (xong code) + T10 danh mục (WIP) | WIP |
 | `claude/zen-dirac-fmucf7-t17` | T17 thanh toán + MoMo | Gần xong |
 
-Việc đầu tiên ở local:
+### Các bước ở máy local
+
+**1. Kéo code về**
+```bash
+git fetch origin
+git checkout claude/zen-dirac-fmucf7      # nhánh chính (đã review + security)
+git pull origin claude/zen-dirac-fmucf7
+```
+
+**2. Dựng lại môi trường và kiểm nhánh chính** (có package frontend mới và migration `consents` mới)
+```bash
+cd infra
+VV_UID=$(id -u) VV_GID=$(id -g) docker compose up -d --build
+docker compose exec php composer install            # composer.lock không đổi, chỉ để chắc vendor đủ
+docker compose exec php php artisan migrate
+docker compose exec -T php composer ci               # Pint + Larastan + Pest — PHẢI xanh
+cd ..
+frontend/scripts/pnpm.sh install                     # lock có thêm react-hook-form, @hookform/resolvers
+frontend/scripts/pnpm.sh run lint
+frontend/scripts/pnpm.sh run typecheck
+frontend/scripts/pnpm.sh run test
+frontend/scripts/pnpm.sh run build
+```
+Kết quả trên cloud để so: Pest 193 pass, frontend 111 test pass. Larastan chưa chạy lần nào cho code T03, nên nếu báo lỗi thì giao `laravel-dev` sửa.
+
+**3. Làm tiếp từng nhánh phụ** (mỗi nhánh một lượt, theo thứ tự: T07-T10 → T06 → T17 → FW1-OTP)
+```bash
+git checkout -b t07-t10 origin/claude/zen-dirac-fmucf7-t07-t10
+cd infra && docker compose exec -T php composer ci   # chạy lại test thật trong Docker
+```
+Hoàn thiện phần WIP → `laravel-reviewer` → `laravel-security` (task [SEC]) → gộp vào nhánh chính:
+```bash
+git checkout claude/zen-dirac-fmucf7
+git merge --no-ff t07-t10
+```
+
+**4. Câu lệnh mẫu cho Claude Code ở local**
+> Đọc docs/board.md mục "Bàn giao về máy local". Kiểm nhánh chính bằng composer ci trong Docker và test frontend; lỗi thì giao laravel-dev/nextjs-dev sửa. Sau đó làm tiếp nhánh claude/zen-dirac-fmucf7-t07-t10 (hoàn thiện T10), rồi T06, T17, FW1-OTP, theo quy trình dev → laravel-reviewer → laravel-security → gộp. Song song bắt đầu T04 từ nhánh chính. Hỏi tôi trước khi commit/push.
+
+### Lưu ý khi làm tiếp
+
 1. Chạy `composer ci` đầy đủ (có Larastan) trong Docker trên nhánh chính. Trên cloud không chạy được Larastan và PHP là 8.4.
 2. Mỗi nhánh phụ: chạy lại toàn bộ test trong Docker trước khi tin kết quả. Trên cloud, `vendor` của worktree là symlink về repo gốc nên Composer/Pest có thể đã nạp nhầm code của repo gốc; kết quả test agent báo ở các nhánh phụ **chưa đáng tin**.
 3. Xung đột khi gộp: T06 và T07 cùng tạo `subjects` (migration `2026_09_28_090000_create_subjects_table.php`, `Subject`, `SubjectFactory`, `SubjectStatus`). Gộp T07 trước, T06 dùng lại bản của T07 và bật lại test "chặn xoá khi đang gán".
