@@ -20,6 +20,10 @@ pest()->extend(TestCase::class)
 
 pest()->extend(TestCase::class)->in('Arch');
 
+// Unit: có app() (config, Http::fake, Log...) nhưng KHÔNG RefreshDatabase —
+// dùng cho test thuần logic (vd T17 payments) không cần DB.
+pest()->extend(TestCase::class)->in('Unit');
+
 /*
 |--------------------------------------------------------------------------
 | Expectations

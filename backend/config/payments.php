@@ -28,6 +28,9 @@ return [
             'endpoint' => env('MOMO_ENDPOINT'),
             'ipn_url' => env('MOMO_IPN_URL'),
             'redirect_url' => env('MOMO_REDIRECT_URL'),
+            // requestType mặc định của MoMo API v2 (ADR-001 §2). T18 có thể
+            // truyền `MOMO_LINK_TTL_MINUTES`/hạn mức riêng khi hiện thực checkout.
+            'request_type' => env('MOMO_REQUEST_TYPE', 'captureWallet'),
         ],
 
     ],

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Support\PaymentsProductionGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -11,7 +12,6 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
-use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -154,23 +154,17 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * S4 — chặn ứng dụng khởi động ở production nếu cấu hình lọt cổng thanh toán
-     * `fake` hoặc endpoint MoMo sandbox.
+     * S4/T17 — chặn ứng dụng khởi động ở production nếu cấu hình lọt cổng thanh
+     * toán ngoài allowlist (gồm `fake`) hoặc thiếu cấu hình/endpoint sandbox cho
+     * cổng đã bật. Logic đầy đủ ở `PaymentsProductionGuard` (test riêng, không
+     * cần boot app ở môi trường production giả).
      */
     private function guardProductionPayments(): void
     {
-        if (! $this->app->isProduction()) {
-            return;
-        }
-
-        if (in_array('fake', config('payments.enabled_gateways', []), true)) {
-            throw new RuntimeException('FakeGateway bị cấm ở production (S4).');
-        }
-
-        $momoEndpoint = (string) config('payments.gateways.momo.endpoint');
-
-        if ($momoEndpoint !== '' && str_contains($momoEndpoint, 'test-payment')) {
-            throw new RuntimeException('MoMo sandbox endpoint bị cấm ở production (S4).');
-        }
+        PaymentsProductionGuard::assertSafeForProduction(
+            $this->app->isProduction(),
+            config('payments.enabled_gateways', []),
+            config('payments.gateways', []),
+        );
     }
 }
