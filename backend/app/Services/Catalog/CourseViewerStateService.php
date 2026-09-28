@@ -64,7 +64,7 @@ class CourseViewerStateService
         }
 
         $firstLesson = Lesson::query()
-            ->where('course_id', $course->id)
+            ->where('lessons.course_id', $course->id)
             ->join('chapters', 'chapters.id', '=', 'lessons.chapter_id')
             ->orderBy('chapters.position')
             ->orderBy('lessons.position')

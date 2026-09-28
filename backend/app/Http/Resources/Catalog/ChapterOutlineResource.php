@@ -8,6 +8,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @property-read Chapter $resource
+ *
+ * @mixin Chapter
  */
 class ChapterOutlineResource extends JsonResource
 {

@@ -11,12 +11,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
  * data-model §3.2 (US-002, US-003, US-009, US-011).
  *
  * @property CourseStatus $status
+ * @property Carbon|null $published_at
  */
 class Course extends Model
 {

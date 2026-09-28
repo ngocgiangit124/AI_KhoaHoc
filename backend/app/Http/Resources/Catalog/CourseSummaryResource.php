@@ -10,6 +10,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * `GET /courses` (US-002) — mỗi phần tử của danh sách phân trang.
  *
  * @property-read Course $resource
+ *
+ * @mixin Course
  */
 class CourseSummaryResource extends JsonResource
 {

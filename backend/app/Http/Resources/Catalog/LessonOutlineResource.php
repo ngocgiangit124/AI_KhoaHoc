@@ -13,6 +13,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * `/learn/lessons/{lesson}/playback` (T13) hoặc `/preview/lessons/{lesson}/playback`.
  *
  * @property-read Lesson $resource
+ *
+ * @mixin Lesson
  */
 class LessonOutlineResource extends JsonResource
 {

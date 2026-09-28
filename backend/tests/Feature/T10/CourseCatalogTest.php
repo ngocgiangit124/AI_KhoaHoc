@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\Chapter;
 use App\Models\Course;
+use App\Models\Lesson;
 use App\Models\Subject;
 use App\Models\User;
 
@@ -164,8 +166,8 @@ test('GET /subjects chi tra chuyen de active (AC9)', function () {
 
 test('GET /courses/{slug} tra outline khong chua URL/ID video (S13, AC1)', function () {
     $course = Course::factory()->published()->create();
-    $chapter = App\Models\Chapter::factory()->create(['course_id' => $course->id, 'position' => 1]);
-    App\Models\Lesson::factory()->create([
+    $chapter = Chapter::factory()->create(['course_id' => $course->id, 'position' => 1]);
+    Lesson::factory()->create([
         'course_id' => $course->id,
         'chapter_id' => $chapter->id,
         'position' => 1,

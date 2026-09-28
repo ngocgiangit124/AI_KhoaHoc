@@ -5,6 +5,7 @@ namespace App\Services\Catalog;
 use App\Models\Course;
 use App\Support\Like;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 /**
@@ -46,7 +47,7 @@ class CourseCatalogService
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<Course>  $query
+     * @param  Builder<Course>  $query
      */
     private function applySort($query, string $sort): void
     {

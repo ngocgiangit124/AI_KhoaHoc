@@ -8,6 +8,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @property-read Subject $resource
+ *
+ * @mixin Subject
  */
 class SubjectResource extends JsonResource
 {

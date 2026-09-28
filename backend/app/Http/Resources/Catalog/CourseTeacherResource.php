@@ -11,6 +11,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * `bio`. KHÔNG BAO GIỜ `email`/`phone` (không phải màn quản trị).
  *
  * @property-read User $resource
+ *
+ * @mixin User
  */
 class CourseTeacherResource extends JsonResource
 {

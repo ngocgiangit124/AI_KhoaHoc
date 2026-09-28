@@ -17,6 +17,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * ở đây LÚC ĐỌC (S8, api-contract §4 — "sanitize khi ghi và khi đọc").
  *
  * @property-read Course $resource
+ *
+ * @mixin Course
  */
 class CourseResource extends JsonResource
 {
