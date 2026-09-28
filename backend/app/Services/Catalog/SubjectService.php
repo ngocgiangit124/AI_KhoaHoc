@@ -85,15 +85,16 @@ class SubjectService
     /**
      * US-011 AC3/AC4 — chặn xoá cứng khi đang gán ≥1 khóa học. Dựa hẳn vào
      * ràng buộc FK `restrict` của `course_subject.subject_id` (T07) thay vì
-     * tự đếm bằng truy vấn `course_subject` ở đây — bảng đó thuộc phạm vi
-     * T07 (đang phát triển song song), nên không import/khai báo bất kỳ tham
-     * chiếu nào tới nó trong T06 (tránh phụ thuộc chéo giữa 2 worktree đang
-     * chạy song song). Khi gộp nhánh, hành vi 409 tự động đúng nhờ FK.
+     * tự đếm bằng truy vấn `course_subject` ở đây. Dùng `deleteOrFail()`
+     * (không phải `delete()`) vì đây là API duy nhất của Eloquent khai
+     * `@throws \Throwable` — `delete()` chỉ khai `@throws \LogicException`
+     * trong stub của framework nên Larastan báo "dead catch" cho
+     * `QueryException` dù MySQL thực sự ném lỗi 1451 khi vi phạm FK.
      */
     public function delete(Subject $subject): void
     {
         try {
-            $subject->delete();
+            $subject->deleteOrFail();
         } catch (QueryException $e) {
             if ((int) ($e->errorInfo[1] ?? 0) === self::MYSQL_FK_CONSTRAINT_VIOLATION) {
                 throw new DomainException(

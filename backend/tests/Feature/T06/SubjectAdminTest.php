@@ -2,6 +2,7 @@
 
 use App\Enums\SubjectStatus;
 use App\Models\AuditLog;
+use App\Models\Course;
 use App\Models\Subject;
 use App\Models\User;
 
@@ -184,41 +185,21 @@ test('xoa chuyen de chua gan khoa hoc nao thanh cong (AC4)', function () {
     $this->assertDatabaseMissing('subjects', ['id' => $subject->id]);
 });
 
-// TODO (chờ gộp T07): bảng `course_subject` (FK `subject_id` restrict) do T07
-// tạo ở một worktree khác — chưa tồn tại trong DB test của T06. Bật lại test
-// này (bỏ `->skip()`) sau khi gộp nhánh T06+T07, xác nhận migration
-// `course_subject` đã chạy. Logic chặn xoá (`SubjectService::delete`) đã viết
-// đầy đủ, dựa vào FK `restrict` (bắt `QueryException` mã 1451) — không cần
-// sửa code khi bật lại, chỉ cần dữ liệu `course_subject` tồn tại.
+// Đã gộp T07 (`courses`/`course_subject` với FK `subject_id` restrict) —
+// bật lại test này. Logic chặn xoá (`SubjectService::delete`) không đổi, chỉ
+// dựa vào FK `restrict` (bắt `QueryException` mã 1451).
 test('xoa chuyen de dang gan khoa hoc bi chan 409 (AC3)', function () {
     $admin = User::factory()->admin()->create();
     $subject = Subject::factory()->create();
-
-    // Giả lập gán khóa học: cần bảng `course_subject` (T07). Tạm ghi thẳng
-    // bằng query builder để không phụ thuộc Model `Course` (thuộc T07, có
-    // thể chưa tồn tại/đổi cấu trúc ở thời điểm chạy test này).
-    DB::table('course_subject')->insert([
-        'course_id' => DB::table('courses')->insertGetId([
-            'title' => 'Khóa test',
-            'slug' => 'khoa-test-'.uniqid(),
-            'grade_level' => 10,
-            'price' => 0,
-            'status' => 'draft',
-            'search_text' => '',
-            'created_by' => $admin->id,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]),
-        'subject_id' => $subject->id,
-        'created_at' => now(),
-    ]);
+    $course = Course::factory()->create();
+    $course->subjects()->attach($subject);
 
     $response = $this->actingAs($admin)->deleteJson(subjectAdminUrl('/'.$subject->id), [], subjectAdminHeaders());
 
     $response->assertStatus(409);
     $response->assertJson(['code' => 'SUBJECT_IN_USE']);
     $this->assertDatabaseHas('subjects', ['id' => $subject->id]);
-})->skip('Chờ gộp T07 (bảng course_subject/courses chưa tồn tại trong worktree T06)');
+});
 
 // --- Audit log (S15) --------------------------------------------------------
 
