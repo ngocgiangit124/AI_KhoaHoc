@@ -58,14 +58,15 @@ describe("LoginForm", () => {
     );
   });
 
-  it("sai thông tin đăng nhập (422 VALIDATION_ERROR, envelope thật từ backend) -> banner dùng errors.login[0], KHÔNG dùng message chung, KHÔNG lộ field nào sai (BR5)", async () => {
+  it("sai thông tin đăng nhập (422 VALIDATION_ERROR, envelope thật từ backend sau bản sửa R1) -> banner dùng errors.login[0], KHÔNG lộ field nào sai (BR5)", async () => {
     const user = userEvent.setup();
     // Envelope thật (backend/app/Services/Auth/LoginService.php genericFailure() +
-    // ApiExceptionRenderer::resolve() cho ValidationException): `message` top-level chỉ
-    // là câu validate CHUNG, câu thông báo thật nằm trong `errors.login[0]`.
+    // ApiExceptionRenderer sau bản sửa R1, commit 10c1b82): 422 chỉ có đúng 1 field/1
+    // message thì message đó được nâng lên top-level luôn — `message` và
+    // `errors.login[0]` TRÙNG NHAU ở case này.
     authFetchMock.mockRejectedValueOnce(
       new ApiError(422, {
-        message: "Dữ liệu gửi lên không hợp lệ.",
+        message: "Thông tin đăng nhập hoặc mật khẩu không đúng.",
         code: "VALIDATION_ERROR",
         errors: { login: ["Thông tin đăng nhập hoặc mật khẩu không đúng."] },
       }),
@@ -77,7 +78,6 @@ describe("LoginForm", () => {
     await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
 
     expect(await screen.findByText("Thông tin đăng nhập hoặc mật khẩu không đúng.")).toBeInTheDocument();
-    expect(screen.queryByText("Dữ liệu gửi lên không hợp lệ.")).not.toBeInTheDocument();
     // Không gắn lỗi xuống field (BR5) — chỉ có 1 dòng thông báo (banner), field vẫn "sạch".
     expect(screen.getByLabelText(/Email hoặc số điện thoại/)).not.toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText(/Mật khẩu/)).not.toHaveAttribute("aria-invalid", "true");

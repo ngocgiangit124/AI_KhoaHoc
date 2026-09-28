@@ -54,12 +54,13 @@ export function LoginForm() {
       // trọng.
       //
       // Backend thật (`LoginService::genericFailure`) ném lỗi qua `ValidationException`
-      // với `errors.login`, nên `ApiExceptionRenderer` trả `code: VALIDATION_ERROR` và
-      // `message` TOP-LEVEL là thông điệp validate CHUNG ("Dữ liệu gửi lên không hợp
-      // lệ."), không phải câu "Thông tin đăng nhập hoặc mật khẩu không đúng." — câu đó
-      // nằm trong `errors.login[0]`. Ưu tiên đọc `errors.login[0]` trước, chỉ dùng
+      // với `errors.login`; `ApiExceptionRenderer` (sau bản sửa R1, commit 10c1b82) nâng
+      // message của field đó lên top-level khi 422 chỉ có đúng 1 field/1 message, nên
+      // `message` và `errors.login[0]` thường TRÙNG NHAU ("Thông tin đăng nhập hoặc mật
+      // khẩu không đúng."). Vẫn ưu tiên đọc `errors.login[0]` trước, chỉ fallback về
       // `message` khi không có (ACCOUNT_LOCKED/WRONG_PORTAL/429 không có `errors`, luôn
-      // rơi vào nhánh `message`). VẪN KHÔNG gọi `setError` — không gắn lỗi xuống field
+      // rơi vào nhánh `message`) — phòng thủ cho trường hợp backend đổi lại cách nâng
+      // message top-level sau này. VẪN KHÔNG gọi `setError` — không gắn lỗi xuống field
       // `login`/`password` dù server trả `errors.login` (chống dò tài khoản — BR5).
       if (err instanceof ApiError) {
         const bannerText = err.errors?.login?.[0] ?? err.message;

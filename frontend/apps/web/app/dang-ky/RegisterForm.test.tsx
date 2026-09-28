@@ -150,11 +150,12 @@ describe("RegisterForm", () => {
     expect(payload.parent_phone).toBeUndefined();
   });
 
-  it("lỗi 422 email/SĐT trùng -> hiển thị đúng dưới từng field (AC2)", async () => {
+  it("lỗi 422 CẢ email và SĐT trùng (2 field) -> hiển thị đúng dưới từng field, banner chung dùng message nhiều-field (AC2)", async () => {
     const user = userEvent.setup();
     // Envelope thật (backend/app/Services/Auth/RegistrationService.php
-    // translateUniqueViolation() + RegisterRequest::messages() cho 'email.unique'): message
-    // top-level chung "Dữ liệu gửi lên không hợp lệ.", câu thật nằm trong `errors.{field}`.
+    // translateUniqueViolation() + RegisterRequest::messages()): 422 có ≥ 2 field lỗi thì
+    // `message` top-level là câu CHUNG "Dữ liệu gửi lên không hợp lệ." (không nâng message
+    // của field nào lên) — câu thật nằm trong `errors.{field}`.
     authFetchMock.mockRejectedValueOnce(
       new ApiError(422, {
         message: "Dữ liệu gửi lên không hợp lệ.",
@@ -176,6 +177,31 @@ describe("RegisterForm", () => {
     expect(screen.getByText("Số điện thoại đã được sử dụng.")).toBeInTheDocument();
     // Message chung KHÔNG hiện thành banner riêng (mọi field lỗi đã có nơi hiển thị).
     expect(screen.queryByText("Dữ liệu gửi lên không hợp lệ.")).not.toBeInTheDocument();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("lỗi 422 CHỈ email trùng (1 field) -> top-level message = message của field đó (bản sửa R1, commit 10c1b82), vẫn hiện đúng dưới field email", async () => {
+    const user = userEvent.setup();
+    // 422 chỉ có đúng 1 field/1 message → ApiExceptionRenderer nâng message đó lên
+    // top-level luôn (không còn là câu chung "Dữ liệu gửi lên không hợp lệ." nữa).
+    authFetchMock.mockRejectedValueOnce(
+      new ApiError(422, {
+        message: "Email đã được sử dụng.",
+        code: "VALIDATION_ERROR",
+        errors: { email: ["Email đã được sử dụng."] },
+      }),
+    );
+    renderRegisterForm();
+
+    await fillRequiredFields(user, "1990-01-01");
+    await user.click(screen.getByLabelText(/Điều khoản sử dụng/));
+    await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
+    await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+
+    // Chỉ 1 chỗ hiển thị "Email đã được sử dụng." (dưới field) — KHÔNG có thêm banner
+    // trùng nội dung phía trên form (applyApiErrorToForm không tạo leftover khi field đã
+    // gắn được vào form).
+    expect(await screen.findAllByText("Email đã được sử dụng.")).toHaveLength(1);
     expect(pushMock).not.toHaveBeenCalled();
   });
 
