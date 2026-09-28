@@ -1,6 +1,6 @@
 # REVIEW: T06 — Chuyên đề (CRUD), US-011
 
-**Kết luận:** PASS (không có BLOCKER; 2 SHOULD, 3 NIT)
+**Kết luận:** PASS — vòng 1 PASS có 2 SHOULD/3 NIT; vòng 2 (commit `7a481ef`) xác nhận đã sửa hết, APPROVE cuối cùng, không còn tồn đọng.
 **Phạm vi:** `git diff t07-t10...t06` trên nhánh local `t06` (worktree `.claude/worktrees/t06`) — CHỈ phần T06, T07-T10 đã APPROVE riêng trước đó. 13 file, +713/-21:
 `app/Http/Controllers/Api/V1/Admin/SubjectController.php` (mới), `app/Http/Controllers/Controller.php`,
 `app/Http/Requests/Admin/SubjectRequest.php` (mới), `app/Http/Requests/Admin/UpdateSubjectStatusRequest.php` (mới),
@@ -106,3 +106,36 @@ Code gọn, đúng quy ước dự án (Service theo domain, Policy cho mọi h�
 - Test tay: gửi `POST /admin/subjects` kèm `status: hidden` — xác nhận có tạo được chuyên đề ẩn ngay từ đầu hay không (hành vi hiện tại: có, nhưng ngoài api-contract — xem R1).
 - Test tải: `subjects` dự kiến chỉ vài chục dòng nên không cần test hiệu năng riêng; index `subjects_status_index` chỉ mang tính nhất quán (DBA xác nhận LOW).
 - Xác nhận lại AC6 phần "khóa học đã gán chuyên đề ẩn vẫn hiển thị đúng trên trang chi tiết" bằng luồng thật (T10 `GET /courses/{slug}`) khi QA giai đoạn — không nằm trong test T06 nhưng là điều kiện AC6.
+
+---
+
+## Vòng 2 (commit `7a481ef`, sau `f283de6`)
+
+**Phạm vi vòng 2:** `git diff f283de6..7a481ef` — 7 file, +178/-29: `SubjectController.php`, `SubjectRequest.php`, `Subject.php`, `SubjectService.php`, `routes/admin.php`, `tests/Feature/T06/SubjectAdminTest.php`, `docs/reviews/review-T06.md` (thêm mục này).
+
+Đã tự chạy lại trong Docker (không chỉ tin lời dev khai):
+- `vendor/bin/pint --test` → sạch (175 file).
+- `vendor/bin/phpstan analyse` → 0 lỗi.
+- `vendor/bin/pest -c phpunit.t06.xml` → **264 passed (750 assertions)** — đúng +1 test so với vòng 1 (263→264), khớp báo cáo dev (thêm test R2).
+- `vendor/bin/pest -c phpunit.t06.xml tests/Feature/T02/RouteMiddlewareGroupsTest.php` → 8 passed, kiến trúc route admin-api vẫn đủ `admin.origin + auth:sanctum + role` cho mọi route.
+- `php artisan route:list --json` (mount worktree) đối chiếu trực tiếp middleware stack thật của cả 5 route `subjects*`: **POST/PUT/DELETE/PATCH đều có `Illuminate\Auth\Middleware\Authorize:<ability>,...` gắn đúng ability** (`create,App\Models\Subject`, `update,subject`, `delete,subject`, `updateStatus,subject`) — không route ghi nào bị mất kiểm quyền sau khi bỏ `$this->authorize()` trong controller. `GET /admin/subjects` (index) vẫn giữ `$this->authorize('viewAny', ...)` trong controller như cũ.
+- Đọc `vendor/laravel/framework/.../Foundation/Http/Kernel.php::$middlewarePriority`: `SubstituteBindings::class` đứng ngay trước `Authorize::class` trong danh sách priority mặc định của framework, và dự án không override `middlewarePriority` ở `bootstrap/app.php`. Route `api` group (từ `Middleware::getMiddlewareGroups()`) đã có sẵn `SubstituteBindings`. Do đó khẳng định độc lập với giải thích của dev: bất kể thứ tự khai báo trong route (`role:...` rồi mới `can:...`), Laravel luôn thực thi `SubstituteBindings` (resolve `{subject}` thành model) trước `can:...` — đúng như dev khai, không phải suy đoán.
+- Test mới `giao vien gui payload khong hop le van bi 403, khong phai 422 (R2)` là **integration test thật qua HTTP** (không mock), tự chạy pass — bằng chứng runtime mạnh hơn cả đọc source, xác nhận đúng hành vi mong muốn ở cả 4 case (tên rỗng, tên trùng, HTML, sửa trùng tên khác).
+
+### R1 — ĐÃ SỬA, xác nhận đóng
+`status` bị bỏ hoàn toàn khỏi `SubjectRequest::rules()`; `SubjectService::create()` không còn nhận `status` từ `$data`, luôn set `SubjectStatus::Active` (đúng AC1, đúng api-contract §2.5 chỉ có `name`). Đổi trạng thái chỉ còn 1 đường duy nhất: `PATCH /admin/subjects/{id}/status`. Không còn field ngoài hợp đồng, không còn nguy cơ 422 khó hiểu khi PUT. Đóng.
+
+### R2 — ĐÃ SỬA, xác nhận đóng
+Chuyển kiểm quyền từ `$this->authorize()` trong thân controller sang middleware `can:<ability>,<model|param>` gắn trực tiếp trên từng route ghi (`store`, `update`, `destroy`, `updateStatus`). Vì `Authorize::class` (implementation của `can:`) đứng sau `SubstituteBindings::class` trong middlewarePriority mặc định của Laravel, và cả hai đều được framework tự sắp lại thứ tự bất kể vị trí khai báo, nên **`can:` luôn chạy trước `FormRequest::rules()`** (FormRequest chỉ được resolve/validate khi vào tới controller action, sau khi toàn bộ middleware — kể cả `can:` — đã pass). Kết quả: Giáo viên gửi payload sai (tên rỗng/trùng/HTML) trên `POST`/`PUT` giờ nhận đúng **403**, không còn lộ 422 kèm chi tiết validate. `FormRequest::authorize()` vẫn giữ `true` đúng quy ước dự án (api-contract §1.3) — không phá quy ước, chỉ chuyển vị trí gọi Policy sang tầng route. Đã kiểm 404-vs-403 khi `{subject}` không tồn tại: vì `SubstituteBindings` cũng chạy trước `can:`, một ID không tồn tại sẽ bị `ModelNotFoundException` chặn lại thành 404 **trước khi** `can:` kịp chạy, bất kể vai trò gọi là gì (kể cả Giáo viên). Đây là hành vi tiêu chuẩn của Laravel với implicit route-model-binding (không phải điểm mới do dev tạo ra — round 1 cũng vậy vì controller cũng type-hint `Subject $subject`), và không rò rỉ thông tin nhạy cảm vì danh sách `subjects` vốn đã công khai cho mọi staff/GV qua `GET /admin/subjects` (không phải dữ liệu scope-theo-người-dùng như đơn hàng/enrollment) — hợp lý, không cần sửa thêm. Đóng.
+
+### NIT — ĐÃ SỬA
+- R3 (`Subject::scopeActive()`): `SubjectController::index()` đổi từ `where('status', SubjectStatus::Active)` sang `$query->active()`. Đóng.
+- R4 (`per_page` ≤ 0): đổi thành `max(1, min((int) $request->integer('per_page', 25), 50))`. Đóng.
+- R5 (`Subject::isActive()` chưa dùng): đã xoá khỏi `Subject.php`. Đóng.
+
+### Phát hiện mới ở vòng 2
+Không có. Diff vòng 2 chỉ chạm đúng 5 điểm đã nêu ở vòng 1, không mở rộng phạm vi, không chạm lại các phần đã APPROVE khác của T07-T10.
+
+## Kết luận cuối
+
+**PASS — APPROVE.** Cả 2 SHOULD (R1, R2) và cả 3 NIT (R3–R5) của vòng 1 đã được sửa đúng, xác nhận lại bằng đọc code + đọc source framework + chạy lại toàn bộ test thật (Pint sạch, Larastan 0 lỗi, Pest 264 passed) và `route:list --json` đối chiếu middleware thật trên từng route. Không có BLOCKER, không có SHOULD/NIT tồn đọng, không phát sinh phát hiện mới. Đủ điều kiện chuyển `laravel-security` rồi gộp vào nhánh chính theo quy trình T06 ở `docs/board.md`.
