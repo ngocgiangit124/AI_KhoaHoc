@@ -22,6 +22,9 @@ class Subject extends Model
     use HasFactory;
 
     /**
+     * `status` không nằm trong danh sách này (như S17 `Course::$fillable`) —
+     * chỉ đổi qua `SubjectService` (T06), không mass-assign trực tiếp.
+     *
      * @var list<string>
      */
     protected $fillable = [
