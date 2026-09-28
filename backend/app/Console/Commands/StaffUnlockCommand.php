@@ -25,9 +25,14 @@ class StaffUnlockCommand extends Command
             return self::FAILURE;
         }
 
+        $from = $user->status;
+
         $user->forceFill(['status' => UserStatus::Active])->save();
 
-        $auditLogger->log('user.unlock', $user);
+        // L4 (review bảo mật T01/T02) — ghi rõ giá trị trước/sau thay vì `changes` rỗng.
+        $auditLogger->log('user.unlock', $user, [
+            'status' => ['from' => $from->value, 'to' => UserStatus::Active->value],
+        ]);
 
         $this->components->info("Đã mở khoá tài khoản: {$email}");
 

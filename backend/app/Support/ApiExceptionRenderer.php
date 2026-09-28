@@ -45,6 +45,14 @@ class ApiExceptionRenderer
             $response->headers->set('X-Request-Id', $requestId);
         }
 
+        // L6 — giữ lại header chức năng của HttpException (`Retry-After` của 429,
+        // `Allow` của 405...) thay vì bỏ khi dựng lại response JSON từ đầu.
+        if ($e instanceof HttpExceptionInterface) {
+            foreach ($e->getHeaders() as $name => $value) {
+                $response->headers->set($name, $value);
+            }
+        }
+
         return $response;
     }
 

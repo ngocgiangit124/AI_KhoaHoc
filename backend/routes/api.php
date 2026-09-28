@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Auth\CsrfController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,9 +17,24 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
-    Route::get('/csrf-token', CsrfController::class);
-    Route::get('/config/public', [PublicConfigController::class, 'show']);
-    Route::get('/health', HealthController::class);
+    // M3 (review bảo mật T01/T02) — endpoint công khai, có thể cache (CDN/Nginx
+    // micro-cache): KHÔNG được khởi tạo session/Set-Cookie dù request có Origin
+    // thuộc SANCTUM_STATEFUL_DOMAINS (ADR-004 §2.5 — "không đọc cookie"). Tắt
+    // hẳn middleware Sanctum đẩy StartSession/EncryptCookies vào pipeline, thay
+    // vì chỉ dựa vào việc controller không gọi session().
+    Route::middleware(['throttle:catalog'])
+        ->withoutMiddleware(EnsureFrontendRequestsAreStateful::class)
+        ->group(function (): void {
+            Route::get('/config/public', [PublicConfigController::class, 'show']);
+            Route::get('/health', HealthController::class);
+        });
+
+    // csrf-token CẦN session (mục đích chính là phát hành token CSRF) nên giữ
+    // nguyên EnsureFrontendRequestsAreStateful; limiter `csrf` riêng (M3) chống
+    // client ngoài trình duyệt tạo phiên Redis không giới hạn.
+    Route::get('/csrf-token', CsrfController::class)
+        ->middleware('throttle:csrf')
+        ->name('api.csrf-token');
 
     // Auth (T03/T04/T05/T27), Catalog (T10), Cart/Checkout (T16/T18),
     // Learn (T13), Webhooks (T19) — thêm dần ở các task sau.

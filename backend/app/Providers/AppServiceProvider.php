@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Support\ProductionConfigGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -11,7 +12,6 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
-use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -33,7 +33,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureRateLimiters();
         $this->configureGates();
         $this->configureJsonResources();
-        $this->guardProductionPayments();
+        (new ProductionConfigGuard)->check();
     }
 
     /**
@@ -146,31 +146,15 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('catalog', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
         RateLimiter::for('webhook', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
         RateLimiter::for('export', fn (Request $request) => Limit::perDay(10)->by($this->identity($request)));
+
+        // M3 (review bảo mật T01/T02) — `csrf-token` không throttle trước đó:
+        // client ngoài trình duyệt chỉ cần đặt Origin là tạo được 1 phiên Redis
+        // mới (7 ngày) mỗi request, không giới hạn.
+        RateLimiter::for('csrf', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
     }
 
     private function identity(Request $request): string
     {
         return (string) ($request->user()?->getKey() ?? $request->ip());
-    }
-
-    /**
-     * S4 — chặn ứng dụng khởi động ở production nếu cấu hình lọt cổng thanh toán
-     * `fake` hoặc endpoint MoMo sandbox.
-     */
-    private function guardProductionPayments(): void
-    {
-        if (! $this->app->isProduction()) {
-            return;
-        }
-
-        if (in_array('fake', config('payments.enabled_gateways', []), true)) {
-            throw new RuntimeException('FakeGateway bị cấm ở production (S4).');
-        }
-
-        $momoEndpoint = (string) config('payments.gateways.momo.endpoint');
-
-        if ($momoEndpoint !== '' && str_contains($momoEndpoint, 'test-payment')) {
-            throw new RuntimeException('MoMo sandbox endpoint bị cấm ở production (S4).');
-        }
     }
 }
