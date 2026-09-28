@@ -35,11 +35,25 @@ gì thêm trên host ngoài Docker.
 
 ```bash
 cd backend
-cp .env.example .env   # đã có sẵn giá trị mặc định phù hợp Docker Compose ở dưới
+cp .env.example .env   # sửa DB_PASSWORD/REDIS_PASSWORD — xem M6 bên dưới
+
+cd ../infra
+cp .env.example .env   # BẮT BUỘC (M6 — review bảo mật T01/T02): không còn giá
+                        # trị mặc định "secret" trong docker-compose.yml
 ```
 
-`.env` dùng hostname **service Docker** (`DB_HOST=mysql`, `REDIS_HOST=redis`,
-`MAIL_HOST=mailpit`) — không đổi nếu chạy qua `infra/docker-compose.yml`.
+`backend/.env` dùng hostname **service Docker** (`DB_HOST=mysql`,
+`REDIS_HOST=redis`, `MAIL_HOST=mailpit`) — không đổi nếu chạy qua
+`infra/docker-compose.yml`.
+
+**M6 (review bảo mật T01/T02) — 2 file `.env` phải khớp mật khẩu:**
+`infra/.env` (`VV_DB_PASSWORD`, `VV_REDIS_PASSWORD`) cấu hình mật khẩu THẬT
+cho container MySQL/Redis; `backend/.env` (`DB_PASSWORD`, `REDIS_PASSWORD`)
+là mật khẩu Laravel dùng để KẾT NỐI tới 2 service đó. Đây là **2 file khác
+nhau mô tả cùng 1 mật khẩu** — đặt sai lệch thì `php` không kết nối được
+DB/Redis. `docker-compose.yml` không còn fallback `:-secret`: thiếu
+`infra/.env` hoặc thiếu khoá sẽ báo lỗi rõ ràng khi `docker compose up`, thay
+vì âm thầm chạy với mật khẩu yếu cố định trong file được commit.
 
 ### 2.2 Khởi động hạ tầng
 
@@ -49,21 +63,32 @@ VV_UID=$(id -u) VV_GID=$(id -g) docker compose up -d --build
 ```
 
 `VV_UID`/`VV_GID` để container `php` chạy đúng UID/GID của bạn trên host (WSL2)
-— file tạo ra từ container không bị root hoá. Có thể xuất 2 biến này vào
-`~/.bashrc`/`infra/.env` để khỏi gõ lại.
+— file tạo ra từ container không bị root hoá. Có thể đặt 2 biến này thẳng
+trong `infra/.env` để khỏi gõ lại (xem `infra/.env.example`).
 
-Service khởi động: `php` (php-fpm), `nginx` (cổng host **8000** → container
-`80`, đúng `http://api.localhost:8000` / `http://admin-api.localhost:8000`
-theo ADR-004 §2.1), `mysql` (cổng 3306, DB `vitaminvui` + `vitaminvui_testing`),
-`redis` (cổng 6379), `mailpit` (UI `http://localhost:8025`), `queue`
-(`queue:work --queue=default,exports`), `scheduler` (`schedule:work`).
+**M6/N3 — MySQL/Redis/Mailpit/Nginx đều chỉ bind `127.0.0.1`** (không mở ra
+mạng LAN/Wi-Fi, kể cả khi `APP_DEBUG=true` ở local): `docker compose ps` phải
+luôn hiện `127.0.0.1:3306->3306`, `127.0.0.1:6379->6379`,
+`127.0.0.1:8025->8025`/`127.0.0.1:1025->1025`, **và `127.0.0.1:8000->80`**.
+
+Service khởi động: `php` (php-fpm), `nginx` (cổng host **8000**, chỉ
+`127.0.0.1` → container `80`, đúng `http://api.localhost:8000` /
+`http://admin-api.localhost:8000` theo ADR-004 §2.1), `mysql` (cổng 3306, DB
+`vitaminvui` + `vitaminvui_testing`), `redis` (cổng 6379), `mailpit` (UI
+`http://localhost:8025`), `queue` (`queue:work --queue=default,exports`),
+`scheduler` (`schedule:work`).
 
 Frontend (container riêng của `nextjs-dev`, **không cấu hình ở đây**) gọi
 backend qua `http://host.docker.internal:8000` (từ container) hoặc
 `http://api.localhost:8000` / `http://admin-api.localhost:8000` (từ trình
-duyệt trên host) — `host.docker.internal` phân giải sẵn với Docker Desktop
-(WSL2). Ứng dụng admin Next.js (`admin.localhost:3001`) do `nextjs-dev` tự
-phục vụ bằng dev server của Next.js, **không** đi qua Nginx của backend.
+duyệt trên host). **Đã kiểm chứng thật** (N3, không chỉ suy đoán): bind
+Nginx vào `127.0.0.1:8000` rồi gọi `http://host.docker.internal:8000` từ một
+container Docker độc lập khác (bridge network riêng, mô phỏng đúng container
+`web`/`admin` của `frontend/docker-compose.yml`) — vẫn trả `200`, kể cả không
+khai `--add-host` tường minh (Docker Desktop tự cấp DNS này). Vì vậy không
+cần mở `0.0.0.0` cho Nginx. Ứng dụng admin Next.js (`admin.localhost:3001`)
+do `nextjs-dev` tự phục vụ bằng dev server của Next.js, **không** đi qua
+Nginx của backend.
 
 ### 2.3 Trình duyệt phân giải `*.localhost`
 
@@ -155,6 +180,17 @@ Nếu sau này thêm biến `.env` mới cần khác giá trị lúc test, nhớ
 RefreshDatabase (Pest, bật ở `tests/Pest.php`) bọc mỗi test Feature trong 1
 transaction rồi rollback — DB test không tích luỹ dữ liệu giữa các lần chạy.
 
+**BUG-2 (QA T01/T02) — Redis rate-limiter cũng phải cách ly:**
+`RateLimiter::for()`/middleware `throttle` mặc định dùng
+`config('cache.limiter')` = store `redis-limiter` (Redis THẬT, `REDIS_LIMITER_DB`)
+— khác `DB_DATABASE`, biến này **không** được cách ly riêng cho `testing`
+trước đây, khiến bộ đếm rate-limit dùng CHUNG giữa test và dev/production
+(test chạy 2 lần liên tiếp có thể bị 429 giả ở request đáng lẽ phải qua).
+`phpunit.xml` giờ ép `CACHE_LIMITER=array` (`force="true"` trên cả `<env>` lẫn
+`<server>`, cùng lý do ở trên) — store trong tiến trình, mỗi test Pest có
+Application riêng nên không rò trạng thái giữa các lần chạy, không cần Redis
+khi test.
+
 ## 4. Cấu trúc route & host (ADR-004 §2.1)
 
 | Host local (cổng **8000**, xem §2.2) | Dùng cho | File route |
@@ -227,20 +263,79 @@ Compose). Nhóm chính:
 
 ## 7. Việc CHƯA làm (để lại cho task sau, không thuộc phạm vi T01/T02)
 
-- `config/video.php`, `config/captcha.php` riêng — captcha site key hiện đọc
-  qua `config('services.turnstile.*')`.
+- `config/video.php` riêng — chưa cần tới khi chưa có T11+.
 - `StudentSessionService`, MFA staff, idle timeout thật (T05, T28) — hiện là
   middleware pass-through có alias sẵn.
 - Mọi route nghiệp vụ (auth, catalog, cart, checkout, learn, admin...) —
   chỉ có `/csrf-token`, `/config/public`, `/health` ở T01.
+- **M5 (review bảo mật):** quyền MySQL của user ứng dụng trên bảng
+  `audit_logs` vẫn có UPDATE/DELETE ở tầng DB (chỉ bị chặn ở tầng
+  Eloquent/app — xem `App\Models\AuditLog`). TODO(DBA, task sau): giới hạn
+  còn INSERT/SELECT hoặc trigger `BEFORE UPDATE/DELETE`.
 
 ## 8. Test bảo mật/kiến trúc đáng chú ý khi review
 
 - `tests/Feature/T01/*`: host trust, CORS theo host, cookie SameSite
   Lax/Strict theo host, envelope lỗi, TrustedProxy/X-Forwarded-For, collation
-  utf8mb4_0900_ai_ci, isolation READ-COMMITTED.
+  utf8mb4_0900_ai_ci, isolation READ-COMMITTED, thứ tự middleware toàn cục
+  (`TrustedProxyHostSpoofTest`), boot guard production (`ProductionConfigGuardTest`),
+  endpoint công khai không tạo session (`PublicEndpointNoSessionTest`).
 - `tests/Feature/T02/*`: mass assignment (S17), mã hoá `parent_phone/
-  parent_email` (S7), AuditLog bất biến, `staff:create` chạy được ở
-  production nhưng seeder demo thì không (S15), Gate/middleware phân quyền.
+  parent_email` (S7), AuditLog bất biến ở nhiều lớp (instance method + sự
+  kiện model + query builder), `staff:create` chạy được ở production nhưng
+  seeder demo thì không (S15), Gate/middleware phân quyền, route admin-api
+  bắt buộc `admin.origin` + `auth:sanctum` + `role`/`can:access-admin-area`
+  (`RouteMiddlewareGroupsTest`).
 - `tests/Arch/*`: cấm `$guarded = []` trên mọi Model; cấm `$request->all()`
   trong Controllers.
+
+## 9. Đã sửa theo review bảo mật + QA (2026-09-28)
+
+Chi tiết đầy đủ: `docs/security/review-T01-T02.md`, `docs/qa/T01-T02.md`.
+Tóm tắt các điểm đã xử lý trong mã nguồn:
+
+- **H1 (High):** `TrustProxies` chạy TRƯỚC `TrustHosts`/`ConfigureHostContext`
+  trong middleware toàn cục; chỉ tin `X-Forwarded-For/Port/Proto` (không tin
+  `X-Forwarded-Host/Prefix`); host đã chọn truyền qua
+  `$request->attributes` (`ConfigureHostContext::HOST_ATTRIBUTE`).
+- **M1:** test kiến trúc bắt buộc `admin.origin` + `auth:sanctum` +
+  `role:.../can:access-admin-area` cho mọi route có thể gọi trên admin-api
+  (allowlist theo TÊN route, không dùng `str_contains` trên URI); có test
+  chứng minh logic bắt được route giả thiếu quyền.
+- **M2:** Nginx chặn PATH_INFO qua `/index.php/`, webhook giới hạn 16 KB ngay
+  cả khi `chunked`, chỉ đúng `/index.php` được chạy PHP.
+- **M3:** `/config/public`, `/health` không còn khởi tạo session/Set-Cookie
+  (`withoutMiddleware(EnsureFrontendRequestsAreStateful::class)`); `csrf-token`
+  có `throttle:csrf` riêng (30/phút/IP).
+- **M4:** `session.secure` tính theo `isProduction()`/`isSecure()` trong
+  `ConfigureHostContext`; `App\Support\ProductionConfigGuard` chặn boot khi
+  `APP_DEBUG`, `session.secure`, captcha fake, stateful domains chứa
+  localhost, `TRUSTED_PROXIES=*`, gateway/endpoint MoMo sai (allowlist).
+- **M5:** `AuditLog` bất biến ở nhiều lớp (instance `update()/delete()`/
+  `saveQuietly()`, sự kiện `saving`/`updating`/`deleting`,
+  `ImmutableAuditLogBuilder` chặn `update/delete/increment/decrement/
+  incrementEach/decrementEach/touch/upsert/forceDelete/truncate` qua query
+  builder). Không chặn `DB::table()`/quyền MySQL trực tiếp — TODO(DBA).
+- **M6:** `infra/docker-compose.yml` bind MySQL/Redis/Mailpit vào `127.0.0.1`,
+  bỏ mật khẩu mặc định `secret` (bắt buộc `infra/.env`).
+- **BUG-1:** header bảo mật chỉ còn đặt ở Laravel (`SecurityHeaders`), bỏ
+  `add_header` trùng ở Nginx.
+- **BUG-2:** `CACHE_LIMITER=array` trong `phpunit.xml` — cách ly rate limiter
+  khỏi Redis dev thật khi chạy test.
+- **L1:** `filesystems.disks.local.serve = false` — tắt hẳn route
+  `storage.local`/`storage.local.upload`.
+- **L3:** `server_tokens off`, `server { listen 80 default_server; return 444; }`
+  cho host lạ.
+- **L4:** `AuditLogger` lọc thêm `secret/otp/address/*_key`; ghi
+  `actor_role=cli` khi chạy từ console không có actor đăng nhập; `staff:create`
+  ghi audit TRONG cùng transaction với tạo user; `staff:lock/unlock` ghi
+  `changes` có giá trị `{from, to}` của `status`.
+- **L6:** `ApiExceptionRenderer` giữ lại header `Retry-After`/`Allow` của
+  `HttpExceptionInterface`; bỏ `HasApiTokens` khỏi `User` (không phát hành
+  token — S24), có test kiến trúc cấm dùng lại trait/`createToken(`.
+- **N1 (hồi quy từ L4):** `AuditLogger` đưa `password/secret/otp/token` về so
+  khớp "chứa chuỗi" (không còn khớp chính xác — làm lọt `new_password`,
+  `otp_code`, `verification_code`...); thêm hậu tố `_code` có allowlist
+  `coupon_code`/`referral_code_used`.
+- **N3:** Nginx cũng chỉ bind `127.0.0.1:8000` (đã kiểm chứng thật
+  `host.docker.internal` vẫn gọi được từ container Docker Desktop độc lập).

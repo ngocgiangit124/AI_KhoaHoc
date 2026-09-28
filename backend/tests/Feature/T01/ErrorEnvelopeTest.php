@@ -1,7 +1,6 @@
 <?php
 
 use App\Exceptions\DomainException;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 
 test('404 tra dung envelope JSON', function () {
@@ -24,6 +23,30 @@ test('422 ValidationException tra dung envelope VALIDATION_ERROR', function () {
     $response->assertStatus(422);
     $response->assertJson(['code' => 'VALIDATION_ERROR']);
     $response->assertJsonStructure(['message', 'code', 'errors' => ['name'], 'request_id']);
+});
+
+/**
+ * R1 (docs/qa/review-T03-FW1.md) — chỉ nâng message của field lên top-level
+ * khi CHỈ có đúng 1 field lỗi (xem `ApiExceptionRenderer::validationMessage()`).
+ * Lỗi NHIỀU field (form điền thiếu nhiều ô) vẫn phải giữ câu chung — không tự
+ * ý chọn 1 lỗi đại diện cho cả nhóm, tránh gây hiểu lầm field khác cũng lỗi
+ * giống vậy.
+ */
+test('422 ValidationException nhieu field van giu message chung (khong chon 1 loi dai dien)', function () {
+    Route::domain(config('app.api_host'))->post('/__test/validate-multi', function () {
+        request()->validate(['name' => 'required|string', 'email' => 'required|email']);
+
+        return response()->json(['ok' => true]);
+    });
+
+    $response = $this->postJson('http://'.config('app.api_host').'/__test/validate-multi', []);
+
+    $response->assertStatus(422);
+    $response->assertJson([
+        'code' => 'VALIDATION_ERROR',
+        'message' => 'Dữ liệu gửi lên không hợp lệ.',
+    ]);
+    $response->assertJsonStructure(['errors' => ['name', 'email']]);
 });
 
 test('DomainException tra dung code va status tuy chinh', function () {
@@ -53,20 +76,15 @@ test('405 Method Not Allowed tra dung envelope JSON', function () {
     expect($body)->not->toContain('.php')
         ->and($body)->not->toContain('Stack trace')
         ->and($body)->not->toContain('Illuminate\\');
+
+    // L6 (review bảo mật T01/T02) — giữ header `Allow` của MethodNotAllowedHttpException.
+    expect($response->headers->get('Allow'))->not->toBeNull();
 });
 
 test('429 TooManyRequests (throttle) tra dung envelope JSON va khong lo noi bo', function () {
-    // BUG (xem docs/qa/T01-T02.md BUG-2): middleware `throttle` mac dinh dung
-    // Cache store config('cache.limiter') = 'redis-limiter' — Redis THAT
-    // (REDIS_LIMITER_DB) — KHONG duoc phpunit.xml cach ly nhu DB_DATABASE
-    // (T01 "DB test rieng biet" chi ap dung cho MySQL). Va khoa rate-limit mac
-    // dinh cua ThrottleRequests chi la sha1(domain|ip) — KHONG gom URI — nen
-    // moi route throttle:x,y tren cung host/IP dung chung 1 bo dem, du duong
-    // dan test co random hay khong. Phai flush store nay truoc khi test de co
-    // ket qua on dinh — KHONG khac phuc duoc goc trong pham vi tests/ (can
-    // tach CACHE_LIMITER rieng cho testing trong phpunit.xml, ngoai quyen QA).
-    Cache::store(config('cache.limiter'))->flush();
-
+    // BUG-2 (QA T01/T02) da duoc va o goc: phpunit.xml gio ep CACHE_LIMITER=array
+    // (store trong tien trinh, khong persist qua cac lan chay test) — khong con
+    // can flush() Redis truoc moi test throttle nhu ban va tam truoc day.
     Route::domain(config('app.api_host'))
         ->middleware('throttle:1,1')
         ->get('/__test/throttled', fn () => response()->json(['ok' => true]));
@@ -83,6 +101,9 @@ test('429 TooManyRequests (throttle) tra dung envelope JSON va khong lo noi bo',
     $body = $second->getContent();
     expect($body)->not->toContain('.php')
         ->and($body)->not->toContain('Stack trace');
+
+    // L6 (review bảo mật T01/T02) — giữ header `Retry-After` của ThrottleRequestsException.
+    expect($second->headers->get('Retry-After'))->not->toBeNull();
 });
 
 test('500 co request_id va khong lo stack trace khi APP_DEBUG=false', function () {

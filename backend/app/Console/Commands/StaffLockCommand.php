@@ -25,9 +25,14 @@ class StaffLockCommand extends Command
             return self::FAILURE;
         }
 
+        $from = $user->status;
+
         $user->forceFill(['status' => UserStatus::Locked])->save();
 
-        $auditLogger->log('user.lock', $user);
+        // L4 (review bảo mật T01/T02) — ghi rõ giá trị trước/sau thay vì `changes` rỗng.
+        $auditLogger->log('user.lock', $user, [
+            'status' => ['from' => $from->value, 'to' => UserStatus::Locked->value],
+        ]);
 
         $this->components->info("Đã khoá tài khoản: {$email}");
 

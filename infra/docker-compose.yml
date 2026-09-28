@@ -36,9 +36,16 @@ services:
       - ./nginx/snippets:/etc/nginx/snippets:ro
     ports:
       # ADR-004 §2.1 (local): http://api.localhost:8000, http://admin-api.localhost:8000.
-      # Cổng 8000 publish ra host để frontend (container riêng của nextjs-dev) gọi
-      # được qua host.docker.internal:8000.
-      - "8000:80"
+      # N3 (review bảo mật T01/T02, xác minh lại) — chỉ bind loopback (giống
+      # MySQL/Redis/Mailpit ở M6): không mở ra mạng LAN/Wi-Fi trong khi
+      # APP_DEBUG=true ở local. Đã KIỂM CHỨNG THẬT (không chỉ suy đoán): từ 1
+      # container Docker Desktop độc lập (bridge network riêng, mô phỏng đúng
+      # container `web`/`admin` của nextjs-dev trong frontend/docker-compose.yml),
+      # gọi `http://host.docker.internal:8000` khi nginx chỉ bind
+      # `127.0.0.1:8000` VẪN trả 200 — cả khi có và không có `--add-host`
+      # tường minh (Docker Desktop tự cấp DNS `host.docker.internal`). Không
+      # cần giữ `0.0.0.0`.
+      - "127.0.0.1:8000:80"
     networks:
       - vitaminvui
 
@@ -50,17 +57,22 @@ services:
       - --transaction-isolation=READ-COMMITTED
       - --binlog-format=ROW
     environment:
-      MYSQL_ROOT_PASSWORD: ${VV_DB_ROOT_PASSWORD:-secret}
+      # M6 (review bảo mật T01/T02) — KHÔNG còn giá trị mặc định "secret": phải
+      # đặt trong infra/.env (copy từ infra/.env.example, không commit — đã có
+      # trong .gitignore). Thiếu biến → docker compose báo lỗi rõ ràng thay vì
+      # âm thầm dùng mật khẩu yếu, cố định, ai đọc code cũng biết.
+      MYSQL_ROOT_PASSWORD: ${VV_DB_ROOT_PASSWORD:?Thiếu VV_DB_ROOT_PASSWORD — copy infra/.env.example thành infra/.env và đặt giá trị}
       MYSQL_DATABASE: ${VV_DB_DATABASE:-vitaminvui}
       MYSQL_USER: ${VV_DB_USERNAME:-vitaminvui}
-      MYSQL_PASSWORD: ${VV_DB_PASSWORD:-secret}
+      MYSQL_PASSWORD: ${VV_DB_PASSWORD:?Thiếu VV_DB_PASSWORD — copy infra/.env.example thành infra/.env và đặt giá trị (phải khớp DB_PASSWORD trong backend/.env)}
     volumes:
       - vitaminvui-mysql:/var/lib/mysql
       - ./mysql-init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "3306:3306"
+      # M6 — chỉ bind loopback: không mở MySQL ra mạng LAN/Wi-Fi.
+      - "127.0.0.1:3306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${VV_DB_ROOT_PASSWORD:-secret}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${VV_DB_ROOT_PASSWORD:?}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -69,19 +81,21 @@ services:
 
   redis:
     image: redis:7
-    command: ["redis-server", "--requirepass", "${VV_REDIS_PASSWORD:-secret}"]
+    command: ["redis-server", "--requirepass", "${VV_REDIS_PASSWORD:?Thiếu VV_REDIS_PASSWORD — copy infra/.env.example thành infra/.env và đặt giá trị (phải khớp REDIS_PASSWORD trong backend/.env)}"]
     volumes:
       - vitaminvui-redis:/data
     ports:
-      - "6379:6379"
+      # M6 — chỉ bind loopback: không mở Redis ra mạng LAN/Wi-Fi.
+      - "127.0.0.1:6379:6379"
     networks:
       - vitaminvui
 
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      # M6 — Mailpit không có xác thực và chứa email OTP/PII khi test; chỉ bind loopback.
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
     networks:
       - vitaminvui
 

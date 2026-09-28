@@ -9,12 +9,20 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
 
 /**
  * Larastan không tự suy ra được kiểu cast enum từ phương thức `casts()` (chỉ
  * đọc được `protected $casts` khai báo tĩnh) — khai @property tường minh để
  * phpstan hiểu đúng kiểu, tránh báo sai "always false" ở mọi so sánh enum.
+ *
+ * L6 (review bảo mật T01/T02) — KHÔNG dùng `Laravel\Sanctum\HasApiTokens`:
+ * dự án chỉ xác thực bằng session cookie SPA (`auth:sanctum` + cookie, không
+ * phát hành personal access token — S24). Có trait này mà không dùng khiến
+ * guard `sanctum` chấp nhận cả Bearer token (bỏ qua CSRF) nếu sau này có ai
+ * vô tình gọi `$user->createToken()`. Không cần trait cho xác thực SPA qua
+ * cookie (guard `sanctum` của Sanctum dùng session guard trước, trait chỉ
+ * cần khi thật sự phát hành/kiểm token). Xem test kiến trúc
+ * `tests/Arch/NoApiTokensTest.php`.
  *
  * @property UserRole $role
  * @property UserStatus $status
@@ -23,7 +31,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasFactory, Notifiable;
 
     /**
      * S17 — mass assignment: CHỈ các trường này được gán qua create()/fill().

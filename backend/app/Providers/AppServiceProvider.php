@@ -3,6 +3,10 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Auth\Captcha\CaptchaVerifier;
+use App\Services\Auth\Captcha\FakeCaptchaVerifier;
+use App\Services\Auth\Captcha\TurnstileVerifier;
+use App\Support\ProductionConfigGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -20,7 +24,28 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // T03 — CaptchaVerifier: 'fake' CHỈ hợp lệ ở local/testing, production
+        // cấm qua ProductionConfigGuard (M3/M4 — allowlist thật, không phải
+        // blocklist). Không dùng singleton: rẻ để tạo, và tránh giữ secret
+        // trong bộ nhớ lâu hơn cần thiết.
         //
+        // M3 (review docs/security/review-T03-FW1.md) — TRƯỚC ĐÂY `default`
+        // rơi vào `FakeCaptchaVerifier`: gõ sai chính tả/viết hoa
+        // `CAPTCHA_DRIVER` (`Turnstile`, `TURNSTILE`, `none`, chuỗi rỗng...)
+        // ở production vẫn chạy được nhưng KHÔNG CÓ captcha thật nào — "fail
+        // open" thay vì "fail closed". Giờ chỉ 2 giá trị CHÍNH XÁC (phân biệt
+        // hoa/thường) được chấp nhận; driver lạ ném exception ngay lúc resolve
+        // (ứng dụng "không boot" được luồng cần captcha, thay vì âm thầm bỏ
+        // qua bảo vệ).
+        $this->app->bind(CaptchaVerifier::class, function () {
+            return match (config('captcha.driver')) {
+                'turnstile' => new TurnstileVerifier((string) config('services.turnstile.secret')),
+                'fake' => new FakeCaptchaVerifier,
+                default => throw new RuntimeException(
+                    "CAPTCHA_DRIVER không hợp lệ: '".config('captcha.driver')."' (phải là 'turnstile' hoặc 'fake')."
+                ),
+            };
+        });
     }
 
     /**
@@ -33,7 +58,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureRateLimiters();
         $this->configureGates();
         $this->configureJsonResources();
-        $this->guardProductionPayments();
+        (new ProductionConfigGuard)->check();
     }
 
     /**
@@ -77,12 +102,17 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configureRateLimiters(): void
     {
-        RateLimiter::for('login', function (Request $request) {
-            return [
-                Limit::perHour(10)->by('login:'.mb_strtolower((string) $request->input('login'))),
-                Limit::perHour(50)->by('login-ip:'.$request->ip()),
-            ];
-        });
+        // R2 (review docs/qa/review-T03-FW1.md) — api-contract §1.6 ghi "10 lần
+        // SAI/giờ/login": lớp theo IP dưới đây vẫn đếm MỌI request (đúng như
+        // trước, không phân biệt đúng/sai — hợp đồng không nói "sai" cho lớp
+        // IP). Lớp theo TÀI KHOẢN không còn khai ở đây (middleware
+        // `ThrottleRequests` đếm ngay khi request đi qua, không biết kết quả
+        // xác thực) — chuyển sang `LoginService::authenticate()`, chỉ
+        // `RateLimiter::hit()` khi sai thông tin đăng nhập (dùng chung tên
+        // khoá `login:<login>` để 2 nơi không lệch nhau). T28 (đăng nhập
+        // quản trị) phải tự áp lại cùng quy tắc "chỉ đếm lần sai" cho
+        // `StaffAuthService` — limiter này chỉ còn lớp IP dùng chung 2 host.
+        RateLimiter::for('login', fn (Request $request) => Limit::perHour(50)->by('login-ip:'.$request->ip()));
 
         RateLimiter::for('register', fn (Request $request) => Limit::perHour(30)->by($request->ip()));
 
@@ -146,31 +176,15 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('catalog', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
         RateLimiter::for('webhook', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
         RateLimiter::for('export', fn (Request $request) => Limit::perDay(10)->by($this->identity($request)));
+
+        // M3 (review bảo mật T01/T02) — `csrf-token` không throttle trước đó:
+        // client ngoài trình duyệt chỉ cần đặt Origin là tạo được 1 phiên Redis
+        // mới (7 ngày) mỗi request, không giới hạn.
+        RateLimiter::for('csrf', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
     }
 
     private function identity(Request $request): string
     {
         return (string) ($request->user()?->getKey() ?? $request->ip());
-    }
-
-    /**
-     * S4 — chặn ứng dụng khởi động ở production nếu cấu hình lọt cổng thanh toán
-     * `fake` hoặc endpoint MoMo sandbox.
-     */
-    private function guardProductionPayments(): void
-    {
-        if (! $this->app->isProduction()) {
-            return;
-        }
-
-        if (in_array('fake', config('payments.enabled_gateways', []), true)) {
-            throw new RuntimeException('FakeGateway bị cấm ở production (S4).');
-        }
-
-        $momoEndpoint = (string) config('payments.gateways.momo.endpoint');
-
-        if ($momoEndpoint !== '' && str_contains($momoEndpoint, 'test-payment')) {
-            throw new RuntimeException('MoMo sandbox endpoint bị cấm ở production (S4).');
-        }
     }
 }

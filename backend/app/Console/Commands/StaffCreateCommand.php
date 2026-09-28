@@ -48,11 +48,14 @@ class StaffCreateCommand extends Command
 
         $password = Str::password(20, symbols: true);
 
-        $user = DB::transaction(function () use ($email, $role, $password) {
+        // L4 (review bảo mật T01/T02) — ghi audit TRONG CÙNG transaction với
+        // tạo user: nếu ghi audit lỗi (vd DB tạm gián đoạn), toàn bộ rollback,
+        // không để lọt tài khoản staff được tạo mà thiếu audit tương ứng (S15).
+        $user = DB::transaction(function () use ($email, $role, $password, $auditLogger) {
             // forceCreate (không phải create()) — cố ý ghi ngoài $fillable (S17):
             // command CLI là "Service chuyên trách" duy nhất được phép đổi
             // role/status trực tiếp khi tạo tài khoản staff.
-            return User::query()->forceCreate([
+            $user = User::query()->forceCreate([
                 'name' => (string) ($this->option('name') ?: Str::before($email, '@')),
                 'email' => $email,
                 'role' => $role,
@@ -61,11 +64,13 @@ class StaffCreateCommand extends Command
                 'must_change_password' => true,
                 'email_verified_at' => now(),
             ]);
-        });
 
-        $auditLogger->log('staff.create', $user, [
-            'role' => $role->value,
-        ]);
+            $auditLogger->log('staff.create', $user, [
+                'role' => $role->value,
+            ]);
+
+            return $user;
+        });
 
         $this->components->info('Tạo tài khoản staff thành công.');
         $this->line("Email: {$user->email}");

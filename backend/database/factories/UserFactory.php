@@ -37,6 +37,12 @@ class UserFactory extends Factory
             'status' => UserStatus::Active,
             'grade_level' => fake()->numberBetween(6, 12),
             'date_of_birth' => fake()->dateTimeBetween('-19 years', '-18 years')->format('Y-m-d'),
+            // Trùng default của cột (data-model §3.1) — khai tường minh để tránh
+            // MissingAttributeException khi Model::shouldBeStrict() bật ở testing
+            // (T03 là nơi đầu tiên đọc thuộc tính này qua GET /auth/me).
+            'parent_consent_status' => ParentConsentStatus::NotRequired,
+            'parent_phone' => null,
+            'parent_email' => null,
             'email_verified_at' => null,
             'phone_verified_at' => null,
             'remember_token' => Str::random(10),
