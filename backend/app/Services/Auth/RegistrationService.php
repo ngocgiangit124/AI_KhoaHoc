@@ -16,7 +16,9 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Đăng ký học sinh (US-001, api-contract §2.2). Duy nhất Service này được tạo
@@ -106,7 +108,23 @@ class RegistrationService
         // AC1/BR7 — gửi OTP xác thực NGAY sau khi transaction đã commit (email
         // luôn là trường bắt buộc ở RegisterRequest, nên luôn có đích để gửi;
         // production MVP cũng chỉ bật kênh 'email' — api-contract §2.2).
-        $this->otpService->send($user, OtpPurpose::VerifyAccount, 'email');
+        //
+        // T04 review R3 — TRƯỚC ĐÂY không bắt lỗi: user đã COMMIT thật vào DB
+        // (dòng ở trên), nên nếu send() ném lỗi (vd Redis/queue tạm gián đoạn)
+        // thì register() ném tiếp, RegisterController không kịp Auth::login()/
+        // trả 201 → client nhận 500 dù tài khoản đã tồn tại hợp lệ — học sinh
+        // không tự đăng nhập được, cũng không đăng ký lại được (email/SĐT coi
+        // là trùng). Không để lỗi gửi OTP chặn phản hồi đăng ký thành công:
+        // tài khoản vẫn hợp lệ, học sinh vẫn cần được đăng nhập ngay; AC9 đã có
+        // sẵn nút "Gửi lại mã" ở màn xác thực cho đúng trường hợp này. Log
+        // cảnh báo để vận hành biết (KHÔNG log mã/PII — `report()`/`Log::warning`
+        // chỉ nhận message + user_id).
+        try {
+            $this->otpService->send($user, OtpPurpose::VerifyAccount, 'email');
+        } catch (Throwable $e) {
+            report($e);
+            Log::warning('otp.send_failed_after_register', ['user_id' => $user->getKey()]);
+        }
 
         // TODO(T29 — US-017): nếu $isMinor, gửi email xác nhận cho phụ huynh.
 

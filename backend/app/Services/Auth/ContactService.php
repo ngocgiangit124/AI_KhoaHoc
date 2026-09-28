@@ -34,6 +34,23 @@ class ContactService
             return $user;
         }
 
+        // T04 review R1 [BLOCKER] — kiểm trần gửi OTP TRƯỚC khi đổi bất kỳ
+        // thông tin liên hệ nào (fail-closed). Quyết định xử lý khi vượt trần:
+        // TỪ CHỐI 429 ngay, KHÔNG đổi email/SĐT — tránh trạng thái nửa vời
+        // "đã đổi liên hệ nhưng không gửi được OTP xác thực cho giá trị mới"
+        // (người dùng không biết vì sao chưa nhận được mã), và không mở thêm
+        // đường nào để dùng endpoint này đổi liên hệ qua lại không giới hạn dù
+        // có gửi được OTP hay không. Không kiểm cho kênh chưa được bật (vd
+        // 'sms' ở production) — `assertCanSend()` tự bỏ qua, khớp hành vi của
+        // `sendIfChannelEnabled()` bên dưới.
+        if ($emailChanged) {
+            $this->otpService->assertCanSend($user, 'email');
+        }
+
+        if ($phoneChanged) {
+            $this->otpService->assertCanSend($user, 'sms');
+        }
+
         try {
             DB::transaction(function () use ($user, $newEmail, $newPhone, $emailChanged, $phoneChanged): void {
                 if ($emailChanged) {

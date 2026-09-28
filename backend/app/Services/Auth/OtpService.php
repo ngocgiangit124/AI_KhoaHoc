@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use App\Enums\OtpPurpose;
+use App\Exceptions\DomainException;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Auth\Otp\OtpSenderManager;
@@ -26,24 +27,35 @@ class OtpService
     public function __construct(private readonly OtpSenderManager $senders) {}
 
     /**
-     * Sinh mã mới cho (user, purpose, channel), huỷ mọi mã còn hiệu lực của
-     * ĐÚNG bộ 3 này (data-model §3.1 — "invalidated_at: khi phát mã mới cùng
-     * purpose/kênh"), rồi gửi qua `OtpSender` tương ứng.
+     * Sinh mã mới cho (user, purpose, channel). Huỷ MỌI mã còn hiệu lực của
+     * (user, purpose) — KHÔNG lọc theo `channel` (T04 review R6): trước đây
+     * chỉ huỷ đúng cùng kênh, nên nếu có 2 mã active khác kênh cho cùng
+     * purpose (vd đổi cả email lẫn SĐT trong 1 request), `verify()` chỉ xét
+     * mã mới nhất theo `id` — mã còn lại tuy vẫn "hợp lệ" trong DB nhưng
+     * không bao giờ so khớp được, gây báo sai "mã không đúng". Đảm bảo tại
+     * mọi thời điểm CHỈ có tối đa 1 mã active cho mỗi (user, purpose) giúp
+     * `verify()` không bao giờ phải chọn giữa nhiều mã. Đánh đổi: nếu 1
+     * request đổi CẢ email lẫn SĐT (hiếm, chỉ khả thi khi kênh `sms` được
+     * bật — local/testing), mã của kênh gửi trước sẽ bị mã của kênh gửi sau
+     * huỷ ngay; chấp nhận vì production MVP chỉ có kênh `email`.
      *
      * @return Carbon Thời điểm được phép bấm "Gửi lại mã" (`resend_available_at`).
+     *
+     * @throws DomainException `TOO_MANY_ATTEMPTS` (429) khi vượt trần gửi
+     *                         (cooldown/giờ/ngày — S9, T04 review R1).
      */
     public function send(User $user, OtpPurpose $purpose, string $channel): Carbon
     {
         $this->assertChannelAllowed($channel);
+        $this->assertUnderSendLimits($user);
 
         $destination = self::destinationFor($user, $channel);
         $code = self::generateCode();
 
-        DB::transaction(function () use ($user, $purpose, $channel, $destination, $code): void {
+        DB::transaction(function () use ($user, $purpose, $destination, $channel, $code): void {
             OtpCode::query()
                 ->where('user_id', $user->getKey())
                 ->where('purpose', $purpose->value)
-                ->where('channel', $channel)
                 ->whereNull('consumed_at')
                 ->whereNull('invalidated_at')
                 ->update(['invalidated_at' => now()]);
@@ -76,6 +88,25 @@ class OtpService
         }
 
         return $this->send($user, $purpose, $channel);
+    }
+
+    /**
+     * T04 review R1 — cho phép caller (vd `ContactService`) kiểm trần gửi
+     * TRƯỚC khi thực hiện thay đổi khác (fail-closed: không đổi email/SĐT
+     * nếu biết chắc sẽ không gửi được OTP xác thực cho giá trị mới), tránh
+     * trạng thái nửa vời "đã đổi liên hệ nhưng không có cách xác thực".
+     * Không làm gì (không ném lỗi) nếu kênh chưa được bật — khớp hành vi của
+     * `sendIfChannelEnabled()` (không có gì để giới hạn nếu sẽ không gửi).
+     *
+     * @throws DomainException `TOO_MANY_ATTEMPTS` (429).
+     */
+    public function assertCanSend(User $user, string $channel): void
+    {
+        if (! in_array($channel, (array) config('auth.otp.channels'), true)) {
+            return;
+        }
+
+        $this->assertUnderSendLimits($user);
     }
 
     /**
@@ -139,6 +170,65 @@ class OtpService
         if (! in_array($channel, (array) config('auth.otp.channels'), true)) {
             throw new RuntimeException("Kênh OTP '{$channel}' không được bật (auth.otp.channels).");
         }
+    }
+
+    /**
+     * T04 review R1 [BLOCKER] — TRƯỚC ĐÂY trần gửi (cooldown 60s, ≤5/giờ,
+     * ≤10/ngày — S9, api-contract §1.6) CHỈ được `throttle:otp-send` áp ở
+     * tầng route `POST /auth/otp/send`. `PUT /auth/contact` gọi thẳng
+     * `send()` qua `ContactService`/`sendIfChannelEnabled()` mà KHÔNG đi qua
+     * route đó, nên không bị giới hạn gì — một tài khoản có thể đổi qua đổi
+     * lại email để gửi OTP thật liên tục tới bất kỳ hộp thư nào (email
+     * bombing). Đưa trần vào NGAY TRONG Service (đếm số `otp_codes` thật đã
+     * tạo cho user trong DB — nguồn sự thật độc lập với route/middleware nào
+     * gọi tới) để MỌI caller hiện tại (otp/send, register, contact) và
+     * tương lai (T27, T29...) đều tự động bị chặn, không cần mỗi route tự
+     * nhớ gắn đúng middleware. Đây là lớp phòng thủ thứ 2, độc lập với
+     * `throttle:otp-send` (lớp 1, vẫn giữ trên cả 2 route — xem routes/api.php).
+     */
+    private function assertUnderSendLimits(User $user): void
+    {
+        $userId = $user->getKey();
+        $now = now();
+
+        $cooldownSeconds = (int) config('auth.otp.cooldown_seconds');
+        $latestOtp = OtpCode::query()
+            ->where('user_id', $userId)
+            ->latest('created_at')
+            ->first(['created_at']);
+
+        if ($latestOtp !== null && $latestOtp->created_at->copy()->addSeconds($cooldownSeconds)->isFuture()) {
+            throw self::tooManySendException();
+        }
+
+        $maxPerHour = (int) config('auth.otp.max_per_hour');
+        $sentLastHour = OtpCode::query()
+            ->where('user_id', $userId)
+            ->where('created_at', '>=', $now->copy()->subHour())
+            ->count();
+
+        if ($sentLastHour >= $maxPerHour) {
+            throw self::tooManySendException();
+        }
+
+        $maxPerDay = (int) config('auth.otp.max_per_day');
+        $sentLastDay = OtpCode::query()
+            ->where('user_id', $userId)
+            ->where('created_at', '>=', $now->copy()->subDay())
+            ->count();
+
+        if ($sentLastDay >= $maxPerDay) {
+            throw self::tooManySendException();
+        }
+    }
+
+    private static function tooManySendException(): DomainException
+    {
+        return new DomainException(
+            code: 'TOO_MANY_ATTEMPTS',
+            message: 'Bạn gửi mã quá nhanh, vui lòng thử lại sau.',
+            status: 429,
+        );
     }
 
     private static function destinationFor(User $user, string $channel): string

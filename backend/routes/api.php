@@ -80,7 +80,17 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
                 ->middleware('throttle:otp-verify')
                 ->name('api.auth.otp.verify');
 
+            // T04 review R1 [BLOCKER] — TRƯỚC ĐÂY route này không có throttle
+            // nào, và `OtpService::send()` (gọi qua `ContactService`) không tự
+            // giới hạn gì, nên một tài khoản có thể đổi email liên tục để gửi
+            // OTP thật không giới hạn tới bất kỳ hộp thư nào (email bombing).
+            // Gắn CHUNG limiter `otp-send` (khớp định danh user với
+            // `/auth/otp/send`) làm lớp phòng thủ 1 (chặn sớm ở HTTP, trước cả
+            // FormRequest/Controller). Lớp phòng thủ 2 (độc lập, không thể bị
+            // quên khi thêm route mới) nằm NGAY TRONG `OtpService::send()`
+            // (xem `assertUnderSendLimits()`).
             Route::put('/auth/contact', [ContactController::class, 'update'])
+                ->middleware('throttle:otp-send')
                 ->name('api.auth.contact.update');
         });
 

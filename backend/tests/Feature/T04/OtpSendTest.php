@@ -4,11 +4,16 @@ use App\Enums\OtpPurpose;
 use App\Mail\OtpMail;
 use App\Models\OtpCode;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 
 /**
  * T04 — POST /auth/otp/send (US-001 AC8/AC9, api-contract §2.2).
  */
+afterEach(function () {
+    Carbon::setTestNow();
+});
+
 function vvOtpSend(User $user, array $payload = ['channel' => 'email'])
 {
     return test()->actingAs($user)->postJson('http://'.config('app.api_host').'/api/v1/auth/otp/send', $payload, [
@@ -73,6 +78,28 @@ test('goi lai truoc cooldown (60s) bi throttle:otp-send tra 429', function () {
 
     vvOtpSend($user)->assertStatus(202);
     vvOtpSend($user)->assertStatus(429);
+});
+
+/**
+ * T04 review R5 — trần 5/giờ (api-contract §1.6, `auth.otp.max_per_hour`)
+ * phải có hiệu lực thật qua HTTP, không chỉ khai đúng số ở `AppServiceProvider`.
+ */
+test('vuot tran 5/gio (max_per_hour) qua HTTP tra 429 TOO_MANY_ATTEMPTS', function () {
+    Mail::fake();
+    $user = User::factory()->create();
+    $maxPerHour = (int) config('auth.otp.max_per_hour');
+
+    for ($i = 0; $i < $maxPerHour; $i++) {
+        vvOtpSend($user)->assertStatus(202);
+        // Nhích qua cooldown 60s nhưng vẫn trong cùng giờ.
+        Carbon::setTestNow(now()->addSeconds(61));
+    }
+
+    $blocked = vvOtpSend($user);
+
+    $blocked->assertStatus(429);
+    $blocked->assertJson(['code' => 'TOO_MANY_ATTEMPTS']);
+    expect(OtpCode::query()->where('user_id', $user->id)->count())->toBe($maxPerHour);
 });
 
 test('response da xac thuc co Cache-Control no-store (S16)', function () {

@@ -20,7 +20,15 @@ function vvUpdateContact(User $user, array $payload)
 test('doi email: reset email_verified_at, huy ma cu, gui ma moi toi email moi', function () {
     Mail::fake();
     $user = User::factory()->verified()->create(['email' => 'cu@example.com']);
-    $oldOtp = OtpCode::factory()->for($user)->create(['channel' => 'email', 'destination' => 'cu@example.com']);
+    // T04 R1 — created_at đặt 2 giờ trước để KHÔNG chạm cooldown 60s/trần giờ
+    // của `OtpService::assertUnderSendLimits()` (test này kiểm hành vi huỷ mã
+    // cũ khi đổi liên hệ, không phải test trần gửi — trần gửi có test riêng ở
+    // `OtpServiceTest.php` và `ContactUpdateThrottleTest.php`).
+    $oldOtp = OtpCode::factory()->for($user)->create([
+        'channel' => 'email',
+        'destination' => 'cu@example.com',
+        'created_at' => now()->subHours(2),
+    ]);
 
     $response = vvUpdateContact($user, ['email' => 'moi@example.com']);
 

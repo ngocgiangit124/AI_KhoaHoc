@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use App\Services\Auth\Captcha\CaptchaVerifier;
 use App\Services\Auth\Captcha\FakeCaptchaVerifier;
 use App\Services\Auth\Captcha\TurnstileVerifier;
@@ -11,6 +12,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -125,21 +127,29 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('otp-send', function (Request $request) {
             $identity = $this->identity($request);
+            $dayRawKey = 'otp-send-day:'.$identity;
+            $maxPerDay = (int) config('auth.otp.max_per_day');
+
+            $this->auditOnceIfDailyLimitReached($request, 'otp-send', $dayRawKey, $maxPerDay);
 
             return [
                 Limit::perMinute(1)->by('otp-send-cooldown:'.$identity),
                 Limit::perHour((int) config('auth.otp.max_per_hour'))->by('otp-send-hour:'.$identity),
-                Limit::perDay((int) config('auth.otp.max_per_day'))->by('otp-send-day:'.$identity),
+                Limit::perDay($maxPerDay)->by($dayRawKey),
                 Limit::perHour(30)->by('otp-send-ip:'.$request->ip()),
             ];
         });
 
         RateLimiter::for('otp-verify', function (Request $request) {
             $identity = $this->identity($request);
+            $dayRawKey = 'otp-verify-day:'.$identity;
+            $maxPerDay = (int) config('auth.otp.max_verify_per_day');
+
+            $this->auditOnceIfDailyLimitReached($request, 'otp-verify', $dayRawKey, $maxPerDay);
 
             return [
                 Limit::perMinute((int) config('auth.otp.max_verify_per_minute'))->by('otp-verify:'.$identity),
-                Limit::perDay((int) config('auth.otp.max_verify_per_day'))->by('otp-verify-day:'.$identity),
+                Limit::perDay($maxPerDay)->by($dayRawKey),
                 Limit::perHour(60)->by('otp-verify-ip:'.$request->ip()),
             ];
         });
@@ -186,5 +196,49 @@ class AppServiceProvider extends ServiceProvider
     private function identity(Request $request): string
     {
         return (string) ($request->user()?->getKey() ?? $request->ip());
+    }
+
+    /**
+     * T04 review R2 — data-model §3.1: "vượt trần ngày → khoá xác thực 24h +
+     * ghi `audit_logs`" (action `otp.daily_limit`). Khoá 24h đã có SẴN (cửa sổ
+     * `Limit::perDay()` của Laravel tự khoá tới khi hết `decaySeconds`); phần
+     * còn thiếu là ghi audit.
+     *
+     * CỐ Ý KHÔNG dùng `Limit::response()`: response tuỳ biến của nó được
+     * `ThrottleRequests` bọc trong `Illuminate\Http\Exceptions\HttpResponseException`
+     * — exception này KHÔNG implement `HttpExceptionInterface`, nên
+     * `ApiExceptionRenderer::resolve()` (backend/app/Support/ApiExceptionRenderer.php)
+     * không nhận diện được và rơi vào nhánh mặc định `500 INTERNAL_ERROR`,
+     * PHÁ VỠ hành vi 429 chuẩn đã qua review/test ở T01–T03. Thay vào đó, kiểm
+     * TRƯỚC khi trả về danh sách `Limit` (closure này chạy lại mỗi request,
+     * trước khi `ThrottleRequests` tự quyết định chặn hay không): nếu định
+     * danh ĐÃ chạm trần ngày, ghi audit rồi mới trả về `Limit` như cũ — không
+     * đổi response 429 mặc định.
+     *
+     * `Cache::add()` (chỉ ghi nếu key CHƯA tồn tại) đảm bảo chỉ ghi audit ĐÚNG
+     * 1 LẦN cho mỗi lần "chạm trần" (không ghi lặp ở các request bị chặn tiếp
+     * theo trong cùng ngày) — tự hết hạn sau 24h, khớp thời gian khoá.
+     */
+    private function auditOnceIfDailyLimitReached(Request $request, string $limiterName, string $dayRawKey, int $maxPerDay): void
+    {
+        if (! RateLimiter::tooManyAttempts($this->namedLimiterCacheKey($limiterName, $dayRawKey), $maxPerDay)) {
+            return;
+        }
+
+        if (Cache::add('otp-daily-limit-audit:'.$limiterName.':'.$dayRawKey, true, now()->addDay())) {
+            app(AuditLogger::class)->log('otp.daily_limit', $request->user());
+        }
+    }
+
+    /**
+     * Tái tạo ĐÚNG khoá cache mà `Illuminate\Routing\Middleware\ThrottleRequests`
+     * dùng nội bộ cho limiter có TÊN (`self::$shouldHashKeys` mặc định `true`
+     * từ Laravel 11 trở đi — dự án không gọi `ThrottleRequests::shouldHashKeys(false)`
+     * ở đâu cả) — bắt buộc để đọc ĐÚNG bộ đếm mà `Limit::perDay()->by($rawKey)`
+     * bên dưới sẽ tạo ra, thay vì tự duy trì 1 bộ đếm riêng (dễ lệch nhau).
+     */
+    private function namedLimiterCacheKey(string $limiterName, string $rawKey): string
+    {
+        return md5($limiterName.$rawKey);
     }
 }
