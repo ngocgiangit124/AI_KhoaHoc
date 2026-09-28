@@ -45,6 +45,14 @@ class ApiExceptionRenderer
             $response->headers->set('X-Request-Id', $requestId);
         }
 
+        // L6 — giữ lại header chức năng của HttpException (`Retry-After` của 429,
+        // `Allow` của 405...) thay vì bỏ khi dựng lại response JSON từ đầu.
+        if ($e instanceof HttpExceptionInterface) {
+            foreach ($e->getHeaders() as $name => $value) {
+                $response->headers->set($name, $value);
+            }
+        }
+
         return $response;
     }
 
@@ -58,7 +66,7 @@ class ApiExceptionRenderer
         }
 
         if ($e instanceof ValidationException) {
-            return [422, 'VALIDATION_ERROR', 'Dữ liệu gửi lên không hợp lệ.', $e->errors()];
+            return [422, 'VALIDATION_ERROR', self::validationMessage($e), $e->errors()];
         }
 
         if ($e instanceof AuthenticationException) {
@@ -72,6 +80,35 @@ class ApiExceptionRenderer
         }
 
         return [500, 'INTERNAL_ERROR', 'Đã có lỗi xảy ra. Vui lòng thử lại sau.', null];
+    }
+
+    /**
+     * R1 (review docs/qa/review-T03-FW1.md) — frontend hiển thị `message`
+     * top-level làm banner (vd. `LoginForm.tsx`). Trước đây mọi
+     * `ValidationException` đều bị hard-code cùng 1 câu chung, kể cả khi
+     * `LoginService::genericFailure()` chủ đích gán thông điệp nghiệp vụ có
+     * ý nghĩa (BR5/S20 — "Thông tin đăng nhập hoặc mật khẩu không đúng.").
+     *
+     * Chỉ nâng thông điệp field lên top-level khi lỗi CHỈ có đúng 1 field và
+     * field đó CHỈ có đúng 1 message — an toàn vì:
+     * - Thông điệp validate luôn do chính ứng dụng soạn (Form Request/Rule),
+     *   không bao giờ là chi tiết kỹ thuật/nội bộ (khác exception 500).
+     * - Lỗi nhiều field (form đăng ký điền thiếu nhiều ô...) vẫn giữ câu
+     *   chung — không tự ý chọn "lỗi đầu tiên" đại diện cho cả nhóm lỗi.
+     */
+    private static function validationMessage(ValidationException $e): string
+    {
+        $errors = $e->errors();
+
+        if (count($errors) === 1) {
+            $onlyFieldMessages = reset($errors);
+
+            if (is_array($onlyFieldMessages) && count($onlyFieldMessages) === 1) {
+                return (string) $onlyFieldMessages[0];
+            }
+        }
+
+        return 'Dữ liệu gửi lên không hợp lệ.';
     }
 
     private static function codeForStatus(int $status): string

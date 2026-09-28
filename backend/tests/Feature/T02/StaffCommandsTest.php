@@ -117,3 +117,53 @@ test('staff:lock va staff:unlock doi status va ghi audit', function () {
     expect($user->fresh()->status)->toBe(UserStatus::Active);
     expect(AuditLog::query()->where('action', 'user.unlock')->exists())->toBeTrue();
 });
+
+/**
+ * L4 còn lại (review bảo mật T01/T02, xác minh lại) — `staff:lock`/`unlock`
+ * trước đây ghi `changes` RỖNG, không có giá trị trước/sau.
+ */
+test('staff:lock ghi changes co gia tri truoc/sau cua status', function () {
+    $user = User::factory()->pageManager()->create(['email' => 'lockme2@vitaminvui.test']);
+
+    Artisan::call('staff:lock', ['email' => 'lockme2@vitaminvui.test']);
+
+    $log = AuditLog::query()->where('action', 'user.lock')->where('subject_id', $user->id)->latest('id')->first();
+
+    expect($log)->not->toBeNull();
+    // Không so sánh cả mảng bằng toBe(): cột JSON của MySQL không đảm bảo giữ
+    // đúng thứ tự khoá ban đầu khi đọc lại (đã xác minh thực tế — không phải
+    // giả định), nên kiểm từng giá trị thay vì so khớp chính xác thứ tự.
+    expect($log->changes['status']['from'] ?? null)->toBe('active');
+    expect($log->changes['status']['to'] ?? null)->toBe('locked');
+});
+
+test('staff:unlock ghi changes co gia tri truoc/sau cua status', function () {
+    $user = User::factory()->pageManager()->locked()->create(['email' => 'unlockme2@vitaminvui.test']);
+
+    Artisan::call('staff:unlock', ['email' => 'unlockme2@vitaminvui.test']);
+
+    $log = AuditLog::query()->where('action', 'user.unlock')->where('subject_id', $user->id)->latest('id')->first();
+
+    expect($log)->not->toBeNull();
+    // Xem ghi chú ở test staff:lock phía trên (thứ tự khoá JSON không đảm bảo).
+    expect($log->changes['status']['from'] ?? null)->toBe('locked');
+    expect($log->changes['status']['to'] ?? null)->toBe('active');
+});
+
+/**
+ * L4 còn lại — audit `staff.create` phải nằm CÙNG transaction với việc tạo
+ * user (không tách rời tầng ứng dụng), xác nhận gián tiếp bằng cách kiểm cả
+ * user lẫn audit log cùng tồn tại/khớp sau khi lệnh chạy thành công.
+ */
+test('staff:create ghi audit staff.create dung subject va trong 1 lan goi', function () {
+    Artisan::call('staff:create', [
+        'email' => 'tx-check@vitaminvui.test',
+        '--role' => 'giao_vien',
+    ]);
+
+    $user = User::query()->where('email', 'tx-check@vitaminvui.test')->firstOrFail();
+    $log = AuditLog::query()->where('action', 'staff.create')->where('subject_id', $user->id)->first();
+
+    expect($log)->not->toBeNull();
+    expect($log->changes)->toBe(['role' => 'giao_vien']);
+});

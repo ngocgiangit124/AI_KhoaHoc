@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ForcedLogoutOverlay, ToastProvider } from "@vitaminvui/ui";
+import { SiteHeader } from "@/components/SiteHeader";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col">
         <ToastProvider>
+          <SiteHeader />
           {children}
           {/* Gắn 1 lần ở layout gốc — lắng sự kiện forced-logout/login-required (US-014). */}
           <ForcedLogoutOverlay loginHref="/dang-nhap" />

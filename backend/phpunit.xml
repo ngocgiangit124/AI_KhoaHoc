@@ -30,6 +30,16 @@
         <env name="BCRYPT_ROUNDS" value="4" force="true"/>
         <env name="BROADCAST_CONNECTION" value="null" force="true"/>
         <env name="CACHE_STORE" value="array" force="true"/>
+        <!-- BUG-2 (QA T01/T02): mặc định RateLimiter::for()/`throttle` dùng
+             config('cache.limiter') = 'redis-limiter' → Redis THẬT (REDIS_LIMITER_DB),
+             dùng CHUNG giữa `testing` và `local`/production vì trước đây không bị
+             override ở đây (chỉ MySQL được tách qua DB_DATABASE). Hệ quả: bộ đếm
+             throttle còn sót giữa các lần chạy test làm test `throttle` flaky, và
+             test có thể ảnh hưởng ngược lại bộ đếm rate-limit của môi trường dev
+             thật. `array` là cache store trong tiến trình (không persist), mỗi test
+             Pest có Application riêng (state không rò giữa các test) — cô lập hoàn
+             toàn, không cần Redis khi chạy test. -->
+        <env name="CACHE_LIMITER" value="array" force="true"/>
         <env name="DB_CONNECTION" value="mysql" force="true"/>
         <env name="DB_HOST" value="mysql" force="true"/>
         <env name="DB_PORT" value="3306" force="true"/>
@@ -55,6 +65,7 @@
         <server name="BCRYPT_ROUNDS" value="4" force="true"/>
         <server name="BROADCAST_CONNECTION" value="null" force="true"/>
         <server name="CACHE_STORE" value="array" force="true"/>
+        <server name="CACHE_LIMITER" value="array" force="true"/>
         <server name="DB_CONNECTION" value="mysql" force="true"/>
         <server name="DB_HOST" value="mysql" force="true"/>
         <server name="DB_PORT" value="3306" force="true"/>

@@ -33,7 +33,13 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // L1 (review bảo mật T01/T02) — TẮT: 'serve' => true đăng ký 2 route
+            // KHÔNG có domain/middleware nào (GET ServeFile + PUT ReceiveFile, ghi
+            // file vào storage/app/private), chữ ký không gắn host nên ký ở host
+            // này dùng được ở host kia. Dự án không dùng route này: file xuất
+            // (CSV/XLSX) dùng controller + signed URL riêng (S14); ảnh công khai
+            // phục vụ từ tên miền tĩnh riêng (STATIC_URL), không qua route này.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],
