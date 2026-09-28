@@ -19,10 +19,19 @@ Route::domain(config('app.admin_api_host'))
     ->prefix('api/v1')
     ->middleware('admin.origin')
     ->group(function (): void {
-        Route::get('/csrf-token', CsrfController::class);
+        // M3 (review bảo mật T01/T02) — limiter `csrf` riêng (30/phút/IP mặc định,
+        // xem AppServiceProvider::configureRateLimiters()), tránh client ngoài
+        // trình duyệt tạo phiên Redis không giới hạn.
+        Route::get('/csrf-token', CsrfController::class)
+            ->middleware('throttle:csrf')
+            ->name('admin.csrf-token');
 
-        // Nhóm `staff` (api-contract §1.3). `staff.mfa_passed`/`staff.password_fresh`
-        // là pass-through cho tới T28 (đăng nhập quản trị) — T02 đã tạo khung.
+        // M1 (review bảo mật T01/T02) — khung nhóm route quản trị chuẩn: MỌI
+        // route cần đăng nhập trên admin-api nằm trong nhóm dưới đây (đủ
+        // auth:sanctum + role, khớp test kiến trúc `RouteMiddlewareGroupsTest`).
+        // `staff.mfa_passed`/`staff.password_fresh` là pass-through cho tới T28
+        // (đăng nhập quản trị) — T02 đã tạo khung. Mọi route con ĐẶT TÊN với
+        // tiền tố `admin.` (yêu cầu của test kiến trúc).
         Route::middleware([
             'auth:sanctum',
             'account.active',
@@ -33,11 +42,11 @@ Route::domain(config('app.admin_api_host'))
             'role:admin,quan_ly_trang,giao_vien',
         ])->group(function (): void {
             // Nội dung & danh mục — Chuyên đề (T06, US-011).
-            Route::get('/subjects', [SubjectController::class, 'index']);
-            Route::post('/subjects', [SubjectController::class, 'store']);
-            Route::put('/subjects/{subject}', [SubjectController::class, 'update']);
-            Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy']);
-            Route::patch('/subjects/{subject}/status', [SubjectController::class, 'updateStatus']);
+            Route::get('/subjects', [SubjectController::class, 'index'])->name('admin.subjects.index');
+            Route::post('/subjects', [SubjectController::class, 'store'])->name('admin.subjects.store');
+            Route::put('/subjects/{subject}', [SubjectController::class, 'update'])->name('admin.subjects.update');
+            Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy'])->name('admin.subjects.destroy');
+            Route::patch('/subjects/{subject}/status', [SubjectController::class, 'updateStatus'])->name('admin.subjects.status');
 
             // Đăng nhập quản trị (T28), khóa học/chương/bài (T08+), mã giảm
             // giá/đơn hàng (T15, T24) — thêm dần ở các task sau.

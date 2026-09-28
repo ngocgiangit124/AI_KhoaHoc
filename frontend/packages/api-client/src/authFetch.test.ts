@@ -110,6 +110,23 @@ describe("authFetch", () => {
     window.removeEventListener(LOGIN_REQUIRED_EVENT, listener);
   });
 
+  it("suppressAuthEvents=true: UNAUTHENTICATED vẫn ném ApiError nhưng KHÔNG phát sự kiện login-required", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(401, { message: "Chưa đăng nhập", code: "UNAUTHENTICATED" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const listener = vi.fn();
+    window.addEventListener(LOGIN_REQUIRED_EVENT, listener);
+
+    await expect(
+      authFetch(BASE_URL, "/api/v1/auth/me", { suppressAuthEvents: true }),
+    ).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+    expect(listener).not.toHaveBeenCalled();
+
+    window.removeEventListener(LOGIN_REQUIRED_EVENT, listener);
+  });
+
   it("lỗi mạng (fetch reject) ném NetworkError, KHÔNG phát sự kiện mất phiên", async () => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
     vi.stubGlobal("fetch", fetchMock);

@@ -14,11 +14,13 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@hookform/resolvers": "5.9.1",
     "@vitaminvui/api-client": "workspace:*",
     "@vitaminvui/ui": "workspace:*",
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-hook-form": "7.89.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
