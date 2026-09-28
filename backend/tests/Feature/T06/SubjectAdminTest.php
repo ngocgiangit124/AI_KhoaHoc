@@ -74,6 +74,29 @@ test('giao vien chi xem duoc chuyen de active, khong tao/sua/xoa duoc (BR4)', fu
     $status->assertForbidden();
 });
 
+// R2 (review-T06) — phân quyền (middleware `can:...`) phải chạy TRƯỚC validate
+// của FormRequest: Giáo viên gửi payload không hợp lệ vẫn phải nhận 403 (không
+// lộ chi tiết validate qua 422) vì không có quyền thao tác chứ không phải vì
+// dữ liệu sai.
+test('giao vien gui payload khong hop le van bi 403, khong phai 422 (R2)', function () {
+    $teacher = User::factory()->teacher()->create();
+    $existing = Subject::factory()->create(['name' => 'Đại số']);
+    $target = Subject::factory()->create(['name' => 'Hình học']);
+
+    $storeEmpty = $this->actingAs($teacher)->postJson(subjectAdminUrl(), ['name' => '   '], subjectAdminHeaders());
+    $storeEmpty->assertForbidden();
+
+    $storeDuplicate = $this->actingAs($teacher)->postJson(subjectAdminUrl(), ['name' => 'đại số'], subjectAdminHeaders());
+    $storeDuplicate->assertForbidden();
+
+    $storeHtml = $this->actingAs($teacher)->postJson(subjectAdminUrl(), ['name' => '<script>alert(1)</script>'], subjectAdminHeaders());
+    $storeHtml->assertForbidden();
+
+    // 'đại số' trùng với $existing (không phải chính $target đang sửa).
+    $updateDuplicate = $this->actingAs($teacher)->putJson(subjectAdminUrl('/'.$target->id), ['name' => 'đại số'], subjectAdminHeaders());
+    $updateDuplicate->assertForbidden();
+});
+
 test('hoc sinh bi tu choi 403', function () {
     $student = User::factory()->student()->create();
 

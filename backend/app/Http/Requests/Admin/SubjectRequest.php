@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Admin;
 
-use App\Enums\SubjectStatus;
 use App\Models\Subject;
 use App\Rules\PlainText;
 use Illuminate\Foundation\Http\FormRequest;
@@ -10,8 +9,12 @@ use Illuminate\Validation\Rule;
 
 /**
  * api-contract §2.5 — `SubjectRequest`: name (trim, 1–100, văn bản thuần).
- * Dùng chung tạo (POST) và sửa (PUT /admin/subjects/{subject}); phân quyền
- * đã được `$this->authorize()` gọi trong controller (SubjectPolicy).
+ * KHÔNG có `status` (ngoài phạm vi hợp đồng) — tạo mới luôn `active` (US-011
+ * AC1), đổi trạng thái đi qua `PATCH .../status` riêng
+ * (`UpdateSubjectStatusRequest`). Dùng chung tạo (POST) và sửa (PUT
+ * /admin/subjects/{subject}); phân quyền chạy TRƯỚC validate qua middleware
+ * `can:...` trên route (routes/admin.php — R2 review-T06), không phải
+ * `authorize()` ở đây.
  */
 class SubjectRequest extends FormRequest
 {
@@ -36,9 +39,6 @@ class SubjectRequest extends FormRequest
                 new PlainText,
                 Rule::unique('subjects', 'name')->ignore($subject?->getKey()),
             ],
-            // Cho phép đặt trạng thái khi tạo mới (mặc định `active` — US-011
-            // AC1); đổi trạng thái sau đó dùng PATCH .../status.
-            'status' => ['sometimes', Rule::enum(SubjectStatus::class)],
         ];
     }
 

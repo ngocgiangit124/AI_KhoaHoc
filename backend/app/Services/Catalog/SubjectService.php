@@ -26,17 +26,19 @@ class SubjectService
     public function __construct(private readonly AuditLogger $auditLogger) {}
 
     /**
-     * @param  array{name: string, status?: SubjectStatus}  $data
+     * @param  array{name: string}  $data
      */
     public function create(array $data): Subject
     {
         // `status` không nằm trong `Subject::$fillable` (theo quy ước S17 của
-        // `Course::$fillable`) — gán trực tiếp thay vì mass-assign.
+        // `Course::$fillable`) — gán trực tiếp thay vì mass-assign. Tạo mới
+        // luôn `active` (US-011 AC1, api-contract §2.5 không có `status` ở
+        // `SubjectRequest` — R1 review-T06); đổi trạng thái dùng PATCH .../status.
         $subject = new Subject([
             'name' => $data['name'],
             'slug' => $this->uniqueSlug($data['name']),
         ]);
-        $subject->status = $data['status'] ?? SubjectStatus::Active;
+        $subject->status = SubjectStatus::Active;
         $subject->save();
 
         $this->auditLogger->log('subject.create', $subject, [

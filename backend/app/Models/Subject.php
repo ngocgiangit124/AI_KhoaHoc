@@ -55,9 +55,4 @@ class Subject extends Model
     {
         return $query->where('status', SubjectStatus::Active);
     }
-
-    public function isActive(): bool
-    {
-        return $this->status === SubjectStatus::Active;
-    }
 }

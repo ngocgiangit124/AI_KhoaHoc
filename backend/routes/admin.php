@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
+use App\Models\Subject;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -41,12 +42,27 @@ Route::domain(config('app.admin_api_host'))
             'no_store',
             'role:admin,quan_ly_trang,giao_vien',
         ])->group(function (): void {
-            // Nội dung & danh mục — Chuyên đề (T06, US-011).
+            // Nội dung & danh mục — Chuyên đề (T06, US-011). `can:...` chạy
+            // TRƯỚC FormRequest::rules() (SubstituteBindings có priority mặc
+            // định của framework đứng trước Authorize — Kernel::$middlewarePriority
+            // — nên route model binding {subject} đã sẵn sàng khi middleware
+            // `can:` đọc nó): Giáo Viên gửi payload sai (tên rỗng/trùng/HTML)
+            // vẫn nhận 403 thay vì 422 lộ chi tiết validate (R2 review-T06,
+            // US-011 "Trường hợp biên & lỗi"). `FormRequest::authorize()` vẫn
+            // giữ `true` theo đúng quy ước dự án (api-contract §1.3).
             Route::get('/subjects', [SubjectController::class, 'index'])->name('admin.subjects.index');
-            Route::post('/subjects', [SubjectController::class, 'store'])->name('admin.subjects.store');
-            Route::put('/subjects/{subject}', [SubjectController::class, 'update'])->name('admin.subjects.update');
-            Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy'])->name('admin.subjects.destroy');
-            Route::patch('/subjects/{subject}/status', [SubjectController::class, 'updateStatus'])->name('admin.subjects.status');
+            Route::post('/subjects', [SubjectController::class, 'store'])
+                ->middleware('can:create,'.Subject::class)
+                ->name('admin.subjects.store');
+            Route::put('/subjects/{subject}', [SubjectController::class, 'update'])
+                ->middleware('can:update,subject')
+                ->name('admin.subjects.update');
+            Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy'])
+                ->middleware('can:delete,subject')
+                ->name('admin.subjects.destroy');
+            Route::patch('/subjects/{subject}/status', [SubjectController::class, 'updateStatus'])
+                ->middleware('can:updateStatus,subject')
+                ->name('admin.subjects.status');
 
             // Đăng nhập quản trị (T28), khóa học/chương/bài (T08+), mã giảm
             // giá/đơn hàng (T15, T24) — thêm dần ở các task sau.

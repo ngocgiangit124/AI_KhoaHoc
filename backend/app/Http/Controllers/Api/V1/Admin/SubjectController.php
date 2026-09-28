@@ -29,45 +29,50 @@ class SubjectController extends Controller
 
         // GV chỉ nhận `active` (api-contract §2.5).
         if (! $request->user()->isStaff()) {
-            $query->where('status', SubjectStatus::Active);
+            $query->active();
         }
 
-        $perPage = min((int) $request->integer('per_page', 25), 50);
+        $perPage = max(1, min((int) $request->integer('per_page', 25), 50));
 
         return SubjectResource::collection($query->paginate($perPage));
     }
 
+    /**
+     * Phân quyền chạy trước ở middleware `can:create,...` của route (routes/admin.php,
+     * R2 review-T06) — không gọi `$this->authorize()` trùng lặp ở đây.
+     */
     public function store(SubjectRequest $request): SubjectResource
     {
-        $this->authorize('create', Subject::class);
-
         $subject = $this->subjects->create($request->validated());
 
         return SubjectResource::make($subject);
     }
 
+    /**
+     * Phân quyền chạy trước ở middleware `can:update,subject` của route.
+     */
     public function update(SubjectRequest $request, Subject $subject): SubjectResource
     {
-        $this->authorize('update', $subject);
-
         $subject = $this->subjects->update($subject, $request->validated());
 
         return SubjectResource::make($subject);
     }
 
+    /**
+     * Phân quyền chạy trước ở middleware `can:delete,subject` của route.
+     */
     public function destroy(Subject $subject): Response
     {
-        $this->authorize('delete', $subject);
-
         $this->subjects->delete($subject);
 
         return response()->noContent();
     }
 
+    /**
+     * Phân quyền chạy trước ở middleware `can:updateStatus,subject` của route.
+     */
     public function updateStatus(UpdateSubjectStatusRequest $request, Subject $subject): SubjectResource
     {
-        $this->authorize('updateStatus', $subject);
-
         $subject = $this->subjects->updateStatus($subject, SubjectStatus::from($request->validated('status')));
 
         return SubjectResource::make($subject);
