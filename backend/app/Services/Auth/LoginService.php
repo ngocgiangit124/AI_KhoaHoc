@@ -47,9 +47,17 @@ class LoginService
 
     public function authenticate(string $login, string $password): User
     {
-        // Cùng tiền tố khoá `login:` với limiter IP trong AppServiceProvider để
-        // dễ đối chiếu khi tra log/Redis, dù 2 khoá độc lập nhau.
-        $throttleKey = 'login:'.mb_strtolower(trim($login));
+        // R7 (review docs/qa/review-T03-FW1.md, lần 2) — PHẢI dùng CÙNG 1 định
+        // danh đã chuẩn hoá cho cả tra cứu (findByLogin) lẫn khoá throttle:
+        // trước đây khoá throttle chỉ lowercase+trim thô, nên gõ sai bằng
+        // "0912345678" rồi đổi sang "+84912345678"/"84912345678" (cùng 1 SĐT,
+        // 3 cách viết) bị tính là 3 định danh KHÁC nhau → không bao giờ chạm
+        // ngưỡng 10 lần/giờ. Cùng tiền tố `login:` với limiter IP trong
+        // AppServiceProvider để dễ đối chiếu khi tra log/Redis (2 khoá độc lập
+        // nhau). Khoá theo ĐỊNH DANH đã chuẩn hoá (không theo user id) — kể cả
+        // định danh không khớp tài khoản nào cũng bị giới hạn như nhau, không
+        // lộ tài khoản có tồn tại hay không qua hành vi throttle (BR5).
+        $throttleKey = 'login:'.self::normalizeIdentity($login);
 
         if (RateLimiter::tooManyAttempts($throttleKey, self::ACCOUNT_MAX_ATTEMPTS)) {
             throw new ThrottleRequestsException(
@@ -106,22 +114,40 @@ class LoginService
 
     private function findByLogin(string $login): ?User
     {
-        $login = trim($login);
+        $normalized = self::normalizeIdentity($login);
 
-        if ($login === '') {
+        if ($normalized === '') {
             return null;
         }
 
-        if (str_contains($login, '@')) {
-            return User::query()->where('email', mb_strtolower($login))->first();
+        if (str_contains($normalized, '@')) {
+            return User::query()->where('email', $normalized)->first();
+        }
+
+        return User::query()->where('phone', $normalized)->first();
+    }
+
+    /**
+     * Chuẩn hoá `login` (email HOẶC SĐT) về ĐÚNG 1 dạng — dùng chung cho tra
+     * cứu tài khoản (`findByLogin`) và khoá throttle theo tài khoản (R7): SĐT
+     * hợp lệ (dù viết `0912345678`/`+84912345678`/`84912345678`) phải quy về
+     * cùng 1 chuỗi qua `PhoneNumber`; email quy về lowercase+trim. Chuỗi
+     * không khớp cả 2 dạng (rác/gõ sai) vẫn được chuẩn hoá tối thiểu
+     * (lowercase+trim) để throttle vẫn áp dụng nhất quán, không có nhánh nào
+     * "thoát" khỏi giới hạn.
+     */
+    private static function normalizeIdentity(string $login): string
+    {
+        $trimmed = mb_strtolower(trim($login));
+
+        if ($trimmed === '' || str_contains($trimmed, '@')) {
+            return $trimmed;
         }
 
         try {
-            $phone = PhoneNumber::fromInput($login)->value();
+            return PhoneNumber::fromInput($trimmed)->value();
         } catch (InvalidArgumentException) {
-            return null;
+            return $trimmed;
         }
-
-        return User::query()->where('phone', $phone)->first();
     }
 }

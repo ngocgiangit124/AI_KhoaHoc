@@ -92,3 +92,62 @@ test('dang nhap dung nhieu lan lien tiep KHONG bi throttle (chi dem lan sai — 
         Auth::guard('web')->logout();
     }
 });
+
+/**
+ * R7 (docs/qa/review-T03-FW1.md, review lần 2) — khoá throttle theo tài khoản
+ * PHẢI dùng cùng 1 định danh đã chuẩn hoá với `findByLogin()`. Trước khi sửa,
+ * gõ sai luân phiên 3 cách viết CÙNG 1 số điện thoại (`0912345678` /
+ * `+84912345678` / `84912345678`) bị tính là 3 định danh khác nhau → không
+ * bao giờ chạm ngưỡng 10 lần/giờ (mỗi dạng chỉ ăn ~3-4 lần).
+ */
+test('10 lan sai luan phien 3 dang viet cung 1 SDT van bi khoa throttle (R7)', function () {
+    User::factory()->create(['phone' => '0912345678']);
+    $uri = 'http://'.config('app.api_host').'/api/v1/auth/login';
+
+    $variants = ['0912345678', '+84912345678', '84912345678'];
+
+    for ($i = 0; $i < 10; $i++) {
+        $response = test()->postJson($uri, [
+            'login' => $variants[$i % count($variants)],
+            'password' => 'sai-mat-khau',
+        ], ['Origin' => config('app.frontend_url')]);
+
+        expect($response->status())->not->toBe(429);
+    }
+
+    $blocked = test()->postJson($uri, [
+        'login' => $variants[0],
+        'password' => 'sai-mat-khau',
+    ], ['Origin' => config('app.frontend_url')]);
+
+    $blocked->assertStatus(429);
+    $blocked->assertJson(['code' => 'TOO_MANY_ATTEMPTS']);
+});
+
+/**
+ * R7 — cùng vấn đề với email khác hoa/thường (`findByLogin()` đã lowercase để
+ * tra cứu, khoá throttle phải lowercase giống hệt, không được lệch nhau).
+ */
+test('10 lan sai luan phien email khac hoa/thuong van bi khoa throttle (R7)', function () {
+    User::factory()->create(['email' => 'hoahong@example.com']);
+    $uri = 'http://'.config('app.api_host').'/api/v1/auth/login';
+
+    $variants = ['hoahong@example.com', 'HoaHong@Example.com', 'HOAHONG@EXAMPLE.COM'];
+
+    for ($i = 0; $i < 10; $i++) {
+        $response = test()->postJson($uri, [
+            'login' => $variants[$i % count($variants)],
+            'password' => 'sai-mat-khau',
+        ], ['Origin' => config('app.frontend_url')]);
+
+        expect($response->status())->not->toBe(429);
+    }
+
+    $blocked = test()->postJson($uri, [
+        'login' => $variants[0],
+        'password' => 'sai-mat-khau',
+    ], ['Origin' => config('app.frontend_url')]);
+
+    $blocked->assertStatus(429);
+    $blocked->assertJson(['code' => 'TOO_MANY_ATTEMPTS']);
+});
