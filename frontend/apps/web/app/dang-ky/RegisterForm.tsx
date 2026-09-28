@@ -172,9 +172,11 @@ export function RegisterForm({ config, nonce }: RegisterFormProps) {
           : "Vui lòng xác thực tài khoản để có thể mua khóa học.",
       );
       notifyAuthChanged();
-      // TODO(T04/FW1 phần OTP): điều hướng thẳng /xac-thuc-otp khi màn đó được làm; hiện
-      // tại chỉ có trang chủ nên tạm chuyển về "/" kèm banner nhắc xác thực (AC1).
-      router.push("/");
+      // FW1 phần 2 (OTP): đăng ký đã tự gửi OTP (api-contract §2.2) — điều hướng thẳng tới
+      // màn xác thực thay vì trang chủ (AC1: "chuyển về trang chủ kèm lời nhắc xác thực" —
+      // ở đây đưa thẳng người dùng vào bước xác thực luôn cho nhanh, banner nhắc xác thực
+      // vẫn còn ở `SiteHeader` cho các lần ghé trang sau nếu họ thoát ra giữa chừng).
+      router.push("/xac-thuc-otp");
       return;
     } catch (err) {
       // security review M4: sau khi backend kiểm captcha TRƯỚC các rule truy vấn DB, token

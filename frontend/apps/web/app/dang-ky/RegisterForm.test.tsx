@@ -127,7 +127,7 @@ describe("RegisterForm", () => {
     expect(authFetchMock).not.toHaveBeenCalled();
   });
 
-  it("đăng ký thành công (đủ tuổi) -> gọi register với device_id, điều hướng về trang chủ", async () => {
+  it("đăng ký thành công (đủ tuổi) -> gọi register với device_id, điều hướng tới màn xác thực OTP", async () => {
     const user = userEvent.setup();
     authFetchMock.mockResolvedValueOnce({ id: 1, name: "Nguyễn Minh An" });
     renderRegisterForm();
@@ -137,7 +137,7 @@ describe("RegisterForm", () => {
     await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
     await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/xac-thuc-otp"));
 
     const [path, init] = authFetchMock.mock.calls[0] as [string, { body: string }];
     expect(path).toBe("/api/v1/auth/register");
