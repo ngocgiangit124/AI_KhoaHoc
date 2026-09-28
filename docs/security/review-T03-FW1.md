@@ -311,3 +311,68 @@ Nền tảng làm tốt (đã kiểm bằng test/request thật, không chỉ đ
 - **L2:** có trả `WRONG_PORTAL` cho staff trên host học sinh không (xác nhận mật khẩu admin ngoài admin-api)? PO/Architect quyết.
 - **L3:** thời hạn giữ bằng chứng đồng ý (kèm IP, UA) sau khi tài khoản bị xoá/ẩn danh hoá: **cần bộ phận pháp chế xác nhận**.
 - Thu thập IP/UA trong consents là dữ liệu cá nhân của trẻ em: mục đích (bằng chứng đồng ý) và thời hạn lưu **cần bộ phận pháp chế xác nhận** theo Luật Bảo vệ dữ liệu cá nhân 2025 và Nghị định 356/2025/NĐ-CP.
+
+---
+
+## Xác nhận lại sau khi sửa — 2026-09-28
+
+**Phạm vi:** `git diff 071c310 1848bfa -- backend` (M1–M4, L1, L3–L5) và `git diff 071c310 b58d369 -- frontend` (reset Turnstile, L6, chặn captcha giả ở production).
+
+**Cách làm:** đọc diff; viết test tạm `backend/tests/Feature/TmpSec/` (đã xoá, working tree sạch) để gửi request thật qua kernel và gọi trực tiếp binding/guard/model.
+
+**Kết quả công cụ:**
+- Pest: **192 passed (575 assertions)**.
+- Pint: pass.
+- Frontend: api-client 35, ui 24, admin 5, web 47, tất cả pass.
+
+### Kết luận mới: **PASS có điều kiện**
+
+M1–M4 và L1 đã đóng. Đã xác minh bằng hành vi thật. Không còn Critical/High/Medium. Điều kiện còn lại (không chặn đóng T03):
+1. **L3 phần DB:** quyền MySQL (chỉ `INSERT, SELECT`, và `UPDATE(revoked_at)` nếu cần) hoặc trigger cho `consents`. Làm chung đợt với M5 `audit_logs`. Chủ là DBA, hạn trước staging.
+2. **L2:** PO/Architect quyết, ghi vào T28.
+3. **N5:** Architect cập nhật api-contract §1.7 cho `400 ORIGIN_NOT_ALLOWED`. Việc này chỉ là tài liệu.
+
+### Trạng thái từng phát hiện
+
+| # | Trạng thái | Bằng chứng |
+|---|---|---|
+| **M1** | Đóng | `Hash::check()` luôn chạy với `dummyHash()` sinh bằng `Hash::make()` (cùng cost cấu hình, cache theo tiến trình). Đo lại với hash cost 12: tài khoản tồn tại **221–249 ms**, không tồn tại **197–246 ms** (trước khi sửa là 3–4 ms). Dev có test `Hash` spy |
+| **M2** | Đóng | `LoginRequest`: `login` có rule `ascii`; khi lỗi, message giống hệt thông điệp chung ("Thông tin đăng nhập hoặc mật khẩu không đúng.", field `login`), nên không tạo tín hiệu phân biệt. Bằng **đúng mật khẩu**: `ｖictim@…` → 422, `０９１２…` → 422. Service dùng NFKC + lowercase cho khoá throttle, và **không tra DB** nếu còn ký tự ngoài `\x21-\x7E`. Lớp này chặn được cả biến thể có ký tự điều khiển: đã kiểm, `vic\x01tim@example.com` **được MySQL `_0900_ai_ci` coi là trùng** `victim@example.com` (ký tự bị bỏ qua khi so sánh). Rule `ascii` vẫn cho qua ký tự này, nhưng Service trả "không tìm thấy", nên đăng nhập bằng đúng mật khẩu vẫn 422. Tương tự với `\t`. Sau 10 lần sai: `VICTIM@…`, ` victim@…` → 429. `PhoneNumber` dùng NFKC + `/u`. `RegisterRequest.email` cũng có `ascii` |
+| **M3** | Đóng | Binding: `Turnstile`/`TURNSTILE`/`turnstile `/`''`/`none` → **ném `RuntimeException`**; chỉ `fake` → Fake, `turnstile` → Turnstile. Guard production: mọi giá trị khác đúng `turnstile` đều ném (kể cả `fake`); `turnstile` nhưng thiếu secret hoặc site key cũng ném. Frontend: `isProductionBuild && !captchaSiteKey` thì khoá submit và hiện lỗi cấu hình, không gửi token giả |
+| **M4** | Đóng | `RegisterRequest` không còn truy vấn DB. `RegistrationService` làm theo thứ tự: captcha, `assertNotDuplicate()`, insert. Payload đầy đủ với email/SĐT đã tồn tại + captcha sai → `422 CAPTCHA_FAILED`, **không có `errors`**. Payload thiếu field → chỉ có lỗi định dạng, không có `email`/`phone`. Captcha đúng: trùng hoa/thường (`TAKEN@Example.com`), `+84…`, SĐT full-width đều bị bắt đúng field. Email full-width → 422 do `ascii`. **Unique race:** không mở lại. Cùng lúc 2 request có thể cùng qua `exists()`, nhưng unique index của DB vẫn chặn, và `translateUniqueViolation()` trả 422 đúng field (giữ nguyên như trước). **Enumeration khác:** không thấy. Các rule còn lại trong FormRequest không chạm DB. Mỗi lần dò giờ tốn 1 lần giải Turnstile (đúng điều kiện S20). Frontend reset widget sau mọi lỗi submit |
+| **L1** | Đóng (xem N5) | Middleware `stateful`: login/register không có Origin hoặc Origin lạ → `400 ORIGIN_NOT_ALLOWED`, **không tạo user** (`users=0`). Logout không Origin → `401 UNAUTHENTICATED`. Lý do: `auth:sanctum` nằm trong `$middlewarePriority` của Laravel nên được sắp chạy **trước** `stateful`, dù route khai `stateful` trước. Tương tự, `throttle` có thể chạy trước `stateful`. Không có tác dụng phụ (logout không có session thì không làm gì), nhưng comment "stateful PHẢI đứng đầu (chạy trước … auth:sanctum)" ở `routes/api.php` không đúng thực tế. Nên sửa comment |
+| **L2** | Chờ PO | Chưa đổi (đúng thoả thuận) |
+| **L3** | Một phần (chấp nhận, TODO DBA) | Đã chặn: `update()` trường khác `revoked_at`, `delete()`; FK `restrictOnDelete` (xoá user có consents → `QueryException`); `revoke()` vẫn chạy. **Còn bypass được** (đã kiểm): `saveQuietly()`, `deleteQuietly()`, `Consent::query()->…->update()/delete()`, và theo suy luận cả `DB::table('consents')`, `truncate()`. Giống mức hiện tại của `AuditLog` trước khi có quyền DB. Chấp nhận với điều kiện TODO DBA có chủ và hạn. Nên thêm override Builder `update`/`delete` và `saveQuietly`/`deleteQuietly` như đề xuất M5 cũ nếu làm được rẻ. Ghi chú: migration được sửa tại chỗ (chưa deploy nên chấp nhận); DB local phải `migrate:fresh` |
+| **L4** | Đóng | `parent_phone`: kiểm 8–11 chữ số, lưu dạng chỉ chữ số (giữ `+` đầu). Email che thành `1 ký tự + ***`, SĐT thành `2 + ***** + 3`, không lộ độ dài |
+| **L5** | Đóng phần chính | Bắt `ConnectionException` → `CAPTCHA_FAILED` (fail-closed, log warning chỉ có message, không có secret). Kiểm `hostname` theo `FRONTEND_URL` khi Cloudflare trả về. `captcha_token` có `max:2048`. **Chưa kiểm `action`** (Info, không chặn) |
+| **L6** | Đóng | Logout lỗi thì hiện toast. 401 thì coi như đã đăng xuất và đồng bộ UI |
+
+### Ghi chú mới
+
+**N5 [Low, tài liệu] `400 ORIGIN_NOT_ALLOWED` chưa có trong api-contract §1.7.**
+- Bảng §1.7 chỉ ghi `403 ORIGIN_NOT_ALLOWED` ("gọi admin-api từ origin khác `ADMIN_URL`").
+- Host api đã dùng `400` cho `csrf-token` từ T01 (R3, đã được chấp nhận), và giờ thêm 3 route auth. Hành vi nhất quán trong code, nên không cần đổi code.
+- Chuyển Architect thêm 1 dòng: "400 `ORIGIN_NOT_ALLOWED` — host api: request cần session (csrf-token, auth/register, auth/login) không có Origin/Referer thuộc `SANCTUM_STATEFUL_DOMAINS`".
+- Frontend không cần xử lý riêng, vì trình duyệt từ `FRONTEND_URL` luôn là stateful.
+
+**Info:**
+- Throttle theo định danh tách riêng email và SĐT: một tài khoản có tối đa 10 lần sai/giờ qua email **và** 10 lần qua SĐT (20/giờ). Hành vi này có từ trước, không phải hồi quy. Không khoá theo `user_id` là đúng, để tránh tạo oracle. Chấp nhận.
+- `RegisterRequest` chưa có thông điệp tiếng Việt cho `email.ascii` (hiện câu tiếng Anh mặc định). Không phải vấn đề bảo mật, chuyển QA/dev.
+- `__setIsProductionBuildForTest` được export trong bundle client. Chỉ đổi hành vi UI, backend vẫn là nơi quyết định, nên vô hại.
+- `dummyHash()` cache theo tiến trình PHP-FPM, nên request đầu tiên của mỗi worker chậm thêm 1 lần `Hash::make`. Không đáng kể.
+
+### Trạng thái S* sau khi xác nhận lại
+
+| # | Trạng thái |
+|---|---|
+| S7 | Đạt về kỹ thuật (L3 phần DB là TODO DBA; nội dung pháp lý chờ pháp chế) |
+| S10 | Đạt |
+| S17 | Đạt |
+| S19 | Đạt |
+| S20 | Đạt (L2 chờ PO) |
+| M4 (T01/T02) | Đóng |
+
+### Test `laravel-qa` nên giữ/bổ sung
+- Login bằng `vic\x01tim@…` với **đúng** mật khẩu phải trả 422. Test này khoá lớp kiểm ký tự ngoài `\x21-\x7E` trong Service: rule `ascii` không chặn ký tự điều khiển, mà MySQL lại coi chuỗi này là trùng tài khoản thật.
+- Logout không Origin trả 401 (hoặc 400), không lỗi 500.
+- `Consent::saveQuietly()`/Builder `update()`: hiện chưa có test. Thêm khi DBA/dev bổ sung chặn.

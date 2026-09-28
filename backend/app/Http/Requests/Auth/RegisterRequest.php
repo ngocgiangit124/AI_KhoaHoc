@@ -84,6 +84,7 @@ class RegisterRequest extends FormRequest
         return [
             'accept_terms.accepted' => 'Bạn cần đồng ý với điều khoản sử dụng.',
             'accept_privacy.accepted' => 'Bạn cần đồng ý với chính sách quyền riêng tư.',
+            'email.ascii' => 'Email chỉ được chứa ký tự không dấu.',
         ];
     }
 

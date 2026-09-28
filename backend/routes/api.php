@@ -41,8 +41,10 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
 
     // T03 (US-001, api-contract §2.2) — đăng ký/đăng nhập học sinh. OTP (T04),
     // một phiên/tombstone (T05), quên mật khẩu (T27) thêm ở các task sau.
-    // L1 (review docs/security/review-T03-FW1.md) — `stateful` PHẢI đứng đầu
-    // (chạy trước guest/throttle/auth:sanctum): request thiếu Origin/Referer
+    // L1 (review docs/security/review-T03-FW1.md) — `stateful` đứng đầu, chạy
+    // trước guest/throttle (với logout thì KHÔNG trước được auth:sanctum: Laravel
+    // luôn xếp middleware xác thực lên trước, nên logout không Origin trả 401
+    // thay vì 400 — không có tác dụng phụ). Request thiếu Origin/Referer
     // hợp lệ không có session, trước đây chạy hết Service (kể cả ghi DB ở
     // register) rồi mới vỡ 500 ở session()->regenerate()/invalidate().
     Route::post('/auth/register', RegisterController::class)

@@ -11,8 +11,8 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T01 | Khởi tạo backend Laravel 13 + Docker | Xong | ✅ Review, Security (PASS có điều kiện), QA (PASS) | — | 2026-09-28 |
 | T02 | Users, audit_logs, vai trò, staff:* | Xong | ✅ như T01 | — | 2026-09-28 |
 | FE0 | Khởi tạo frontend Next.js 16 | Xong | ✅ Review; 64 unit + e2e backend thật | — | 2026-09-25 |
-| T03 | Đăng ký/đăng nhập học sinh | Security xác nhận lại | Review PASS (R1–R7 đã sửa); Security PASS có điều kiện, đã sửa M1–M4, L1, L3–L5 (1848bfa); L2 chờ PO | — | 2026-09-28 |
-| FW1 (phần 1) | Màn đăng ký/đăng nhập/đăng xuất (apps/web) | Security xác nhận lại | Review PASS; đã sửa theo Security (b58d369) | — | 2026-09-28 |
+| T03 | Đăng ký/đăng nhập học sinh | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS có điều kiện (còn: L3 phần DB — DBA trước staging; L2 — PO; N5 — Architect sửa api-contract §1.7) | — | 2026-09-28 |
+| FW1 (phần 1) | Màn đăng ký/đăng nhập/đăng xuất (apps/web) | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS | — | 2026-09-28 |
 | FW1 (phần 2) | Màn xác thực OTP | Dev (worktree) | 🔄 | T04 (làm song song theo api-contract) | 2026-09-28 |
 | T04 | OTP | Dev (worktree) | 🔄 | — | 2026-09-28 |
 | T05 | Một phiên học sinh | Chưa làm | — | Chờ gộp T03/T04 (sửa cùng file) | — |
