@@ -14,9 +14,9 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T03 | Đăng ký/đăng nhập học sinh | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS có điều kiện (còn: L3 phần DB — DBA trước staging; L2 — PO; N5 — Architect sửa api-contract §1.7) | — | 2026-09-28 |
 | FW1 (phần 1) | Màn đăng ký/đăng nhập/đăng xuất (apps/web) | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS | — | 2026-09-28 |
 | FW1 (phần 2) | Màn xác thực OTP | Dev xong, chưa review | Nhánh `claude/zen-dirac-fmucf7-fw1-otp` (7e5fa1f). Có 4 giả định cần đối chiếu với T04 | T04 | 2026-09-28 |
-| T04 | OTP | Security | Review APPROVE vòng 2 (R1 email-bombing đã đóng). Đang `laravel-security`. Worktree `.claude/worktrees/t04`, nhánh `claude/zen-dirac-fmucf7-t04` @047bff2, Pest 247 | — | 2026-09-28 |
+| T04 | OTP | Dev sửa sau security | Review APPROVE (2 vòng). Security PASS có điều kiện (`docs/security/review-T04.md` trong worktree t04): M1 mã không gắn địa chỉ nhận, M2 trần gửi vượt được bằng request song song → đang sửa cùng L1–L3. M3 chờ PO | — | 2026-09-28 |
 | T05 | Một phiên học sinh | Chưa làm | — | Chờ gộp T03/T04 (sửa cùng file) | — |
-| T06 | Chuyên đề | Review vòng 2 | Nhánh local `t06` @7a481ef (đã chứa T07-T10). Review vòng 1 PASS, đã sửa R1 (bỏ `status` khỏi request) + R2 (`can:` middleware → 403 trước validate). Pest 264 | — | 2026-09-28 |
+| T06 | Chuyên đề | Xong (đã gộp) | Gộp vào nhánh chính (3f420ba). Review APPROVE vòng 2. `composer ci` xanh, Pest 264. Chờ QA giai đoạn 2 | — | 2026-09-28 |
 | T07 → T10 | Schema nội dung → danh mục công khai | Xong (đã gộp) | Gộp vào nhánh chính (b5b753b). Review APPROVE, DBA duyệt. `composer ci` nhánh chính xanh, Pest 246. Chờ QA giai đoạn 2 | R1 (PO) trước T13 | 2026-09-28 |
 | T17 | Thanh toán: abstraction + MoMo | Dev gần xong, chưa chạy hết test | Nhánh `claude/zen-dirac-fmucf7-t17`. Chưa kiểm chứng sandbox MoMo thật | — | 2026-09-28 |
 
@@ -128,8 +128,10 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 5. (T10, R1 — PO + Architect, chốt trước T13) Khoá bị unpublish: US-003 nói học sinh đã mua vẫn xem được, api-contract §2.1 nói 404 không ngoại lệ. Code đang theo api-contract.
 6. (T10 — Architect) Tie-break sort `featured`: data-model ghi `published_at desc`, story + code dùng `created_at desc`. Chốt tài liệu.
 7. (T04) Audit `otp.daily_limit`: reviewer tìm được cách ghi an toàn không cần sửa `ApiExceptionRenderer` — dev đang làm, Security xác nhận ở vòng [SEC]. Không cần PO trả lời.
-8. (T04 → FW1 phần 2 — Architect) 429 có header `Retry-After` (giây); giả định #4 của FW1 sai. Ghi vào api-contract §1.6/§1.7 và sửa FW1 dùng header này.
+8. (T04 → FW1 phần 2 — Architect) 429 có header `Retry-After`; T04 đang thêm vào `cors.exposed_headers` và cho mọi 429. Security khuyên FW1 tính cooldown từ `resend_available_at` + `otp.resend_cooldown_seconds`, không dựa vào `Retry-After`. Ghi rõ vào api-contract §1.6/§1.7.
 9. (T04, R4 — Architect) `otp_codes.user_id` code dùng `restrictOnDelete`, data-model ghi cascade. Đồng bộ tài liệu.
+10. (T04, M3 — PO + Architect, chốt trước T27) Đổi email/SĐT (`PUT /auth/contact`) hiện không cần mật khẩu, không báo về địa chỉ cũ, không audit → người dùng chung máy ở trường đổi email rồi "quên mật khẩu" là chiếm tài khoản. Security đề xuất: bắt mật khẩu hiện tại hoặc OTP kênh cũ; thông báo về địa chỉ cũ; audit; T27 tạm không gửi tới kênh vừa đổi. Đổi api-contract.
+11. (T04, L1/S20 — PO) Thời hạn dọn tài khoản chưa xác thực; thời hạn lưu `otp_codes` (có PII `destination`) và `failed_jobs` — cần pháp chế.
 
 ## Nhật ký
 
@@ -140,6 +142,7 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 - 2026-09-28 · T03, FW1 · Dev + Reviewer (2 vòng) + Security · Review PASS; Security PASS có điều kiện, đã sửa; 192 test backend, 111 test frontend. Cloud: PHP 8.4, không chạy được Larastan (mạng chặn tải phpstan) → chạy `composer ci` trên Docker local trước khi merge main
 - 2026-09-28 · PO · Đổi quy trình: QA theo giai đoạn; chạy song song task độc lập (T04, T06, T07→T10, T17, FW1 phần 2)
 - 2026-09-28 · Orchestrator · Dừng các agent cloud, push nhánh phụ WIP để PO chuyển về local làm tiếp
+- 2026-09-28 · Orchestrator · Gộp T06 vào nhánh chính (3f420ba), `composer ci` xanh 264 test. T04 security PASS có điều kiện (M1, M2 đang sửa)
 - 2026-09-28 · Orchestrator · PO duyệt: gộp T07-T10 vào nhánh chính (b5b753b), `composer ci` xanh 246 test
 - 2026-09-28 · Dev + Reviewer + DBA · T07-T10 hoàn thiện, review APPROVE, DBA thêm index; T04 dev xong (Pest 236); T06 bắt đầu hoàn thiện. Worktree test: mount `-v <wt>/backend:/var/www/wt -w /var/www/wt`, DB `vitaminvui_testing_<task>`, file `phpunit.<task>.xml` (untracked)
 - 2026-09-28 · Dev + Reviewer · Dựng máy local; sửa phpunit DB_PASSWORD, Larastan 16 lỗi, pnpm/compose UID, `.env.example` frontend; review APPROVE; chờ PO duyệt commit
