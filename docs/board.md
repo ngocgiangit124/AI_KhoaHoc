@@ -1,6 +1,6 @@
 # Bảng theo dõi VitaminVui
 
-Cập nhật: 2026-09-28 (chiều). Phiên tiếp theo (kể cả Claude Code on the web) đọc file này trước tiên.
+Cập nhật: 2026-09-28 (tối, máy local). Phiên tiếp theo (kể cả Claude Code on the web) đọc file này trước tiên.
 
 ## Trạng thái task
 
@@ -70,6 +70,18 @@ git merge --no-ff t07-t10
 **4. Câu lệnh mẫu cho Claude Code ở local**
 > Đọc docs/board.md mục "Bàn giao về máy local". Kiểm nhánh chính bằng composer ci trong Docker và test frontend; lỗi thì giao laravel-dev/nextjs-dev sửa. Sau đó làm tiếp nhánh claude/zen-dirac-fmucf7-t07-t10 (hoàn thiện T10), rồi T06, T17, FW1-OTP, theo quy trình dev → laravel-reviewer → laravel-security → gộp. Song song bắt đầu T04 từ nhánh chính. Hỏi tôi trước khi commit/push.
 
+### Kết quả dựng máy local (2026-09-28 tối, macOS UID 501) — chưa commit, chờ PO duyệt
+
+Nhánh chính giờ xanh trong Docker: `composer ci` (Pint, Larastan 0 lỗi, Pest 193 pass); frontend lint/typecheck/test (111)/build xanh; `next dev` web/admin lên 200. Đã sửa (review APPROVE, `docs/reviews/review-local-setup.md`):
+- `backend/phpunit.xml` ép `DB_PASSWORD=secret` → 192 test lỗi trên Docker (mật khẩu local ngẫu nhiên theo M6). Bỏ ép, dùng `backend/.env`. Cloud vẫn chạy (cloud-setup đặt `.env` = secret).
+- Larastan 16 lỗi: `@mixin User` ở `UserResource`, `@property` Carbon ở `User`, `LoginService:81` đổi sang ternary (hành vi chống dò tài khoản giữ nguyên).
+- `frontend/Dockerfile.dev`, `scripts/pnpm.sh`, `docker-compose.yml`: chạy được với UID ≠ 1000 (`COREPACK_HOME=/opt/corepack`, `HOME=/tmp`).
+- `.gitignore` apps/web, apps/admin có `.env*` nên `.env.example` chưa từng được commit → thêm `!.env.example` + tạo 2 file mẫu.
+
+Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` → `backend/.env` (mật khẩu khớp nhau), `apps/*/.env.example` → `.env.local`; `php artisan key:generate`. Đổi `.env` thì `docker compose up -d --force-recreate php queue scheduler` (restart không nạp lại `env_file`).
+
+**Việc mở mới:** SSR của apps/web gọi `API_INTERNAL_URL=http://host.docker.internal:8000` lỗi `UND_ERR_SOCKET` (nginx bind `127.0.0.1` theo N3 + định tuyến theo Host). Trang vẫn 200 nhưng không có dữ liệu SSR. Cần Architect/laravel-dev chốt cách nối mạng 2 compose (network chung, gọi `http://nginx` với Host `api.localhost`) — làm trước T10 (danh mục công khai SSR).
+
 ### Lưu ý khi làm tiếp
 
 1. Chạy `composer ci` đầy đủ (có Larastan) trong Docker trên nhánh chính. Trên cloud không chạy được Larastan và PHP là 8.4.
@@ -121,3 +133,4 @@ git merge --no-ff t07-t10
 - 2026-09-28 · T03, FW1 · Dev + Reviewer (2 vòng) + Security · Review PASS; Security PASS có điều kiện, đã sửa; 192 test backend, 111 test frontend. Cloud: PHP 8.4, không chạy được Larastan (mạng chặn tải phpstan) → chạy `composer ci` trên Docker local trước khi merge main
 - 2026-09-28 · PO · Đổi quy trình: QA theo giai đoạn; chạy song song task độc lập (T04, T06, T07→T10, T17, FW1 phần 2)
 - 2026-09-28 · Orchestrator · Dừng các agent cloud, push nhánh phụ WIP để PO chuyển về local làm tiếp
+- 2026-09-28 · Dev + Reviewer · Dựng máy local; sửa phpunit DB_PASSWORD, Larastan 16 lỗi, pnpm/compose UID, `.env.example` frontend; review APPROVE; chờ PO duyệt commit
