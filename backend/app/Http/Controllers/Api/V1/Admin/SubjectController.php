@@ -11,6 +11,7 @@ use App\Models\Subject;
 use App\Services\Catalog\SubjectService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 
 /**
  * api-contract §2.5 (Nội dung & danh mục — Chuyên đề, US-011). Route đăng
@@ -54,7 +55,7 @@ class SubjectController extends Controller
         return SubjectResource::make($subject);
     }
 
-    public function destroy(Subject $subject): \Illuminate\Http\Response
+    public function destroy(Subject $subject): Response
     {
         $this->authorize('delete', $subject);
 

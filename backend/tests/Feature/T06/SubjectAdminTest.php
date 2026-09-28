@@ -255,5 +255,5 @@ test('an/hien chuyen de ghi audit log', function () {
     $log = AuditLog::query()->where('action', 'subject.status.update')->first();
 
     expect($log)->not->toBeNull();
-    expect($log->changes)->toBe(['status' => ['before' => 'active', 'after' => 'hidden']]);
+    expect($log->changes)->toEqual(['status' => ['before' => 'active', 'after' => 'hidden']]);
 });
