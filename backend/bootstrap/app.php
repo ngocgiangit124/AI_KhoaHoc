@@ -5,6 +5,7 @@ use App\Http\Middleware\ConfigureHostContext;
 use App\Http\Middleware\EnforceSingleStudentSession;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureAdminOrigin;
+use App\Http\Middleware\EnsureGuest;
 use App\Http\Middleware\EnsurePasswordFresh;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureStaffMfaPassed;
@@ -95,6 +96,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.origin' => EnsureAdminOrigin::class,
             'role' => EnsureRole::class,
             'account.active' => EnsureAccountActive::class,
+            // T03 (api-contract §2.2) — ghi đè alias mặc định của Laravel
+            // (`RedirectIfAuthenticated`, dành cho app Blade): API JSON thuần
+            // không có route `login` để redirect tới (xem EnsureGuest).
+            'guest' => EnsureGuest::class,
             // Khung cho T05/T28 (api-contract §1.3) — pass-through tới khi hiện thực.
             'staff.idle' => StaffIdleTimeout::class,
             'staff.mfa_passed' => EnsureStaffMfaPassed::class,

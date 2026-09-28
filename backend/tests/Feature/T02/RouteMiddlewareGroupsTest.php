@@ -126,7 +126,10 @@ test('moi route auth:sanctum co du middleware chuan theo host', function () {
         }
 
         if ($domain === config('app.api_host')) {
-            $required = ['account.active', 'student.single_session', 'no_store'];
+            // S19 (T03) — role:hoc_sinh là lớp phòng thủ bổ sung: host api chỉ
+            // đăng nhập được vai trò hoc_sinh (LoginService trả WRONG_PORTAL cho
+            // vai trò khác), nhưng mọi route auth:sanctum vẫn phải tự khai rõ.
+            $required = ['account.active', 'student.single_session', 'no_store', 'role:hoc_sinh'];
         } elseif ($domain === config('app.admin_api_host')) {
             $required = ['admin.origin', 'account.active', 'staff.idle', 'no_store'];
 
@@ -151,12 +154,63 @@ test('moi route auth:sanctum co du middleware chuan theo host', function () {
 
     expect($violations)->toBe([]);
 
-    // R4 (review T01/T02): khẳng định đúng số route auth:sanctum hiện có (0 ở
-    // T01/T02) thay vì assertion vô nghĩa (>= 0 luôn đúng). TODO(T03): đổi
-    // thành `expect($checked)->toBeGreaterThan(0)` khi route auth:sanctum đầu
-    // tiên (auth/me, .../otp/*...) được thêm — nếu quên đổi, test này sẽ FAIL
-    // và nhắc phải cập nhật, không "xanh giả".
-    expect($checked)->toBe(0);
+    // R4 (review T01/T02) — T03 đã thêm route auth:sanctum đầu tiên
+    // (auth/logout, auth/me): khẳng định có ít nhất 1 route được xét, không
+    // còn là assertion "xanh giả" (>= 0 luôn đúng).
+    expect($checked)->toBeGreaterThan(0);
+});
+
+/**
+ * S19 (T03, ghi chú Security ở docs/security/review-T01-T02.md) — mirror của
+ * `vvAdminRouteViolations()` cho host api: mọi route CÓ THỂ được dispatch khi
+ * `Host: api.localhost` và có `auth:sanctum` (trừ `auth/logout` — ngoại lệ duy
+ * nhất theo api-contract §1.3) phải có `role:hoc_sinh`.
+ *
+ * @return list<string>
+ */
+function vvStudentRouteViolations(): array
+{
+    $violations = [];
+
+    /** @var RouteObject $route */
+    foreach (Route::getRoutes() as $route) {
+        $domain = $route->getDomain();
+        $uri = $route->uri();
+        $name = $route->getName();
+        $middleware = $route->gatherMiddleware();
+
+        $reachableOnApiHost = $domain === null || $domain === config('app.api_host');
+
+        if (! $reachableOnApiHost || ! vvHasAuthSanctum($middleware)) {
+            continue;
+        }
+
+        if (str_ends_with($uri, 'auth/logout')) {
+            continue;
+        }
+
+        if (! in_array('role:hoc_sinh', $middleware, true)) {
+            $violations[] = "{$uri} (tên: ".($name ?? '—').") thiếu middleware 'role:hoc_sinh'";
+        }
+    }
+
+    return $violations;
+}
+
+test('moi route auth:sanctum tren host api (tru auth/logout) co role:hoc_sinh (S19)', function () {
+    expect(vvStudentRouteViolations())->toBe([]);
+});
+
+test('logic kiem tra bat duoc route hoc sinh gia thieu role:hoc_sinh (S19)', function () {
+    Route::domain(config('app.api_host'))
+        ->middleware(['auth:sanctum'])
+        ->name('api.__test.student-missing-role')
+        ->get('/__test/student-missing-role', fn () => response()->json(['ok' => true]));
+
+    $violations = vvStudentRouteViolations();
+
+    expect($violations)->not->toBe([]);
+    expect(collect($violations)->contains(fn ($v) => str_contains($v, 'student-missing-role')))->toBeTrue();
 });
 
 /**

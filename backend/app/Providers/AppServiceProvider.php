@@ -3,6 +3,9 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Auth\Captcha\CaptchaVerifier;
+use App\Services\Auth\Captcha\FakeCaptchaVerifier;
+use App\Services\Auth\Captcha\TurnstileVerifier;
 use App\Support\ProductionConfigGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -20,7 +23,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // T03 — CaptchaVerifier: 'fake' CHỈ hợp lệ ở local/testing, production
+        // cấm qua ProductionConfigGuard (M4). Không dùng singleton: rẻ để tạo,
+        // và tránh giữ secret trong bộ nhớ lâu hơn cần thiết.
+        $this->app->bind(CaptchaVerifier::class, function () {
+            return match (config('captcha.driver')) {
+                'turnstile' => new TurnstileVerifier((string) config('services.turnstile.secret')),
+                default => new FakeCaptchaVerifier,
+            };
+        });
     }
 
     /**
