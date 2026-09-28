@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button } from "@vitaminvui/ui";
+import { Button, useToast } from "@vitaminvui/ui";
+import { ApiError } from "@vitaminvui/api-client";
 import { logout } from "@/lib/auth/logout";
-import { useCurrentUser } from "@/lib/auth/useCurrentUser";
+import { notifyAuthChanged, useCurrentUser } from "@/lib/auth/useCurrentUser";
 
 /**
  * Header tối thiểu cho app web (bản đầy đủ theo design-system.md §4 — menu danh mục, giỏ
@@ -14,6 +15,7 @@ import { useCurrentUser } from "@/lib/auth/useCurrentUser";
  */
 export function SiteHeader() {
   const router = useRouter();
+  const toast = useToast();
   const { user, isLoading } = useCurrentUser();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -25,6 +27,19 @@ export function SiteHeader() {
       // trang chủ + làm mới Server Component (nếu trang hiện tại có dữ liệu theo phiên).
       router.push("/");
       router.refresh();
+    } catch (err) {
+      // security review L6: KHÔNG được im lặng khi đăng xuất lỗi — trên máy dùng chung
+      // (phòng máy trường, quán net), người dùng có thể bỏ đi tưởng đã đăng xuất trong
+      // khi phiên trên server vẫn còn.
+      if (err instanceof ApiError && err.status === 401) {
+        // Phiên đã hết từ trước (hoặc vừa bị đăng xuất ở thiết bị/tab khác) — coi như
+        // MỤC TIÊU đăng xuất đã đạt được, chỉ cần đồng bộ lại UI, không phải lỗi để báo.
+        notifyAuthChanged();
+        router.push("/");
+        router.refresh();
+      } else {
+        toast.show("danger", "Đăng xuất chưa thành công, vui lòng thử lại.");
+      }
     } finally {
       setIsLoggingOut(false);
     }

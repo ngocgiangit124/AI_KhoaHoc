@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "@vitaminvui/ui";
-import { ApiError } from "@vitaminvui/api-client";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { __setIsProductionBuildForTest } from "@/lib/isProductionBuild";
 import { RegisterForm, type RegisterFormConfig } from "./RegisterForm";
 
 const pushMock = vi.fn();
@@ -61,6 +62,10 @@ describe("RegisterForm", () => {
     authFetchMock.mockReset();
     pushMock.mockReset();
     delete (window as unknown as { turnstile?: unknown }).turnstile;
+  });
+
+  afterEach(() => {
+    __setIsProductionBuildForTest(false);
   });
 
   it("2 checkbox đồng ý KHÔNG tick sẵn (S7) và nút submit bị khoá tới khi tick đủ", async () => {
@@ -243,5 +248,64 @@ describe("RegisterForm", () => {
     await waitFor(() => expect(authFetchMock).toHaveBeenCalledTimes(1));
     const [, init] = authFetchMock.mock.calls[0] as [string, { body: string }];
     expect(JSON.parse(init.body).captcha_token).toBe("real-turnstile-token");
+  });
+
+  describe.each([
+    ["422 lỗi field khác (KHÔNG phải CAPTCHA_FAILED)", () => new ApiError(422, {
+      message: "Email đã được sử dụng.",
+      code: "VALIDATION_ERROR",
+      errors: { email: ["Email đã được sử dụng."] },
+    })],
+    ["429 TOO_MANY_ATTEMPTS", () => new ApiError(429, {
+      message: "Bạn thao tác quá nhanh, vui lòng thử lại sau.",
+      code: "TOO_MANY_ATTEMPTS",
+    })],
+    ["lỗi mạng", () => new NetworkError(new TypeError("Failed to fetch"))],
+  ])(
+    "security review M4: reset widget Turnstile sau MỌI lỗi submit, không chỉ CAPTCHA_FAILED (%s)",
+    (_label, buildError) => {
+      it("remount TurnstileWidget (render lại) để lấy token mới sau lỗi", async () => {
+        const renderMock = vi.fn((_el: HTMLElement, options: { callback?: (t: string) => void }) => {
+          options.callback?.("turnstile-token");
+          return "widget-test";
+        });
+        window.turnstile = { render: renderMock, remove: vi.fn(), reset: vi.fn() };
+
+        const user = userEvent.setup();
+        authFetchMock.mockRejectedValueOnce(buildError());
+        renderRegisterForm({ ...BASE_CONFIG, captchaSiteKey: "test-site-key" });
+
+        await fillRequiredFields(user, "1990-01-01");
+        await user.click(screen.getByLabelText(/Điều khoản sử dụng/));
+        await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
+        await waitFor(() => expect(renderMock).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Tạo tài khoản" })).not.toBeDisabled());
+
+        await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+
+        // Widget Turnstile (token dùng 1 lần) phải được remount/render lại — không chỉ khi
+        // lỗi là CAPTCHA_FAILED — để người dùng xác minh lại và có token mới cho lần submit sau.
+        await waitFor(() => expect(renderMock).toHaveBeenCalledTimes(2));
+      });
+    },
+  );
+
+  it("security review M3: build production + captcha_site_key null -> chặn submit, hiện lỗi cấu hình, KHÔNG dùng token giả", async () => {
+    __setIsProductionBuildForTest(true);
+    const user = userEvent.setup();
+    renderRegisterForm(); // BASE_CONFIG.captchaSiteKey === null
+
+    expect(
+      screen.getByText("Không tải được xác minh chống spam, vui lòng thử lại sau."),
+    ).toBeInTheDocument();
+    // Không còn dòng "chưa cấu hình Turnstile ở môi trường này (local)" ở production.
+    expect(screen.queryByText(/local/)).not.toBeInTheDocument();
+
+    await fillRequiredFields(user, "1990-01-01");
+    await user.click(screen.getByLabelText(/Điều khoản sử dụng/));
+    await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
+
+    expect(screen.getByRole("button", { name: "Tạo tài khoản" })).toBeDisabled();
+    expect(authFetchMock).not.toHaveBeenCalled();
   });
 });

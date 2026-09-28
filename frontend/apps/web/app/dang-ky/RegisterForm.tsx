@@ -18,6 +18,7 @@ import { authFetch } from "@/lib/api";
 import { calculateAgeYears } from "@/lib/age";
 import { applyApiErrorToForm } from "@/lib/auth/mapApiError";
 import { notifyAuthChanged } from "@/lib/auth/useCurrentUser";
+import { isProductionBuild } from "@/lib/isProductionBuild";
 import { parseAuthUser } from "@/lib/types/auth";
 import { buildRegisterSchema, type RegisterFormValues } from "@/lib/validation/registerSchema";
 import { ConsentCheckboxGroup } from "./ConsentCheckboxGroup";
@@ -30,6 +31,8 @@ import { ConsentCheckboxGroup } from "./ConsentCheckboxGroup";
  * giá trị đó nên được `FakeCaptchaVerifier` chấp nhận ở local (`captcha_site_key = null`).
  */
 const LOCAL_FAKE_CAPTCHA_TOKEN = "local-dev-fake-captcha-token";
+
+const CAPTCHA_MISCONFIGURED_MESSAGE = "Không tải được xác minh chống spam, vui lòng thử lại sau.";
 
 const KNOWN_FIELDS = [
   "name",
@@ -79,6 +82,10 @@ export function RegisterForm({ config, nonce }: RegisterFormProps) {
     [config.parentConsentAge],
   );
 
+  // security review M3: KHÔNG được coi build production thiếu site key là "local" rồi tự
+  // điền token giả — phải chặn submit và báo lỗi cấu hình rõ ràng.
+  const captchaMisconfigured = isProductionBuild && !config.captchaSiteKey;
+
   const {
     register,
     handleSubmit,
@@ -101,7 +108,7 @@ export function RegisterForm({ config, nonce }: RegisterFormProps) {
       referral_code: "",
       accept_terms: false,
       accept_privacy: false,
-      captcha_token: config.captchaSiteKey ? "" : LOCAL_FAKE_CAPTCHA_TOKEN,
+      captcha_token: config.captchaSiteKey || captchaMisconfigured ? "" : LOCAL_FAKE_CAPTCHA_TOKEN,
     },
   });
 
@@ -118,9 +125,17 @@ export function RegisterForm({ config, nonce }: RegisterFormProps) {
     [config.grades],
   );
 
-  const canSubmit = acceptTerms && acceptPrivacy && Boolean(captchaToken) && !isSubmitting;
+  const canSubmit =
+    acceptTerms && acceptPrivacy && Boolean(captchaToken) && !isSubmitting && !captchaMisconfigured;
 
   async function onSubmit(values: RegisterFormValues) {
+    // Phòng thủ nhiều lớp: nút submit đã bị khoá (`disabled`) khi `captchaMisconfigured`,
+    // nhưng vẫn chặn cứng ở đây phòng trường hợp submit không qua UI (test, form tự động).
+    if (captchaMisconfigured) {
+      setBanner({ message: CAPTCHA_MISCONFIGURED_MESSAGE, variant: "danger" });
+      return;
+    }
+
     setBanner(null);
 
     const payload: Record<string, unknown> = {
@@ -162,11 +177,15 @@ export function RegisterForm({ config, nonce }: RegisterFormProps) {
       router.push("/");
       return;
     } catch (err) {
+      // security review M4: sau khi backend kiểm captcha TRƯỚC các rule truy vấn DB, token
+      // Turnstile bị tiêu thụ (dùng 1 lần) ở MỌI lỗi 422 tới được bước đó — không chỉ
+      // `CAPTCHA_FAILED`. Vì vậy phải yêu cầu xác minh lại (remount widget) sau BẤT KỲ lỗi
+      // submit nào (422 field khác, 429, mạng, lỗi không rõ) — nếu không, lần submit lại
+      // sẽ luôn bị `CAPTCHA_FAILED` dù người dùng đã sửa đúng dữ liệu.
+      setValue("captcha_token", config.captchaSiteKey || captchaMisconfigured ? "" : LOCAL_FAKE_CAPTCHA_TOKEN);
+      setTurnstileResetKey((k) => k + 1);
+
       if (err instanceof ApiError) {
-        if (err.code === "CAPTCHA_FAILED") {
-          setValue("captcha_token", config.captchaSiteKey ? "" : LOCAL_FAKE_CAPTCHA_TOKEN);
-          setTurnstileResetKey((k) => k + 1);
-        }
         const result = applyApiErrorToForm<RegisterFormValues>(err, setError, KNOWN_FIELDS);
         setBanner(result.bannerMessage ? { message: result.bannerMessage, variant: result.bannerVariant } : null);
         return;
@@ -284,6 +303,8 @@ export function RegisterForm({ config, nonce }: RegisterFormProps) {
             setBanner({ message: "Xác minh chống spam thất bại, vui lòng thử lại", variant: "danger" });
           }}
         />
+      ) : captchaMisconfigured ? (
+        <Alert variant="danger">{CAPTCHA_MISCONFIGURED_MESSAGE}</Alert>
       ) : (
         <p className="text-xs text-gray-500">
           Xác minh chống spam: chưa cấu hình Turnstile ở môi trường này (local).
