@@ -13,12 +13,30 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | FE0 | Khởi tạo frontend Next.js 16 | Xong | ✅ Review; 64 unit + e2e backend thật | — | 2026-09-25 |
 | T03 | Đăng ký/đăng nhập học sinh | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS có điều kiện (còn: L3 phần DB — DBA trước staging; L2 — PO; N5 — Architect sửa api-contract §1.7) | — | 2026-09-28 |
 | FW1 (phần 1) | Màn đăng ký/đăng nhập/đăng xuất (apps/web) | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS | — | 2026-09-28 |
-| FW1 (phần 2) | Màn xác thực OTP | Dev (worktree) | 🔄 | T04 (làm song song theo api-contract) | 2026-09-28 |
-| T04 | OTP | Dev (worktree) | 🔄 | — | 2026-09-28 |
+| FW1 (phần 2) | Màn xác thực OTP | Dev xong, chưa review | Nhánh `claude/zen-dirac-fmucf7-fw1-otp` (7e5fa1f). Có 4 giả định cần đối chiếu với T04 | T04 | 2026-09-28 |
+| T04 | OTP | Chưa bắt đầu | Worktree cloud chưa có code T04 (đã dừng sau khi sửa base). Làm lại từ nhánh chính | — | 2026-09-28 |
 | T05 | Một phiên học sinh | Chưa làm | — | Chờ gộp T03/T04 (sửa cùng file) | — |
-| T06 | Chuyên đề | Dev (worktree) | 🔄 | — | 2026-09-28 |
-| T07 → T10 | Schema nội dung → danh mục công khai | Dev (worktree) | 🔄 | — | 2026-09-28 |
-| T17 | Thanh toán: abstraction + MoMo | Dev (worktree) | 🔄 | — | 2026-09-28 |
+| T06 | Chuyên đề | Dev dở (WIP) | Nhánh `claude/zen-dirac-fmucf7-t06`. Test đang skip phần "chặn xoá khi đang gán" chờ T07 | — | 2026-09-28 |
+| T07 → T10 | Schema nội dung → danh mục công khai | T07 dev xong; T10 dở (WIP) | Nhánh `claude/zen-dirac-fmucf7-t07-t10`. Checklist DBA: `docs/db/T07-checklist.md` | — | 2026-09-28 |
+| T17 | Thanh toán: abstraction + MoMo | Dev gần xong, chưa chạy hết test | Nhánh `claude/zen-dirac-fmucf7-t17`. Chưa kiểm chứng sandbox MoMo thật | — | 2026-09-28 |
+
+## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
+
+Nhánh chính `claude/zen-dirac-fmucf7`: T03 + FW1 phần 1 đã qua review và security, chờ QA giai đoạn 1. Các nhánh phụ bên dưới **chưa review**, tách từ `57e2439`:
+
+| Nhánh | Nội dung | Trạng thái |
+|---|---|---|
+| `claude/zen-dirac-fmucf7-fw1-otp` | FW1 phần 2: `/xac-thuc-otp` | Xong code, lint/typecheck/test/build xanh trên cloud |
+| `claude/zen-dirac-fmucf7-t06` | T06 chuyên đề | WIP |
+| `claude/zen-dirac-fmucf7-t07-t10` | T07 schema (xong code) + T10 danh mục (WIP) | WIP |
+| `claude/zen-dirac-fmucf7-t17` | T17 thanh toán + MoMo | Gần xong |
+
+Việc đầu tiên ở local:
+1. Chạy `composer ci` đầy đủ (có Larastan) trong Docker trên nhánh chính. Trên cloud không chạy được Larastan và PHP là 8.4.
+2. Mỗi nhánh phụ: chạy lại toàn bộ test trong Docker trước khi tin kết quả. Trên cloud, `vendor` của worktree là symlink về repo gốc nên Composer/Pest có thể đã nạp nhầm code của repo gốc; kết quả test agent báo ở các nhánh phụ **chưa đáng tin**.
+3. Xung đột khi gộp: T06 và T07 cùng tạo `subjects` (migration `2026_09_28_090000_create_subjects_table.php`, `Subject`, `SubjectFactory`, `SubjectStatus`). Gộp T07 trước, T06 dùng lại bản của T07 và bật lại test "chặn xoá khi đang gán".
+4. FW1 phần 2 giả định về T04 (đối chiếu khi làm T04): `resend_available_at` dạng ISO 8601 có offset; register chưa trả `resend_available_at` nên FE ước lượng cooldown lần đầu; email/SĐT ở màn OTP do FE tự che; 429 khoá 24h không có thời điểm mở khoá.
+5. Quy trình mỗi nhánh: `laravel-reviewer` → `laravel-security` (T04, T17 [SEC]) → gộp vào nhánh chính. `laravel-qa` chạy khi xong giai đoạn.
 
 ## Việc tiếp theo (theo thứ tự)
 
@@ -61,3 +79,4 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - 2026-09-28 · T03, FW1 · Dev · Tạm dừng trước khi code, bàn giao cho Claude Code on the web
 - 2026-09-28 · T03, FW1 · Dev + Reviewer (2 vòng) + Security · Review PASS; Security PASS có điều kiện, đã sửa; 192 test backend, 111 test frontend. Cloud: PHP 8.4, không chạy được Larastan (mạng chặn tải phpstan) → chạy `composer ci` trên Docker local trước khi merge main
 - 2026-09-28 · PO · Đổi quy trình: QA theo giai đoạn; chạy song song task độc lập (T04, T06, T07→T10, T17, FW1 phần 2)
+- 2026-09-28 · Orchestrator · Dừng các agent cloud, push nhánh phụ WIP để PO chuyển về local làm tiếp
