@@ -41,14 +41,36 @@ class ProductionConfigGuard
         $this->guardPayments();
     }
 
+    /**
+     * M3 (review docs/security/review-T03-FW1.md) — TRƯỚC ĐÂY chỉ cấm ĐÚNG
+     * chuỗi `fake` (blocklist): `Turnstile`, `TURNSTILE`, `turnstile ` (thừa
+     * khoảng trắng), chuỗi rỗng, `none`... đều LỌT qua guard này (không ném),
+     * nhưng binding trong `AppServiceProvider` (trước khi sửa M3) coi mọi giá
+     * trị khác `'turnstile'` là `fake` — production "không có captcha thật"
+     * mà không có cảnh báo nào lúc boot. Đổi hẳn sang ALLOWLIST: bắt buộc
+     * ĐÚNG (phân biệt hoa/thường) `turnstile`, và bắt buộc có cả secret lẫn
+     * site key (thiếu 1 trong 2 thì Turnstile không thể xác minh được).
+     */
     private function guardCaptcha(): void
     {
-        $driver = mb_strtolower((string) config('captcha.driver'));
+        $driver = (string) config('captcha.driver');
+
+        throw_unless(
+            $driver === 'turnstile',
+            RuntimeException::class,
+            "CAPTCHA_DRIVER phải đúng 'turnstile' ở production (M3), hiện là: '{$driver}'."
+        );
 
         throw_if(
-            $driver === 'fake',
+            blank(config('services.turnstile.secret')),
             RuntimeException::class,
-            'CAPTCHA_DRIVER=fake bị cấm ở production (M4).'
+            'Thiếu TURNSTILE_SECRET ở production (M3).'
+        );
+
+        throw_if(
+            blank(config('services.turnstile.site_key')),
+            RuntimeException::class,
+            'Thiếu TURNSTILE_SITE_KEY ở production (M3).'
         );
     }
 

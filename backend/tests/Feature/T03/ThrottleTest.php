@@ -125,6 +125,61 @@ test('10 lan sai luan phien 3 dang viet cung 1 SDT van bi khoa throttle (R7)', f
 });
 
 /**
+ * M2 (review docs/security/review-T03-FW1.md) — TRƯỚC ĐÂY MySQL collation
+ * `utf8mb4_0900_ai_ci` coi ký tự full-width (`ｖ`, `０`...) là tương đương
+ * ASCII, nhưng PHP/`RateLimiter` thì không: mỗi ký tự viết được ở 2 dạng tạo
+ * ra 2^n khoá throttle khác nhau cho CÙNG 1 tài khoản — 15 biến thể full-width
+ * liên tiếp đều 422, không có 429, và đăng nhập ĐÚNG mật khẩu bằng biến thể
+ * full-width từng trả 200 (dò/qua mặt throttle được). Giờ `LoginRequest` chặn
+ * hẳn input không phải ASCII (422, không chạm DB/LoginService) — biến thể
+ * full-width không bao giờ đăng nhập thành công, bất kể throttle.
+ */
+test('10 lan sai roi bien the full-width cua cung dinh danh khong lach duoc throttle va khong dang nhap duoc (M2)', function () {
+    User::factory()->create(['email' => 'victim@example.com', 'password' => Hash::make('matkhau-that')]);
+    $uri = 'http://'.config('app.api_host').'/api/v1/auth/login';
+
+    for ($i = 0; $i < 10; $i++) {
+        $response = test()->postJson($uri, [
+            'login' => 'victim@example.com',
+            'password' => 'sai-mat-khau',
+        ], ['Origin' => config('app.frontend_url')]);
+
+        expect($response->status())->not->toBe(429);
+    }
+
+    // "ｖictim@example.com" — 'v' viết dạng full-width (U+FF56), phần còn lại
+    // ASCII. Kể cả dùng ĐÚNG mật khẩu thật, request này không được phép 200.
+    $fullWidthVariant = "\u{FF56}ictim@example.com";
+
+    $attempt = test()->postJson($uri, [
+        'login' => $fullWidthVariant,
+        'password' => 'matkhau-that',
+    ], ['Origin' => config('app.frontend_url')]);
+
+    expect($attempt->status())->toBeIn([422, 429]);
+    expect(auth('web')->check())->toBeFalse();
+});
+
+/**
+ * M2 — cùng vấn đề với chữ số full-width trong SĐT.
+ */
+test('SDT viet bang chu so full-width khong dang nhap duoc (M2)', function () {
+    User::factory()->create(['phone' => '0912345679', 'password' => Hash::make('matkhau-that')]);
+    $uri = 'http://'.config('app.api_host').'/api/v1/auth/login';
+
+    // "０９１２３４５６７９" — toàn bộ 10 chữ số ở dạng full-width.
+    $fullWidthPhone = "\u{FF10}\u{FF19}\u{FF11}\u{FF12}\u{FF13}\u{FF14}\u{FF15}\u{FF16}\u{FF17}\u{FF19}";
+
+    $attempt = test()->postJson($uri, [
+        'login' => $fullWidthPhone,
+        'password' => 'matkhau-that',
+    ], ['Origin' => config('app.frontend_url')]);
+
+    expect($attempt->status())->toBe(422);
+    expect(auth('web')->check())->toBeFalse();
+});
+
+/**
  * R7 — cùng vấn đề với email khác hoa/thường (`findByLogin()` đã lowercase để
  * tra cứu, khoá throttle phải lowercase giống hệt, không được lệch nhau).
  */

@@ -41,17 +41,22 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
 
     // T03 (US-001, api-contract §2.2) — đăng ký/đăng nhập học sinh. OTP (T04),
     // một phiên/tombstone (T05), quên mật khẩu (T27) thêm ở các task sau.
+    // L1 (review docs/security/review-T03-FW1.md) — `stateful` PHẢI đứng đầu
+    // (chạy trước guest/throttle/auth:sanctum): request thiếu Origin/Referer
+    // hợp lệ không có session, trước đây chạy hết Service (kể cả ghi DB ở
+    // register) rồi mới vỡ 500 ở session()->regenerate()/invalidate().
     Route::post('/auth/register', RegisterController::class)
-        ->middleware(['guest', 'throttle:register'])
+        ->middleware(['stateful', 'guest', 'throttle:register'])
         ->name('api.auth.register');
 
     Route::post('/auth/login', [LoginController::class, 'store'])
-        ->middleware(['guest', 'throttle:login'])
+        ->middleware(['stateful', 'guest', 'throttle:login'])
         ->name('api.auth.login');
 
-    // Ngoại lệ duy nhất của nhóm `student` (api-contract §1.3): chỉ auth:sanctum.
+    // Ngoại lệ duy nhất của nhóm `student` (api-contract §1.3): chỉ auth:sanctum
+    // (+ `stateful` — L1, logout cũng cần session để invalidate()/regenerateToken()).
     Route::post('/auth/logout', [LoginController::class, 'destroy'])
-        ->middleware(['auth:sanctum'])
+        ->middleware(['stateful', 'auth:sanctum'])
         ->name('api.auth.logout');
 
     Route::get('/auth/me', MeController::class)

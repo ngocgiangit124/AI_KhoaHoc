@@ -55,6 +55,12 @@ class RegistrationService
         $phone = PhoneNumber::fromInput((string) $data['phone'])->value();
         $email = mb_strtolower(trim((string) $data['email']));
 
+        // M4 (review docs/security/review-T03-FW1.md) — kiểm trùng SAU captcha
+        // (RegisterRequest cố tình KHÔNG dùng `unique`/`exists` — xem docblock
+        // của class). Gộp cả 2 lỗi vào 1 ValidationException (giống hành vi cũ
+        // của FormRequest) thay vì dừng ở lỗi đầu tiên.
+        $this->assertNotDuplicate($email, $phone);
+
         $attributes = [
             // Trùng với default của cột trong migration — khai TƯỜNG MINH ở đây
             // (thay vì để DB tự áp default) để model trong bộ nhớ có ngay giá trị
@@ -69,7 +75,7 @@ class RegistrationService
             'password' => Hash::make((string) $data['password']),
             'grade_level' => (int) $data['grade_level'],
             'date_of_birth' => $dateOfBirth->toDateString(),
-            'parent_phone' => self::blankToNull($data['parent_phone'] ?? null),
+            'parent_phone' => self::normalizeParentPhoneOrNull($data['parent_phone'] ?? null),
             'parent_email' => self::normalizeEmailOrNull($data['parent_email'] ?? null),
             'referral_code_used' => config('features.referral_code')
                 ? self::blankToNull($data['referral_code'] ?? null)
@@ -103,9 +109,32 @@ class RegistrationService
     }
 
     /**
+     * M4 — kiểm trùng CHỦ ĐỘNG (thay cho `Rule::unique`/`exists` đã bỏ khỏi
+     * `RegisterRequest`), chạy SAU khi captcha đã đúng. Gộp lỗi của cả 2 field
+     * vào 1 `ValidationException` (giữ nguyên hành vi cũ: cả email lẫn SĐT
+     * trùng thì báo cả hai trong cùng 1 response, xem AC2).
+     */
+    private function assertNotDuplicate(string $email, string $phone): void
+    {
+        $errors = [];
+
+        if (User::query()->where('email', $email)->exists()) {
+            $errors['email'] = ['Email đã được sử dụng.'];
+        }
+
+        if (User::query()->where('phone', $phone)->exists()) {
+            $errors['phone'] = ['Số điện thoại đã được sử dụng.'];
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    /**
      * S17/DBA #? — bắt lỗi trùng khoá xảy ra do race condition (2 request đăng
      * ký cùng email/SĐT gần như đồng thời, cả hai đều qua được kiểm tra
-     * `unique` của FormRequest trước khi 1 trong 2 insert trước) và trả về 422
+     * `assertNotDuplicate()` trước khi 1 trong 2 insert trước) và trả về 422
      * đúng field thay vì để lộ 500 (data-model §4).
      */
     private function translateUniqueViolation(QueryException $e): ValidationException
@@ -143,5 +172,30 @@ class RegistrationService
         $trimmed = self::blankToNull($value);
 
         return $trimmed === null ? null : mb_strtolower($trimmed);
+    }
+
+    /**
+     * L4 (review docs/security/review-T03-FW1.md) — lưu `parent_phone` ở dạng
+     * SẠCH (chỉ chữ số, giữ `+` đầu nếu có) thay vì nguyên văn người dùng gõ:
+     * trước đây `((((((((`  qua được validate (khớp regex định dạng) và được
+     * lưu y nguyên. Không dùng `PhoneNumber` (chỉ nhận di động VN) vì phụ
+     * huynh có thể dùng số cố định — `RegisterRequest` đã kiểm đủ số CHỮ SỐ.
+     */
+    private static function normalizeParentPhoneOrNull(mixed $value): ?string
+    {
+        $trimmed = self::blankToNull($value);
+
+        if ($trimmed === null) {
+            return null;
+        }
+
+        $hasLeadingPlus = str_starts_with($trimmed, '+');
+        $digits = (string) preg_replace('/\D/', '', $trimmed);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        return $hasLeadingPlus ? '+'.$digits : $digits;
     }
 }

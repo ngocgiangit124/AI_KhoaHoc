@@ -165,6 +165,54 @@ test('captcha sai tra 422 CAPTCHA_FAILED va khong tao tai khoan', function () {
     expect(User::query()->where('email', mb_strtolower($payload['email']))->exists())->toBeFalse();
 });
 
+/**
+ * M4 (review docs/security/review-T03-FW1.md) — TRƯỚC ĐÂY `RegisterRequest`
+ * kiểm `unique`/`exists` TRƯỚC khi Service kiểm captcha: 1 request captcha
+ * SAI + email/SĐT đã tồn tại vẫn nhận `errors.email`/`errors.phone` ngay —
+ * dò được tài khoản có tồn tại hay không mà không cần giải captcha (oracle
+ * độc lập với M1). Giờ captcha luôn được kiểm TRƯỚC — captcha sai phải trả
+ * CHỈ `CAPTCHA_FAILED`, không kèm bất kỳ `errors.email`/`errors.phone` nào,
+ * dù email/SĐT gửi lên THẬT SỰ đã tồn tại.
+ */
+test('captcha sai + email/SDT da ton tai chi tra CAPTCHA_FAILED, khong kem errors.email/phone (M4)', function () {
+    $existing = User::factory()->create(['email' => 'da-ton-tai-m4@example.com', 'phone' => '0977000111']);
+
+    $payload = vvRegisterPayload([
+        'email' => 'da-ton-tai-m4@example.com',
+        'phone' => '0977000111',
+        'captcha_token' => FakeCaptchaVerifier::INVALID_TOKEN,
+    ]);
+
+    $response = vvPostRegister($payload);
+
+    $response->assertStatus(422);
+    $response->assertJson(['code' => 'CAPTCHA_FAILED']);
+    expect($response->json('errors.email'))->toBeNull();
+    expect($response->json('errors.phone'))->toBeNull();
+    // Không tạo thêm tài khoản nào (chỉ còn đúng bản ghi gốc).
+    expect(User::query()->where('email', 'da-ton-tai-m4@example.com')->count())->toBe(1);
+    expect($existing->fresh())->not->toBeNull();
+});
+
+/**
+ * M4 — vẫn giữ AC2 khi captcha ĐÚNG: email/SĐT trùng phải báo đúng field như
+ * trước (chỉ đổi NƠI kiểm — từ FormRequest sang Service, sau captcha).
+ */
+test('captcha dung + email/SDT da ton tai van bao dung field nhu AC2 (M4)', function () {
+    User::factory()->create(['email' => 'da-ton-tai-m4b@example.com', 'phone' => '0977000222']);
+
+    $payload = vvRegisterPayload([
+        'email' => 'da-ton-tai-m4b@example.com',
+        'phone' => '0977000222',
+        'captcha_token' => 'test-ok-token',
+    ]);
+
+    $response = vvPostRegister($payload);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['email', 'phone']);
+});
+
 test('AC10: duoi nguong tuoi thieu lien he phu huynh tra 422', function () {
     $payload = vvRegisterPayload([
         'date_of_birth' => now()->subYears(15)->toDateString(),
@@ -207,4 +255,21 @@ test('bien gioi tuoi: 17 tuoi 364 ngay can lien he phu huynh, du 18 tuoi thi kho
         'parent_phone' => null,
         'parent_email' => null,
     ]))->assertStatus(201);
+});
+
+/**
+ * L1 (review docs/security/review-T03-FW1.md) — thiếu Origin/Referer hợp lệ
+ * (không "stateful" theo Sanctum) thì không có session. TRƯỚC ĐÂY Service vẫn
+ * chạy hết — tạo user + 2 bản ghi consents — rồi mới vỡ 500 ở
+ * `session()->regenerate()`. Middleware `stateful` (đặt trước `guest`) phải
+ * chặn NGAY, không chạm Service/DB.
+ */
+test('dang ky khong co Origin hop le tra 400 ORIGIN_NOT_ALLOWED, khong tao user (L1)', function () {
+    $payload = vvRegisterPayload();
+
+    $response = test()->postJson('http://'.config('app.api_host').'/api/v1/auth/register', $payload);
+
+    $response->assertStatus(400);
+    $response->assertJson(['code' => 'ORIGIN_NOT_ALLOWED']);
+    expect(User::query()->where('email', mb_strtolower($payload['email']))->exists())->toBeFalse();
 });

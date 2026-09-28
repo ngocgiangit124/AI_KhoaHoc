@@ -10,6 +10,35 @@ function vvPostLogin(array $payload)
     ]);
 }
 
+/**
+ * M1 (review docs/security/review-T03-FW1.md) — TRƯỚC ĐÂY `$user === null`
+ * làm đoản mạch `||`, `Hash::check()` KHÔNG bao giờ chạy khi không tìm thấy
+ * tài khoản — đo thực tế: ~4 ms (không tồn tại) so với ~220 ms (tồn tại, sai
+ * mật khẩu), lộ tài khoản có tồn tại hay không qua thời gian phản hồi (S20,
+ * BR5). `Hash::check()` giờ PHẢI luôn chạy (với dummy hash cùng cost cấu
+ * hình) — kiểm bằng cách đếm số lần gọi, không đo thời gian (dễ chập chờn).
+ */
+test('M1: khong tim thay tai khoan van goi Hash::check dung 1 lan (khong do thoi gian de tranh chap chon)', function () {
+    // Hash::shouldReceive('check') thay THẲNG instance đã resolve của facade
+    // bằng 1 Mockery mock (không phải partial) — bất kỳ method nào khác
+    // (`make()`, dùng trong `dummyHash()`) cũng phải được khai rõ, nếu không
+    // Mockery ném "method does not exist". Lấy hasher THẬT trước khi mock để
+    // uỷ quyền lại — vẫn kiểm được hành vi thật (đúng/sai mật khẩu), chỉ thêm
+    // phép đếm số lần gọi `check()`.
+    $realHasher = app('hash');
+
+    Hash::shouldReceive('check')->once()->andReturnUsing(
+        fn ($value, $hashedValue) => $realHasher->check($value, $hashedValue)
+    );
+    Hash::shouldReceive('make')->andReturnUsing(
+        fn ($value, $options = []) => $realHasher->make($value, $options)
+    );
+
+    $response = vvPostLogin(['login' => 'khong-ton-tai-hash-check@example.com', 'password' => 'bat-ky']);
+
+    $response->assertStatus(422);
+});
+
 test('AC3: dang nhap thanh cong bang email', function () {
     $user = User::factory()->create(['email' => 'em@example.com', 'password' => Hash::make('matkhau123')]);
 
@@ -121,4 +150,30 @@ test('da dang nhap ma goi lai /auth/login (guest) bi tu choi', function () {
     ]);
 
     $response->assertStatus(403);
+});
+
+/**
+ * L1 (review docs/security/review-T03-FW1.md) — thiếu Origin/Referer hợp lệ
+ * thì không có session; middleware `stateful` (đặt trước `guest`/`throttle`)
+ * phải chặn 400 ngay, không chạy `LoginService`/chạm DB.
+ */
+test('dang nhap khong co Origin hop le tra 400 ORIGIN_NOT_ALLOWED (L1)', function () {
+    User::factory()->create(['email' => 'no-origin@example.com', 'password' => Hash::make('matkhau123')]);
+
+    $response = test()->postJson('http://'.config('app.api_host').'/api/v1/auth/login', [
+        'login' => 'no-origin@example.com',
+        'password' => 'matkhau123',
+    ]);
+
+    $response->assertStatus(400);
+    $response->assertJson(['code' => 'ORIGIN_NOT_ALLOWED']);
+});
+
+test('dang xuat khong co Origin hop le tra 400 ORIGIN_NOT_ALLOWED (L1)', function () {
+    $user = User::factory()->create();
+
+    $response = test()->actingAs($user)->postJson('http://'.config('app.api_host').'/api/v1/auth/logout', []);
+
+    $response->assertStatus(400);
+    $response->assertJson(['code' => 'ORIGIN_NOT_ALLOWED']);
 });

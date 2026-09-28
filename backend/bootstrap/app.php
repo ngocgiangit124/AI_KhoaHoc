@@ -9,6 +9,7 @@ use App\Http\Middleware\EnsureGuest;
 use App\Http\Middleware\EnsurePasswordFresh;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureStaffMfaPassed;
+use App\Http\Middleware\EnsureStatefulSession;
 use App\Http\Middleware\NoStoreForAuthenticated;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\StaffIdleTimeout;
@@ -100,6 +101,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // (`RedirectIfAuthenticated`, dành cho app Blade): API JSON thuần
             // không có route `login` để redirect tới (xem EnsureGuest).
             'guest' => EnsureGuest::class,
+            // L1 (review docs/security/review-T03-FW1.md) — đặt TRƯỚC guest/
+            // throttle trên 3 route auth (register/login/logout).
+            'stateful' => EnsureStatefulSession::class,
             // Khung cho T05/T28 (api-contract §1.3) — pass-through tới khi hiện thực.
             'staff.idle' => StaffIdleTimeout::class,
             'staff.mfa_passed' => EnsureStaffMfaPassed::class,

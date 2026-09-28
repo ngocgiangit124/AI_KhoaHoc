@@ -2,13 +2,11 @@
 
 namespace App\Http\Requests\Auth;
 
-use App\Models\User;
 use App\Services\Auth\PhoneNumber;
 use App\Support\Age;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 /**
@@ -17,6 +15,14 @@ use Illuminate\Validation\Rules\Password;
  * S17 — CHỈ các khoá khai ở rules() có thể xuất hiện trong validated():
  * `role`/`status`/`*_verified_at` KHÔNG được khai ở đây, nên không thể lọt
  * qua `$request->validated()` dù client tự thêm vào body.
+ *
+ * M4 (review docs/security/review-T03-FW1.md) — CỐ Ý KHÔNG kiểm `unique`/
+ * `exists` (DB) ở đây: form này validate TRƯỚC KHI Service kiểm captcha, nên
+ * một request captcha sai + email/SĐT đã tồn tại sẽ được 422 kèm
+ * `errors.email`/`errors.phone` ngay từ FormRequest — dò được tài khoản có
+ * tồn tại hay không mà KHÔNG cần giải captcha. Việc kiểm trùng (đúng field,
+ * đúng thông điệp như trước) chuyển vào `RegistrationService::register()`,
+ * chạy SAU bước kiểm captcha (xem `RegistrationService`).
  */
 class RegisterRequest extends FormRequest
 {
@@ -33,30 +39,37 @@ class RegisterRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:150'],
             'date_of_birth' => ['required', 'date', 'before_or_equal:today', 'after:1900-01-01'],
-            'email' => ['required', 'string', 'email:rfc', 'max:254', Rule::unique('users', 'email')],
+            // M2 (review docs/security/review-T03-FW1.md) — `ascii`: cùng rủi
+            // ro với `login` (biến thể Unicode "trông giống" theo collation
+            // MySQL) — email hợp lệ luôn thuần ASCII nên không mất khả năng
+            // đăng ký hợp lệ nào.
+            'email' => ['required', 'string', 'email:rfc', 'max:254', 'ascii'],
             'phone' => ['required', 'string', 'max:20', function ($attribute, $value, $fail): void {
                 if (! is_string($value) || ! PhoneNumber::isValidInput($value)) {
                     $fail('Số điện thoại không đúng định dạng Việt Nam.');
-
-                    return;
-                }
-
-                $normalized = PhoneNumber::fromInput($value)->value();
-
-                if (User::query()->where('phone', $normalized)->exists()) {
-                    $fail('Số điện thoại đã được sử dụng.');
                 }
             }],
             'grade_level' => ['required', 'integer', 'between:6,12'],
             'password' => ['required', 'string', 'confirmed', Password::defaults()],
             // Chỉ bắt buộc ≥ 1 trong 2 khi dưới ngưỡng tuổi — kiểm ở withValidator()
             // (phụ thuộc date_of_birth, không diễn tả được bằng rule đơn lẻ).
-            'parent_phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{8,20}$/'],
+            // L4 (review bảo mật) — yêu cầu đủ SỐ CHỮ SỐ thật (không chỉ ký tự
+            // định dạng): "((((((((" khớp regex cũ nhưng không phải SĐT nào cả.
+            'parent_phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{8,20}$/', function ($attribute, $value, $fail): void {
+                if (! is_string($value) || $value === '') {
+                    return;
+                }
+                $digitCount = strlen((string) preg_replace('/\D/', '', $value));
+                if ($digitCount < 8 || $digitCount > 11) {
+                    $fail('Số điện thoại phụ huynh không đúng định dạng.');
+                }
+            }],
             'parent_email' => ['nullable', 'string', 'email:rfc', 'max:254'],
             'referral_code' => ['nullable', 'string', 'max:50'],
             'accept_terms' => ['required', 'accepted'],
             'accept_privacy' => ['required', 'accepted'],
-            'captcha_token' => ['required', 'string'],
+            // L5 (review bảo mật) — token Turnstile thật ≤ 2048 ký tự.
+            'captcha_token' => ['required', 'string', 'max:2048'],
             // Chưa dùng ở T03 (single-session/bind phiên là T05/ADR-003) — chấp
             // nhận và bỏ qua để không phá hợp đồng khi frontend đã gửi kèm.
             'device_id' => ['nullable', 'string', 'max:64'],
@@ -69,7 +82,6 @@ class RegisterRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.unique' => 'Email đã được sử dụng.',
             'accept_terms.accepted' => 'Bạn cần đồng ý với điều khoản sử dụng.',
             'accept_privacy.accepted' => 'Bạn cần đồng ý với chính sách quyền riêng tư.',
         ];

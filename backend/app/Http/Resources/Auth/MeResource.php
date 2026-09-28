@@ -32,6 +32,14 @@ class MeResource extends UserResource
         ]);
     }
 
+    /**
+     * L4 (review docs/security/review-T03-FW1.md) — TRƯỚC ĐÂY độ dài phần che
+     * tỉ lệ với độ dài chuỗi gốc, nên chuỗi NGẮN lộ gần hết ("ab@x.com" →
+     *
+     * "ab*@x.com" — chỉ che 1 ký tự; SĐT 8 số lộ 5/8 chữ số). Giờ dùng độ dài
+     * CỐ ĐỊNH cho phần che — không còn cách suy ra độ dài thật của chuỗi gốc
+     * từ bản đã che.
+     */
     private static function mask(?string $value, bool $isEmail): ?string
     {
         if ($value === null || $value === '') {
@@ -40,18 +48,25 @@ class MeResource extends UserResource
 
         if ($isEmail) {
             [$local, $domain] = array_pad(explode('@', $value, 2), 2, '');
-            $visible = mb_substr($local, 0, 2);
-            $hiddenLength = max(mb_strlen($local) - mb_strlen($visible), 1);
+            // Tối đa 1 ký tự đầu + che cố định 3 dấu `*` (không lộ độ dài
+            // phần local thật, kể cả khi chỉ có 1 ký tự).
+            $visible = mb_substr($local, 0, 1);
 
-            return $visible.str_repeat('*', $hiddenLength).($domain !== '' ? '@'.$domain : '');
+            return $visible.'***'.($domain !== '' ? '@'.$domain : '');
         }
 
+        // 2 đầu + che cố định 5 dấu `*` + 3 cuối (SĐT đã chuẩn hoá 10 số —
+        // `PhoneNumber`/`normalizeParentPhoneOrNull` — vẫn áp dụng nhất quán
+        // cho chuỗi ngắn hơn, chỉ hiện ít hơn khi không đủ 2+3 ký tự).
         $length = strlen($value);
 
         if ($length <= 5) {
-            return str_repeat('*', $length);
+            return str_repeat('*', 5);
         }
 
-        return substr($value, 0, 2).str_repeat('*', $length - 5).substr($value, -3);
+        $prefixLength = min(2, $length - 3);
+        $suffixLength = min(3, $length - $prefixLength);
+
+        return substr($value, 0, $prefixLength).str_repeat('*', 5).substr($value, -$suffixLength);
     }
 }

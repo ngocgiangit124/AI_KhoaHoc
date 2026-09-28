@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,12 +25,25 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         // T03 — CaptchaVerifier: 'fake' CHỈ hợp lệ ở local/testing, production
-        // cấm qua ProductionConfigGuard (M4). Không dùng singleton: rẻ để tạo,
-        // và tránh giữ secret trong bộ nhớ lâu hơn cần thiết.
+        // cấm qua ProductionConfigGuard (M3/M4 — allowlist thật, không phải
+        // blocklist). Không dùng singleton: rẻ để tạo, và tránh giữ secret
+        // trong bộ nhớ lâu hơn cần thiết.
+        //
+        // M3 (review docs/security/review-T03-FW1.md) — TRƯỚC ĐÂY `default`
+        // rơi vào `FakeCaptchaVerifier`: gõ sai chính tả/viết hoa
+        // `CAPTCHA_DRIVER` (`Turnstile`, `TURNSTILE`, `none`, chuỗi rỗng...)
+        // ở production vẫn chạy được nhưng KHÔNG CÓ captcha thật nào — "fail
+        // open" thay vì "fail closed". Giờ chỉ 2 giá trị CHÍNH XÁC (phân biệt
+        // hoa/thường) được chấp nhận; driver lạ ném exception ngay lúc resolve
+        // (ứng dụng "không boot" được luồng cần captcha, thay vì âm thầm bỏ
+        // qua bảo vệ).
         $this->app->bind(CaptchaVerifier::class, function () {
             return match (config('captcha.driver')) {
                 'turnstile' => new TurnstileVerifier((string) config('services.turnstile.secret')),
-                default => new FakeCaptchaVerifier,
+                'fake' => new FakeCaptchaVerifier,
+                default => throw new RuntimeException(
+                    "CAPTCHA_DRIVER không hợp lệ: '".config('captcha.driver')."' (phải là 'turnstile' hoặc 'fake')."
+                ),
             };
         });
     }

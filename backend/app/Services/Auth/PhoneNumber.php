@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use InvalidArgumentException;
+use Normalizer;
 use Stringable;
 
 /**
@@ -39,7 +40,18 @@ final class PhoneNumber implements Stringable
 
     private static function normalize(string $raw): string
     {
-        $digits = preg_replace('/[^\d+]/', '', trim($raw)) ?? '';
+        // M2 (review docs/security/review-T03-FW1.md) — NFKC TRƯỚC khi lọc ký
+        // tự: quy chữ số/kỹ tự full-width ("０"...) về dạng ASCII ("0"), khớp
+        // với cách MySQL (collation utf8mb4_0900_ai_ci) coi là tương đương —
+        // nếu không, 1 SĐT có thể tồn tại ở nhiều "khoá" khác nhau ở tầng ứng
+        // dụng (throttle, tra cứu) dù DB coi là 1. `/u` (PCRE_UTF8) bắt buộc
+        // khi regex chạy trên chuỗi UTF-8 nhiều byte — thiếu cờ này khiến
+        // `preg_replace` xử lý theo TỪNG BYTE, có thể cắt/để sót byte của ký
+        // tự nhiều byte thay vì loại bỏ sạch (M2, vị trí PhoneNumber.php).
+        $normalizedForm = Normalizer::normalize(trim($raw), Normalizer::FORM_KC);
+        $source = $normalizedForm !== false ? $normalizedForm : trim($raw);
+
+        $digits = preg_replace('/[^\d+]/u', '', $source) ?? '';
 
         if (str_starts_with($digits, '+84')) {
             return '0'.substr($digits, 3);

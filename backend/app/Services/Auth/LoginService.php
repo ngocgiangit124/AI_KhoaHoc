@@ -9,8 +9,10 @@ use App\Models\User;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
+use Normalizer;
 
 /**
  * Xác thực đăng nhập học sinh (host api — US-001 §2.2, BR1/BR5).
@@ -30,17 +32,20 @@ use InvalidArgumentException;
  * biết kết quả) chỉ còn giữ lớp theo IP (`AppServiceProvider`); lớp theo TÀI
  * KHOẢN chuyển vào đây, CHỈ `hit()` khi sai (không tính đăng nhập đúng nhiều
  * lần — vd nhiều tab/thiết bị hợp lệ trước khi T05 áp 1 phiên).
+ *
+ * M1 (review docs/security/review-T03-FW1.md) — `Hash::check()` PHẢI luôn
+ * chạy (kể cả khi không tìm thấy tài khoản), cùng cost với cấu hình thật, để
+ * thời gian phản hồi không tiết lộ tài khoản có tồn tại hay không (đã đo thực
+ * tế: ~220 ms so với ~4 ms trước khi sửa).
+ *
+ * M2 — khoá throttle PHẢI dùng cùng 1 dạng chuẩn hoá NFKC với `findByLogin()`
+ * (xem `normalizeIdentity()`), và KHÔNG cho định danh còn ký tự ngoài ASCII
+ * (sau NFKC) chạm tới DB — chặn kiểu tấn công dùng ký tự Unicode "trông giống"
+ * (full-width...) mà MySQL coi là tương đương theo collation nhưng PHP thì
+ * không, để lách bộ đếm theo tài khoản.
  */
 class LoginService
 {
-    /**
-     * Hash bcrypt "giả" dùng khi không tìm thấy tài khoản — giữ cho
-     * `Hash::check()` luôn thực thi với chi phí tương đương dù tài khoản có
-     * tồn tại hay không (giảm nhẹ rủi ro dò tài khoản qua thời gian phản hồi;
-     * không phải yêu cầu cứng của story, chi phí thêm không đáng kể).
-     */
-    private const DUMMY_HASH = '$2y$12$CwmYqfQK9v3rC9wR1nE9qOqf1kNq9m8Yv2yq7B0m8b7q6qYV0ZgWK';
-
     private const ACCOUNT_MAX_ATTEMPTS = 10;
 
     private const ACCOUNT_DECAY_SECONDS = 3600;
@@ -69,9 +74,13 @@ class LoginService
 
         $user = $this->findByLogin($login);
 
-        $hashToCheck = $user !== null ? $user->password : self::DUMMY_HASH;
+        // M1 — Hash::check() LUÔN chạy, dù $user null hay không, với 1 hash
+        // "giả" hợp lệ cùng driver/cost cấu hình thật (Hash::make() đọc
+        // config('hashing') mặc định) — không rẽ nhánh sớm bằng `||` (đoản
+        // mạch) như trước, vì đoản mạch bỏ qua hoàn toàn việc gọi Hash::check.
+        $passwordOk = Hash::check($password, $user?->password ?? self::dummyHash());
 
-        if ($user === null || ! Hash::check($password, $hashToCheck)) {
+        if ($user === null || ! $passwordOk) {
             // Chỉ trường hợp THẬT SỰ sai thông tin đăng nhập mới tính là "lần
             // sai" (không tính ACCOUNT_LOCKED/WRONG_PORTAL bên dưới — mật khẩu
             // đúng, chỉ là tài khoản/vai trò không phù hợp, không phải hành vi
@@ -105,6 +114,22 @@ class LoginService
         return $user;
     }
 
+    /**
+     * Hash bcrypt "giả" — sinh 1 lần/tiến trình (biến `static` trong hàm giữ
+     * nguyên giữa các lần gọi cùng 1 worker PHP-FPM), dùng `Hash::make()` nên
+     * LUÔN cùng cost với cấu hình thật (không hard-code số vòng — khác hằng số
+     * cũ trước khi sửa M1, có thể lệch với `BCRYPT_ROUNDS` thật ở production).
+     * Nội dung không nhạy cảm (chuỗi ngẫu nhiên, không phải mật khẩu thật của
+     * ai) nên tái dùng giữa các request là an toàn — mục đích duy nhất là giữ
+     * chi phí `Hash::check()` không đổi.
+     */
+    private static function dummyHash(): string
+    {
+        static $hash = null;
+
+        return $hash ??= Hash::make(Str::random(32));
+    }
+
     private function genericFailure(): ValidationException
     {
         return ValidationException::withMessages([
@@ -116,7 +141,10 @@ class LoginService
     {
         $normalized = self::normalizeIdentity($login);
 
-        if ($normalized === '') {
+        // M2 — sau NFKC mà vẫn còn ký tự ngoài ASCII in được thì KHÔNG tra DB:
+        // đây là script/ký tự thật sự khác (không phải biến thể full-width
+        // của cùng 1 chuỗi ASCII), không thể khớp email/SĐT hợp lệ của dự án.
+        if ($normalized === '' || preg_match('/[^\x21-\x7E]/', $normalized) === 1) {
             return null;
         }
 
@@ -129,16 +157,20 @@ class LoginService
 
     /**
      * Chuẩn hoá `login` (email HOẶC SĐT) về ĐÚNG 1 dạng — dùng chung cho tra
-     * cứu tài khoản (`findByLogin`) và khoá throttle theo tài khoản (R7): SĐT
-     * hợp lệ (dù viết `0912345678`/`+84912345678`/`84912345678`) phải quy về
-     * cùng 1 chuỗi qua `PhoneNumber`; email quy về lowercase+trim. Chuỗi
-     * không khớp cả 2 dạng (rác/gõ sai) vẫn được chuẩn hoá tối thiểu
-     * (lowercase+trim) để throttle vẫn áp dụng nhất quán, không có nhánh nào
-     * "thoát" khỏi giới hạn.
+     * cứu tài khoản (`findByLogin`) và khoá throttle theo tài khoản (R7, M2):
+     * NFKC TRƯỚC (quy full-width về ASCII, khớp cách MySQL collation
+     * `utf8mb4_0900_ai_ci` so sánh — không đổi collation DB, chỉ chuẩn hoá ở
+     * tầng ứng dụng để 1 tài khoản không có nhiều "khoá" throttle khác nhau),
+     * rồi lowercase, rồi SĐT hợp lệ (dù viết `0912345678`/`+84912345678`/
+     * `84912345678`) quy về cùng 1 chuỗi qua `PhoneNumber`; email quy về
+     * lowercase+trim. `LoginRequest` đã chặn `login` không phải ASCII ở tầng
+     * validate (422, không tới được đây) — chuẩn hoá NFKC ở đây là lớp phòng
+     * thủ thứ 2 (Service có thể được gọi trực tiếp, không qua FormRequest).
      */
     private static function normalizeIdentity(string $login): string
     {
-        $trimmed = mb_strtolower(trim($login));
+        $normalizedForm = Normalizer::normalize(trim($login), Normalizer::FORM_KC);
+        $trimmed = mb_strtolower($normalizedForm !== false ? $normalizedForm : trim($login));
 
         if ($trimmed === '' || str_contains($trimmed, '@')) {
             return $trimmed;

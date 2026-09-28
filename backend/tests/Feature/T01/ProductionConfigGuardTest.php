@@ -16,6 +16,8 @@ beforeEach(function () {
         'app.debug' => false,
         'session.secure' => true,
         'captcha.driver' => 'turnstile',
+        'services.turnstile.secret' => 'test-secret',
+        'services.turnstile.site_key' => 'test-site-key',
         'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'],
         'app.trusted_proxies' => '10.0.0.1,10.0.0.2',
         'payments.enabled_gateways' => ['momo'],
@@ -48,6 +50,31 @@ test('session.secure tat o production nem loi', function () {
 
 test('CAPTCHA_DRIVER=fake o production nem loi (khong phan biet hoa thuong)', function () {
     config(['captcha.driver' => 'FAKE']);
+
+    expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
+});
+
+/**
+ * M3 (review docs/security/review-T03-FW1.md) — TRƯỚC ĐÂY guard chỉ cấm ĐÚNG
+ * chuỗi `fake` (blocklist): mọi biến thể khác đều lọt (và binding của
+ * `AppServiceProvider` coi các giá trị đó là "không phải turnstile" → bind
+ * `FakeCaptchaVerifier`, production chạy không có captcha thật). Giờ CHỈ
+ * đúng `turnstile` mới qua được guard.
+ */
+test('CAPTCHA_DRIVER bien the sai chinh ta/viet hoa/rong o production deu nem loi (M3)', function (string $driver) {
+    config(['captcha.driver' => $driver]);
+
+    expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
+})->with(['Turnstile', 'TURNSTILE', 'turnstile ', '', 'none']);
+
+test('CAPTCHA_DRIVER=turnstile nhung thieu TURNSTILE_SECRET o production nem loi (M3)', function () {
+    config(['services.turnstile.secret' => null]);
+
+    expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
+});
+
+test('CAPTCHA_DRIVER=turnstile nhung thieu TURNSTILE_SITE_KEY o production nem loi (M3)', function () {
+    config(['services.turnstile.site_key' => null]);
 
     expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
 });

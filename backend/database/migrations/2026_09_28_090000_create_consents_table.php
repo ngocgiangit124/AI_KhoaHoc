@@ -14,7 +14,12 @@ return new class extends Migration
     {
         Schema::create('consents', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+            // L3 (review docs/security/review-T03-FW1.md) — data-model §3 quy
+            // ước FK mặc định `restrictOnDelete()`; `consents` là BẰNG CHỨNG
+            // đồng ý xử lý dữ liệu (S7), không được xoá dây chuyền theo user
+            // (US-018 dự kiến ẩn danh hoá tài khoản, không xoá cứng — khi đó
+            // vẫn cần giữ bằng chứng này).
+            $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
             // privacy_policy / terms / parent_consent / marketing (enum ConsentType).
             $table->string('type', 30);
             // Phiên bản văn bản chính sách đã hiển thị (config('privacy.policy_version')).
