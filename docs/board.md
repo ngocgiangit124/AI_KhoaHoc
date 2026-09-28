@@ -14,10 +14,10 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T03 | Đăng ký/đăng nhập học sinh | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS có điều kiện (còn: L3 phần DB — DBA trước staging; L2 — PO; N5 — Architect sửa api-contract §1.7) | — | 2026-09-28 |
 | FW1 (phần 1) | Màn đăng ký/đăng nhập/đăng xuất (apps/web) | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS | — | 2026-09-28 |
 | FW1 (phần 2) | Màn xác thực OTP | Dev xong, chưa review | Nhánh `claude/zen-dirac-fmucf7-fw1-otp` (7e5fa1f). Có 4 giả định cần đối chiếu với T04 | T04 | 2026-09-28 |
-| T04 | OTP | Chưa bắt đầu | Worktree cloud chưa có code T04 (đã dừng sau khi sửa base). Làm lại từ nhánh chính | — | 2026-09-28 |
+| T04 | OTP | Dev sửa sau review | Review REQUEST CHANGES (`docs/reviews/review-T04.md` trong worktree t04): BLOCKER R1 — `PUT /auth/contact` không throttle, gửi OTP không giới hạn tới email bất kỳ. Đang sửa R1–R3, R5, R6 → review lại → `laravel-security` | — | 2026-09-28 |
 | T05 | Một phiên học sinh | Chưa làm | — | Chờ gộp T03/T04 (sửa cùng file) | — |
-| T06 | Chuyên đề | Dev dở (WIP) | Nhánh `claude/zen-dirac-fmucf7-t06`. Test đang skip phần "chặn xoá khi đang gán" chờ T07 | — | 2026-09-28 |
-| T07 → T10 | Schema nội dung → danh mục công khai | T07 dev xong; T10 dở (WIP) | Nhánh `claude/zen-dirac-fmucf7-t07-t10`. Checklist DBA: `docs/db/T07-checklist.md` | — | 2026-09-28 |
+| T06 | Chuyên đề | Dev (hoàn thiện) | Worktree `.claude/worktrees/t06`, nhánh local `t06`: gộp `t07-t10`, dùng bản `subjects` của T07 (DBA xác nhận đủ), bật lại test chặn xoá | T07 | 2026-09-28 |
+| T07 → T10 | Schema nội dung → danh mục công khai | Chờ PO duyệt gộp | Nhánh local `t07-t10` @70e42bd. Review APPROVE (`docs/reviews/review-T07-T10.md`), DBA đã sửa index `courses(status,published_at)` (`docs/db/T07-review.md`). Pest 246 pass, gộp sạch | R1 (PO) không chặn gộp | 2026-09-28 |
 | T17 | Thanh toán: abstraction + MoMo | Dev gần xong, chưa chạy hết test | Nhánh `claude/zen-dirac-fmucf7-t17`. Chưa kiểm chứng sandbox MoMo thật | — | 2026-09-28 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
@@ -123,6 +123,11 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 2. Các mặc định an toàn ở `docs/architecture/README.md` §8 (MFA staff, che PII khi xuất file, TTL link HLS...).
 3. LB/CDN production có chuyển tiếp `X-Forwarded-Host` từ client không (chốt ở T31).
 4. Pháp chế: Luật BVDLCN 2025, ngưỡng tuổi cần phụ huynh đồng ý, thời hạn lưu log có IP, chuyển dữ liệu ra nước ngoài.
+5. (T10, R1 — PO + Architect, chốt trước T13) Khoá bị unpublish: US-003 nói học sinh đã mua vẫn xem được, api-contract §2.1 nói 404 không ngoại lệ. Code đang theo api-contract.
+6. (T10 — Architect) Tie-break sort `featured`: data-model ghi `published_at desc`, story + code dùng `created_at desc`. Chốt tài liệu.
+7. (T04) Audit `otp.daily_limit`: reviewer tìm được cách ghi an toàn không cần sửa `ApiExceptionRenderer` — dev đang làm, Security xác nhận ở vòng [SEC]. Không cần PO trả lời.
+8. (T04 → FW1 phần 2 — Architect) 429 có header `Retry-After` (giây); giả định #4 của FW1 sai. Ghi vào api-contract §1.6/§1.7 và sửa FW1 dùng header này.
+9. (T04, R4 — Architect) `otp_codes.user_id` code dùng `restrictOnDelete`, data-model ghi cascade. Đồng bộ tài liệu.
 
 ## Nhật ký
 
@@ -133,4 +138,5 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 - 2026-09-28 · T03, FW1 · Dev + Reviewer (2 vòng) + Security · Review PASS; Security PASS có điều kiện, đã sửa; 192 test backend, 111 test frontend. Cloud: PHP 8.4, không chạy được Larastan (mạng chặn tải phpstan) → chạy `composer ci` trên Docker local trước khi merge main
 - 2026-09-28 · PO · Đổi quy trình: QA theo giai đoạn; chạy song song task độc lập (T04, T06, T07→T10, T17, FW1 phần 2)
 - 2026-09-28 · Orchestrator · Dừng các agent cloud, push nhánh phụ WIP để PO chuyển về local làm tiếp
+- 2026-09-28 · Dev + Reviewer + DBA · T07-T10 hoàn thiện, review APPROVE, DBA thêm index; T04 dev xong (Pest 236); T06 bắt đầu hoàn thiện. Worktree test: mount `-v <wt>/backend:/var/www/wt -w /var/www/wt`, DB `vitaminvui_testing_<task>`, file `phpunit.<task>.xml` (untracked)
 - 2026-09-28 · Dev + Reviewer · Dựng máy local; sửa phpunit DB_PASSWORD, Larastan 16 lỗi, pnpm/compose UID, `.env.example` frontend; review APPROVE; chờ PO duyệt commit
