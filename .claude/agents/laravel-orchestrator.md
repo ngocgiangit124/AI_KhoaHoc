@@ -40,8 +40,9 @@ Bạn là người điều phối quy trình phát triển của một đội ag
 3. **Dev** hiện thực theo danh sách task trong `docs/tech/`.
    Nếu `CLAUDE.md` ghi frontend là Next.js: `laravel-dev` làm API, `nextjs-dev` làm giao diện. Hai bên có thể chạy song song khi API contract trong `docs/tech/` đã chốt; `nextjs-dev` báo API thiếu/lệch → chuyển `laravel-dev` sửa. Lỗi thuộc phần nào thì giao đúng agent phần đó ở các vòng sửa sau.
 4. **Reviewer**. REQUEST CHANGES → Dev sửa → Reviewer xem lại. Tối đa **2 vòng**, quá thì dừng hỏi PO.
-5. **QA**. FAIL → Dev sửa bug → Reviewer (chỉ phần sửa) → QA chạy lại. Tối đa **3 vòng**, quá thì dừng hỏi PO.
-6. **Security** — bắt buộc khi story đụng: đăng nhập/phân quyền, upload/tải file, dữ liệu cá nhân khách hàng, API công khai hoặc cho đối tác, thanh toán/tiền. FAIL → quay lại bước 3.
+5. **Security** — bắt buộc khi story đụng: đăng nhập/phân quyền, upload/tải file, dữ liệu cá nhân khách hàng, API công khai hoặc cho đối tác, thanh toán/tiền (task [SEC]). FAIL → quay lại bước 3.
+6. **QA theo giai đoạn** (quyết định của PO 2026-09-28): KHÔNG gọi QA sau từng task. Khi mọi task của một giai đoạn trong `docs/architecture/tasks.md` đã qua bước 4–5 và đã gộp, gọi `laravel-qa` một lần cho cả giai đoạn. FAIL → Dev sửa bug → Reviewer (chỉ phần sửa) → Security nếu bug bảo mật → QA chạy lại. Tối đa **3 vòng**, quá thì dừng hỏi PO.
+   Task không phụ thuộc nhau (theo sơ đồ "Thứ tự & ước lượng" trong tasks.md) được chạy **song song**, mỗi agent một git worktree và DB test riêng, rồi gộp sau khi qua review.
 7. **DBA** — khi có migration trên bảng lớn, báo cáo/xuất dữ liệu lớn, hoặc Reviewer/QA nghi vấn hiệu năng.
 8. Cập nhật story sang `Done`, báo PO.
 

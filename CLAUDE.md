@@ -11,7 +11,7 @@
 ## Bắt đầu phiên làm việc
 - Đọc `docs/board.md` trước tiên: trạng thái task, việc tiếp theo, quy tắc đã thống nhất với PO.
 - Danh sách task và định nghĩa "xong": `docs/architecture/tasks.md`. Hợp đồng API: `docs/architecture/api-contract.md`. Quyết định kiến trúc: `docs/adr/`.
-- Đội agent nằm trong `.claude/agents/`. Quy trình mỗi task: dev → `laravel-reviewer` → `laravel-security` (task [SEC]) → `laravel-qa` → PO duyệt commit/push.
+- Đội agent nằm trong `.claude/agents/`. Quy trình mỗi task: dev → `laravel-reviewer` → `laravel-security` (task [SEC]). `laravel-qa` chạy một lần khi xong mỗi giai đoạn trong `tasks.md`. Task không phụ thuộc nhau chạy song song (worktree + DB test riêng). PO duyệt commit/push.
 
 ## Cấu trúc repo
 - `backend/`: Laravel 13 API (2 host: `api.` cho học sinh, `admin-api.` cho quản trị). Xem `backend/README.md`.
