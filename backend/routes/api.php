@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\V1\Auth\CsrfController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\MeController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
+use App\Http\Controllers\Api\V1\Catalog\CourseController;
+use App\Http\Controllers\Api\V1\Catalog\SubjectController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
 use Illuminate\Support\Facades\Route;
@@ -30,7 +32,22 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         ->group(function (): void {
             Route::get('/config/public', [PublicConfigController::class, 'show']);
             Route::get('/health', HealthController::class);
+
+            // T10 (US-002, US-003, api-contract §2.1) — danh mục công khai:
+            // không đọc/ghi cookie (M3), cache được ở CDN/Nginx (S16).
+            Route::get('/subjects', [SubjectController::class, 'index'])
+                ->name('api.subjects.index');
+            Route::get('/courses', [CourseController::class, 'index'])
+                ->name('api.courses.index');
+            Route::get('/courses/{course:slug}', [CourseController::class, 'show'])
+                ->name('api.courses.show');
         });
+
+    // /viewer-state CẦN session (nhóm `student` — api-contract §2.1): tách
+    // khỏi `show` để `show` cache công khai được (S16).
+    Route::get('/courses/{course:slug}/viewer-state', [CourseController::class, 'viewerState'])
+        ->middleware(['auth:sanctum', 'account.active', 'student.single_session', 'no_store', 'role:hoc_sinh'])
+        ->name('api.courses.viewer-state');
 
     // csrf-token CẦN session (mục đích chính là phát hành token CSRF) nên giữ
     // nguyên EnsureFrontendRequestsAreStateful; limiter `csrf` riêng (M3) chống
