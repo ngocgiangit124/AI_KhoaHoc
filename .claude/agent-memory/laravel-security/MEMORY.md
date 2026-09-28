@@ -1,0 +1,1 @@
+- [OTP race & destination binding](feedback_vitaminvui_otp_race.md) — throttle Laravel không nguyên tử khi song song; OTP phải gắn destination; đổi liên hệ cần xác minh trước T27

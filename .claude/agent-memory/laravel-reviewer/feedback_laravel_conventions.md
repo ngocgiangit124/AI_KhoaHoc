@@ -1,0 +1,23 @@
+---
+name: feedback-laravel-conventions
+description: Quy ước code riêng của VitaminVui cần biết trước khi gắn nhãn BLOCKER/SHOULD khi review
+metadata:
+  type: feedback
+---
+
+- **Middleware alias "khung" (stub pass-through) là chủ ý, không phải lỗi.** Vd `student.single_session` (`App\Http\Middleware\EnforceSingleStudentSession`) chỉ là pass-through cho tới khi task hiện thực thật (T05) xong — được gắn sẵn lên MỌI route nhóm `student` từ T01/T02 để test kiến trúc (`tests/Feature/T02/RouteMiddlewareGroupsTest.php`) chặn regression ngay từ đầu. Trước khi flag "thiếu/sai middleware", luôn kiểm middleware đó đã tồn tại từ task trước hay do task đang review tự thêm, và có test kiến trúc nào đã xác nhận stack đó là đúng chưa (tìm theo tên test `RouteMiddlewareGroupsTest`/`moi route ... co du middleware`).
+  **Why:** review T07/T10, ban đầu nghi ngờ `viewer-state` có `role:hoc_sinh` là thừa/tự chế, nhưng hoá ra khớp đúng pattern `/auth/me` và được test kiến trúc T02 bắt buộc cho MỌI route `auth:sanctum` trên host api.
+  **How to apply:** khi thấy middleware stack "lạ", grep tên middleware trong `bootstrap/app.php` (đăng ký alias) + trong `tests/Feature/T02/RouteMiddlewareGroupsTest.php` trước khi kết luận là lỗi.
+
+- **TODO(Txx) trong code là pattern được chấp nhận cho việc cố ý để lại cho task sau**, miễn có: (1) tên task rõ ràng, (2) lý do/rủi ro (thường trích mã S-số của security audit hoặc BR/AC của story), (3) không có đường dẫn ghi dữ liệu nào đang khai thác lỗ hổng đó ở thời điểm hiện tại. Ví dụ đã gặp: `description` khoá học TODO(T08) sanitize-khi-đọc (S8) — chấp nhận vì T08 (viết) chưa tồn tại nên chưa có input người dùng thật nào chảy vào cột đó.
+  **Why:** tránh gắn BLOCKER cho những việc đã được Dev chủ động ghi chú và có kế hoạch task sau xử lý — chỉ nên nhắc lại ở mức SHOULD để không bị quên khi task đó tới, trừ khi đã có đường ghi dữ liệu thật đang expose lỗ hổng ngay bây giờ.
+  **How to apply:** khi gặp TODO, kiểm xem có endpoint/luồng nào ĐANG cho phép user thường ghi vào field đó không; nếu không → SHOULD; nếu có → BLOCKER.
+
+- **Khi story (`docs/stories/US-*.md`) và `api-contract.md` mâu thuẫn nhau** (vd US-003 muốn học sinh đã mua vẫn xem được khoá đã unpublish, nhưng api-contract §2.1 ghi cứng "unpublished → 404" không ngoại lệ) — coi đây là lỗi tài liệu/thiếu quyết định kiến trúc, KHÔNG phải lỗi Dev nếu Dev bám sát api-contract. Gắn SHOULD, đề xuất escalate PO/Architect, không REQUEST CHANGES chỉ vì lý do này.
+
+- Luôn tự chạy `pint --test && phpstan analyse && pest` trong Docker (theo hướng dẫn CLAUDE.md) để xác minh con số Dev báo cáo (vd "244 pass") thay vì tin theo lời khai trong báo cáo bàn giao — đã từng verify thành công khớp 100% nhưng vẫn nên luôn tự chạy lại.
+
+- **Audit-in-same-transaction-as-write is NOT a universal rule in this project**, only applied where a Dev explicitly noted a specific reason. `StaffCreateCommand` wraps `User::forceCreate()` + `AuditLogger::log()` in `DB::transaction()` (L4 finding: a one-time-shown random password must never end up attached to a user with no audit trail). `StaffLockCommand`/`StaffUnlockCommand` do NOT transaction-wrap their audit call, and that's accepted. So when a new Service (e.g. `SubjectService::create()/delete()`, T06) does the write then logs audit as two separate statements (not transactional), don't flag it as a regression against "the project's S15 convention" — check for an actual sibling precedent with a stated reason first (grep `DB::transaction` near `AuditLogger::log` in `app/Console/Commands` and `app/Services`) before treating non-transactional audit as a defect.
+  **Why:** Almost mis-flagged this in the T06 review (2026-09-28) as "regression against an established security-reviewed pattern" — turned out `StaffLockCommand` already doesn't do it, so it's not actually a project-wide rule.
+
+- **Don't invent request fields beyond `api-contract.md`, even when low-risk.** `docs/board.md` has an explicit standing rule: "Không tự bịa field ngoài api-contract. Thấy thiếu hoặc mâu thuẫn thì dừng và hỏi Architect." When a Form Request accepts a field the contract doesn't list for that route (e.g. T06's `SubjectRequest` accepting `status` on `POST/PUT /admin/subjects` when api-contract §2.5 only lists `name`, and the story's AC1 implies create is always `active`), flag it even if the actor is already fully privileged and there's no real security escalation — rate as SHOULD (contract-compliance/maintainability, not BLOCKER) unless it also causes a functional bug (e.g. the same field silently accepted-but-ignored on a different action, which did happen in that case — a legitimate confusing-422 bug, not just a documentation nit).

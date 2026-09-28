@@ -155,8 +155,8 @@ test('moi route auth:sanctum co du middleware chuan theo host', function () {
     expect($violations)->toBe([]);
 
     // R4 (review T01/T02) — T03 đã thêm route auth:sanctum đầu tiên
-    // (auth/logout, auth/me): khẳng định có ít nhất 1 route được xét, không
-    // còn là assertion "xanh giả" (>= 0 luôn đúng).
+    // (auth/logout, auth/me); T06 thêm thêm nhóm admin/subjects: khẳng định có
+    // ít nhất 1 route được xét, không còn là assertion "xanh giả" (>= 0 luôn đúng).
     expect($checked)->toBeGreaterThan(0);
 });
 

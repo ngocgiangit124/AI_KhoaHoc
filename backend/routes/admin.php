@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
+use App\Models\Subject;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -25,22 +27,44 @@ Route::domain(config('app.admin_api_host'))
             ->middleware('throttle:csrf')
             ->name('admin.csrf-token');
 
-        // M1 (review bảo mật T01/T02) — khung nhóm route quản trị chuẩn cho T28
-        // dùng ngay khi hiện thực đăng nhập/route nội dung: MỌI route cần đăng
-        // nhập trên admin-api phải nằm trong nhóm dưới đây (đủ auth:sanctum +
-        // role, khớp test kiến trúc `RouteMiddlewareGroupsTest`). Để trống vì
-        // T01/T02 chưa có route nào cần đăng nhập; KHÔNG registration rỗng thật
-        // (Route::group không có route con là vô hại nhưng thừa) — chỉ ghi mẫu:
-        //
-        // Route::middleware([
-        //     'auth:sanctum', 'account.active', 'staff.idle',
-        //     'staff.mfa_passed', 'staff.password_fresh', 'no_store',
-        //     'role:admin,quan_ly_trang,giao_vien',
-        // ])->group(function (): void {
-        //     // Đăng nhập quản trị (T28), nội dung/danh mục (T06+), mã giảm giá/
-        //     // đơn hàng (T15, T24) — thêm dần ở các task sau, ĐẶT TÊN route với
-        //     // tiền tố `admin.` và cập nhật allowlist trong
-        //     // tests/Feature/T02/RouteMiddlewareGroupsTest.php nếu route đó cần
-        //     // ngoại lệ (đăng nhập, MFA, đổi mật khẩu lần đầu).
-        // });
+        // M1 (review bảo mật T01/T02) — khung nhóm route quản trị chuẩn: MỌI
+        // route cần đăng nhập trên admin-api nằm trong nhóm dưới đây (đủ
+        // auth:sanctum + role, khớp test kiến trúc `RouteMiddlewareGroupsTest`).
+        // `staff.mfa_passed`/`staff.password_fresh` là pass-through cho tới T28
+        // (đăng nhập quản trị) — T02 đã tạo khung. Mọi route con ĐẶT TÊN với
+        // tiền tố `admin.` (yêu cầu của test kiến trúc).
+        Route::middleware([
+            'auth:sanctum',
+            'account.active',
+            'staff.idle',
+            'staff.mfa_passed',
+            'staff.password_fresh',
+            'no_store',
+            'role:admin,quan_ly_trang,giao_vien',
+        ])->group(function (): void {
+            // Nội dung & danh mục — Chuyên đề (T06, US-011). `can:...` chạy
+            // TRƯỚC FormRequest::rules() (SubstituteBindings có priority mặc
+            // định của framework đứng trước Authorize — Kernel::$middlewarePriority
+            // — nên route model binding {subject} đã sẵn sàng khi middleware
+            // `can:` đọc nó): Giáo Viên gửi payload sai (tên rỗng/trùng/HTML)
+            // vẫn nhận 403 thay vì 422 lộ chi tiết validate (R2 review-T06,
+            // US-011 "Trường hợp biên & lỗi"). `FormRequest::authorize()` vẫn
+            // giữ `true` theo đúng quy ước dự án (api-contract §1.3).
+            Route::get('/subjects', [SubjectController::class, 'index'])->name('admin.subjects.index');
+            Route::post('/subjects', [SubjectController::class, 'store'])
+                ->middleware('can:create,'.Subject::class)
+                ->name('admin.subjects.store');
+            Route::put('/subjects/{subject}', [SubjectController::class, 'update'])
+                ->middleware('can:update,subject')
+                ->name('admin.subjects.update');
+            Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy'])
+                ->middleware('can:delete,subject')
+                ->name('admin.subjects.destroy');
+            Route::patch('/subjects/{subject}/status', [SubjectController::class, 'updateStatus'])
+                ->middleware('can:updateStatus,subject')
+                ->name('admin.subjects.status');
+
+            // Đăng nhập quản trị (T28), khóa học/chương/bài (T08+), mã giảm
+            // giá/đơn hàng (T15, T24) — thêm dần ở các task sau.
+        });
     });
