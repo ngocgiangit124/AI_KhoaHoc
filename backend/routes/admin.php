@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,6 +21,25 @@ Route::domain(config('app.admin_api_host'))
     ->group(function (): void {
         Route::get('/csrf-token', CsrfController::class);
 
-        // Đăng nhập quản trị (T28), nội dung/danh mục (T06+), mã giảm giá/đơn
-        // hàng (T15, T24) — thêm dần ở các task sau.
+        // Nhóm `staff` (api-contract §1.3). `staff.mfa_passed`/`staff.password_fresh`
+        // là pass-through cho tới T28 (đăng nhập quản trị) — T02 đã tạo khung.
+        Route::middleware([
+            'auth:sanctum',
+            'account.active',
+            'staff.idle',
+            'staff.mfa_passed',
+            'staff.password_fresh',
+            'no_store',
+            'role:admin,quan_ly_trang,giao_vien',
+        ])->group(function (): void {
+            // Nội dung & danh mục — Chuyên đề (T06, US-011).
+            Route::get('/subjects', [SubjectController::class, 'index']);
+            Route::post('/subjects', [SubjectController::class, 'store']);
+            Route::put('/subjects/{subject}', [SubjectController::class, 'update']);
+            Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy']);
+            Route::patch('/subjects/{subject}/status', [SubjectController::class, 'updateStatus']);
+
+            // Đăng nhập quản trị (T28), khóa học/chương/bài (T08+), mã giảm
+            // giá/đơn hàng (T15, T24) — thêm dần ở các task sau.
+        });
     });

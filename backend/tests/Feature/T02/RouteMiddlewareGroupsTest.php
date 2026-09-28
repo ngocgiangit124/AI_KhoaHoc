@@ -55,12 +55,11 @@ test('moi route auth:sanctum co du middleware chuan theo host', function () {
 
     expect($violations)->toBe([]);
 
-    // R4 (review T01/T02): khẳng định đúng số route auth:sanctum hiện có (0 ở
-    // T01/T02) thay vì assertion vô nghĩa (>= 0 luôn đúng). TODO(T03): đổi
-    // thành `expect($checked)->toBeGreaterThan(0)` khi route auth:sanctum đầu
-    // tiên (auth/me, .../otp/*...) được thêm — nếu quên đổi, test này sẽ FAIL
-    // và nhắc phải cập nhật, không "xanh giả".
-    expect($checked)->toBe(0);
+    // R4 (review T01/T02): khẳng định có ít nhất 1 route auth:sanctum được
+    // quét — tránh assertion vô nghĩa (>= 0 luôn đúng). Cập nhật ở T06 (route
+    // admin/subjects — US-011) vì đây là route auth:sanctum đầu tiên của dự
+    // án, chạy trước T03/T05 theo lịch trình gốc.
+    expect($checked)->toBeGreaterThan(0);
 });
 
 /**
