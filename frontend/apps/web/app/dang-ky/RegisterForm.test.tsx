@@ -152,13 +152,16 @@ describe("RegisterForm", () => {
 
   it("lỗi 422 email/SĐT trùng -> hiển thị đúng dưới từng field (AC2)", async () => {
     const user = userEvent.setup();
+    // Envelope thật (backend/app/Services/Auth/RegistrationService.php
+    // translateUniqueViolation() + RegisterRequest::messages() cho 'email.unique'): message
+    // top-level chung "Dữ liệu gửi lên không hợp lệ.", câu thật nằm trong `errors.{field}`.
     authFetchMock.mockRejectedValueOnce(
       new ApiError(422, {
-        message: "Dữ liệu không hợp lệ",
+        message: "Dữ liệu gửi lên không hợp lệ.",
         code: "VALIDATION_ERROR",
         errors: {
-          email: ["Email đã được sử dụng"],
-          phone: ["Số điện thoại đã được sử dụng"],
+          email: ["Email đã được sử dụng."],
+          phone: ["Số điện thoại đã được sử dụng."],
         },
       }),
     );
@@ -169,15 +172,23 @@ describe("RegisterForm", () => {
     await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
     await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
 
-    expect(await screen.findByText("Email đã được sử dụng")).toBeInTheDocument();
-    expect(screen.getByText("Số điện thoại đã được sử dụng")).toBeInTheDocument();
+    expect(await screen.findByText("Email đã được sử dụng.")).toBeInTheDocument();
+    expect(screen.getByText("Số điện thoại đã được sử dụng.")).toBeInTheDocument();
+    // Message chung KHÔNG hiện thành banner riêng (mọi field lỗi đã có nơi hiển thị).
+    expect(screen.queryByText("Dữ liệu gửi lên không hợp lệ.")).not.toBeInTheDocument();
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it("CAPTCHA_FAILED -> hiện banner lỗi và không điều hướng", async () => {
+  it("CAPTCHA_FAILED -> hiện banner lỗi (message thật từ RegistrationService) và không điều hướng", async () => {
     const user = userEvent.setup();
+    // Envelope thật: `DomainException('CAPTCHA_FAILED', 'Xác minh captcha không thành công,
+    // vui lòng thử lại.', 422)` — không có `context()`/`errors` (backend/app/Services/Auth/
+    // RegistrationService.php::register()).
     authFetchMock.mockRejectedValueOnce(
-      new ApiError(422, { message: "Xác minh chống spam thất bại", code: "CAPTCHA_FAILED" }),
+      new ApiError(422, {
+        message: "Xác minh captcha không thành công, vui lòng thử lại.",
+        code: "CAPTCHA_FAILED",
+      }),
     );
     renderRegisterForm();
 
@@ -186,7 +197,7 @@ describe("RegisterForm", () => {
     await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
     await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
 
-    expect(await screen.findByText("Xác minh chống spam thất bại")).toBeInTheDocument();
+    expect(await screen.findByText("Xác minh captcha không thành công, vui lòng thử lại.")).toBeInTheDocument();
     expect(pushMock).not.toHaveBeenCalled();
   });
 

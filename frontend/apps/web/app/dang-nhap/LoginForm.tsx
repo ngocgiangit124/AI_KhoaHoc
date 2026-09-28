@@ -52,8 +52,18 @@ export function LoginForm() {
       // field). ACCOUNT_LOCKED, WRONG_PORTAL, TOO_MANY_ATTEMPTS (429) đều dùng message
       // tiếng Việt do server trả (api-contract §1.7), chỉ đổi màu banner theo mức nghiêm
       // trọng.
+      //
+      // Backend thật (`LoginService::genericFailure`) ném lỗi qua `ValidationException`
+      // với `errors.login`, nên `ApiExceptionRenderer` trả `code: VALIDATION_ERROR` và
+      // `message` TOP-LEVEL là thông điệp validate CHUNG ("Dữ liệu gửi lên không hợp
+      // lệ."), không phải câu "Thông tin đăng nhập hoặc mật khẩu không đúng." — câu đó
+      // nằm trong `errors.login[0]`. Ưu tiên đọc `errors.login[0]` trước, chỉ dùng
+      // `message` khi không có (ACCOUNT_LOCKED/WRONG_PORTAL/429 không có `errors`, luôn
+      // rơi vào nhánh `message`). VẪN KHÔNG gọi `setError` — không gắn lỗi xuống field
+      // `login`/`password` dù server trả `errors.login` (chống dò tài khoản — BR5).
       if (err instanceof ApiError) {
-        setBanner({ message: err.message, variant: err.status === 429 ? "warning" : "danger" });
+        const bannerText = err.errors?.login?.[0] ?? err.message;
+        setBanner({ message: bannerText, variant: err.status === 429 ? "warning" : "danger" });
         return;
       }
       if (err instanceof NetworkError) {

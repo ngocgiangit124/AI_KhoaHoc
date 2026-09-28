@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * S10/S18 (api-contract §1.6) — throttle 2 lớp: tài khoản + IP. `TRUSTED_PROXIES`
@@ -60,4 +62,33 @@ test('11 dia chi IP khac nhau cung 1 tai khoan van bi khoa throttle:login theo t
 
     $blocked->assertStatus(429);
     $blocked->assertJson(['code' => 'TOO_MANY_ATTEMPTS']);
+});
+
+/**
+ * R2/R3 (docs/qa/review-T03-FW1.md) — api-contract §1.6 ghi "10 lần SAI/giờ":
+ * đăng nhập ĐÚNG lặp lại (vd nhiều tab/thiết bị hợp lệ trước khi T05 áp 1
+ * phiên) KHÔNG được tính vào bộ đếm này. Trước khi sửa R2, test này FAIL ở
+ * lần thứ 11 (middleware `throttle:login` cũ đếm mọi request, kể cả đúng).
+ */
+test('dang nhap dung nhieu lan lien tiep KHONG bi throttle (chi dem lan sai — R2)', function () {
+    User::factory()->create([
+        'email' => 'dung-nhieu-lan@example.com',
+        'password' => Hash::make('matkhau123'),
+    ]);
+    $uri = 'http://'.config('app.api_host').'/api/v1/auth/login';
+
+    for ($i = 0; $i < 12; $i++) {
+        $response = test()->postJson($uri, [
+            'login' => 'dung-nhieu-lan@example.com',
+            'password' => 'matkhau123',
+        ], ['Origin' => config('app.frontend_url')]);
+
+        expect($response->status())->toBe(200);
+
+        // Middleware `guest` chặn lệnh gọi kế tiếp nếu guard còn coi là đã
+        // đăng nhập — guard là singleton xuyên suốt các lệnh gọi HTTP mô
+        // phỏng nối tiếp trong 1 hàm test Pest (không phải hành vi HTTP thật,
+        // xem ghi chú tương tự ở RegisterTest::vvLogoutGuard()).
+        Auth::guard('web')->logout();
+    }
 });

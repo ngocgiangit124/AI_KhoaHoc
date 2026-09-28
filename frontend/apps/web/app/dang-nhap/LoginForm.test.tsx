@@ -58,10 +58,17 @@ describe("LoginForm", () => {
     );
   });
 
-  it("sai thông tin đăng nhập (422, không có errors field) -> banner chung, KHÔNG lộ field nào sai (BR5)", async () => {
+  it("sai thông tin đăng nhập (422 VALIDATION_ERROR, envelope thật từ backend) -> banner dùng errors.login[0], KHÔNG dùng message chung, KHÔNG lộ field nào sai (BR5)", async () => {
     const user = userEvent.setup();
+    // Envelope thật (backend/app/Services/Auth/LoginService.php genericFailure() +
+    // ApiExceptionRenderer::resolve() cho ValidationException): `message` top-level chỉ
+    // là câu validate CHUNG, câu thông báo thật nằm trong `errors.login[0]`.
     authFetchMock.mockRejectedValueOnce(
-      new ApiError(422, { message: "Thông tin đăng nhập hoặc mật khẩu không đúng" }),
+      new ApiError(422, {
+        message: "Dữ liệu gửi lên không hợp lệ.",
+        code: "VALIDATION_ERROR",
+        errors: { login: ["Thông tin đăng nhập hoặc mật khẩu không đúng."] },
+      }),
     );
     renderLoginForm();
 
@@ -69,15 +76,22 @@ describe("LoginForm", () => {
     await user.type(screen.getByLabelText(/Mật khẩu/), "sai-mat-khau");
     await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
 
-    expect(await screen.findByText("Thông tin đăng nhập hoặc mật khẩu không đúng")).toBeInTheDocument();
+    expect(await screen.findByText("Thông tin đăng nhập hoặc mật khẩu không đúng.")).toBeInTheDocument();
+    expect(screen.queryByText("Dữ liệu gửi lên không hợp lệ.")).not.toBeInTheDocument();
+    // Không gắn lỗi xuống field (BR5) — chỉ có 1 dòng thông báo (banner), field vẫn "sạch".
+    expect(screen.getByLabelText(/Email hoặc số điện thoại/)).not.toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText(/Mật khẩu/)).not.toHaveAttribute("aria-invalid", "true");
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it("429 TOO_MANY_ATTEMPTS -> hiển thị đúng message server (banner warning)", async () => {
+  it("429 TOO_MANY_ATTEMPTS -> hiển thị đúng message server (banner warning), không có errors object", async () => {
     const user = userEvent.setup();
+    // Envelope thật: limiter `login` không có handler tuỳ chỉnh
+    // (`AppServiceProvider::configureRateLimiters`) nên rơi vào nhánh
+    // `HttpExceptionInterface` mặc định của `ApiExceptionRenderer` — không có `errors`.
     authFetchMock.mockRejectedValueOnce(
       new ApiError(429, {
-        message: "Tài khoản tạm khoá do đăng nhập sai nhiều lần. Vui lòng thử lại sau 12 phút.",
+        message: "Bạn thao tác quá nhanh, vui lòng thử lại sau.",
         code: "TOO_MANY_ATTEMPTS",
       }),
     );
@@ -87,16 +101,16 @@ describe("LoginForm", () => {
     await user.type(screen.getByLabelText(/Mật khẩu/), "matkhau123");
     await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
 
-    expect(
-      await screen.findByText(/Tài khoản tạm khoá do đăng nhập sai nhiều lần/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Bạn thao tác quá nhanh, vui lòng thử lại sau.")).toBeInTheDocument();
   });
 
-  it("ACCOUNT_LOCKED (403) -> hiển thị đúng message server", async () => {
+  it("ACCOUNT_LOCKED (403) -> hiển thị đúng message server (LoginService::authenticate), không có errors object", async () => {
     const user = userEvent.setup();
+    // Envelope thật: `DomainException('ACCOUNT_LOCKED', 'Tài khoản của bạn đã bị khoá.', 403)`
+    // (backend/app/Services/Auth/LoginService.php) — không kèm `context()`/`errors`.
     authFetchMock.mockRejectedValueOnce(
       new ApiError(403, {
-        message: "Tài khoản của bạn đã bị khoá. Vui lòng liên hệ hỗ trợ.",
+        message: "Tài khoản của bạn đã bị khoá.",
         code: "ACCOUNT_LOCKED",
       }),
     );
@@ -106,7 +120,7 @@ describe("LoginForm", () => {
     await user.type(screen.getByLabelText(/Mật khẩu/), "matkhau123");
     await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
 
-    expect(await screen.findByText("Tài khoản của bạn đã bị khoá. Vui lòng liên hệ hỗ trợ.")).toBeInTheDocument();
+    expect(await screen.findByText("Tài khoản của bạn đã bị khoá.")).toBeInTheDocument();
   });
 
   it("lỗi mạng -> banner hiển thị message của NetworkError", async () => {

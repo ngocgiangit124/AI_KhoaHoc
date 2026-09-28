@@ -20,3 +20,15 @@ test('tu choi dinh dang khong phai SDT di dong Viet Nam', function () {
 test('fromInput nem InvalidArgumentException khi sai dinh dang', function () {
     expect(fn () => PhoneNumber::fromInput('khong-phai-sdt'))->toThrow(InvalidArgumentException::class);
 });
+
+/**
+ * R6 (docs/qa/review-T03-FW1.md) — US-001 chỉ nói "SĐT" cho đăng ký/đăng nhập
+ * học sinh, phạm vi là SĐT DI ĐỘNG (đầu số 03/05/07/08/09 theo quy hoạch hiện
+ * hành). Khoá rõ hành vi: số CỐ ĐỊNH (đầu 02x, có mã vùng) bị từ chối, phòng
+ * khi sau này ai nới lỏng pattern mà không để ý phá quy tắc.
+ */
+test('so co dinh (dau 02x) bi tu choi', function () {
+    expect(PhoneNumber::isValidInput('0281234567'))->toBeFalse(); // 028 = TP.HCM
+    expect(PhoneNumber::isValidInput('0241234567'))->toBeFalse(); // 024 = Hà Nội
+    expect(fn () => PhoneNumber::fromInput('0281234567'))->toThrow(InvalidArgumentException::class);
+});

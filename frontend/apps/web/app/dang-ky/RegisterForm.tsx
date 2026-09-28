@@ -23,12 +23,11 @@ import { buildRegisterSchema, type RegisterFormValues } from "@/lib/validation/r
 import { ConsentCheckboxGroup } from "./ConsentCheckboxGroup";
 
 /**
- * GIẢ ĐỊNH backend (ghi rõ để đối chiếu khi T03 xong — `Services/Auth/Captcha/
- * FakeCaptchaVerifier` chưa có tài liệu công khai giá trị chấp nhận): ở local
- * (`captcha_site_key = null`, chưa cấu hình Turnstile thật), gửi 1 chuỗi cố định khác rỗng
- * làm `captcha_token` — kỳ vọng `FakeCaptchaVerifier` (chỉ bind ở local/testing theo
- * tasks.md T03) chấp nhận mọi chuỗi không rỗng. Nếu backend cần giá trị/định dạng khác,
- * cần laravel-dev xác nhận và cập nhật hằng số này.
+ * Đối chiếu với `backend/app/Services/Auth/Captcha/FakeCaptchaVerifier.php` (chỉ bind ở
+ * local/testing — production cấm `fake` qua boot guard): `verify()` chấp nhận MỌI chuỗi
+ * không rỗng, trừ hằng số quy ước `FakeCaptchaVerifier::INVALID_TOKEN` ("test-invalid-captcha",
+ * dùng trong test Pest để mô phỏng captcha sai). Chuỗi cố định dưới đây khác rỗng và khác
+ * giá trị đó nên được `FakeCaptchaVerifier` chấp nhận ở local (`captcha_site_key = null`).
  */
 const LOCAL_FAKE_CAPTCHA_TOKEN = "local-dev-fake-captcha-token";
 

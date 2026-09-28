@@ -37,11 +37,32 @@ test('AC4: sai mat khau tra 422 thong diep chung', function () {
     $response->assertJsonValidationErrors(['login']);
 });
 
+/**
+ * R1 (docs/qa/review-T03-FW1.md) — frontend hiển thị `message` TOP-LEVEL làm
+ * banner (không phải `errors.login`). Trước khi sửa, `ApiExceptionRenderer`
+ * hard-code "Dữ liệu gửi lên không hợp lệ." cho MỌI `ValidationException`,
+ * khiến người dùng thấy thông điệp vô nghĩa thay vì lý do thật (dù đúng
+ * BR5/S20 — không tiết lộ tài khoản có tồn tại hay không).
+ */
+test('R1: 422 sai mat khau co message top-level la thong diep chung, khong phai thong diep validate mac dinh', function () {
+    User::factory()->create(['email' => 'em3@example.com', 'password' => Hash::make('matkhau123')]);
+
+    $response = vvPostLogin(['login' => 'em3@example.com', 'password' => 'sai-mat-khau']);
+
+    $response->assertStatus(422);
+    $response->assertJson([
+        'message' => 'Thông tin đăng nhập hoặc mật khẩu không đúng.',
+        'code' => 'VALIDATION_ERROR',
+    ]);
+    expect($response->json('message'))->not->toBe('Dữ liệu gửi lên không hợp lệ.');
+});
+
 test('AC4: tai khoan khong ton tai tra 422 thong diep chung giong het truong hop sai mat khau', function () {
     $response = vvPostLogin(['login' => 'khong-ton-tai@example.com', 'password' => 'bat-ky']);
 
     $response->assertStatus(422);
     $response->assertJsonValidationErrors(['login']);
+    $response->assertJson(['message' => 'Thông tin đăng nhập hoặc mật khẩu không đúng.']);
 });
 
 test('khoa tai khoan + sai mat khau van tra 422 chung, KHONG lo bi khoa (S20)', function () {

@@ -88,12 +88,17 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configureRateLimiters(): void
     {
-        RateLimiter::for('login', function (Request $request) {
-            return [
-                Limit::perHour(10)->by('login:'.mb_strtolower((string) $request->input('login'))),
-                Limit::perHour(50)->by('login-ip:'.$request->ip()),
-            ];
-        });
+        // R2 (review docs/qa/review-T03-FW1.md) — api-contract §1.6 ghi "10 lần
+        // SAI/giờ/login": lớp theo IP dưới đây vẫn đếm MỌI request (đúng như
+        // trước, không phân biệt đúng/sai — hợp đồng không nói "sai" cho lớp
+        // IP). Lớp theo TÀI KHOẢN không còn khai ở đây (middleware
+        // `ThrottleRequests` đếm ngay khi request đi qua, không biết kết quả
+        // xác thực) — chuyển sang `LoginService::authenticate()`, chỉ
+        // `RateLimiter::hit()` khi sai thông tin đăng nhập (dùng chung tên
+        // khoá `login:<login>` để 2 nơi không lệch nhau). T28 (đăng nhập
+        // quản trị) phải tự áp lại cùng quy tắc "chỉ đếm lần sai" cho
+        // `StaffAuthService` — limiter này chỉ còn lớp IP dùng chung 2 host.
+        RateLimiter::for('login', fn (Request $request) => Limit::perHour(50)->by('login-ip:'.$request->ip()));
 
         RateLimiter::for('register', fn (Request $request) => Limit::perHour(30)->by($request->ip()));
 

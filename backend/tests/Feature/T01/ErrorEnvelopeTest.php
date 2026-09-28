@@ -25,6 +25,30 @@ test('422 ValidationException tra dung envelope VALIDATION_ERROR', function () {
     $response->assertJsonStructure(['message', 'code', 'errors' => ['name'], 'request_id']);
 });
 
+/**
+ * R1 (docs/qa/review-T03-FW1.md) — chỉ nâng message của field lên top-level
+ * khi CHỈ có đúng 1 field lỗi (xem `ApiExceptionRenderer::validationMessage()`).
+ * Lỗi NHIỀU field (form điền thiếu nhiều ô) vẫn phải giữ câu chung — không tự
+ * ý chọn 1 lỗi đại diện cho cả nhóm, tránh gây hiểu lầm field khác cũng lỗi
+ * giống vậy.
+ */
+test('422 ValidationException nhieu field van giu message chung (khong chon 1 loi dai dien)', function () {
+    Route::domain(config('app.api_host'))->post('/__test/validate-multi', function () {
+        request()->validate(['name' => 'required|string', 'email' => 'required|email']);
+
+        return response()->json(['ok' => true]);
+    });
+
+    $response = $this->postJson('http://'.config('app.api_host').'/__test/validate-multi', []);
+
+    $response->assertStatus(422);
+    $response->assertJson([
+        'code' => 'VALIDATION_ERROR',
+        'message' => 'Dữ liệu gửi lên không hợp lệ.',
+    ]);
+    $response->assertJsonStructure(['errors' => ['name', 'email']]);
+});
+
 test('DomainException tra dung code va status tuy chinh', function () {
     Route::domain(config('app.api_host'))->get('/__test/domain-exception', function () {
         throw new DomainException('COUPON_INVALID', 'Mã giảm giá không hợp lệ.', 422);
