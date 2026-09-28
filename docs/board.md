@@ -49,6 +49,8 @@ Việc đầu tiên ở local:
 
 ## Quy tắc làm việc đã thống nhất với PO
 
+- (2026-09-28, L2) Staff (admin/QLT/GV) đăng nhập đúng mật khẩu ở trang học sinh: **chuyển về trang quản trị/giáo viên** (`admin.vitaminvui.vn`). Giữ `WRONG_PORTAL`, frontend web điều hướng sang trang quản trị. PO chấp nhận rủi ro host học sinh cho biết mật khẩu staff đúng (lớp chặn còn lại: throttle 10 lần sai/giờ/tài khoản + 50/giờ/IP). Làm ở T28 + FA1; cách truyền URL trang quản trị (biến môi trường frontend hay thêm trường vào response) do Architect chốt.
+
 - Chỉ commit/push khi PO đồng ý. `main` chỉ chứa code đã qua review. Nhánh làm việc `claude/zen-dirac-fmucf7` được commit WIP (PO đồng ý 2026-09-28).
 - (2026-09-28) Task không phụ thuộc nhau chạy song song: mỗi agent một git worktree (`.claude/worktrees/`, không commit) và DB test riêng (`vitaminvui_testing_<task>`), gộp vào nhánh làm việc sau khi qua review.
 - (2026-09-28) `laravel-qa` chạy một lần khi xong mỗi giai đoạn trong `tasks.md`, không chạy sau từng task. Mỗi task vẫn qua `laravel-reviewer` và `laravel-security` (task [SEC]). Báo cáo QA: `docs/qa/giai-doan-<số>.md`.
@@ -64,7 +66,6 @@ Việc đầu tiên ở local:
 
 ## Chờ PO trả lời
 
-0. L2 (`docs/security/review-T03-FW1.md`): staff đúng mật khẩu ở host học sinh nhận `WRONG_PORTAL` → host học sinh thành chỗ thử mật khẩu staff. Đề xuất: trả lỗi chung như sai mật khẩu; ghi vào T28.
 
 1. Throttle `csrf` đang 30 lần/phút/IP. Có nâng lên 120 cho lớp học dùng chung NAT không?
 2. Các mặc định an toàn ở `docs/architecture/README.md` §8 (MFA staff, che PII khi xuất file, TTL link HLS...).
