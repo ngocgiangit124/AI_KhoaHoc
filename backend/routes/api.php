@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Auth\ContactController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\MeController;
+use App\Http\Controllers\Api\V1\Auth\OtpController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
@@ -64,6 +66,23 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
     Route::get('/auth/me', MeController::class)
         ->middleware(['auth:sanctum', 'account.active', 'student.single_session', 'no_store', 'role:hoc_sinh'])
         ->name('api.auth.me');
+
+    // T04 (US-001 AC8/AC9, api-contract §2.2) — OTP xác thực tài khoản. Nhóm
+    // `student` chuẩn (api-contract §1.3): KHÔNG có `account.verified` (chính
+    // các route này là luồng để TRỞ THÀNH đã xác thực).
+    Route::middleware(['auth:sanctum', 'account.active', 'student.single_session', 'no_store', 'role:hoc_sinh'])
+        ->group(function (): void {
+            Route::post('/auth/otp/send', [OtpController::class, 'send'])
+                ->middleware('throttle:otp-send')
+                ->name('api.auth.otp.send');
+
+            Route::post('/auth/otp/verify', [OtpController::class, 'verify'])
+                ->middleware('throttle:otp-verify')
+                ->name('api.auth.otp.verify');
+
+            Route::put('/auth/contact', [ContactController::class, 'update'])
+                ->name('api.auth.contact.update');
+        });
 
     // Catalog (T10), Cart/Checkout (T16/T18), Learn (T13), Webhooks (T19) —
     // thêm dần ở các task sau.

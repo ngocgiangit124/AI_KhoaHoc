@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use App\Enums\ConsentType;
+use App\Enums\OtpPurpose;
 use App\Enums\ParentConsentStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
@@ -22,7 +23,6 @@ use Illuminate\Validation\ValidationException;
  * user kèm `parent_consent_status` (không nằm trong `User::$fillable` — S17).
  *
  * KHÔNG làm ở đây (ngoài phạm vi T03, xem docs/architecture/tasks.md):
- * - Gửi OTP xác thực (T04).
  * - Gửi email xác nhận phụ huynh khi tài khoản dưới ngưỡng tuổi (T29/US-017).
  * - Bind phiên "1 thiết bị/1 phiên" (T05/ADR-003) — Controller chỉ đăng nhập
  *   đơn giản (`Auth::login` + `session()->regenerate()`).
@@ -32,6 +32,7 @@ class RegistrationService
     public function __construct(
         private readonly CaptchaVerifier $captcha,
         private readonly ConsentService $consents,
+        private readonly OtpService $otpService,
     ) {}
 
     /**
@@ -102,7 +103,11 @@ class RegistrationService
             throw $this->translateUniqueViolation($e);
         }
 
-        // TODO(T04): gửi OTP xác thực email/SĐT ngay sau khi đăng ký (AC1, BR7).
+        // AC1/BR7 — gửi OTP xác thực NGAY sau khi transaction đã commit (email
+        // luôn là trường bắt buộc ở RegisterRequest, nên luôn có đích để gửi;
+        // production MVP cũng chỉ bật kênh 'email' — api-contract §2.2).
+        $this->otpService->send($user, OtpPurpose::VerifyAccount, 'email');
+
         // TODO(T29 — US-017): nếu $isMinor, gửi email xác nhận cho phụ huynh.
 
         return $user;

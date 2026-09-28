@@ -39,6 +39,7 @@ class ProductionConfigGuard
         $this->guardStatefulDomains();
         $this->guardTrustedProxies();
         $this->guardPayments();
+        $this->guardOtpChannels();
     }
 
     /**
@@ -129,6 +130,30 @@ class ProductionConfigGuard
             ! $isAllowedMomoEndpoint,
             RuntimeException::class,
             'MOMO_ENDPOINT phải đúng https://payment.momo.vn ở production (S4, M4).'
+        );
+    }
+
+    /**
+     * T04 (S9, S11) — chưa có nhà cung cấp SMS thật: `sms` chỉ là kênh mô
+     * phỏng (`LogSmsOtpSender`, ghi log `***`) dùng để dev/test cục bộ. Cấm
+     * tuyệt đối ở production (blocklist đơn giá trị là đủ — không giống
+     * captcha/thanh toán có nhiều biến thể viết sai chính tả cần allowlist).
+     * `email` là kênh DUY NHẤT có nhà cung cấp thật nên bắt buộc phải có.
+     */
+    private function guardOtpChannels(): void
+    {
+        $channels = (array) config('auth.otp.channels');
+
+        throw_unless(
+            in_array('email', $channels, true),
+            RuntimeException::class,
+            'AUTH_OTP_CHANNELS phải luôn có "email" ở production.'
+        );
+
+        throw_if(
+            in_array('sms', $channels, true),
+            RuntimeException::class,
+            'AUTH_OTP_CHANNELS không được có "sms" ở production — chưa có nhà cung cấp SMS thật (S9, S11).'
         );
     }
 }
