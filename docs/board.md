@@ -14,10 +14,10 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T03 | Đăng ký/đăng nhập học sinh | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS có điều kiện (còn: L3 phần DB — DBA trước staging; L2 — PO; N5 — Architect sửa api-contract §1.7) | — | 2026-09-28 |
 | FW1 (phần 1) | Màn đăng ký/đăng nhập/đăng xuất (apps/web) | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS | — | 2026-09-28 |
 | FW1 (phần 2) | Màn xác thực OTP | Dev xong, chưa review | Nhánh `claude/zen-dirac-fmucf7-fw1-otp` (7e5fa1f). Có 4 giả định cần đối chiếu với T04 | T04 | 2026-09-28 |
-| T04 | OTP | Dev sửa sau review | Review REQUEST CHANGES (`docs/reviews/review-T04.md` trong worktree t04): BLOCKER R1 — `PUT /auth/contact` không throttle, gửi OTP không giới hạn tới email bất kỳ. Đang sửa R1–R3, R5, R6 → review lại → `laravel-security` | — | 2026-09-28 |
+| T04 | OTP | Security | Review APPROVE vòng 2 (R1 email-bombing đã đóng). Đang `laravel-security`. Worktree `.claude/worktrees/t04`, nhánh `claude/zen-dirac-fmucf7-t04` @047bff2, Pest 247 | — | 2026-09-28 |
 | T05 | Một phiên học sinh | Chưa làm | — | Chờ gộp T03/T04 (sửa cùng file) | — |
-| T06 | Chuyên đề | Dev (hoàn thiện) | Worktree `.claude/worktrees/t06`, nhánh local `t06`: gộp `t07-t10`, dùng bản `subjects` của T07 (DBA xác nhận đủ), bật lại test chặn xoá | T07 | 2026-09-28 |
-| T07 → T10 | Schema nội dung → danh mục công khai | Chờ PO duyệt gộp | Nhánh local `t07-t10` @70e42bd. Review APPROVE (`docs/reviews/review-T07-T10.md`), DBA đã sửa index `courses(status,published_at)` (`docs/db/T07-review.md`). Pest 246 pass, gộp sạch | R1 (PO) không chặn gộp | 2026-09-28 |
+| T06 | Chuyên đề | Review vòng 2 | Nhánh local `t06` @7a481ef (đã chứa T07-T10). Review vòng 1 PASS, đã sửa R1 (bỏ `status` khỏi request) + R2 (`can:` middleware → 403 trước validate). Pest 264 | — | 2026-09-28 |
+| T07 → T10 | Schema nội dung → danh mục công khai | Xong (đã gộp) | Gộp vào nhánh chính (b5b753b). Review APPROVE, DBA duyệt. `composer ci` nhánh chính xanh, Pest 246. Chờ QA giai đoạn 2 | R1 (PO) trước T13 | 2026-09-28 |
 | T17 | Thanh toán: abstraction + MoMo | Dev gần xong, chưa chạy hết test | Nhánh `claude/zen-dirac-fmucf7-t17`. Chưa kiểm chứng sandbox MoMo thật | — | 2026-09-28 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
@@ -80,6 +80,8 @@ Nhánh chính giờ xanh trong Docker: `composer ci` (Pint, Larastan 0 lỗi, Pe
 
 Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` → `backend/.env` (mật khẩu khớp nhau), `apps/*/.env.example` → `.env.local`; `php artisan key:generate`. Đổi `.env` thì `docker compose up -d --force-recreate php queue scheduler` (restart không nạp lại `env_file`).
 
+**Cảnh báo chạy lệnh cho worktree:** `docker compose run -e DB_DATABASE=...` KHÔNG đổi được DB cho `artisan` (Laravel đọc `.env` của worktree/`env_file`). Muốn migrate DB test riêng thì dùng `--database`/đặt `DB_DATABASE` trong `.env` của worktree, hoặc chỉ chạy qua `pest -c phpunit.<task>.xml`. Lần đầu (2026-09-28) lệnh `migrate:fresh` của DBA đã chạy vào DB dev `vitaminvui` (lúc đó trống, không mất dữ liệu).
+
 **Việc mở mới:** SSR của apps/web gọi `API_INTERNAL_URL=http://host.docker.internal:8000` lỗi `UND_ERR_SOCKET` (nginx bind `127.0.0.1` theo N3 + định tuyến theo Host). Trang vẫn 200 nhưng không có dữ liệu SSR. Cần Architect/laravel-dev chốt cách nối mạng 2 compose (network chung, gọi `http://nginx` với Host `api.localhost`) — làm trước T10 (danh mục công khai SSR).
 
 ### Lưu ý khi làm tiếp
@@ -138,5 +140,6 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 - 2026-09-28 · T03, FW1 · Dev + Reviewer (2 vòng) + Security · Review PASS; Security PASS có điều kiện, đã sửa; 192 test backend, 111 test frontend. Cloud: PHP 8.4, không chạy được Larastan (mạng chặn tải phpstan) → chạy `composer ci` trên Docker local trước khi merge main
 - 2026-09-28 · PO · Đổi quy trình: QA theo giai đoạn; chạy song song task độc lập (T04, T06, T07→T10, T17, FW1 phần 2)
 - 2026-09-28 · Orchestrator · Dừng các agent cloud, push nhánh phụ WIP để PO chuyển về local làm tiếp
+- 2026-09-28 · Orchestrator · PO duyệt: gộp T07-T10 vào nhánh chính (b5b753b), `composer ci` xanh 246 test
 - 2026-09-28 · Dev + Reviewer + DBA · T07-T10 hoàn thiện, review APPROVE, DBA thêm index; T04 dev xong (Pest 236); T06 bắt đầu hoàn thiện. Worktree test: mount `-v <wt>/backend:/var/www/wt -w /var/www/wt`, DB `vitaminvui_testing_<task>`, file `phpunit.<task>.xml` (untracked)
 - 2026-09-28 · Dev + Reviewer · Dựng máy local; sửa phpunit DB_PASSWORD, Larastan 16 lỗi, pnpm/compose UID, `.env.example` frontend; review APPROVE; chờ PO duyệt commit
