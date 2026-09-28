@@ -30,11 +30,14 @@ class SubjectService
      */
     public function create(array $data): Subject
     {
-        $subject = Subject::create([
+        // `status` không nằm trong `Subject::$fillable` (theo quy ước S17 của
+        // `Course::$fillable`) — gán trực tiếp thay vì mass-assign.
+        $subject = new Subject([
             'name' => $data['name'],
             'slug' => $this->uniqueSlug($data['name']),
-            'status' => $data['status'] ?? SubjectStatus::Active,
         ]);
+        $subject->status = $data['status'] ?? SubjectStatus::Active;
+        $subject->save();
 
         $this->auditLogger->log('subject.create', $subject, [
             'name' => $subject->name,

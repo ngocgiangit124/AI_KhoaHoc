@@ -7,33 +7,25 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Chuyên đề (US-011, data-model §3.2). T07 chỉ tạo schema tối thiểu vì
+     * `course_subject` (T07) cần FK tới bảng này; CRUD/policy/quản lý ẩn-hiện
+     * đầy đủ thuộc T06 — nếu T06 cần đổi cấu trúc, tạo migration MỚI, không
+     * sửa migration này (đã có thể chạy trên môi trường chung).
      *
-     * data-model §3.2 (US-011) — `name`/`slug` unique nhờ collation mặc định
-     * `utf8mb4_0900_ai_ci` (không phân biệt hoa/thường **và dấu**, đã xác nhận
-     * hành vi ở T01). Bảng `course_subject` (T07) sẽ khai FK
-     * `subject_id` ... `restrict` để chặn xoá cứng chuyên đề đang gán
-     * (US-011 AC3) — không khai ở đây để tránh phụ thuộc ngược thứ tự
-     * migration giữa 2 task chạy song song.
+     * Unique trên `name` dựa vào collation utf8mb4_0900_ai_ci (không phân biệt
+     * hoa/thường và dấu — US-011 BR1, xác nhận ở DatabaseConfigTest T01).
      */
     public function up(): void
     {
         Schema::create('subjects', function (Blueprint $table) {
             $table->id();
-            $table->string('name', 100);
-            $table->string('slug', 120);
+            $table->string('name', 100)->unique();
+            $table->string('slug', 120)->unique();
             $table->string('status', 10)->default('active');
             $table->timestamps();
-
-            $table->unique('name');
-            $table->unique('slug');
-            $table->index('status');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('subjects');

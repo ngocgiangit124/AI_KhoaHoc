@@ -9,11 +9,14 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 
 /**
- * Larastan không tự suy ra được kiểu cast enum từ phương thức `casts()` (chỉ
- * đọc được `protected $casts` khai báo tĩnh) — khai @property tường minh để
- * phpstan hiểu đúng kiểu, tránh báo sai "always false" ở mọi so sánh enum.
+ * Larastan không tự suy ra được kiểu cast từ phương thức `casts()` (chỉ đọc
+ * được `protected $casts` khai báo tĩnh) — khai @property tường minh cho các
+ * cast enum/ngày giờ để phpstan hiểu đúng kiểu, tránh báo sai "always false"
+ * ở so sánh enum hay "Cannot call method ... on string" khi Resource gọi
+ * `->toIso8601String()`/`->toDateString()` trên các cột ngày giờ này.
  *
  * L6 (review bảo mật T01/T02) — KHÔNG dùng `Laravel\Sanctum\HasApiTokens`:
  * dự án chỉ xác thực bằng session cookie SPA (`auth:sanctum` + cookie, không
@@ -27,6 +30,9 @@ use Illuminate\Notifications\Notifiable;
  * @property UserRole $role
  * @property UserStatus $status
  * @property ParentConsentStatus $parent_consent_status
+ * @property Carbon|null $date_of_birth
+ * @property Carbon|null $email_verified_at
+ * @property Carbon|null $phone_verified_at
  */
 class User extends Authenticatable
 {

@@ -21,8 +21,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # HOME KHÔNG được nằm trong /workspace — xem giải thích ở scripts/pnpm.sh.
-      HOME: /home/node
+      # HOME KHÔNG được nằm trong /workspace và phải ghi được với mọi UID — xem scripts/pnpm.sh.
+      HOME: /tmp
     env_file:
       - apps/web/.env.local
     volumes:
@@ -39,7 +39,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      HOME: /home/node
+      HOME: /tmp
     env_file:
       - apps/admin/.env.local
     volumes:
