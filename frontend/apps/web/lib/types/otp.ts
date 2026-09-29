@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 /**
- * `POST /auth/otp/send` trả 202 + `resend_available_at` (api-contract §2.2). GIẢ ĐỊNH (ghi
- * rõ cho laravel-dev đối chiếu khi T04 xong — api-contract chưa cho ví dụ JSON cụ thể):
- * `resend_available_at` là chuỗi ISO 8601 (giống quy ước timestamp khác của contract, ví dụ
- * `expires_at` ở §2.3/§2.4). Dùng `.passthrough()` để không vỡ khi backend trả thêm field.
+ * `POST /auth/otp/send` trả 202 + `resend_available_at` (api-contract §2.2). Đối chiếu T04
+ * thật (`OtpController::send()`): `resend_available_at` là chuỗi ISO 8601 có offset
+ * (`Carbon::toIso8601String()`), đúng như giả định ban đầu. Dùng `.passthrough()` để không vỡ
+ * khi backend trả thêm field.
  */
 export const otpSendResponseSchema = z
   .object({

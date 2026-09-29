@@ -27,12 +27,14 @@ interface Banner {
 const OTP_CHANNEL = "email";
 
 /**
- * GIẢ ĐỊNH (ghi rõ để đối chiếu khi T04 xong): `POST /auth/register` không trả
- * `resend_available_at` (chỉ `POST /auth/otp/send` mới trả). Vì đăng ký đã tự gửi 1 OTP đầu
- * tiên (api-contract §2.2), màn này KHÔNG có mốc thời gian chính xác cho lần gửi đó — tạm
- * suy ra hạn đếm ngược đầu tiên bằng `now + otp.resend_cooldown_seconds` (config/public) làm
- * giá trị gần đúng, đủ để khoá nút "Gửi lại mã" trong thời gian hợp lý. Từ lần bấm "Gửi lại
- * mã" trở đi, dùng thẳng `resend_available_at` thật do server trả.
+ * Đối chiếu T04 thật (`RegisterController`, api-contract §2.2): `POST /auth/register` không
+ * trả `resend_available_at` (chỉ `POST /auth/otp/send` mới trả) — đúng như giả định ban đầu.
+ * Vì đăng ký đã tự gửi 1 OTP đầu tiên, màn này KHÔNG có mốc thời gian chính xác cho lần gửi
+ * đó — suy ra hạn đếm ngược đầu tiên bằng `now + otp.resend_cooldown_seconds`
+ * (`GET /config/public` → `otp.resend_cooldown_seconds`, khớp `OtpService::send()` dùng
+ * `auth.otp.cooldown_seconds`) làm giá trị gần đúng, đủ để khoá nút "Gửi lại mã" trong thời
+ * gian hợp lý. Từ lần bấm "Gửi lại mã" trở đi, dùng thẳng `resend_available_at` thật do server
+ * trả (202) — 429 (vượt trần) dùng `Retry-After`/cooldown làm cận trên (xem `handleResend`).
  */
 function computeFallbackResendAvailableAt(resendCooldownSeconds: number): string {
   return new Date(Date.now() + resendCooldownSeconds * 1000).toISOString();
@@ -42,6 +44,23 @@ function maskedContact(user: AuthUser): string | null {
   if (user.email) return maskEmail(user.email);
   if (user.phone) return maskPhone(user.phone);
   return null;
+}
+
+/**
+ * Header `Retry-After` (giây, api-contract §1.7) chỉ dùng làm thông tin PHỤ cho thông báo khoá
+ * (security review T04, giả định (d) đã sửa) — KHÔNG dùng làm nguồn chính cho cooldown gửi lại
+ * mã (nguồn chính vẫn là `resend_available_at`). Làm tròn lên phút khi ≥ 60s cho dễ đọc.
+ */
+function formatRetryAfter(retryAfterSeconds: number): string {
+  if (retryAfterSeconds < 60) {
+    return `khoảng ${Math.ceil(retryAfterSeconds)} giây`;
+  }
+  return `khoảng ${Math.ceil(retryAfterSeconds / 60)} phút`;
+}
+
+function appendRetryAfterHint(message: string, retryAfterSeconds: number | undefined): string {
+  if (retryAfterSeconds === undefined) return message;
+  return `${message} (thử lại sau ${formatRetryAfter(retryAfterSeconds)})`;
 }
 
 export function VerifyOtpForm({ otpTtlMinutes, resendCooldownSeconds }: VerifyOtpFormProps) {
@@ -125,7 +144,9 @@ export function VerifyOtpForm({ otpTtlMinutes, resendCooldownSeconds }: VerifyOt
         if (err instanceof ApiError) {
           if (err.status === 429) {
             setLocked(true);
-            setBanner({ message: err.message, variant: "warning" });
+            // api-contract §1.7 — `Retry-After` chỉ là thông tin PHỤ đính kèm thông báo khoá
+            // (message chính do server soạn, vd "Tài khoản tạm khoá xác thực trong 24 giờ.").
+            setBanner({ message: appendRetryAfterHint(err.message, err.retryAfterSeconds), variant: "warning" });
           } else {
             // 422 mã sai/hết hạn (api-contract §1.7 VALIDATION_ERROR) — message tiếng Việt
             // do server trả (US-001 bảng trạng thái: "Mã OTP không đúng"/"Mã OTP đã hết hạn").
@@ -166,7 +187,19 @@ export function VerifyOtpForm({ otpTtlMinutes, resendCooldownSeconds }: VerifyOt
         // api-contract §1.6: `otp-send` chỉ giới hạn cooldown/tần suất gửi (60s, 5/giờ,
         // 10/ngày) — KHÔNG khoá xác thực 24h như `otp-verify`. 429 ở đây chỉ cần banner, vẫn
         // cho thử "Xác nhận" với mã đã có (nếu còn hiệu lực).
-        setBanner({ message: err.message, variant: err.status === 429 ? "warning" : "danger" });
+        //
+        // T04 security review (docs/security/review-T04.md §L3, khuyến nghị dòng 179) —
+        // response lỗi của `POST /auth/otp/send` KHÔNG có `resend_available_at` (chỉ 202
+        // thành công mới có). Ưu tiên `Retry-After` (có ở mọi 429 từ sau bản sửa L3, cả lớp
+        // Service lẫn route throttle); nếu vì lý do nào đó vẫn thiếu, dùng
+        // `otp.resend_cooldown_seconds` (`config/public`) làm cận trên hợp lý — không để nút
+        // "Gửi lại mã" hiện lại NGAY LẬP TỨC sau khi vừa bị 429 (bấm dồn dập vô ích).
+        if (err.status === 429) {
+          const fallbackSeconds = err.retryAfterSeconds ?? resendCooldownSeconds;
+          setResendAvailableAt(new Date(Date.now() + fallbackSeconds * 1000).toISOString());
+          setCanResendNow(false);
+        }
+        setBanner({ message: appendRetryAfterHint(err.message, err.retryAfterSeconds), variant: err.status === 429 ? "warning" : "danger" });
         return;
       }
       if (err instanceof NetworkError) {

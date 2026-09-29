@@ -168,6 +168,49 @@ describe("VerifyOtpForm", () => {
     });
   });
 
+  it("429 khi xác thực có Retry-After -> banner kèm gợi ý thời gian thử lại (T04 review L3, phụ trợ)", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    authFetchMock
+      .mockResolvedValueOnce({ id: 1, name: "Nguyễn Minh An", email: "minhan2010@gmail.com", is_verified: false })
+      .mockRejectedValueOnce(
+        new ApiError(
+          429,
+          { message: "Bạn thao tác quá nhanh, vui lòng thử lại sau.", code: "TOO_MANY_ATTEMPTS" },
+          120,
+        ),
+      );
+    renderForm();
+
+    await screen.findByText("min***@gmail.com");
+    await typeOtp(user, "482913");
+
+    expect(
+      await screen.findByText("Bạn thao tác quá nhanh, vui lòng thử lại sau. (thử lại sau khoảng 2 phút)"),
+    ).toBeInTheDocument();
+  });
+
+  it("bấm 'Gửi lại mã' gặp 429 -> dùng Retry-After dựng lại đồng hồ đếm ngược, không cho bấm dồn dập", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    authFetchMock
+      .mockResolvedValueOnce({ id: 1, name: "Nguyễn Minh An", email: "minhan2010@gmail.com", is_verified: false })
+      .mockRejectedValueOnce(
+        new ApiError(429, { message: "Bạn gửi mã quá nhanh, vui lòng thử lại sau.", code: "TOO_MANY_ATTEMPTS" }, 90),
+      );
+    renderForm({ resendCooldownSeconds: 60 });
+
+    await screen.findByText("min***@gmail.com");
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+    await user.click(await screen.findByRole("button", { name: "Gửi lại mã" }));
+
+    expect(await screen.findByText(/Bạn gửi mã quá nhanh/)).toBeInTheDocument();
+    // Nút "Gửi lại mã" phải biến mất ngay (thay bằng đồng hồ đếm ngược mới ~90s) thay vì cho
+    // bấm lại ngay lập tức.
+    expect(screen.queryByRole("button", { name: "Gửi lại mã" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/^\d{2}:\d{2}$/)).toBeInTheDocument();
+  });
+
   it("lỗi mạng khi xác thực -> banner lỗi mạng, không khoá form", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     authFetchMock
