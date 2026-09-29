@@ -30,7 +30,10 @@ class LoginRequest extends FormRequest
             // luôn thuần ASCII nên không mất khả năng đăng nhập hợp lệ nào.
             'login' => ['required', 'string', 'max:254', 'ascii'],
             'password' => ['required', 'string'],
-            // Chưa dùng ở T03 (xem RegisterRequest::rules()).
+            // T05 (ADR-003) — dự phòng nếu FE không gửi header `X-Device-Id`
+            // (nguồn CHUẨN — xem `App\Support\DeviceId::fromRequest()`).
+            // Không ép định dạng UUID ở đây: sai định dạng chỉ bị bỏ qua
+            // (coi như không có), không được làm hỏng cả request đăng nhập.
             'device_id' => ['nullable', 'string', 'max:64'],
         ];
     }

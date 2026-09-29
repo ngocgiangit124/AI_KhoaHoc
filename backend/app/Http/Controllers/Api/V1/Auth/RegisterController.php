@@ -6,17 +6,20 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\Auth\UserResource;
 use App\Services\Auth\RegistrationService;
+use App\Services\Auth\StudentSessionService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
 
 /**
  * POST /auth/register (host api, `guest, throttle:register` — api-contract
  * §2.2). Controller mỏng: validate (Form Request) → Service (nghiệp vụ) →
- * đăng nhập ngay (bind phiên đầy đủ 1 thiết bị/1 phiên là T05/ADR-003).
+ * đăng nhập + bind phiên đầy đủ 1 thiết bị/1 phiên (T05/ADR-003).
  */
 class RegisterController extends Controller
 {
-    public function __construct(private readonly RegistrationService $registrationService) {}
+    public function __construct(
+        private readonly RegistrationService $registrationService,
+        private readonly StudentSessionService $studentSessionService,
+    ) {}
 
     public function __invoke(RegisterRequest $request): JsonResponse
     {
@@ -26,12 +29,10 @@ class RegisterController extends Controller
             $request->userAgent(),
         );
 
-        Auth::login($user);
-        $request->session()->regenerate();
-
-        // TODO(T05): StudentSessionService::bind() — ghi current_session_id/
-        // current_device_id và huỷ phiên khác (ADR-003). Ở T03, đăng ký chỉ
-        // đăng nhập đơn giản, chưa ép "1 thiết bị/1 phiên".
+        // T05 (ADR-003) — tài khoản vừa tạo chắc chắn chưa có phiên nào khác,
+        // nhưng vẫn qua `bind()` để ghi current_session_id/current_device_id
+        // theo đúng 1 nơi duy nhất được phép ghi (quy tắc cho Dev, ADR-003).
+        $this->studentSessionService->bind($request, $user);
 
         return (new UserResource($user))
             ->response()

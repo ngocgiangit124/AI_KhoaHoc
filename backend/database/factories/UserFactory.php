@@ -46,6 +46,11 @@ class UserFactory extends Factory
             'email_verified_at' => null,
             'phone_verified_at' => null,
             'remember_token' => Str::random(10),
+            // T05 (ADR-003) — cùng lý do với `parent_consent_status` ở trên:
+            // `EnforceSingleStudentSession` đọc 2 thuộc tính này trên MỌI
+            // route nhóm `student`.
+            'current_session_id' => null,
+            'current_device_id' => null,
         ];
     }
 
