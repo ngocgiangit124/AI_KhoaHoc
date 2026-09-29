@@ -248,12 +248,13 @@ final class MoMoGateway implements PaymentGateway
         if (
             (string) ($body['partnerCode'] ?? '') !== (string) $this->config['partner_code']
             || (string) ($body['orderId'] ?? '') !== $attempt->gatewayOrderId
+            || (string) ($body['requestId'] ?? '') !== $requestId
         ) {
             Log::channel('payments')->warning('momo.query.mismatch', [
                 'gateway_order_id' => $attempt->gatewayOrderId,
             ]);
 
-            throw new InvalidSignatureException('partnerCode/orderId không khớp.');
+            throw new InvalidSignatureException('partnerCode/orderId/requestId không khớp.');
         }
 
         $amount = StrictAmountParser::parse($body['amount'] ?? null);

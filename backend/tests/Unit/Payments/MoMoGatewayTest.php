@@ -156,6 +156,27 @@ it('createPayment ném GatewayUnavailableException khi orderId phản hồi khô
     ));
 })->throws(GatewayUnavailableException::class);
 
+it('createPayment ném GatewayUnavailableException khi requestId phản hồi không khớp', function () {
+    Http::fake([
+        'test-payment.momo.vn/*' => Http::response([
+            'partnerCode' => momoTestConfig()['partner_code'],
+            'orderId' => 'ORDER1-1',
+            'requestId' => 'REQ-KHAC',
+            'resultCode' => 0,
+            'payUrl' => 'https://test-payment.momo.vn/pay/abc',
+        ], 200),
+    ]);
+
+    momoGateway()->createPayment(new PaymentRequest(
+        gatewayOrderId: 'ORDER1-1',
+        requestId: 'REQ-1',
+        amount: 100000,
+        description: 'Thanh toan don hang ORDER1',
+        returnUrl: 'https://vitaminvui.test/return',
+        notifyUrl: 'https://api.vitaminvui.test/webhooks/payments/momo',
+    ));
+})->throws(GatewayUnavailableException::class);
+
 it('createPayment ném GatewayUnavailableException khi lỗi mạng (map 502 domain exception)', function () {
     Http::fake(function () {
         throw new ConnectionException('timed out');
@@ -262,7 +283,7 @@ it('queryStatus xác thực chữ ký phản hồi và trả GatewayNotification
     // requestId của response phải khớp field ký nhưng giá trị cụ thể do gateway
     // tự sinh UUID mới cho request — ta không biết trước, nên bắt request thực
     // tế rồi trả lại chữ ký tương ứng bằng callback của Http::fake.
-    Http::fake(function (\Illuminate\Http\Client\Request $request) use ($responseBody, $signedFields, $signer, $config) {
+    Http::fake(function (Illuminate\Http\Client\Request $request) use ($responseBody, $signedFields, $signer, $config) {
         $sentRequestId = (string) $request->data()['requestId'];
         $body = array_merge($responseBody, ['requestId' => $sentRequestId]);
         $fields = array_merge($signedFields, ['requestId' => $sentRequestId]);
@@ -280,6 +301,42 @@ it('queryStatus xác thực chữ ký phản hồi và trả GatewayNotification
     expect($notification->status)->toBe(PaymentStatus::Succeeded)
         ->and($notification->amount)->toBe(100000);
 });
+
+it('queryStatus ném InvalidSignatureException khi requestId phản hồi không khớp requestId đã gửi', function () {
+    $config = momoTestConfig();
+    $signer = new MoMoSigner;
+
+    // Response ký hợp lệ nhưng dùng một `requestId` KHÁC với `requestId` mà
+    // gateway vừa gửi đi trong request `query` (giả lập trộn lẫn phản hồi/
+    // đầu độc từ một request query khác) — phải bị từ chối dù chữ ký đúng.
+    Http::fake(function (Illuminate\Http\Client\Request $request) use ($signer, $config) {
+        $body = [
+            'accessKey' => $config['access_key'],
+            'amount' => '100000',
+            'extraData' => '',
+            'message' => 'Successful.',
+            'orderId' => 'ORDER1-1',
+            'orderInfo' => 'Thanh toan don hang ORDER1',
+            'orderType' => 'momo_wallet',
+            'partnerCode' => $config['partner_code'],
+            'payType' => 'qr',
+            'requestId' => 'REQUEST-ID-KHAC',
+            'responseTime' => '1700000000000',
+            'resultCode' => '0',
+            'transId' => '999999',
+        ];
+
+        $signedFields = $body;
+        unset($signedFields['accessKey']);
+        $signedFields = array_merge(['accessKey' => $config['access_key']], $signedFields);
+
+        $body['signature'] = $signer->sign($signedFields, $config['secret_key']);
+
+        return Http::response($body, 200);
+    });
+
+    momoGateway()->queryStatus(new PaymentAttemptReference('ORDER1-1', 'REQ-1', 100000));
+})->throws(InvalidSignatureException::class);
 
 it('queryStatus từ chối khi phản hồi không có/sai chữ ký', function () {
     Http::fake([

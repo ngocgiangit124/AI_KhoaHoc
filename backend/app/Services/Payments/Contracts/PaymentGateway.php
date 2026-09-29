@@ -27,14 +27,14 @@ interface PaymentGateway
     /**
      * Tạo giao dịch phía cổng.
      *
-     * @throws GatewayUnavailableException  Timeout/lỗi mạng/5xx/`resultCode != 0`/phản hồi không khớp.
+     * @throws GatewayUnavailableException Timeout/lỗi mạng/5xx/`resultCode != 0`/phản hồi không khớp.
      */
     public function createPayment(PaymentRequest $request): PaymentInitResult;
 
     /**
      * Xác thực chữ ký + chuẩn hoá IPN thành `GatewayNotification`.
      *
-     * @throws InvalidSignatureException  Chữ ký sai/thiếu trường bắt buộc.
+     * @throws InvalidSignatureException Chữ ký sai/thiếu trường bắt buộc.
      */
     public function parseNotification(Request $request): GatewayNotification;
 
@@ -48,8 +48,8 @@ interface PaymentGateway
      * Ký request bằng config; verify chữ ký + `partnerCode`/`orderId` của
      * phản hồi trước khi tin bất kỳ trường nào khác.
      *
-     * @throws InvalidSignatureException  Phản hồi không có/sai chữ ký, hoặc `partnerCode`/`orderId` không khớp — coi như lỗi, không hành động.
-     * @throws GatewayUnavailableException  Timeout/lỗi mạng/5xx.
+     * @throws InvalidSignatureException Phản hồi không có/sai chữ ký, hoặc `partnerCode`/`orderId` không khớp — coi như lỗi, không hành động.
+     * @throws GatewayUnavailableException Timeout/lỗi mạng/5xx.
      */
     public function queryStatus(PaymentAttemptReference $attempt): GatewayNotification;
 }

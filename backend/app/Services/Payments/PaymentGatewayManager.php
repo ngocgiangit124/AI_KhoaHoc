@@ -14,8 +14,6 @@ use RuntimeException;
  * `config('payments.enabled_gateways')` (ADR-001 §1, S4). `driver()` kiểm
  * allowlist trước khi gọi `parent::driver()` để một cổng bị gỡ khỏi
  * `PAYMENT_GATEWAYS` không thể bị resolve dù class vẫn tồn tại trong code.
- *
- * @extends Manager<PaymentGateway>
  */
 final class PaymentGatewayManager extends Manager
 {
