@@ -19,7 +19,7 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T06 | Chuyên đề | Xong (đã gộp) | Gộp vào nhánh chính (3f420ba). Review APPROVE vòng 2. `composer ci` xanh, Pest 264. Chờ QA giai đoạn 2 | — | 2026-09-28 |
 | T07 → T10 | Schema nội dung → danh mục công khai | Xong (đã gộp) | Gộp vào nhánh chính (b5b753b). Review APPROVE, DBA duyệt. `composer ci` nhánh chính xanh, Pest 246. Chờ QA giai đoạn 2 | R1 (PO) trước T13 | 2026-09-28 |
 | T17 | Thanh toán: abstraction + MoMo | Xong (đã gộp) | Gộp vào nhánh chính. Review APPROVE (2 vòng), Security PASS có điều kiện: M1, M2, L1–L4, R4 đã sửa. **Gate go-live:** kiểm chứng sandbox MoMo thật (R1/R2). `composer ci` xanh 450 test | Gate go-live | 2026-09-29 |
-| T28 | Đăng nhập quản trị | Review vòng 2 | Review vòng 1 REQUEST CHANGES: R1 BLOCKER đổi mật khẩu bỏ qua MFA → đã sửa + test 2 cookie + test kiến trúc staff.session. Khi gộp: hợp nhất `tests/TestCase::actingAs()` với T05 | — | 2026-09-29 |
+| T28 | Đăng nhập quản trị | Xong (đã gộp) | Gộp vào nhánh chính. Review PASS vòng 2 (R1 BLOCKER đổi mật khẩu bỏ qua MFA đã sửa). [SEC] chờ security cuối dự án. **FA1 cần chốt:** hình dạng response `/admin/auth/me` (`permissions`), mfa/verify, password — contract chưa định nghĩa. 502 test xanh | — | 2026-09-29 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
 
@@ -118,6 +118,7 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 ## Chờ security cuối dự án
 
 Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 2026-09-29):
+- T28 — điểm cần soi: phần "Điểm cần Security soi kỹ" trong báo cáo dev + `docs/reviews/review-T28.md` (thứ tự kiểm đăng nhập staff, staff.idle, audit login_failed, X-Device-Id tự khai, AuthenticateSession; test R2 mới chứng minh tĩnh — nên chạy mutation thật: bỏ `staff.session` khỏi `/admin/auth/me` thì StaffSessionRevocationTest phải fail)
 - T05 — điểm cần soi: `docs/reviews/review-T05.md` + báo cáo dev (tombstone, Redis thật, revokeForLock chưa ai gọi, revokeForPasswordChange cho T27)
 
 ## Gate trước go-live
@@ -145,6 +146,7 @@ Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 202
 9. (T04, R4 — Architect) `otp_codes.user_id` code dùng `restrictOnDelete`, data-model ghi cascade. Đồng bộ tài liệu.
 10. (T04, M3 — PO + Architect, chốt trước T27) Đổi email/SĐT (`PUT /auth/contact`) hiện không cần mật khẩu, không báo về địa chỉ cũ, không audit → người dùng chung máy ở trường đổi email rồi "quên mật khẩu" là chiếm tài khoản. Security đề xuất: bắt mật khẩu hiện tại hoặc OTP kênh cũ; thông báo về địa chỉ cũ; audit; T27 tạm không gửi tới kênh vừa đổi. Đổi api-contract.
 11. (T04, L1/S20 — PO) Thời hạn dọn tài khoản chưa xác thực; thời hạn lưu `otp_codes` (có PII `destination`) và `failed_jobs` — cần pháp chế.
+12. (T28 → FA1 — Architect) Hình dạng response `GET /admin/auth/me` (dev dùng `StaffMeResource`: id, name, email, role, must_change_password, `permissions: {manage_system}`), `POST /admin/auth/mfa/verify`, `PUT /admin/auth/password` chưa có trong api-contract §2.5. Chốt trước FA1. Cũng chốt L2: cách FE học sinh biết URL trang quản trị khi nhận WRONG_PORTAL.
 
 ## Nhật ký
 
@@ -155,6 +157,7 @@ Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 202
 - 2026-09-28 · T03, FW1 · Dev + Reviewer (2 vòng) + Security · Review PASS; Security PASS có điều kiện, đã sửa; 192 test backend, 111 test frontend. Cloud: PHP 8.4, không chạy được Larastan (mạng chặn tải phpstan) → chạy `composer ci` trên Docker local trước khi merge main
 - 2026-09-28 · PO · Đổi quy trình: QA theo giai đoạn; chạy song song task độc lập (T04, T06, T07→T10, T17, FW1 phần 2)
 - 2026-09-28 · Orchestrator · Dừng các agent cloud, push nhánh phụ WIP để PO chuyển về local làm tiếp
+- 2026-09-29 · Orchestrator · Gộp T28 vào nhánh chính, hợp nhất `actingAs()` (T05 cookie phiên học sinh + T28 phiên staff), 502 test xanh
 - 2026-09-29 · Orchestrator · Gộp T05 vào nhánh chính, 472 test xanh
 - 2026-09-29 · Orchestrator · Gộp T17 vào nhánh chính (sửa test baseline ProductionConfigGuard của T01/T04 cho khớp guard MoMo mới), 450 test xanh
 - 2026-09-29 · Orchestrator · Gộp T04 vào nhánh chính, `composer ci` xanh 339 test. Bắt đầu T05 + T28 song song

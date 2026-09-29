@@ -51,6 +51,9 @@ class UserFactory extends Factory
             // route nhóm `student`.
             'current_session_id' => null,
             'current_device_id' => null,
+            // T28 — cùng lý do với các cột ở trên: `EnsurePasswordFresh`/
+            // `StaffMeResource` là nơi đầu tiên đọc thuộc tính này qua HTTP.
+            'must_change_password' => false,
         ];
     }
 

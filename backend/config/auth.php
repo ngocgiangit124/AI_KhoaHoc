@@ -150,4 +150,22 @@ return [
         'max_per_day_per_destination' => (int) env('AUTH_OTP_MAX_PER_DAY_PER_DESTINATION', 20),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Phiên quản trị (T28 — ADR-004 §2.2, api-contract §1.7 STAFF_IDLE_TIMEOUT)
+    |--------------------------------------------------------------------------
+    |
+    | `idle_minutes`: không hoạt động quá ngưỡng này → hết phiên. `max_hours`:
+    | tổng thời lượng phiên kể từ lúc đăng nhập, bất kể còn hoạt động hay
+    | không. Cả 2 do `App\Http\Middleware\StaffIdleTimeout` kiểm (session
+    | cookie tự thân — ConfigureHostContext — chỉ đặt hạn tuyệt đối 12 giờ cho
+    | trình duyệt, không tự trượt theo hoạt động).
+    |
+    */
+
+    'staff' => [
+        'idle_minutes' => (int) env('STAFF_SESSION_IDLE_MINUTES', 120),
+        'max_hours' => (int) env('STAFF_SESSION_MAX_HOURS', 12),
+    ],
+
 ];

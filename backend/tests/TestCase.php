@@ -35,6 +35,26 @@ abstract class TestCase extends BaseTestCase
      * tự dựng qua luồng đăng nhập thật (`POST /auth/login` + cookie thật của
      * từng response), KHÔNG dùng `actingAs()` (xem `tests/Feature/T05/`).
      *
+     *
+     * T28 — `staff.idle`/`staff.mfa_passed` không còn là pass-through (trước
+     * T28, mọi test admin dùng `actingAs()` mà không cần biết gì về session).
+     * Tự đặt sẵn 1 phiên staff "hợp lệ" (không idle, đã qua MFA) mỗi khi
+     * `actingAs()` được gọi, để các test có TỪ TRƯỚC T28 (vd
+     * `tests/Feature/T06`, kể cả test cố ý dùng tài khoản học sinh để kiểm
+     * `role:...` từ chối) không phải sửa từng dòng — các middleware này
+     * không nằm trong nhóm route học sinh (host api) nên vô hại với test
+     * không đụng tới host admin-api.
+     *
+     * Test nào cần mô phỏng trạng thái khác (chưa qua MFA, đã hết hạn, THIẾU
+     * hẳn dữ liệu phiên...) tự gọi `flushSession()` rồi `withSession()` NGAY
+     * SAU `actingAs()` — chạy sau nên ghi đè đúng trạng thái muốn kiểm (xem
+     * `tests/Feature/T28/*`).
+     *
+     * Gộp T05 + T28: học sinh được gắn cookie phiên thật (T05); MỌI user (kể
+     * cả học sinh — test `role:` từ chối trên host admin-api) được seed phiên
+     * staff hợp lệ (T28). Hai phần không xung đột: dữ liệu `withSession()`
+     * được merge vào session nạp từ cookie khi request chạy.
+     *
      * @param  string|null  $guard
      * @return $this
      */
@@ -51,6 +71,14 @@ abstract class TestCase extends BaseTestCase
             // §1.2). Bật kèm ở đây để không phải sửa từng test file cũ.
             $this->withCookie((string) config('session.cookie'), $sessionId)
                 ->withCredentials();
+        }
+
+        if ($user instanceof User) {
+            $this->withSession([
+                'staff_login_at' => now()->timestamp,
+                'staff_last_activity' => now()->timestamp,
+                'staff_mfa_passed' => true,
+            ]);
         }
 
         return parent::actingAs($user, $guard);
