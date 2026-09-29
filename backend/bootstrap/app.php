@@ -22,6 +22,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Http\Middleware\AuthenticateSession as SanctumAuthenticateSession;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -114,6 +115,17 @@ return Application::configure(basePath: dirname(__DIR__))
             'staff.idle' => StaffIdleTimeout::class,
             'staff.mfa_passed' => EnsureStaffMfaPassed::class,
             'staff.password_fresh' => EnsurePasswordFresh::class,
+            // T28 (tasks.md — "Sanctum AuthenticateSession cho host admin-api")
+            // — đổi mật khẩu ở 1 phiên huỷ các phiên khác của CÙNG tài khoản
+            // (so hash mật khẩu lưu trong session với hash hiện tại của user ở
+            // MỖI request — khác hash thì tự đăng xuất phiên đó, ném
+            // AuthenticationException → 401 UNAUTHENTICATED qua
+            // ApiExceptionRenderer có sẵn). Dùng biến thể của Sanctum (không
+            // phải `Illuminate\Session\Middleware\AuthenticateSession`): đọc
+            // đúng danh sách guard từ `config('sanctum.guard')`, đúng cách dự
+            // án xác thực (SPA cookie qua Sanctum, không phải middleware group
+            // `web` mặc định — dự án không có middleware group đó).
+            'staff.session' => SanctumAuthenticateSession::class,
             'student.single_session' => EnforceSingleStudentSession::class,
         ]);
     })

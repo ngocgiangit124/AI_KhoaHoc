@@ -46,6 +46,9 @@ class UserFactory extends Factory
             'email_verified_at' => null,
             'phone_verified_at' => null,
             'remember_token' => Str::random(10),
+            // T28 — cùng lý do với các cột ở trên: `EnsurePasswordFresh`/
+            // `StaffMeResource` là nơi đầu tiên đọc thuộc tính này qua HTTP.
+            'must_change_password' => false,
         ];
     }
 

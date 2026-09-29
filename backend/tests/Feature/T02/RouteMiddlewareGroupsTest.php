@@ -12,8 +12,14 @@ use Illuminate\Support\Facades\Route;
  */
 const VV_ADMIN_PUBLIC_ROUTE_NAMES = [
     'admin.csrf-token',
-    // T28 sẽ thêm: 'admin.auth.login', 'admin.auth.mfa.verify' (đăng nhập trước
-    // khi có session hợp lệ, không thể tự đòi auth:sanctum).
+    // T28 — `admin.auth.login` chưa đăng nhập (guest), không thể tự đòi
+    // auth:sanctum. `admin.auth.mfa.verify` CÓ auth:sanctum (phiên đang chờ
+    // MFA) nhưng cố tình KHÔNG có `role:...`: đây là route công khai cho MỌI
+    // phiên vừa đăng nhập (kể cả GV gọi nhầm — chỉ nhận lỗi mã OTP sai, không
+    // rò rỉ gì thêm), test riêng cho nhóm auth:sanctum của nó nằm ở
+    // `VV_ADMIN_MFA_OR_PASSWORD_ROUTE_NAMES` bên dưới.
+    'admin.auth.login',
+    'admin.auth.mfa.verify',
 ];
 
 /**
@@ -23,7 +29,8 @@ const VV_ADMIN_PUBLIC_ROUTE_NAMES = [
  * @var list<string>
  */
 const VV_ADMIN_MFA_OR_PASSWORD_ROUTE_NAMES = [
-    // T28 sẽ thêm: 'admin.auth.mfa.verify', 'admin.auth.password.update'.
+    'admin.auth.mfa.verify',
+    'admin.auth.password.update',
 ];
 
 function vvHasAuthSanctum(array $middleware): bool
