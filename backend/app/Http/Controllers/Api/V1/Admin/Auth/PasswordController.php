@@ -14,7 +14,9 @@ use Illuminate\Validation\ValidationException;
  * `PUT /admin/auth/password` (host admin-api — api-contract §2.5, tasks.md
  * T28). Bắt buộc gọi khi `must_change_password` (route này là lối thoát DUY
  * NHẤT khỏi `staff.password_fresh` — xem `routes/admin.php`), cũng dùng để
- * đổi mật khẩu tự nguyện.
+ * đổi mật khẩu tự nguyện. Route VẪN đòi `staff.mfa_passed` (R1,
+ * review-T28.md) — Admin/QLT phải qua MFA trước khi đổi được mật khẩu, chỉ
+ * riêng `staff.password_fresh` là được miễn.
  *
  * "Huỷ phiên khác" (api-contract §2.5) đến từ chính việc đổi
  * `users.password`: middleware `Laravel\Sanctum\Http\Middleware\AuthenticateSession`

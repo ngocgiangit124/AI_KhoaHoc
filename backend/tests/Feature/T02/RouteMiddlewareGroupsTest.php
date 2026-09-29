@@ -17,18 +17,34 @@ const VV_ADMIN_PUBLIC_ROUTE_NAMES = [
     // MFA) nhưng cố tình KHÔNG có `role:...`: đây là route công khai cho MỌI
     // phiên vừa đăng nhập (kể cả GV gọi nhầm — chỉ nhận lỗi mã OTP sai, không
     // rò rỉ gì thêm), test riêng cho nhóm auth:sanctum của nó nằm ở
-    // `VV_ADMIN_MFA_OR_PASSWORD_ROUTE_NAMES` bên dưới.
+    // `VV_ADMIN_MFA_EXEMPT_ROUTE_NAMES` bên dưới.
     'admin.auth.login',
     'admin.auth.mfa.verify',
 ];
 
 /**
- * Route đã có `auth:sanctum` nhưng KHÔNG cần `staff.mfa_passed`/
- * `staff.password_fresh` vì chính nó là route MFA/đổi mật khẩu (M1, L2).
+ * R1 (review-T28.md, [BLOCKER]) — TÁCH RIÊNG khỏi allowlist miễn
+ * `staff.password_fresh`: trước đây 1 hằng số DUY NHẤT (`VV_ADMIN_MFA_OR_PASSWORD_ROUTE_NAMES`)
+ * miễn CẢ HAI middleware cho CẢ `admin.auth.mfa.verify` LẪN
+ * `admin.auth.password.update`, khiến việc đổi mật khẩu vô tình được phép
+ * bỏ qua MFA (lỗ hổng: biết đúng mật khẩu nhưng CHƯA qua MFA vẫn đổi được
+ * mật khẩu, vô hiệu hoá tác dụng của MFA). Chỉ CHÍNH route MFA mới được miễn
+ * `staff.mfa_passed` (nó là route để ĐẠT được trạng thái đó).
  *
  * @var list<string>
  */
-const VV_ADMIN_MFA_OR_PASSWORD_ROUTE_NAMES = [
+const VV_ADMIN_MFA_EXEMPT_ROUTE_NAMES = [
+    'admin.auth.mfa.verify',
+];
+
+/**
+ * Route được miễn `staff.password_fresh` vì chính nó là lối thoát DUY NHẤT
+ * khỏi `must_change_password` (M1, L2) — `admin.auth.password.update` VẪN
+ * PHẢI có `staff.mfa_passed` (xem `VV_ADMIN_MFA_EXEMPT_ROUTE_NAMES` — R1).
+ *
+ * @var list<string>
+ */
+const VV_ADMIN_PASSWORD_FRESH_EXEMPT_ROUTE_NAMES = [
     'admin.auth.mfa.verify',
     'admin.auth.password.update',
 ];
@@ -138,12 +154,26 @@ test('moi route auth:sanctum co du middleware chuan theo host', function () {
             // vai trò khác), nhưng mọi route auth:sanctum vẫn phải tự khai rõ.
             $required = ['account.active', 'student.single_session', 'no_store', 'role:hoc_sinh'];
         } elseif ($domain === config('app.admin_api_host')) {
-            $required = ['admin.origin', 'account.active', 'staff.idle', 'no_store'];
+            // R3 (review-T28.md) — `staff.session` (Sanctum `AuthenticateSession`)
+            // là cơ chế DUY NHẤT thực thi "đổi mật khẩu huỷ phiên khác" (DoD
+            // T28); bắt buộc cho MỌI route auth:sanctum trên host này, không
+            // có ngoại lệ (kể cả route MFA/đổi mật khẩu — vô hại, xem
+            // `routes/admin.php`), để route admin thêm sau (T08+) không thể
+            // lỡ quên mà không bị lưới này bắt.
+            $required = ['admin.origin', 'account.active', 'staff.idle', 'staff.session', 'no_store'];
 
-            // Chính route MFA/đổi mật khẩu không thể tự đòi hỏi đã qua MFA/mật khẩu mới
-            // (L2 — allowlist theo TÊN route, không dùng str_contains trên URI).
-            if ($name === null || ! in_array($name, VV_ADMIN_MFA_OR_PASSWORD_ROUTE_NAMES, true)) {
+            // R1 (review-T28.md) — 2 allowlist TÁCH RIÊNG: chỉ CHÍNH route MFA
+            // được miễn `staff.mfa_passed` (nó là route để ĐẠT được trạng
+            // thái đó); route đổi mật khẩu VẪN PHẢI qua MFA trước (đóng lỗ
+            // hổng "biết mật khẩu, chưa qua MFA, vẫn đổi được mật khẩu") —
+            // chỉ được miễn `staff.password_fresh` (lối thoát duy nhất khỏi
+            // `must_change_password`). (L2 — allowlist theo TÊN route, không
+            // dùng str_contains trên URI.)
+            if ($name === null || ! in_array($name, VV_ADMIN_MFA_EXEMPT_ROUTE_NAMES, true)) {
                 $required[] = 'staff.mfa_passed';
+            }
+
+            if ($name === null || ! in_array($name, VV_ADMIN_PASSWORD_FRESH_EXEMPT_ROUTE_NAMES, true)) {
                 $required[] = 'staff.password_fresh';
             }
         } else {

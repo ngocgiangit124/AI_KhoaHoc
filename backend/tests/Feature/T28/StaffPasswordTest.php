@@ -96,3 +96,55 @@ test('must_change_password=true chan cac route staff khac bang PASSWORD_CHANGE_R
     $blocked->assertStatus(403);
     $blocked->assertJson(['code' => 'PASSWORD_CHANGE_REQUIRED']);
 });
+
+/**
+ * R1 (review-T28.md, [BLOCKER]) — biet dung current_password nhung CHUA qua
+ * MFA (staff_mfa_passed=false) khong duoc phep doi mat khau: neu khong, bat
+ * ky ai lo/do duoc mat khau cua 1 tai khoan admin/QLT deu vo hieu hoa hoan
+ * toan tac dung cua MFA bang cach doi luon mat khau ma khong can nhap ma OTP.
+ */
+test('admin chua qua MFA (staff_mfa_passed=false) goi PUT /admin/auth/password tra 403 MFA_REQUIRED, mat khau KHONG doi', function () {
+    $admin = User::factory()->admin()->create(['password' => Hash::make('matkhaucu123')]);
+
+    $response = test()->actingAs($admin)
+        ->withSession([
+            'staff_login_at' => now()->timestamp,
+            'staff_last_activity' => now()->timestamp,
+            'staff_mfa_passed' => false,
+        ])
+        ->putJson(vvAdminUrl('/admin/auth/password'), [
+            'current_password' => 'matkhaucu123',
+            'password' => 'matkhaumoi456',
+            'password_confirmation' => 'matkhaumoi456',
+        ], vvAdminHeaders());
+
+    $response->assertStatus(403);
+    $response->assertJson(['code' => 'MFA_REQUIRED']);
+
+    expect(Hash::check('matkhaucu123', $admin->fresh()->password))->toBeTrue();
+    expect(AuditLog::query()->where('action', 'staff.password_changed')->where('subject_id', $admin->id)->exists())->toBeFalse();
+});
+
+/**
+ * R1 — doi xung voi truong hop tren: Giao Vien KHONG can MFA
+ * (`EnsureStaffMfaPassed` tu bo qua theo vai tro) nen van doi mat khau duoc
+ * ngay sau dang nhap, du session chua tung danh dau staff_mfa_passed=true.
+ */
+test('giao vien khong can MFA nen van doi duoc mat khau ngay sau dang nhap', function () {
+    $teacher = User::factory()->teacher()->create(['password' => Hash::make('matkhaucu123')]);
+
+    $response = test()->actingAs($teacher)
+        ->withSession([
+            'staff_login_at' => now()->timestamp,
+            'staff_last_activity' => now()->timestamp,
+            'staff_mfa_passed' => false,
+        ])
+        ->putJson(vvAdminUrl('/admin/auth/password'), [
+            'current_password' => 'matkhaucu123',
+            'password' => 'matkhaumoi456',
+            'password_confirmation' => 'matkhaumoi456',
+        ], vvAdminHeaders());
+
+    $response->assertOk();
+    expect(Hash::check('matkhaumoi456', $teacher->fresh()->password))->toBeTrue();
+});

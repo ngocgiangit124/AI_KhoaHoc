@@ -34,11 +34,16 @@ Route::domain(config('app.admin_api_host'))
         // T28 (api-contract §2.5) — đăng nhập quản trị. Các route dưới đây
         // KHÔNG nằm trong nhóm `staff` đầy đủ (bên dưới): đây chính là các
         // "lối vào" của luồng đăng nhập (guest, hoặc auth:sanctum nhưng CHƯA
-        // qua MFA/đổi mật khẩu), tự đòi hỏi `staff.mfa_passed`/
-        // `staff.password_fresh` sẽ tự khoá chính lối thoát duy nhất. Test
-        // kiến trúc `tests/Feature/T02/RouteMiddlewareGroupsTest.php`
-        // (`VV_ADMIN_PUBLIC_ROUTE_NAMES`, `VV_ADMIN_MFA_OR_PASSWORD_ROUTE_NAMES`)
-        // khẳng định đúng danh sách allowlist theo TÊN route này.
+        // qua MFA/đổi mật khẩu). `mfa/verify` tự đòi `staff.mfa_passed` sẽ tự
+        // khoá chính lối thoát duy nhất nên KHÔNG có; `password.update` (R1,
+        // review-T28.md) VẪN đòi `staff.mfa_passed` (chỉ miễn
+        // `staff.password_fresh` — lối thoát duy nhất khỏi
+        // `must_change_password`). Test kiến trúc
+        // `tests/Feature/T02/RouteMiddlewareGroupsTest.php`
+        // (`VV_ADMIN_PUBLIC_ROUTE_NAMES`, `VV_ADMIN_MFA_EXEMPT_ROUTE_NAMES`,
+        // `VV_ADMIN_PASSWORD_FRESH_EXEMPT_ROUTE_NAMES`) khẳng định đúng danh
+        // sách allowlist theo TÊN route này (2 allowlist TÁCH RIÊNG cho 2
+        // middleware — không gộp chung như trước R1).
         Route::post('/admin/auth/login', [LoginController::class, 'store'])
             ->middleware(['guest', 'throttle:login'])
             ->name('admin.auth.login');
@@ -62,18 +67,30 @@ Route::domain(config('app.admin_api_host'))
             ])
             ->name('admin.auth.mfa.verify');
 
-        // Không có `staff.password_fresh` (chính route để thoát khỏi
-        // `must_change_password`) và không có `staff.mfa_passed` (README §3.2
-        // — đổi mật khẩu có thể cần làm TRƯỚC khi hoàn tất MFA tuỳ luồng do
-        // GV không có MFA; Service tự kiểm `current_password` nên không mở
-        // thêm lỗ hổng nào khi cho phép gọi sớm). Có `role:...` (M1) vì đây
-        // KHÔNG phải route công khai — phải đã đăng nhập với vai trò staff.
+        // R1 (review-T28.md, [BLOCKER]) — CÓ `staff.mfa_passed`: nếu KHÔNG,
+        // ai đó chỉ cần biết đúng `current_password` của 1 tài khoản
+        // admin/QLT (lộ qua phishing/dò được/dùng lại mật khẩu đã rò rỉ nơi
+        // khác) có thể đăng nhập, nhận `mfa_required: true` (KHÔNG cần nhập
+        // mã OTP), rồi gọi thẳng route này để đổi mật khẩu — vô hiệu hoá hoàn
+        // toàn tác dụng của MFA (ADR-004 §3: "Admin/QLT phải nhập OTP MỖI
+        // LẦN đăng nhập" trước khi làm bất kỳ hành động nào). Yêu cầu MFA ở
+        // đây KHÔNG chặn đường hợp lệ nào: GV không cần MFA
+        // (`EnsureStaffMfaPassed` tự bỏ qua theo vai trò) nên vẫn đổi được
+        // ngay sau đăng nhập; Admin/QLT đã qua MFA (luồng bình thường) cũng
+        // không bị ảnh hưởng — chỉ đóng đúng lỗ hổng "biết mật khẩu, chưa
+        // qua MFA, vẫn đổi được mật khẩu".
+        //
+        // KHÔNG có `staff.password_fresh` (chính route để thoát khỏi
+        // `must_change_password` — nếu có sẽ tự khoá lối thoát duy nhất). Có
+        // `role:...` (M1) vì đây KHÔNG phải route công khai — phải đã đăng
+        // nhập với vai trò staff.
         Route::put('/admin/auth/password', [PasswordController::class, 'update'])
             ->middleware([
                 'auth:sanctum',
                 'staff.session',
                 'account.active',
                 'staff.idle',
+                'staff.mfa_passed',
                 'no_store',
                 'role:admin,quan_ly_trang,giao_vien',
             ])
