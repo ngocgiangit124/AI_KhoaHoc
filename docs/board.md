@@ -15,11 +15,11 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | FW1 (phần 1) | Màn đăng ký/đăng nhập/đăng xuất (apps/web) | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS | — | 2026-09-28 |
 | FW1 (phần 2) | Màn xác thực OTP | Dev xong, chưa review | Nhánh `claude/zen-dirac-fmucf7-fw1-otp` (7e5fa1f). Có 4 giả định cần đối chiếu với T04 | T04 | 2026-09-28 |
 | T04 | OTP | Xong (đã gộp) | Gộp vào nhánh chính. Review APPROVE, Security PASS có điều kiện: M1/M2/N1 đã sửa. **Còn M3** (đổi liên hệ cần xác minh) — PO/Architect chốt, dev sửa trước T27. `composer ci` xanh 339 test. Chờ QA giai đoạn 1 | M3 (PO) | 2026-09-29 |
-| T05 | Một phiên học sinh | Dev | Worktree `.claude/worktrees/t05` từ nhánh chính (đã có T03+T04) | — | 2026-09-29 |
+| T05 | Một phiên học sinh | Xong (đã gộp) | Gộp vào nhánh chính. Review APPROVE (R1, R3 đã sửa; test chứng minh middleware thật sự chặn). [SEC] chờ security cuối dự án. Cần kiểm lại với Redis thật trước staging. 472 test xanh | — | 2026-09-29 |
 | T06 | Chuyên đề | Xong (đã gộp) | Gộp vào nhánh chính (3f420ba). Review APPROVE vòng 2. `composer ci` xanh, Pest 264. Chờ QA giai đoạn 2 | — | 2026-09-28 |
 | T07 → T10 | Schema nội dung → danh mục công khai | Xong (đã gộp) | Gộp vào nhánh chính (b5b753b). Review APPROVE, DBA duyệt. `composer ci` nhánh chính xanh, Pest 246. Chờ QA giai đoạn 2 | R1 (PO) trước T13 | 2026-09-28 |
 | T17 | Thanh toán: abstraction + MoMo | Xong (đã gộp) | Gộp vào nhánh chính. Review APPROVE (2 vòng), Security PASS có điều kiện: M1, M2, L1–L4, R4 đã sửa. **Gate go-live:** kiểm chứng sandbox MoMo thật (R1/R2). `composer ci` xanh 450 test | Gate go-live | 2026-09-29 |
-| T28 | Đăng nhập quản trị | Dev | Worktree `.claude/worktrees/t28` từ nhánh chính. Chặn T08, T24, T33, FA1+ | — | 2026-09-29 |
+| T28 | Đăng nhập quản trị | Review vòng 2 | Review vòng 1 REQUEST CHANGES: R1 BLOCKER đổi mật khẩu bỏ qua MFA → đã sửa + test 2 cookie + test kiến trúc staff.session. Khi gộp: hợp nhất `tests/TestCase::actingAs()` với T05 | — | 2026-09-29 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
 
@@ -117,7 +117,8 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 
 ## Chờ security cuối dự án
 
-Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 2026-09-29): (chưa có)
+Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 2026-09-29):
+- T05 — điểm cần soi: `docs/reviews/review-T05.md` + báo cáo dev (tombstone, Redis thật, revokeForLock chưa ai gọi, revokeForPasswordChange cho T27)
 
 ## Gate trước go-live
 
@@ -154,6 +155,7 @@ Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 202
 - 2026-09-28 · T03, FW1 · Dev + Reviewer (2 vòng) + Security · Review PASS; Security PASS có điều kiện, đã sửa; 192 test backend, 111 test frontend. Cloud: PHP 8.4, không chạy được Larastan (mạng chặn tải phpstan) → chạy `composer ci` trên Docker local trước khi merge main
 - 2026-09-28 · PO · Đổi quy trình: QA theo giai đoạn; chạy song song task độc lập (T04, T06, T07→T10, T17, FW1 phần 2)
 - 2026-09-28 · Orchestrator · Dừng các agent cloud, push nhánh phụ WIP để PO chuyển về local làm tiếp
+- 2026-09-29 · Orchestrator · Gộp T05 vào nhánh chính, 472 test xanh
 - 2026-09-29 · Orchestrator · Gộp T17 vào nhánh chính (sửa test baseline ProductionConfigGuard của T01/T04 cho khớp guard MoMo mới), 450 test xanh
 - 2026-09-29 · Orchestrator · Gộp T04 vào nhánh chính, `composer ci` xanh 339 test. Bắt đầu T05 + T28 song song
 - 2026-09-29 · Orchestrator · CI chạy thêm `tests/Arch` (4cbd935, trước đó bị bỏ qua). T04 security vòng 2 PASS có điều kiện (N1). T17 review APPROVE, security PASS có điều kiện
