@@ -103,7 +103,8 @@ test('doi email khi kenh sms khong duoc bat van tra ve 200, phone_verified_at du
     $response->assertOk();
     expect($user->fresh()->phone_verified_at)->toBeNull();
     // Không có OtpSender nào cho 'sms' được bật ở production giả lập này —
-    // OtpService::sendIfChannelEnabled() bỏ qua yên lặng, không tạo otp_codes.
+    // OtpService::sendAfterContactChange() tự lọc bỏ kênh chưa bật khỏi
+    // $channels trước khi tạo mã, không tạo otp_codes cho kênh này.
     expect(OtpCode::query()->where('user_id', $user->id)->where('channel', 'sms')->exists())->toBeFalse();
 });
 

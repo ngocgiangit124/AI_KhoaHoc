@@ -12,9 +12,11 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Throwable;
 
 /**
  * Sinh/gửi/xác thực mã OTP (US-001 AC8/AC9, api-contract §2.2, data-model
@@ -61,39 +63,6 @@ class OtpService
     }
 
     /**
-     * Như `send()`, nhưng bỏ qua (không ném lỗi) khi kênh không được bật —
-     * dùng khi việc gửi là hệ quả PHỤ của 1 thao tác khác (vd đổi SĐT trong
-     * lúc production chỉ bật kênh `email`), không phải hành động chính người
-     * dùng vừa yêu cầu.
-     */
-    public function sendIfChannelEnabled(User $user, OtpPurpose $purpose, string $channel): ?Carbon
-    {
-        if (! in_array($channel, (array) config('auth.otp.channels'), true)) {
-            return null;
-        }
-
-        return $this->send($user, $purpose, $channel);
-    }
-
-    /**
-     * T04 review R1 — cho phép caller kiểm trần gửi TRƯỚC khi thực hiện thay
-     * đổi khác, dùng như 1 "fast-path" báo lỗi sớm KHÔNG cần giữ khoá hàng
-     * user (khác `sendAfterContactChange()` — nguồn sự thật nguyên tử thật sự
-     * cho `ContactService`, xem M2). Không làm gì (không ném lỗi) nếu kênh
-     * chưa được bật.
-     *
-     * @throws DomainException `TOO_MANY_ATTEMPTS` (429).
-     */
-    public function assertCanSend(User $user, string $channel): void
-    {
-        if (! in_array($channel, (array) config('auth.otp.channels'), true)) {
-            return;
-        }
-
-        $this->assertUnderSendLimits($user);
-    }
-
-    /**
      * T04 review M1+M2 — dùng bởi `ContactService::update()`: đổi liên hệ
      * (qua `$applyContactChange`) + kiểm trần gửi + huỷ MỌI mã cũ (mọi
      * purpose/channel — M1, tránh mã của kênh/đích CŨ còn sống sau khi đổi) +
@@ -120,8 +89,21 @@ class OtpService
 
         $created = $this->createCodeAtomically($user, $purpose, $enabledChannels, $applyContactChange, invalidateAllPurposes: true);
 
+        // T04 security review I12 — liên hệ đã ĐỔI THÀNH CÔNG (transaction ở
+        // trên đã commit) trước khi tới đây; lỗi gửi mail (Redis/queue tạm
+        // gián đoạn) không được làm hỏng kết quả đổi liên hệ đã thành công —
+        // cùng tinh thần `RegistrationService::register()` (R3): báo cảnh báo
+        // để vận hành biết (KHÔNG log mã/PII), người dùng bấm "Gửi lại mã" sau
+        // cooldown. Khác `send()` (dùng trực tiếp cho `POST /auth/otp/send`,
+        // nơi gửi mã LÀ mục đích chính của request — lỗi ở đó vẫn nên báo lỗi
+        // thật cho người gọi).
         foreach ($created as $c) {
-            $this->senders->forChannel($c['channel'])->send($c['destination'], $c['code']);
+            try {
+                $this->senders->forChannel($c['channel'])->send($c['destination'], $c['code']);
+            } catch (Throwable $e) {
+                report($e);
+                Log::warning('otp.send_failed_after_contact_change', ['user_id' => $user->getKey(), 'channel' => $c['channel']]);
+            }
         }
     }
 
@@ -235,9 +217,13 @@ class OtpService
      * @param  string|list<string>  $channels  1 kênh (chuỗi, dùng bởi `send()`)
      *                                         hoặc nhiều kênh (dùng bởi
      *                                         `sendAfterContactChange()`).
-     * @param  Closure(): void|null  $beforeCreate  Chạy SAU khi đã giữ khoá + kiểm trần,
-     *                                              TRƯỚC khi tạo mã — dùng để đổi
-     *                                              email/SĐT nguyên tử cùng lúc.
+     * @param  Closure(): void|null  $beforeCreate  Chạy SAU khi đã giữ khoá + kiểm trần
+     *                                              theo user, TRƯỚC khi kiểm trần theo
+     *                                              ĐÍCH và tạo mã — dùng để đổi
+     *                                              email/SĐT nguyên tử cùng lúc (N1: phải
+     *                                              chạy TRƯỚC bước kiểm trần theo đích để
+     *                                              kiểm đúng địa chỉ SẼ GỬI, không phải
+     *                                              địa chỉ cũ).
      * @return list<array{channel: string, destination: string, code: string}>
      *
      * @throws QueryException Vi phạm unique `users.email`/`phone`
@@ -249,63 +235,116 @@ class OtpService
     {
         $channelList = is_array($channels) ? $channels : [$channels];
 
-        return DB::transaction(function () use ($user, $purpose, $channelList, $beforeCreate, $invalidateAllPurposes): array {
-            // M2 — khoá hàng user để TUẦN TỰ HOÁ các request gửi OTP đồng
-            // thời của CÙNG 1 user. `lockForUpdate()` trên chính bản ghi
-            // `$user` (không phải bảng `otp_codes`) vì đây là tài nguyên DUY
-            // NHẤT luôn tồn tại sẵn cho mọi user, kể cả user chưa từng có
-            // `otp_codes` nào (không có hàng nào để khoá nếu khoá theo
-            // otp_codes).
-            User::query()->whereKey($user->getKey())->lockForUpdate()->first();
+        // T04 security review I12 — tính Hash::make() (bcrypt, ~50-250ms)
+        // TRƯỚC KHI mở transaction/giữ khoá hàng user, để không kéo dài thời
+        // gian giữ khoá hơn mức cần thiết (khoá chỉ chặn request của CÙNG 1
+        // user nên chấp nhận được, nhưng không có lý do gì để giữ lâu hơn).
+        $pending = [];
 
-            if ($channelList !== []) {
-                $this->assertUnderSendLimits($user);
+        foreach ($channelList as $channel) {
+            $code = self::generateCode();
+            $pending[$channel] = ['code' => $code, 'code_hash' => Hash::make($code)];
+        }
+
+        try {
+            return DB::transaction(function () use ($user, $purpose, $channelList, $beforeCreate, $invalidateAllPurposes, $pending): array {
+                // M2 — khoá hàng user để TUẦN TỰ HOÁ các request gửi OTP đồng
+                // thời của CÙNG 1 user. `lockForUpdate()` trên chính bản ghi
+                // `$user` (không phải bảng `otp_codes`) vì đây là tài nguyên
+                // DUY NHẤT luôn tồn tại sẵn cho mọi user, kể cả user chưa
+                // từng có `otp_codes` nào (không có hàng nào để khoá nếu khoá
+                // theo otp_codes).
+                $locked = User::query()->whereKey($user->getKey())->lockForUpdate()->first();
+
+                // T04 security review I10 — TRƯỚC ĐÂY bỏ kết quả của câu khoá
+                // ở trên, vẫn dùng `$user` nạp TRƯỚC khi giành được khoá: nếu
+                // 1 transaction khác vừa đổi liên hệ của user này và commit
+                // ngay trước khi transaction hiện tại giành được khoá,
+                // `$user` trong bộ nhớ có thể đã CŨ — `destinationFor()` dưới
+                // đây sẽ tính nhầm theo dữ liệu cũ. Nạp lại thuộc tính từ
+                // đúng hàng VỪA khoá (không cần thêm 1 câu SELECT rời).
+                if ($locked !== null) {
+                    $user->setRawAttributes($locked->getAttributes(), true);
+                }
+
+                if ($channelList !== []) {
+                    $this->assertUnderSendLimits($user);
+                }
+
+                if ($beforeCreate !== null) {
+                    $beforeCreate();
+                }
+
+                // T04 security review N1 [Low] — TRƯỚC ĐÂY kiểm trần theo
+                // ĐÍCH ở đây chạy TRƯỚC `$beforeCreate()`, tức kiểm nhầm địa
+                // chỉ CŨ (trước khi đổi) trong khi `hitDestinationLimit()` ở
+                // dưới lại đếm cho địa chỉ MỚI — 2 bước lệch nhau, khiến (a)
+                // 1 tài khoản đang giữ địa chỉ đã bị tài khoản KHÁC gửi chạm
+                // trần có thể bị kẹt, không đổi SANG địa chỉ khác được, và
+                // (b) địa chỉ MỚI hoàn toàn không được kiểm trần trước khi
+                // gửi. Phải kiểm trên địa chỉ SẼ GỬI — tức SAU khi
+                // `$beforeCreate()` đã gán giá trị mới (nhưng CHƯA `save()`,
+                // để vượt trần thì rollback không để lại gì).
+                if ($channelList !== []) {
+                    foreach ($channelList as $channel) {
+                        self::assertUnderDestinationLimit(self::destinationFor($user, $channel));
+                    }
+                }
+
+                if ($beforeCreate !== null) {
+                    $user->save();
+                }
+
+                if ($invalidateAllPurposes || $channelList !== []) {
+                    $invalidateQuery = OtpCode::query()
+                        ->where('user_id', $user->getKey())
+                        ->whereNull('consumed_at')
+                        ->whereNull('invalidated_at');
+
+                    if (! $invalidateAllPurposes) {
+                        $invalidateQuery->where('purpose', $purpose->value);
+                    }
+
+                    $invalidateQuery->update(['invalidated_at' => now()]);
+                }
+
+                $created = [];
 
                 foreach ($channelList as $channel) {
-                    self::assertUnderDestinationLimit(self::destinationFor($user, $channel));
-                }
-            }
+                    $destination = self::destinationFor($user, $channel);
+                    $code = $pending[$channel]['code'];
 
+                    OtpCode::query()->create([
+                        'user_id' => $user->getKey(),
+                        'purpose' => $purpose->value,
+                        'channel' => $channel,
+                        'destination' => $destination,
+                        'code_hash' => $pending[$channel]['code_hash'],
+                        'expires_at' => now()->addMinutes((int) config('auth.otp.ttl_minutes')),
+                    ]);
+
+                    self::hitDestinationLimit($destination);
+
+                    $created[] = ['channel' => $channel, 'destination' => $destination, 'code' => $code];
+                }
+
+                return $created;
+            });
+        } catch (Throwable $e) {
+            // T04 security review N1/I10 — nếu `$beforeCreate` đã gán giá trị
+            // MỚI vào thuộc tính của `$user` (đối tượng truyền vào theo tham
+            // chiếu) nhưng transaction bị rollback (vd vượt trần theo đích)
+            // TRƯỚC khi `save()` chạy, `$user` trong bộ nhớ vẫn còn giữ giá
+            // trị chưa từng được lưu — nạp lại từ DB để `$user` LUÔN phản ánh
+            // đúng sự thật sau khi hàm này trả về. Chỉ cần khi có
+            // `$beforeCreate` (đường `send()` không đổi thuộc tính nào của
+            // `$user`, refresh() thêm 1 câu SELECT không cần thiết).
             if ($beforeCreate !== null) {
-                $beforeCreate();
-                $user->save();
+                $user->refresh();
             }
 
-            if ($invalidateAllPurposes || $channelList !== []) {
-                $invalidateQuery = OtpCode::query()
-                    ->where('user_id', $user->getKey())
-                    ->whereNull('consumed_at')
-                    ->whereNull('invalidated_at');
-
-                if (! $invalidateAllPurposes) {
-                    $invalidateQuery->where('purpose', $purpose->value);
-                }
-
-                $invalidateQuery->update(['invalidated_at' => now()]);
-            }
-
-            $created = [];
-
-            foreach ($channelList as $channel) {
-                $destination = self::destinationFor($user, $channel);
-                $code = self::generateCode();
-
-                OtpCode::query()->create([
-                    'user_id' => $user->getKey(),
-                    'purpose' => $purpose->value,
-                    'channel' => $channel,
-                    'destination' => $destination,
-                    'code_hash' => Hash::make($code),
-                    'expires_at' => now()->addMinutes((int) config('auth.otp.ttl_minutes')),
-                ]);
-
-                self::hitDestinationLimit($destination);
-
-                $created[] = ['channel' => $channel, 'destination' => $destination, 'code' => $code];
-            }
-
-            return $created;
-        });
+            throw $e;
+        }
     }
 
     /**

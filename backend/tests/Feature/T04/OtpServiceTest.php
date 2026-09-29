@@ -98,17 +98,6 @@ test('send() kenh khong duoc bat (auth.otp.channels) nem loi', function () {
     expect(OtpCode::query()->where('channel', 'sms')->exists())->toBeFalse();
 });
 
-test('sendIfChannelEnabled bo qua yen lang khi kenh khong duoc bat', function () {
-    config(['auth.otp.channels' => ['email']]);
-    $user = User::factory()->create(['phone' => '0912345678']);
-    $service = app(OtpService::class);
-
-    $result = $service->sendIfChannelEnabled($user, OtpPurpose::VerifyAccount, 'sms');
-
-    expect($result)->toBeNull();
-    expect(OtpCode::query()->where('channel', 'sms')->exists())->toBeFalse();
-});
-
 /**
  * T04 review R1 [BLOCKER] — trần gửi PHẢI nằm trong `OtpService::send()` (độc
  * lập với `throttle:otp-send` ở tầng route), để `PUT /auth/contact` (không đi
@@ -167,23 +156,6 @@ test('send() vuot tran ngay (max_per_day) nem TOO_MANY_ATTEMPTS du da qua nguong
     expect(fn () => $service->send($user, OtpPurpose::VerifyAccount, 'email'))
         ->toThrow(DomainException::class);
     expect(OtpCode::query()->where('user_id', $user->id)->count())->toBe(3);
-});
-
-test('assertCanSend nem TOO_MANY_ATTEMPTS khi vuot tran, dung de ContactService kiem TRUOC khi doi lien he', function () {
-    $user = User::factory()->create();
-    $service = app(OtpService::class);
-
-    $service->send($user, OtpPurpose::VerifyAccount, 'email');
-
-    expect(fn () => $service->assertCanSend($user, 'email'))->toThrow(DomainException::class);
-});
-
-test('assertCanSend khong lam gi khi kenh khong duoc bat (khong nem loi)', function () {
-    config(['auth.otp.channels' => ['email']]);
-    $user = User::factory()->create();
-    $service = app(OtpService::class);
-
-    expect(fn () => $service->assertCanSend($user, 'sms'))->not->toThrow(DomainException::class);
 });
 
 test('verify() dung ma: xac thuc email_verified_at, consume ma, khong dung lai duoc', function () {

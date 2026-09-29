@@ -236,3 +236,99 @@ Những phần làm tốt (đã kiểm bằng test thật, không chỉ đọc c
 1. **M3:** có bắt buộc mật khẩu hiện tại (hoặc OTP tới kênh cũ) khi đổi email/SĐT đã xác thực không? Có gửi thông báo tới địa chỉ cũ không? T27 có tạm không gửi mã đặt lại tới kênh vừa đổi trong X giờ không? (PO + Architect)
 2. **L1/S20:** thời hạn giữ tài khoản chưa xác thực trước khi dọn (T30) và cơ chế "giành lại" email. (PO)
 3. **I7:** thời hạn lưu `otp_codes` (có email/SĐT rõ) và `failed_jobs`. Cần bộ phận pháp chế xác nhận thời hạn lưu tối thiểu hoặc tối đa theo Luật Bảo vệ dữ liệu cá nhân 2025 / Nghị định 356/2025/NĐ-CP.
+
+## Xác nhận lại sau khi sửa (vòng 2) — 2026-09-29
+
+**Phạm vi:** `git diff 047bff2..c4a60b5` (`OtpService`, `ContactService`, `DomainException`, `ApiExceptionRenderer`, `ProductionConfigGuard`, `AppServiceProvider`, `config/auth.php`, `config/cors.php`, `OtpCodeFactory`, test T01/T04).
+**Công cụ (tự chạy lại trong Docker):** Pint sạch, Larastan 0 lỗi, Pest `phpunit.t04.xml` **264 passed (801 assertions)**. Test tạm `tests/Feature/TmpSecT04b/` (2 test) đã **xoá** sau khi chạy.
+
+### Kết luận mới: **PASS có điều kiện**
+M1, M2, L2 và L3 đã đóng. L1 mới đóng một phần và sinh ra một lỗi logic nhỏ (N1, Low). M3 vẫn mở, đúng như dự kiến vì cần PO chốt. Không có Critical/High/Medium mới. Điều kiện:
+1. **M3** do PO/Architect chốt và dev sửa **trước khi bắt đầu T27** (không đổi so với vòng 1).
+2. **N1** sửa trước khi `laravel-qa` chạy giai đoạn 1 (vài dòng). Không chặn việc đánh dấu T04 xong.
+
+### Trạng thái từng phát hiện
+
+| Mục | Trạng thái | Ghi chú xác minh |
+|---|---|---|
+| M1 | **Đã đóng** | Xem mục "Kiểm M1" |
+| M2 | **Đã đóng** | Xem mục "Kiểm M2" |
+| M3 | **Mở**, chờ PO | Không đổi. Chặn trước T27 |
+| L1 | **Đóng một phần**, xem N1 | Ngưỡng 10/giờ, 20/ngày theo đích là hợp lý |
+| L2 | **Đã đóng** | Allowlist đúng `['email']`. Chặn `mail.default` là `log`/`array`. Có kiểm biên cooldown ≥30s, attempts 1–10, trần ngày 1–20, verify/ngày 1–50, TTL ≥1 phút. Có test |
+| L3 | **Đã đóng** | 429 lớp Service có `Retry-After`. CORS expose `Retry-After`. Cooldown route dùng `perSecond(1, cooldown_seconds)` |
+| I1–I9 | Không đổi | Thêm I10–I12 bên dưới |
+
+### Kiểm M1: mã gắn với đích
+- `verify()` so `destination` với `email`/`phone` **hiện tại** (không phân biệt hoa/thường) **sau** khi đã consume mã. Hai lệnh UPDATE `attempts`/`consumed_at` đã có `whereNull('invalidated_at')`. `ContactService` gộp việc đổi liên hệ, huỷ **mọi** mã active và tạo mã mới vào một transaction có khoá.
+- **Consume mã khi lệch đích có mở DoS cho người khác không? Không.** Mã luôn thuộc `user_id` của người đang đăng nhập, `verify()` chỉ xét mã của chính user đó. Không ai khác làm mã của một user bị "tiêu" được. Consume trước khi so đích là lựa chọn đúng: mã lệch đích không dùng lại được, không thành oracle để thử nhiều lần. Trường hợp lệch đích chỉ xảy ra khi chính user tự race với mình, và người dùng chỉ cần bấm "Gửi lại mã".
+- Test tạm xác nhận thêm: `send()` với đối tượng `$user` **cũ** (email trong DB đã đổi A→B bởi request khác) tạo mã `destination = A` và gửi mail tới A. Mã này **không** xác thực được B (M1 chặn). Trong thực tế đường này cũng bị cooldown chặn: request đổi liên hệ vừa tạo mã, cooldown ≥30 giây bắt buộc ở production. Chỉ còn là I10.
+
+### Kiểm M2: khoá hàng users
+- `createCodeAtomically()` thực hiện `SELECT … FOR UPDATE` trên hàng `users`, **sau đó** mới kiểm trần user, kiểm trần đích, đổi liên hệ, huỷ và tạo mã, tất cả trong một transaction. Mail gửi sau commit. Vượt trần thì closure đổi liên hệ không chạy. `send()`, `sendAfterContactChange()` và đăng ký (qua `send()`) đều đi qua lõi này. Không còn caller nào dùng `assertCanSend()` (xem I11).
+- **Deadlock với đăng ký/đăng nhập: không thấy nguy cơ.**
+  - Kết nối dùng `READ COMMITTED` (`config/database.php:68`), nên UPDATE/INSERT theo index không sinh gap lock, tức không có mẫu deadlock "gap lock + insert intention" giữa các user khác nhau.
+  - Thứ tự khoá chỉ có một chiều: hàng `users`, rồi `otp_codes`. INSERT `otp_codes` lấy khoá S trên hàng cha `users` mà transaction đang giữ X.
+  - Hiện không có transaction nào khác khoá hàng `users` đã tồn tại. `RegistrationService` chỉ INSERT user trong transaction riêng, commit rồi mới gọi `send()`, không lồng nhau. `LoginService` không ghi vào `users`. `verify()` gồm các câu autocommit riêng lẻ.
+  - **Lưu ý cho T05/T27/T28:** transaction nào ghi `users` kèm bảng khác phải khoá `users` **trước** (cùng thứ tự). Không được gọi `send()`/`sendAfterContactChange()` bên trong một transaction ngoài: khi đó "gửi sau commit" không còn đúng, và khoá bị giữ lâu hơn.
+- Thời gian giữ khoá gồm `Hash::make` (bcrypt, khoảng 50–250 ms) và 2–4 lệnh gọi Redis. Chấp nhận được, vì chỉ chặn request của **cùng** user. Có thể tính hash trước khi mở transaction (I12).
+- **Gửi mail sau commit mà lỗi** (Redis/queue sập):
+  - Mã đã nằm trong DB và đã tính vào trần, nhưng không tới người dùng.
+  - `otp/send` và `PUT /auth/contact` trả 500. Với contact, liên hệ **đã** đổi và có mã active đúng đích mới, nên trạng thái vẫn nhất quán và an toàn: không có mã sai đích, không bỏ qua được trần.
+  - Người dùng bấm "Gửi lại" sau cooldown. Đăng ký đã bắt lỗi (R3).
+  - Không phải lỗ hổng. Đề nghị `ContactService` bắt lỗi gửi giống `RegistrationService`: `report()` rồi vẫn trả 200, vì liên hệ đã đổi thành công (I12).
+- Không có test đa tiến trình thật. Tôi chấp nhận cặp test hiện có làm bằng chứng: query log cho thấy `FOR UPDATE` chạy trước `count`, và 2 connection thật cho thấy connection thứ hai nhận `Lock wait timeout`. Hai test này chứng minh khoá có mặt đúng chỗ và InnoDB thực thi khoá, đủ cho cơ chế tuần tự hoá này. Test 2 connection tự dọn dữ liệu (rollback + delete).
+
+### Kiểm `ApiExceptionRenderer`: có mở đường cho header tuỳ ý không? **Không.**
+Header chỉ được copy từ `DomainException::headers()`, tức mảng do code truyền vào constructor. Hiện chỉ `OtpService::tooManySendException()` truyền `Retry-After`, với giá trị là số nguyên (tính từ `created_at` trong DB hoặc `RateLimiter::availableIn`). Không có dữ liệu request nào chảy vào tên hay giá trị header. Symfony `HeaderBag` cũng không cho CRLF. Đề nghị phòng xa (Info): renderer chỉ copy header thuộc allowlist (`Retry-After`), để sau này không ai vô tình đưa dữ liệu người dùng vào.
+
+### N1 [Low] Trần theo đích (L1) trong luồng đổi liên hệ kiểm **địa chỉ cũ** nhưng lại đếm cho **địa chỉ mới** — OWASP A04
+- **Vị trí:** `backend/app/Services/Auth/OtpService.php:261-271`. `assertUnderDestinationLimit(self::destinationFor($user, $channel))` chạy **trước** `$beforeCreate()` (closure gán email mới), còn `hitDestinationLimit()` ở dòng 302 chạy **sau**, trên địa chỉ mới.
+- **Test tạm** (trần đích = 2, trần user nới rộng):
+
+  | Bước | Kết quả |
+  |---|---|
+  | A đổi sang `x@` | OK |
+  | A đổi sang `a2@` | OK (bước này kiểm `x@`) |
+  | B đổi sang `x@` | OK. **Không kiểm `x@`**, `x@` đã nhận 2 mail |
+  | B đổi `x@` sang `b2@` | **429**: B bị kẹt ở `x@`, không đổi email đi được |
+
+- **Tác động:** trần theo đích vẫn giữ được, nhưng là tình cờ: tài khoản đang giữ `x@` bị kẹt nên `x@` không nhận quá ngưỡng mỗi cửa sổ. Tuy vậy logic sai địa chỉ gây hai hệ quả:
+  1. Người dùng hợp lệ có địa chỉ **hiện tại** đã chạm ngưỡng (do tài khoản khác từng nhắm vào) bị 429 khi muốn **đổi sang** địa chỉ khác, tối đa 24 giờ.
+  2. Địa chỉ **mới** không được kiểm trước khi gửi, nên nếu sau này có đường nào "nhả" địa chỉ (T34 xoá/ẩn danh tài khoản, admin sửa email) thì trần theo đích sẽ bị vượt thật.
+- **Cách sửa:** kiểm trần đích trên **địa chỉ sẽ gửi**, tức sau khi áp thay đổi (hoặc truyền `$newEmail`/`$newPhone` vào thay vì closure):
+  ```php
+  if ($beforeCreate !== null) { $beforeCreate(); }            // gán giá trị mới (chưa save)
+  foreach ($channelList as $ch) { self::assertUnderDestinationLimit(self::destinationFor($user, $ch)); }
+  if ($beforeCreate !== null) { $user->save(); }
+  ```
+  Vượt trần thì exception làm transaction rollback. `ContactService` ném tiếp 429, còn model `$user` đã bị gán giá trị trong bộ nhớ nhưng không được trả ra response. Có thể thêm `$user->refresh()` trong nhánh catch cho chắc.
+- **Kiểm chứng:** test "địa chỉ mới đã chạm trần đích → 429, email không đổi, không có mail". Test "địa chỉ cũ đã chạm trần đích → vẫn đổi sang địa chỉ khác được (200)".
+
+### Ngưỡng L1: 10/giờ, 20/ngày theo đích — **hợp lý, chấp nhận**
+Lý do dev đưa ra là đúng: ngưỡng theo đích thấp hơn ngưỡng theo user (5/giờ, 10/ngày) sẽ chặn cả người dùng hợp lệ tự gửi lại cho mình. Gấp đôi nghĩa là lớp này chỉ có tác dụng khi từ 2 tài khoản trở lên cùng nhắm vào một địa chỉ. Kết hợp unique email và việc tài khoản giữ địa chỉ bị kẹt, một hộp thư chưa đăng ký nhận tối đa khoảng 20 mail/ngày. Mặt trái vốn có của mọi trần theo đích: kẻ tấn công có thể **tiêu hết** ngưỡng của một email chưa đăng ký, khiến chủ thật đăng ký trong 24 giờ đó không nhận được OTP ngay (đăng ký vẫn thành công nhờ R3, sau đó gửi lại bị 429 cho tới khi hết cửa sổ). Chấp nhận ở MVP, PO nên biết (xem thêm S20/T30).
+
+### Info mới
+- **I10:** `createCodeAtomically()` khoá hàng `users` nhưng bỏ kết quả, vẫn dùng `$user` đã nạp từ trước khi khoá. Đề nghị `$user->refresh()` ngay sau khi khoá, hoặc gán thuộc tính từ hàng đã khoá, để `destinationFor()` luôn dùng giá trị mới nhất. Hiện không khai thác được (cooldown + M1), nhưng sẽ tránh gửi mail tới địa chỉ cũ.
+- **I11:** `assertCanSend()` và `sendIfChannelEnabled()` không còn caller. `assertCanSend()` kiểm trần **không khoá** và **không kiểm đích**, là cái bẫy nếu T27/T29 dùng lại. Nên xoá, hoặc đánh dấu `@internal` kèm cảnh báo.
+- **I12:** tính `Hash::make($code)` trước khi mở transaction để giảm thời gian giữ khoá. `ContactService` nên bắt lỗi gửi mail sau commit như `RegistrationService` (`report()` + trả 200).
+- `Retry-After` của trần theo đích cho biết khi nào ngưỡng của địa chỉ **hiện tại** của chính người gọi được mở lại. Nó có thể gián tiếp cho biết địa chỉ này vừa bị tài khoản khác gửi tới, nhưng chỉ với địa chỉ người gọi đang giữ. Không đáng kể.
+
+### Trạng thái S* sau vòng 2
+
+| Mục | Trạng thái |
+|---|---|
+| S9 | **Đóng** cho T04: gắn đích, tuần tự hoá trần, trần ngày, trần theo đích (còn N1 là lỗi logic nhỏ) |
+| S19 | Không đổi, chờ T05 (`single_session`) |
+| S20 | Không đổi. Mặt trái trần theo đích đã ghi ở trên |
+| S21 | Guard `MAIL_MAILER` đã có. Còn `queue:prune-failed` (T30) |
+| S22 | Guard OTP đã chuyển sang allowlist và có kiểm biên |
+
+### Việc chuyển `laravel-dev` (vòng 3, nhỏ)
+1. **N1:** kiểm trần đích trên địa chỉ mới, kèm 2 test ở trên.
+2. **I10/I11/I12** (không bắt buộc): refresh `$user` sau khi khoá, xoá `assertCanSend()`, hash trước transaction, bắt lỗi gửi mail trong `ContactService`, allowlist header trong renderer.
+3. **M3:** sau khi PO chốt, trước T27.
+
+### Test `laravel-qa` nên giữ/bổ sung
+- Giữ: test M1 (lệch đích, không phân biệt hoa/thường), test `FOR UPDATE` trước `count`, test 2 connection `Lock wait timeout`, test guard L2, test `Retry-After` và CORS expose.
+- Thêm: 2 test N1. Tay-test trên Docker có Redis thật: bắn song song khoảng 20 `POST /auth/otp/send` cùng user (ví dụ `xargs -P 20 curl` vào môi trường local), kết quả phải là đúng 1 mã được tạo và 1 mail trong Mailpit.

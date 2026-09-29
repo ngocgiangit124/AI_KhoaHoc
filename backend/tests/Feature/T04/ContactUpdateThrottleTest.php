@@ -14,14 +14,17 @@ use Illuminate\Support\Facades\Mail;
  * khác) để gửi OTP thật không giới hạn — "email bombing". Sửa 2 lớp:
  * 1. `throttle:otp-send` gắn trực tiếp lên route (routes/api.php) — chặn sớm
  *    ở tầng HTTP, dùng chung bộ đếm với `/auth/otp/send` (cùng định danh user).
- * 2. `OtpService::send()`/`assertCanSend()` tự đếm số `otp_codes` thật đã tạo
- *    trong DB — nguồn sự thật độc lập, bảo vệ MỌI caller kể cả khi 1 route
- *    tương lai quên gắn middleware throttle.
+ * 2. `OtpService::createCodeAtomically()` (dùng bởi `send()` và
+ *    `sendAfterContactChange()`) tự đếm số `otp_codes` thật đã tạo trong DB
+ *    — nguồn sự thật độc lập, bảo vệ MỌI caller kể cả khi 1 route tương lai
+ *    quên gắn middleware throttle.
  *
- * Quyết định xử lý khi vượt trần (R1): TỪ CHỐI 429 TRƯỚC KHI đổi bất kỳ
- * thông tin liên hệ nào (`ContactService::update()` gọi `assertCanSend()`
- * TRƯỚC transaction cập nhật `users`) — không đổi email/SĐT "nửa vời" rồi mới
- * phát hiện không gửi được OTP. Fail-closed, không mở lỗ hổng nào khác.
+ * Quyết định xử lý khi vượt trần (R1, siết chặt thêm ở M2): TỪ CHỐI 429
+ * TRƯỚC KHI đổi bất kỳ thông tin liên hệ nào — `ContactService::update()`
+ * gọi `OtpService::sendAfterContactChange()`, kiểm trần + đổi liên hệ trong
+ * CÙNG 1 transaction có khoá hàng user (không chỉ 2 bước tách rời như trước)
+ * — không đổi email/SĐT "nửa vời" rồi mới phát hiện không gửi được OTP,
+ * đúng cả khi có request đồng thời. Fail-closed, không mở lỗ hổng nào khác.
  */
 afterEach(function () {
     Carbon::setTestNow();
