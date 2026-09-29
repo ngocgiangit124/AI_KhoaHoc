@@ -31,7 +31,12 @@ return [
         'X-Request-Id',
     ],
 
-    'exposed_headers' => ['X-Request-Id'],
+    // T04 security review L3 — `Retry-After` (429 do throttle route lẫn
+    // DomainException `TOO_MANY_ATTEMPTS` từ tầng Service) phải được trình
+    // duyệt ĐỌC ĐƯỢC qua fetch()/XHR (mặc định CORS chỉ cho JS đọc các header
+    // "an toàn" liệt kê sẵn, không có `Retry-After`). Không rò rỉ gì nhạy cảm:
+    // mọi khoá đều theo `user_id`/IP của chính người gọi request đó.
+    'exposed_headers' => ['X-Request-Id', 'Retry-After'],
 
     'max_age' => 0,
 

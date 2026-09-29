@@ -4,6 +4,7 @@ use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\ConfigureHostContext;
 use App\Http\Middleware\EnforceSingleStudentSession;
 use App\Http\Middleware\EnsureAccountActive;
+use App\Http\Middleware\EnsureAccountVerified;
 use App\Http\Middleware\EnsureAdminOrigin;
 use App\Http\Middleware\EnsureGuest;
 use App\Http\Middleware\EnsurePasswordFresh;
@@ -97,6 +98,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.origin' => EnsureAdminOrigin::class,
             'role' => EnsureRole::class,
             'account.active' => EnsureAccountActive::class,
+            // T04 (api-contract §1.7 `403 ACCOUNT_NOT_VERIFIED`) — khung cho các
+            // route yêu cầu đã xác thực OTP (checkout — T18, đăng ký miễn phí —
+            // T14...). Chưa gắn vào route nào ở T04 (auth/otp/*, auth/contact tự
+            // thân là luồng XÁC THỰC, không thể tự đòi đã xác thực).
+            'account.verified' => EnsureAccountVerified::class,
             // T03 (api-contract §2.2) — ghi đè alias mặc định của Laravel
             // (`RedirectIfAuthenticated`, dành cho app Blade): API JSON thuần
             // không có route `login` để redirect tới (xem EnsureGuest).
