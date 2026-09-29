@@ -6,14 +6,23 @@ export class ApiError extends Error {
   readonly code: string | undefined;
   readonly errors: Record<string, string[]> | undefined;
   readonly requestId: string | undefined;
+  /**
+   * Header `Retry-After` (giây) khi có — chỉ 429 mới thường có (route `throttle:` hoặc
+   * `DomainException::headers()`, xem `ApiExceptionRenderer::ALLOWED_DOMAIN_EXCEPTION_HEADERS`
+   * và `cors.php` `exposed_headers`). CHỈ dùng làm thông tin PHỤ để hiển thị cho người dùng
+   * (vd "thử lại sau khoảng X phút") — KHÔNG phải nguồn chính cho cooldown gửi lại OTP (nguồn
+   * chính là `resend_available_at` của `POST /auth/otp/send` khi thành công).
+   */
+  readonly retryAfterSeconds: number | undefined;
 
-  constructor(status: number, body: ApiErrorBody) {
+  constructor(status: number, body: ApiErrorBody, retryAfterSeconds?: number) {
     super(body.message || "Đã có lỗi xảy ra, vui lòng thử lại sau.");
     this.name = "ApiError";
     this.status = status;
     this.code = body.code;
     this.errors = body.errors;
     this.requestId = body.request_id;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 

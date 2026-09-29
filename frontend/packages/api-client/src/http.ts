@@ -10,6 +10,18 @@ export async function doFetch(url: string, init: RequestInit): Promise<Response>
   }
 }
 
+/**
+ * `Retry-After` (giây) của response 429, khi có (api-contract §1.7, `cors.php` expose header
+ * này cho request cross-origin — xem `ApiError.retryAfterSeconds`). Laravel luôn trả số nguyên
+ * giây, không phải dạng HTTP-date.
+ */
+function readRetryAfterSeconds(res: Response): number | undefined {
+  const raw = res.headers.get("Retry-After");
+  if (!raw) return undefined;
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined;
+}
+
 /** Đọc body JSON theo envelope api-contract, ném `ApiError` khi response không `ok`. */
 export async function parseJsonResponse<T>(res: Response): Promise<T> {
   if (res.status === 204) {
@@ -25,14 +37,16 @@ export async function parseJsonResponse<T>(res: Response): Promise<T> {
       if (res.ok) {
         return undefined as T;
       }
-      throw new ApiError(res.status, {
-        message: "Đã có lỗi xảy ra, vui lòng thử lại sau.",
-      });
+      throw new ApiError(
+        res.status,
+        { message: "Đã có lỗi xảy ra, vui lòng thử lại sau." },
+        readRetryAfterSeconds(res),
+      );
     }
   }
 
   if (!res.ok) {
-    throw new ApiError(res.status, (body ?? {}) as ApiErrorBody);
+    throw new ApiError(res.status, (body ?? {}) as ApiErrorBody, readRetryAfterSeconds(res));
   }
 
   return body as T;

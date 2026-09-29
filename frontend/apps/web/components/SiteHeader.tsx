@@ -46,38 +46,53 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="border-b border-gray-200 bg-white">
-      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-indigo-600">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white">
-            V
-          </span>
-          VitaminVui
-        </Link>
+    <>
+      <header className="border-b border-gray-200 bg-white">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
+          <Link href="/" className="flex items-center gap-2 font-bold text-indigo-600">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white">
+              V
+            </span>
+            VitaminVui
+          </Link>
 
-        {isLoading ? (
-          <div className="h-9 w-24 animate-pulse rounded-lg bg-gray-100" aria-hidden="true" />
-        ) : user ? (
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-700">Xin chào, {user.name}</span>
-            <Button variant="outline" size="sm" loading={isLoggingOut} onClick={handleLogout}>
-              Đăng xuất
-            </Button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Link href="/dang-nhap" className="text-sm font-medium text-gray-700 hover:text-indigo-600">
-              Đăng nhập
-            </Link>
-            <Link
-              href="/dang-ky"
-              className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
-            >
-              Đăng ký
-            </Link>
-          </div>
-        )}
-      </div>
-    </header>
+          {isLoading ? (
+            <div className="h-9 w-24 animate-pulse rounded-lg bg-gray-100" aria-hidden="true" />
+          ) : user ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-700">Xin chào, {user.name}</span>
+              <Button variant="outline" size="sm" loading={isLoggingOut} onClick={handleLogout}>
+                Đăng xuất
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link href="/dang-nhap" className="text-sm font-medium text-gray-700 hover:text-indigo-600">
+                Đăng nhập
+              </Link>
+              <Link
+                href="/dang-ky"
+                className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+              >
+                Đăng ký
+              </Link>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* AC9/US-001 §2.4: nhắc xác thực tài khoản ở mọi trang cho tới khi `is_verified`
+          (field `GET /auth/me` mới trả — register/login KHÔNG kèm field này). Không hiện gì
+          khi field vắng mặt (undefined) để không nháy banner sai trong lúc `useCurrentUser`
+          đang tải hoặc với response cũ chưa có field này. */}
+      {!isLoading && user && user.is_verified === false ? (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-800">
+          Bạn chưa xác thực tài khoản.{" "}
+          <Link href="/xac-thuc-otp" className="font-semibold underline">
+            Xác thực ngay
+          </Link>
+        </div>
+      ) : null}
+    </>
   );
 }

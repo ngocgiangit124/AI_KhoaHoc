@@ -52,6 +52,22 @@ describe("SiteHeader", () => {
     expect(screen.getByRole("button", { name: "Đăng xuất" })).toBeInTheDocument();
   });
 
+  it("is_verified=false -> hiện banner nhắc xác thực dẫn tới /xac-thuc-otp (AC9)", async () => {
+    authFetchMock.mockResolvedValueOnce({ id: 1, name: "Nguyễn Minh An", is_verified: false });
+    renderSiteHeader();
+
+    const link = await screen.findByRole("link", { name: "Xác thực ngay" });
+    expect(link).toHaveAttribute("href", "/xac-thuc-otp");
+  });
+
+  it("is_verified=true -> KHÔNG hiện banner nhắc xác thực", async () => {
+    authFetchMock.mockResolvedValueOnce({ id: 1, name: "Nguyễn Minh An", is_verified: true });
+    renderSiteHeader();
+
+    await waitFor(() => expect(screen.getByText("Xin chào, Nguyễn Minh An")).toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: "Xác thực ngay" })).not.toBeInTheDocument();
+  });
+
   it("security L6 — đăng xuất lỗi mạng: hiện toast lỗi tiếng Việt, KHÔNG im lặng, vẫn giữ trạng thái đã đăng nhập", async () => {
     const user = userEvent.setup();
     authFetchMock
