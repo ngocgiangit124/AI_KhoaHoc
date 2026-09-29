@@ -22,6 +22,12 @@ beforeEach(function () {
         'app.trusted_proxies' => '10.0.0.1,10.0.0.2',
         'payments.enabled_gateways' => ['momo'],
         'payments.gateways.momo.endpoint' => 'https://payment.momo.vn/v2/gateway/api/create',
+        'payments.gateways.momo.partner_code' => 'PARTNER',
+        'payments.gateways.momo.access_key' => 'ACCESS',
+        'payments.gateways.momo.secret_key' => 'SECRET',
+        // R4 (review vòng 2 docs/reviews/review-T17.md) — production CHỈ
+        // được đúng 1 host thật của MoMo, không được kèm host sandbox.
+        'payments.gateways.momo.pay_url_hosts' => ['payment.momo.vn'],
         // T04 security review L2 — `guardOtpMailer()` mới thêm cấm
         // `log`/`array` ở production; phpunit.xml ép MAIL_MAILER=array cho
         // testing nên baseline "hợp lệ" ở đây phải tự ghi đè sang driver thật.
@@ -117,4 +123,52 @@ test('MOMO_ENDPOINT sai scheme (http) o production nem loi', function () {
     config(['payments.gateways.momo.endpoint' => 'http://payment.momo.vn/v2/gateway/api/create']);
 
     expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
+});
+
+// --- T17: allowlist tường minh + đủ secret cho MoMo ------------------------
+
+test('khong bat cong thanh toan nao o production nem loi (S4)', function () {
+    config(['payments.enabled_gateways' => []]);
+
+    expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
+});
+
+test('cong thanh toan la gia tri kia (khong phai trong allowlist) o production nem loi (S4, T17)', function (string $gateway) {
+    config(['payments.enabled_gateways' => [$gateway]]);
+
+    expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
+})->with(['zalopay', 'vnpay', 'momo-typo', 'stripe']);
+
+test('thieu MOMO_PARTNER_CODE/ACCESS_KEY/SECRET_KEY o production deu nem loi (T17)', function (string $key) {
+    config(["payments.gateways.momo.{$key}" => '']);
+
+    expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
+})->with(['partner_code', 'access_key', 'secret_key']);
+
+// --- R4 (review vòng 2 docs/reviews/review-T17.md): pay_url_hosts ----------
+
+test('MOMO_PAY_URL_HOSTS lan ca host sandbox o production nem loi (R4)', function () {
+    // Giá trị mặc định dùng chung trong .env.example/config/payments.php —
+    // đúng kịch bản "quên override riêng cho production" mà R4 mô tả.
+    config(['payments.gateways.momo.pay_url_hosts' => ['payment.momo.vn', 'test-payment.momo.vn']]);
+
+    expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
+});
+
+test('MOMO_PAY_URL_HOSTS rong o production nem loi (R4)', function () {
+    config(['payments.gateways.momo.pay_url_hosts' => []]);
+
+    expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
+});
+
+test('MOMO_PAY_URL_HOSTS chi co host sandbox o production nem loi (R4)', function () {
+    config(['payments.gateways.momo.pay_url_hosts' => ['test-payment.momo.vn']]);
+
+    expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
+});
+
+test('MOMO_PAY_URL_HOSTS dung chi payment.momo.vn o production thi khong nem loi (R4)', function () {
+    config(['payments.gateways.momo.pay_url_hosts' => ['payment.momo.vn']]);
+
+    expect(fn () => (new ProductionConfigGuard)->check())->not->toThrow(RuntimeException::class);
 });

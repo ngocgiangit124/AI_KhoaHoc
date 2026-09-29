@@ -7,3 +7,4 @@
 - [ADR-004 CSP nonce vs ISR](adr004_csp_nonce_vs_isr.md) — xung đột kiến trúc cần theo dõi ở FW2.
 - [TypeScript 7 vỡ eslint-config-next](typescript7_breaks_eslint.md) — kiểm peer range typescript-eslint trước khi ghim "latest".
 - [Docker container phân giải *.localhost](docker_wildcard_localhost_dns.md) — --network host + --add-host để test với backend thật.
+- [ApiError.retryAfterSeconds & OTP T04](apiclient_retry_after_and_otp_t04.md) — Retry-After giờ có ở mọi 429, dùng làm thông tin phụ, không thay resend_available_at.

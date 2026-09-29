@@ -21,6 +21,11 @@ beforeEach(function () {
         'app.trusted_proxies' => '10.0.0.1,10.0.0.2',
         'payments.enabled_gateways' => ['momo'],
         'payments.gateways.momo.endpoint' => 'https://payment.momo.vn/v2/gateway/api/create',
+        'payments.gateways.momo.partner_code' => 'PARTNER',
+        'payments.gateways.momo.access_key' => 'ACCESS',
+        'payments.gateways.momo.secret_key' => 'SECRET',
+        // T17 R4 — guardMomo() bắt buộc đúng host thật của MoMo ở production.
+        'payments.gateways.momo.pay_url_hosts' => ['payment.momo.vn'],
         'auth.otp.channels' => ['email'],
         // phpunit.xml ép MAIL_MAILER=array cho testing — baseline hợp lệ ở
         // đây phải ghi đè sang 1 driver thật để không tự trượt guardOtpMailer().

@@ -17,6 +17,9 @@ use RuntimeException;
  */
 class ProductionConfigGuard
 {
+    /** @var list<string> */
+    private const KNOWN_GATEWAYS = ['momo'];
+
     public function check(): void
     {
         if (! app()->isProduction()) {
@@ -102,9 +105,15 @@ class ProductionConfigGuard
     }
 
     /**
-     * S4 — cấm cổng thanh toán `fake`/sandbox lọt production (không phân biệt
-     * hoa/thường); endpoint MoMo phải khớp ĐÚNG allowlist (không dùng blocklist
-     * kiểu `str_contains('test-payment')`, dễ bỏ sót biến thể khác).
+     * S4/T17 — ALLOWLIST tường minh cho cổng thanh toán: bất kỳ tên nào KHÔNG
+     * nằm trong `KNOWN_GATEWAYS` đều bị chặn ở production (không riêng gì
+     * `fake` — kể cả tên lạ/gõ sai chính tả), không phân biệt hoa/thường.
+     * `match` không có nhánh `default`: thêm cổng vào `KNOWN_GATEWAYS` mà quên
+     * viết hàm `guard*` tương ứng sẽ ném `\UnhandledMatchError` lúc boot thay
+     * vì âm thầm cho qua (bài học M3 — không có nhánh rơi về an toàn giả).
+     * Endpoint MoMo phải khớp ĐÚNG allowlist scheme+host (không dùng blocklist
+     * kiểu `str_contains('test-payment')`, dễ bỏ sót biến thể khác); phải có
+     * đủ `partner_code`/`access_key`/`secret_key`.
      */
     private function guardPayments(): void
     {
@@ -114,15 +123,26 @@ class ProductionConfigGuard
         );
 
         throw_if(
-            in_array('fake', $gateways, true),
+            $gateways === [],
             RuntimeException::class,
-            'FakeGateway bị cấm ở production (S4).'
+            'Không có cổng thanh toán nào được bật ở production (S4).'
         );
 
-        if (! in_array('momo', $gateways, true)) {
-            return;
-        }
+        foreach ($gateways as $gateway) {
+            throw_unless(
+                in_array($gateway, self::KNOWN_GATEWAYS, true),
+                RuntimeException::class,
+                "Cổng thanh toán '{$gateway}' không nằm trong allowlist production (S4)."
+            );
 
+            match ($gateway) {
+                'momo' => $this->guardMomo(),
+            };
+        }
+    }
+
+    private function guardMomo(): void
+    {
         $endpoint = (string) config('payments.gateways.momo.endpoint');
         $parts = parse_url($endpoint);
         $isAllowedMomoEndpoint = ($parts['scheme'] ?? null) === 'https'
@@ -132,6 +152,31 @@ class ProductionConfigGuard
             ! $isAllowedMomoEndpoint,
             RuntimeException::class,
             'MOMO_ENDPOINT phải đúng https://payment.momo.vn ở production (S4, M4).'
+        );
+
+        foreach (['partner_code', 'access_key', 'secret_key'] as $key) {
+            throw_if(
+                trim((string) config("payments.gateways.momo.{$key}")) === '',
+                RuntimeException::class,
+                "Thiếu cấu hình MOMO_{$key} ở production (S4, T17)."
+            );
+        }
+
+        // R4 (review vòng 2 docs/reviews/review-T17.md) — `pay_url_hosts`
+        // (M1) pin host của `payUrl` MoMo trả về, nhưng giá trị MẶC ĐỊNH
+        // trong `.env.example`/`config/payments.php` gộp CẢ host sandbox
+        // (`test-payment.momo.vn`) để dùng chung 1 default cho mọi môi
+        // trường. Nếu vận hành quên override riêng cho production, ứng dụng
+        // vẫn boot và `MoMoGateway::isTrustedPayUrl()` sẽ chấp nhận cả
+        // `payUrl` trỏ tới host sandbox — thu hẹp nhưng không đóng lỗ hổng
+        // mà M1 định chặn. Bắt buộc ĐÚNG CHỈ 1 phần tử `payment.momo.vn`
+        // (không rỗng, không kèm host nào khác kể cả sandbox).
+        $payUrlHosts = (array) config('payments.gateways.momo.pay_url_hosts', []);
+
+        throw_if(
+            $payUrlHosts !== ['payment.momo.vn'],
+            RuntimeException::class,
+            "MOMO_PAY_URL_HOSTS ở production phải đúng CHỈ 'payment.momo.vn' (không được kèm host sandbox), hiện là: ".implode(',', $payUrlHosts)
         );
     }
 

@@ -1,0 +1,14 @@
+---
+name: feedback-vitaminvui-fw1-otp-ux
+description: FW1 OTP frontend review (2026-09-29) — Retry-After unit formatting gap and scope-boundary lesson for AC checked against not-yet-built pages
+metadata:
+  type: feedback
+---
+
+Reviewed `fw1-otp` worktree (`/xac-thuc-otp`, US-001 AC8/AC9) — **APPROVE**, no BLOCKER, 1 SHOULD.
+
+**Finding pattern (SHOULD): `Retry-After`-seconds → human string helpers need a hour/day tier, not just seconds/minutes.** `otp-verify` in `AppServiceProvider.php` uses `Limit::perDay(20)` (RateLimiter::for('otp-verify')), so a legitimately-triggered 429 on that limiter carries a `Retry-After` that can be up to ~86400 seconds (Laravel computes it as seconds-to-window-reset). A frontend formatter that only branches at 60s (seconds vs minutes) renders that as "khoảng 1440 phút" instead of "khoảng 24 giờ"/"~1 ngày". **Why:** any per-day (or longer) rate limit in this project's `AppServiceProvider` RateLimiter definitions is a signal the corresponding frontend "thử lại sau X" formatter must go through the same value range — check the actual `Limit::perDay/perHour/perMinute` call next to the identity(`->by(...)`) before approving a countdown/format helper, not just skim the unit-test cases (this diff's tests only covered `120s` and `90s`, no case ≥ 3600s, which is exactly how the gap slipped past dev's own tests). **How to apply:** when reviewing any FE code that formats a duration derived from a backend rate-limit/cooldown value, grep the backend `RateLimiter::for(...)` definitions actually reachable by that endpoint and use the largest configured window (not just the smallest/most common case) to sanity-check the formatter's branches.
+
+**Scope-boundary lesson confirmed again (see [[feedback-laravel-conventions]]):** AC9 (block checkout when unverified) was NOT implemented in this diff, and that's correct — `docs/board.md` line 16 explicitly scopes "FW1 phần 2" to `/xac-thuc-otp` only, and `/checkout` (US-005) doesn't exist yet in this repo. Before flagging "AC not covered" as a defect, always check `docs/board.md` for an explicit scope note tied to the branch/task, and confirm the blocking dependency (another page/route) actually exists yet in the codebase.
+
+**Good pattern to keep expecting from `nextjs-dev` on this project:** cross-checking FE assumptions against the *actual* merged backend code (not just api-contract prose) and writing the verification result directly into code comments (e.g. "đối chiếu T04 thật... đúng như giả định ban đầu"). `docs/board.md` had listed exactly these assumptions as open items to verify (line 93) — dev closed all 4 before this review, which is why this round had zero BLOCKER despite being the "final gate before merge" (security postponed to project end per PO decision, see board.md commit `6215281`).

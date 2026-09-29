@@ -18,7 +18,7 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T05 | Một phiên học sinh | Dev | Worktree `.claude/worktrees/t05` từ nhánh chính (đã có T03+T04) | — | 2026-09-29 |
 | T06 | Chuyên đề | Xong (đã gộp) | Gộp vào nhánh chính (3f420ba). Review APPROVE vòng 2. `composer ci` xanh, Pest 264. Chờ QA giai đoạn 2 | — | 2026-09-28 |
 | T07 → T10 | Schema nội dung → danh mục công khai | Xong (đã gộp) | Gộp vào nhánh chính (b5b753b). Review APPROVE, DBA duyệt. `composer ci` nhánh chính xanh, Pest 246. Chờ QA giai đoạn 2 | R1 (PO) trước T13 | 2026-09-28 |
-| T17 | Thanh toán: abstraction + MoMo | Dev sửa sau security | Worktree `.claude/worktrees/t17`, nhánh local `t17`. Review APPROVE; Security PASS có điều kiện (M1 redirect/payUrl host, M2 credential rỗng, L1–L4) → đang sửa hết trong T17. **Gate go-live:** chưa kiểm chứng sandbox MoMo thật (R1) — chạy `php artisan payments:momo:verify-sandbox` khi có key | — | 2026-09-29 |
+| T17 | Thanh toán: abstraction + MoMo | Xong (đã gộp) | Gộp vào nhánh chính. Review APPROVE (2 vòng), Security PASS có điều kiện: M1, M2, L1–L4, R4 đã sửa. **Gate go-live:** kiểm chứng sandbox MoMo thật (R1/R2). `composer ci` xanh 450 test | Gate go-live | 2026-09-29 |
 | T28 | Đăng nhập quản trị | Dev | Worktree `.claude/worktrees/t28` từ nhánh chính. Chặn T08, T24, T33, FA1+ | — | 2026-09-29 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
@@ -154,6 +154,7 @@ Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 202
 - 2026-09-28 · T03, FW1 · Dev + Reviewer (2 vòng) + Security · Review PASS; Security PASS có điều kiện, đã sửa; 192 test backend, 111 test frontend. Cloud: PHP 8.4, không chạy được Larastan (mạng chặn tải phpstan) → chạy `composer ci` trên Docker local trước khi merge main
 - 2026-09-28 · PO · Đổi quy trình: QA theo giai đoạn; chạy song song task độc lập (T04, T06, T07→T10, T17, FW1 phần 2)
 - 2026-09-28 · Orchestrator · Dừng các agent cloud, push nhánh phụ WIP để PO chuyển về local làm tiếp
+- 2026-09-29 · Orchestrator · Gộp T17 vào nhánh chính (sửa test baseline ProductionConfigGuard của T01/T04 cho khớp guard MoMo mới), 450 test xanh
 - 2026-09-29 · Orchestrator · Gộp T04 vào nhánh chính, `composer ci` xanh 339 test. Bắt đầu T05 + T28 song song
 - 2026-09-29 · Orchestrator · CI chạy thêm `tests/Arch` (4cbd935, trước đó bị bỏ qua). T04 security vòng 2 PASS có điều kiện (N1). T17 review APPROVE, security PASS có điều kiện
 - 2026-09-28 · Orchestrator · Gộp T06 vào nhánh chính (3f420ba), `composer ci` xanh 264 test. T04 security PASS có điều kiện (M1, M2 đang sửa)
