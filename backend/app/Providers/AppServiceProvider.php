@@ -133,7 +133,12 @@ class AppServiceProvider extends ServiceProvider
             $this->auditOnceIfDailyLimitReached($request, 'otp-send', $dayRawKey, $maxPerDay);
 
             return [
-                Limit::perMinute(1)->by('otp-send-cooldown:'.$identity),
+                // T04 security review L3 — TRƯỚC ĐÂY cứng `perMinute(1)` (60
+                // giây), lệch khỏi `auth.otp.cooldown_seconds` (nguồn cấu
+                // hình DUY NHẤT mà `OtpService::assertUnderSendLimits()`
+                // dùng) nếu ai đó đổi `AUTH_OTP_COOLDOWN_SECONDS` mà quên sửa
+                // ở đây — 2 lớp cooldown (route + Service) lệch nhau.
+                Limit::perSecond(1, (int) config('auth.otp.cooldown_seconds'))->by('otp-send-cooldown:'.$identity),
                 Limit::perHour((int) config('auth.otp.max_per_hour'))->by('otp-send-hour:'.$identity),
                 Limit::perDay($maxPerDay)->by($dayRawKey),
                 Limit::perHour(30)->by('otp-send-ip:'.$request->ip()),

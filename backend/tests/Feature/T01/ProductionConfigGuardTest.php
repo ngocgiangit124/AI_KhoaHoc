@@ -22,6 +22,10 @@ beforeEach(function () {
         'app.trusted_proxies' => '10.0.0.1,10.0.0.2',
         'payments.enabled_gateways' => ['momo'],
         'payments.gateways.momo.endpoint' => 'https://payment.momo.vn/v2/gateway/api/create',
+        // T04 security review L2 — `guardOtpMailer()` mới thêm cấm
+        // `log`/`array` ở production; phpunit.xml ép MAIL_MAILER=array cho
+        // testing nên baseline "hợp lệ" ở đây phải tự ghi đè sang driver thật.
+        'mail.default' => 'smtp',
     ]);
 });
 

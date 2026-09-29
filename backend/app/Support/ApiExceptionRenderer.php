@@ -53,6 +53,18 @@ class ApiExceptionRenderer
             }
         }
 
+        // T04 security review L3 — `DomainException` không phải
+        // `HttpExceptionInterface` (không đi qua middleware `throttle:`), nên
+        // 429 `TOO_MANY_ATTEMPTS` ném từ tầng Service (`OtpService`) trước đây
+        // KHÔNG có `Retry-After` dù cùng mã lỗi với 429 của `throttle:`. Copy
+        // header tường minh do exception tự khai (không lẫn vào `errors` của
+        // body — xem `DomainException::headers()`).
+        if ($e instanceof DomainException) {
+            foreach ($e->headers() as $name => $value) {
+                $response->headers->set($name, $value);
+            }
+        }
+
         return $response;
     }
 

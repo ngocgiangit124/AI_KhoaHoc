@@ -28,7 +28,18 @@ class OtpCodeFactory extends Factory
             'user_id' => User::factory(),
             'purpose' => OtpPurpose::VerifyAccount,
             'channel' => 'email',
-            'destination' => fake()->safeEmail(),
+            // T04 security review M1 — `verify()` giờ so `destination` với
+            // liên hệ HIỆN TẠI của user (`email`/`phone` tuỳ `channel`), nên
+            // mặc định factory phải KHỚP với user liên kết (qua `->for($user)`
+            // hoặc `user_id` tường minh), thay vì email ngẫu nhiên không liên
+            // quan — nếu không mọi test `verify()` mặc định sẽ luôn thất bại.
+            // Test cố tình kiểm tra "destination không khớp" phải override
+            // tường minh (xem `tests/Feature/T04/OtpServiceTest.php`).
+            'destination' => function (array $attributes) {
+                $user = isset($attributes['user_id']) ? User::find($attributes['user_id']) : null;
+
+                return $user !== null ? $user->email : fake()->safeEmail();
+            },
             'code_hash' => Hash::make(self::PLAIN_CODE),
             'expires_at' => now()->addMinutes((int) config('auth.otp.ttl_minutes')),
             'consumed_at' => null,

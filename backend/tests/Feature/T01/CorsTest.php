@@ -39,3 +39,18 @@ test('preflight tu localhost:3000 toi host admin-api KHONG duoc cho phep', funct
     expect($response->headers->get('Access-Control-Allow-Origin'))
         ->not->toBe('http://localhost:3000');
 });
+
+/**
+ * T04 security review L3 — `Retry-After` (429 của throttle route lẫn
+ * `DomainException TOO_MANY_ATTEMPTS` từ tầng Service) phải nằm trong
+ * `Access-Control-Expose-Headers`, nếu không trình duyệt (fetch/XHR từ
+ * `apps/web`, khác origin) sẽ KHÔNG đọc được header này dù server có trả.
+ */
+test('response tu host api co Access-Control-Expose-Headers chua Retry-After', function () {
+    $response = $this->getJson('http://'.config('app.api_host').'/api/v1/config/public', [
+        'Origin' => config('app.frontend_url'),
+    ]);
+
+    $exposed = (string) $response->headers->get('Access-Control-Expose-Headers');
+    expect($exposed)->toContain('Retry-After');
+});

@@ -63,6 +63,44 @@ test('DomainException tra dung code va status tuy chinh', function () {
     ]);
 });
 
+/**
+ * T04 security review L3 — TRƯỚC ĐÂY `DomainException` (không phải
+ * `HttpExceptionInterface`, không đi qua middleware `throttle:`) không giữ
+ * được header nào cả — 429 `TOO_MANY_ATTEMPTS` ném từ tầng Service (vd
+ * `OtpService`) thiếu hẳn `Retry-After` dù cùng mã lỗi với 429 của route.
+ * `DomainException::headers()` (mới) được `ApiExceptionRenderer` copy y hệt
+ * cách nó copy header của `HttpExceptionInterface` (test `429 TooManyRequests`
+ * ở trên) — không đổi response 429 cũ nào, chỉ THÊM header khi exception tự
+ * khai.
+ */
+test('DomainException tu khai header duoc giu nguyen tren response (T04 L3)', function () {
+    Route::domain(config('app.api_host'))->get('/__test/domain-exception-with-headers', function () {
+        throw new DomainException(
+            code: 'TOO_MANY_ATTEMPTS',
+            message: 'Bạn gửi mã quá nhanh, vui lòng thử lại sau.',
+            status: 429,
+            headers: ['Retry-After' => '42'],
+        );
+    });
+
+    $response = $this->getJson('http://'.config('app.api_host').'/__test/domain-exception-with-headers');
+
+    $response->assertStatus(429);
+    $response->assertJson(['code' => 'TOO_MANY_ATTEMPTS']);
+    expect($response->headers->get('Retry-After'))->toBe('42');
+});
+
+test('DomainException thong thuong (khong khai header) khong bi anh huong (T04 L3)', function () {
+    Route::domain(config('app.api_host'))->get('/__test/domain-exception-no-headers', function () {
+        throw new DomainException('COUPON_INVALID', 'Mã giảm giá không hợp lệ.', 422);
+    });
+
+    $response = $this->getJson('http://'.config('app.api_host').'/__test/domain-exception-no-headers');
+
+    $response->assertStatus(422);
+    expect($response->headers->get('Retry-After'))->toBeNull();
+});
+
 test('405 Method Not Allowed tra dung envelope JSON', function () {
     Route::domain(config('app.api_host'))->get('/__test/only-get', fn () => response()->json(['ok' => true]));
 
