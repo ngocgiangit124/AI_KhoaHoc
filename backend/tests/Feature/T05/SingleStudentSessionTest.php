@@ -36,10 +36,27 @@ function vvMeUrl(): string
  * 3. Cookie phiên gửi lên (nếu request trước đó có gọi `withUnencryptedCookie`)
  *    vẫn còn trong `$this->unencryptedCookies` — gán 1 giá trị KHÔNG giải mã
  *    được để `App\Http\Middleware\EncryptCookies` coi như không có cookie nào.
+ *
+ * (T28 review, đợt sửa theo `docs/reviews/review-T05.md`) — dùng
+ * `app()->resolved('session.store')`, KHÔNG dùng `app()->bound(...)`:
+ * `bound()` chỉ hỏi container có BIẾT CÁCH tạo ra binding đó không (luôn
+ * `true` ngay từ lúc `SessionServiceProvider::register()` chạy, TRƯỚC MỌI
+ * request), nên dùng nó làm điều kiện sẽ luôn ép container RESOLVE (dựng)
+ * `session.store` NGAY LẦN GỌI ĐẦU TIÊN của helper này trong 1 test — tức là
+ * TRƯỚC KHI request thật đầu tiên chạy qua `ConfigureHostContext`/`StartSession`
+ * (nơi quyết định tên cookie đúng theo host: `vv_session` ở host api,
+ * `vv_admin_session` ở host admin-api). `Store` object bị cố định tên cookie
+ * ngay lúc dựng — resolve sớm với cấu hình chưa đúng ngữ cảnh sẽ khoá cứng
+ * SAI tên cho suốt phần đời còn lại của Application trong test đó.
+ * `resolved()` chỉ trả `true` SAU KHI đã có ít nhất 1 lần thực sự resolve
+ * (ở đây là do chính request đăng nhập THẬT đầu tiên trong test kích hoạt,
+ * qua `AuthManager::createSessionDriver()`) — lần gọi ĐẦU TIÊN của helper
+ * trong 1 test luôn thấy `resolved() === false` (không có gì để dọn, đúng ý:
+ * thiết bị đầu tiên không cần "dọn" gì) và KHÔNG tự ý resolve sớm.
  */
 function vvLoginNewDevice(string $login, string $password, ?string $deviceId = null): TestResponse
 {
-    if (app()->bound('session.store')) {
+    if (app()->resolved('session.store')) {
         app('session.store')->flush();
     }
 
@@ -78,11 +95,12 @@ function vvSessionCookie(TestResponse $response): array
  */
 function vvCallAsDevice(TestResponse $loginResponse, string $method, string $url, ?string $deviceId = null): TestResponse
 {
-    // Cùng lý do với `vvLoginNewDevice()` (xem chú thích ở đó) — mỗi "thiết
-    // bị" gọi tiếp phải buộc guard/session đọc lại từ ĐÚNG cookie phiên của
-    // CHÍNH NÓ, không dùng lại dữ liệu đã merge/user đã resolve (cache trên
-    // `Store`/instance guard) từ lệnh gọi trước đó của 1 thiết bị KHÁC.
-    if (app()->bound('session.store')) {
+    // Cùng lý do với `vvLoginNewDevice()` (xem chú thích ở đó, kể cả vì sao
+    // dùng `resolved()` thay vì `bound()`) — mỗi "thiết bị" gọi tiếp phải
+    // buộc guard/session đọc lại từ ĐÚNG cookie phiên của CHÍNH NÓ, không
+    // dùng lại dữ liệu đã merge/user đã resolve (cache trên `Store`/instance
+    // guard) từ lệnh gọi trước đó của 1 thiết bị KHÁC.
+    if (app()->resolved('session.store')) {
         app('session.store')->flush();
     }
 
@@ -99,6 +117,88 @@ function vvCallAsDevice(TestResponse $loginResponse, string $method, string $url
         ->withCredentials()
         ->json($method, $url, [], $headers);
 }
+
+/**
+ * (T28 review, đợt sửa theo `docs/reviews/review-T05.md`) — xác nhận trực
+ * tiếp bằng response THẬT (không chỉ tin `config('session.cookie')` có thể
+ * đã bị 1 lần resolve sớm/sai làm lệch): cookie phiên học sinh trên host api
+ * PHẢI có tên literal `vv_session` (ADR-004 §2.2 — `.env`/`.env.example`
+ * `SESSION_COOKIE=vv_session`), không phải `vv_admin_session` hay giá trị bị
+ * "khoá cứng" từ 1 lần resolve `session.store` không đúng ngữ cảnh.
+ */
+test('cookie phien dang nhap hoc sinh dung ten literal vv_session (khong bi lech host)', function () {
+    User::factory()->create(['email' => 'ten-cookie@example.com', 'password' => Hash::make('matkhau123')]);
+
+    $login = vvLoginNewDevice('ten-cookie@example.com', 'matkhau123');
+    $login->assertOk();
+
+    [$cookieName] = vvSessionCookie($login);
+
+    expect($cookieName)->toBe('vv_session');
+    expect($cookieName)->toBe(config('session.cookie'));
+});
+
+/**
+ * (T28 review, đợt sửa theo `docs/reviews/review-T05.md`) — MỌI test khác
+ * trong file này đi qua đường "phiên cũ đã bị xoá khỏi store" (trường hợp
+ * THƯỜNG GẶP theo ADR-003 — `bind()` của thiết bị mới huỷ session cũ NGAY
+ * trong cùng request), nên `auth:sanctum` tự ném `AuthenticationException`
+ * TRƯỚC KHI kịp chạy tới `EnforceSingleStudentSession` — 401 SESSION_REPLACED
+ * ở các test đó thực chất đến từ `ApiExceptionRenderer` đọc tombstone, KHÔNG
+ * phải middleware. Đã kiểm bằng mutation test thủ công (tạm return $next()
+ * ngay đầu `EnforceSingleStudentSession::handle()`) — toàn bộ 19 test còn lại
+ * VẪN PASS, nghĩa là middleware này chưa từng được test nào ở trên "bắt lỗi"
+ * nếu bị vô hiệu hoá.
+ *
+ * Test này dựng ĐÚNG "cửa sổ race" mà middleware sinh ra để xử lý (ADR-003 —
+ * "Xử lý trường hợp phiên cũ CÒN dữ liệu trong session store"): đổi thẳng
+ * `current_session_id`/`current_device_id` trong DB (mô phỏng 1 thiết bị khác
+ * đã bind() xong) mà KHÔNG đụng gì tới session store của A — session A vẫn
+ * còn nguyên nên `auth:sanctum` xác thực được bình thường, buộc
+ * `EnforceSingleStudentSession` phải là nơi từ chối request.
+ */
+test('EnforceSingleStudentSession tu choi khi phien cu VAN CON trong store nhung current_session_id da doi (cua so race)', function () {
+    $user = User::factory()->create(['email' => 'race-window@example.com', 'password' => Hash::make('matkhau123')]);
+
+    $loginA = vvLoginNewDevice('race-window@example.com', 'matkhau123', 'aaaaaaaa-7000-4700-8700-700000000000');
+    $loginA->assertOk();
+
+    // Đổi THẲNG DB, không gọi bind()/qua HTTP nào — session A trong store
+    // (array handler) không hề bị đụng tới.
+    $user->forceFill([
+        'current_session_id' => 'phien-cua-thiet-bi-khac-gia-lap',
+        'current_device_id' => 'bbbbbbbb-7001-4701-8701-700100000001',
+    ])->save();
+
+    $meFromA = vvCallAsDevice($loginA, 'GET', vvMeUrl(), 'aaaaaaaa-7000-4700-8700-700000000000');
+
+    $meFromA->assertStatus(401);
+    $meFromA->assertJson(['code' => 'SESSION_REPLACED']);
+});
+
+/**
+ * Cùng kịch bản "cửa sổ race" ở trên, nhưng `X-Device-Id` của A khớp
+ * `current_device_id` MỚI trong DB (đăng nhập lại đúng trên CHÍNH thiết bị A,
+ * chưa kịp huỷ session cũ) — middleware phải trả `SESSION_EXPIRED`, không
+ * phải `SESSION_REPLACED` (không báo nhầm "thiết bị khác").
+ */
+test('EnforceSingleStudentSession tra SESSION_EXPIRED (khong phai SESSION_REPLACED) khi cung device_id, phien cu van con trong store', function () {
+    $user = User::factory()->create(['email' => 'race-window-cung-thietbi@example.com', 'password' => Hash::make('matkhau123')]);
+    $deviceId = 'cccccccc-7002-4702-8702-700200000002';
+
+    $loginA = vvLoginNewDevice('race-window-cung-thietbi@example.com', 'matkhau123', $deviceId);
+    $loginA->assertOk();
+
+    $user->forceFill([
+        'current_session_id' => 'phien-moi-cung-thiet-bi-gia-lap',
+        'current_device_id' => $deviceId,
+    ])->save();
+
+    $meFromA = vvCallAsDevice($loginA, 'GET', vvMeUrl(), $deviceId);
+
+    $meFromA->assertStatus(401);
+    $meFromA->assertJson(['code' => 'SESSION_EXPIRED']);
+});
 
 test('A dang nhap roi B dang nhap cung tai khoan: A goi /auth/me nhan 401 SESSION_REPLACED', function () {
     $user = User::factory()->create(['email' => 'a-b@example.com', 'password' => Hash::make('matkhau123')]);

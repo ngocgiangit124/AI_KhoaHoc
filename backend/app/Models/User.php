@@ -68,6 +68,11 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'current_session_id',
+        // R3 (review docs/reviews/review-T05.md) — cùng lý do với
+        // `current_session_id`: tránh lộ qua `toArray()`/`toJson()` mặc định
+        // (vd log debug gọi thẳng `$user->toArray()`), dù UUID thiết bị do
+        // client tự sinh không phải PII trực tiếp.
+        'current_device_id',
         'parent_phone',
         'parent_email',
     ];
