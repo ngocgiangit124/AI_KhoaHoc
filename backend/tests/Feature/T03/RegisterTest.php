@@ -273,3 +273,10 @@ test('dang ky khong co Origin hop le tra 400 ORIGIN_NOT_ALLOWED, khong tao user 
     $response->assertJson(['code' => 'ORIGIN_NOT_ALLOWED']);
     expect(User::query()->where('email', mb_strtolower($payload['email']))->exists())->toBeFalse();
 });
+
+test('email co ky tu khong phai ASCII tra 422 voi thong diep tieng Viet (M2)', function () {
+    $response = vvPostRegister(vvRegisterPayload(['email' => 'ｖictim@example.com']));
+
+    $response->assertStatus(422)
+        ->assertJsonPath('errors.email.0', 'Email chỉ được chứa ký tự không dấu.');
+});

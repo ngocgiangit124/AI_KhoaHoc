@@ -11,6 +11,9 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <testsuite name="Arch">
+            <directory>tests/Arch</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
@@ -45,7 +48,21 @@
         <env name="DB_PORT" value="3306" force="true"/>
         <env name="DB_DATABASE" value="vitaminvui_testing" force="true"/>
         <env name="DB_USERNAME" value="vitaminvui" force="true"/>
-        <env name="DB_PASSWORD" value="secret" force="true"/>
+        <!-- DB_PASSWORD KHÔNG bị ép ở đây (khác mọi biến DB_* khác): từ M6
+             (docs/security/review-T01-T02.md) mật khẩu DB local không còn cố
+             định "secret" — mỗi máy có mật khẩu ngẫu nhiên riêng trong
+             backend/.env (đọc backend/README.md §2.1). Container `php` nạp
+             backend/.env qua `env_file` của docker-compose, tức DB_PASSWORD
+             đã là biến môi trường OS THẬT của tiến trình (có ở cả $_ENV lẫn
+             $_SERVER tự nhiên, không cần <server> đi kèm như các biến do
+             chính PHPUnit gán) trước khi PHPUnit chạy — để trống ở đây thì
+             Laravel dùng đúng mật khẩu thật đó, khớp user MySQL thật (cùng
+             user/mật khẩu, chỉ khác tên database DB_DATABASE ở trên). Trên
+             Claude Code on the web (không Docker), scripts/cloud-setup.sh tạo
+             sẵn backend/.env với DB_PASSWORD=secret và user MySQL
+             vitaminvui/secret khớp nhau — Laravel tự đọc từ .env, không cần
+             phpunit.xml ép giá trị này.
+        -->
         <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
@@ -71,7 +88,7 @@
         <server name="DB_PORT" value="3306" force="true"/>
         <server name="DB_DATABASE" value="vitaminvui_testing" force="true"/>
         <server name="DB_USERNAME" value="vitaminvui" force="true"/>
-        <server name="DB_PASSWORD" value="secret" force="true"/>
+        <!-- DB_PASSWORD cố ý không có ở đây — xem chú thích ở khối <env> phía trên. -->
         <server name="DB_URL" value="" force="true"/>
         <server name="MAIL_MAILER" value="array" force="true"/>
         <server name="QUEUE_CONNECTION" value="sync" force="true"/>

@@ -177,6 +177,17 @@ kiểm chứng thực tế (dump `$_ENV`/`$_SERVER`/`config('app.env')`) trướ
 Nếu sau này thêm biến `.env` mới cần khác giá trị lúc test, nhớ thêm **cả
 2 thẻ** vào `phpunit.xml`.
 
+**Ngoại lệ — `DB_PASSWORD`:** biến này KHÔNG bị ép trong `phpunit.xml` (khác
+mọi biến `DB_*` khác). Từ M6 (`docs/security/review-T01-T02.md`), mật khẩu DB
+local không còn cố định `secret` mà ngẫu nhiên theo từng máy (`backend/.env`,
+xem §2.1). Vì `env_file` đã nạp `backend/.env` thành biến môi trường OS thật
+của container `php` trước khi PHPUnit chạy, để trống `DB_PASSWORD` trong
+`phpunit.xml` khiến test dùng đúng mật khẩu thật đó — khớp với user MySQL
+thật, chỉ khác tên database (`DB_DATABASE=vitaminvui_testing` vẫn bị ép như
+thường). Trên Claude Code on the web (không Docker), `scripts/cloud-setup.sh`
+tự đặt `backend/.env` với `DB_PASSWORD=secret` và tạo user MySQL
+`vitaminvui/secret` khớp nhau, nên vẫn chạy được mà không cần ép giá trị này.
+
 RefreshDatabase (Pest, bật ở `tests/Pest.php`) bọc mỗi test Feature trong 1
 transaction rồi rollback — DB test không tích luỹ dữ liệu giữa các lần chạy.
 
@@ -287,7 +298,11 @@ Compose). Nhóm chính:
   bắt buộc `admin.origin` + `auth:sanctum` + `role`/`can:access-admin-area`
   (`RouteMiddlewareGroupsTest`).
 - `tests/Arch/*`: cấm `$guarded = []` trên mọi Model; cấm `$request->all()`
-  trong Controllers.
+  trong Controllers; cấm gọi thật `createToken(` trong `app/` (S24) — quét
+  bằng `token_get_all()` bỏ qua T_COMMENT/T_DOC_COMMENT nên không bắt nhầm
+  chuỗi này khi chỉ xuất hiện trong comment/docblock. `phpunit.xml` khai
+  testsuite riêng `Arch` (directory `tests/Arch`) — không có testsuite này thì
+  `vendor/bin/pest`/`composer ci` bỏ qua toàn bộ `tests/Arch`.
 
 ## 9. Đã sửa theo review bảo mật + QA (2026-09-28)
 

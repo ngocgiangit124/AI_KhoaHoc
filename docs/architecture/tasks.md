@@ -277,6 +277,7 @@ Cài ở task sau:
   - Sanctum `AuthenticateSession` cho host admin-api.
   - Audit `staff.login*` (S15, S6).
   - Test: gọi admin-api với Origin web → 403; HS đăng nhập admin → `WRONG_PORTAL`; idle quá hạn → 401 `STAFF_IDLE_TIMEOUT`; đổi mật khẩu đăng xuất phiên khác.
+  - Quyết định PO 2026-09-28 (L2, `docs/security/review-T03-FW1.md`): staff đăng nhập đúng mật khẩu ở host học sinh nhận `WRONG_PORTAL` và web điều hướng sang trang quản trị. Architect chốt cách web biết URL trang quản trị (biến môi trường hay trường mới trong response lỗi — thêm trường là thay đổi tương thích v1).
 
 ## Giai đoạn 2 — Nội dung & danh mục (US-011, US-009, US-002, US-003)
 *Song song Giai đoạn 1 sau T02.*

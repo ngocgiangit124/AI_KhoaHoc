@@ -134,6 +134,20 @@ return [
         'max_verify_per_minute' => (int) env('AUTH_OTP_MAX_VERIFY_PER_MINUTE', 5),
         'max_verify_per_day' => (int) env('AUTH_OTP_MAX_VERIFY_PER_DAY', 20),
         'max_attempts_per_code' => (int) env('AUTH_OTP_MAX_ATTEMPTS_PER_CODE', 5),
+        // T04 security review L1 — trần THEO ĐỊA CHỈ NHẬN (không chỉ theo
+        // user): nhiều tài khoản lần lượt đổi sang CÙNG 1 địa chỉ CHƯA đăng
+        // ký vẫn có thể dồn mã tới cùng 1 hộp thư/SĐT theo thời gian nếu chỉ
+        // giới hạn theo user (`OtpService::assertUnderDestinationLimit()`).
+        // Đặt CAO HƠN `max_per_hour`/`max_per_day` ở trên (không dùng đúng ví
+        // dụ 3/giờ, 10/ngày trong báo cáo security): trần theo đích tính
+        // GỘP cho MỌI user cùng gửi tới 1 địa chỉ trong cùng cửa sổ — nếu đặt
+        // bằng hoặc thấp hơn trần theo user, ngay cả 1 user hợp lệ tự gửi lại
+        // OTP cho chính mình (không có ai khác tham gia) cũng chạm trần theo
+        // đích TRƯỚC KHI chạm trần theo user, biến "5 lần/giờ" quảng cáo cho
+        // 1 tài khoản thành ảo. Đặt gấp đôi để lớp này chỉ có tác dụng khi
+        // TỪ 2 tài khoản trở lên cùng nhắm 1 địa chỉ trong cùng cửa sổ.
+        'max_per_hour_per_destination' => (int) env('AUTH_OTP_MAX_PER_HOUR_PER_DESTINATION', 10),
+        'max_per_day_per_destination' => (int) env('AUTH_OTP_MAX_PER_DAY_PER_DESTINATION', 20),
     ],
 
 ];

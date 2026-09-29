@@ -13,6 +13,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * mới trả bản đã che).
  *
  * @property-read User $resource
+ *
+ * @mixin User
  */
 class UserResource extends JsonResource
 {

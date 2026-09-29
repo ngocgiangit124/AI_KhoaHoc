@@ -16,6 +16,14 @@ use Throwable;
  */
 class ApiExceptionRenderer
 {
+    /**
+     * T04 security review (Info, vòng 2) — allowlist header được phép copy từ
+     * `DomainException::headers()` (xem `render()`).
+     *
+     * @var list<string>
+     */
+    private const ALLOWED_DOMAIN_EXCEPTION_HEADERS = ['Retry-After'];
+
     public static function shouldHandle(Request $request): bool
     {
         return $request->is('api/*') || $request->expectsJson();
@@ -50,6 +58,28 @@ class ApiExceptionRenderer
         if ($e instanceof HttpExceptionInterface) {
             foreach ($e->getHeaders() as $name => $value) {
                 $response->headers->set($name, $value);
+            }
+        }
+
+        // T04 security review L3 — `DomainException` không phải
+        // `HttpExceptionInterface` (không đi qua middleware `throttle:`), nên
+        // 429 `TOO_MANY_ATTEMPTS` ném từ tầng Service (`OtpService`) trước đây
+        // KHÔNG có `Retry-After` dù cùng mã lỗi với 429 của `throttle:`. Copy
+        // header tường minh do exception tự khai (không lẫn vào `errors` của
+        // body — xem `DomainException::headers()`).
+        //
+        // T04 security review (Info, vòng 2) — chỉ copy header nằm trong
+        // ALLOWLIST cố định, không copy nguyên `headers()` dù hiện tại không
+        // có đường nào đưa dữ liệu request vào tên/giá trị header (chỉ
+        // `OtpService::tooManySendException()` gọi, giá trị luôn là số
+        // nguyên). Phòng xa: sau này thêm `DomainException` khác có gọi
+        // `headers()` với dữ liệu không kiểm soát cũng không tự động lọt qua
+        // renderer chung này.
+        if ($e instanceof DomainException) {
+            foreach ($e->headers() as $name => $value) {
+                if (in_array($name, self::ALLOWED_DOMAIN_EXCEPTION_HEADERS, true)) {
+                    $response->headers->set($name, $value);
+                }
             }
         }
 
