@@ -61,3 +61,37 @@ it('FakeGateway không bao giờ boot ngoài local/testing dù nằm trong allow
 
     paymentGatewayManager()->driver('fake');
 })->throws(RuntimeException::class);
+
+/**
+ * M2 (review bảo mật T17) — fail-closed ở MỌI môi trường, không chỉ
+ * production: thiếu 1 trong 4 khoá cấu hình MoMo (rỗng hoặc chỉ có khoảng
+ * trắng) phải chặn việc resolve adapter, KHÔNG được để `MoMoSigner` ký/verify
+ * bằng `secretKey=''` (ai cũng tính lại được).
+ */
+it('ném lỗi khi thiếu bất kỳ khoá cấu hình MoMo nào (rỗng hoặc chỉ khoảng trắng) (M2)', function (string $emptyKey, string $emptyValue) {
+    $config = [
+        'partner_code' => 'PARTNER',
+        'access_key' => 'ACCESS',
+        'secret_key' => 'SECRET',
+        'endpoint' => 'https://test-payment.momo.vn',
+        'request_type' => 'captureWallet',
+    ];
+
+    $config[$emptyKey] = $emptyValue;
+
+    config([
+        'payments.enabled_gateways' => ['momo'],
+        'payments.gateways.momo' => $config,
+    ]);
+
+    paymentGatewayManager()->driver('momo');
+})->with([
+    ['partner_code', ''],
+    ['partner_code', '   '],
+    ['access_key', ''],
+    ['access_key', '   '],
+    ['secret_key', ''],
+    ['secret_key', '   '],
+    ['endpoint', ''],
+    ['endpoint', '   '],
+])->throws(RuntimeException::class);

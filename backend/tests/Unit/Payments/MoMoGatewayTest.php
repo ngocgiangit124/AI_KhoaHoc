@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
 /**
- * @return array{partner_code: string, access_key: string, secret_key: string, endpoint: string, request_type: string}
+ * @return array{partner_code: string, access_key: string, secret_key: string, endpoint: string, request_type: string, pay_url_hosts: list<string>}
  */
 function momoTestConfig(): array
 {
@@ -22,12 +22,31 @@ function momoTestConfig(): array
         'secret_key' => 'testSecretKey',
         'endpoint' => 'https://test-payment.momo.vn',
         'request_type' => 'captureWallet',
+        'pay_url_hosts' => ['test-payment.momo.vn'],
     ];
 }
 
 function momoGateway(): MoMoGateway
 {
     return new MoMoGateway(momoTestConfig(), new MoMoSigner);
+}
+
+/**
+ * L2 (review bảo mật T17) — `MoMoGateway::parseNotification()` chỉ đọc body
+ * JSON (`$request->json()`), giống IPN thật của MoMo. Dựng request bằng
+ * `content` (JSON string) + header `CONTENT_TYPE: application/json`, KHÔNG
+ * dùng `$parameters` (form fields) của `Request::create()`.
+ *
+ * @param  array<string, mixed>  $payload
+ */
+function jsonPostRequest(string $uri, array $payload): Request
+{
+    return Request::create(
+        $uri,
+        'POST',
+        server: ['CONTENT_TYPE' => 'application/json'],
+        content: json_encode($payload),
+    );
 }
 
 /**
@@ -214,10 +233,58 @@ it('createPayment ném GatewayUnavailableException khi MoMo trả 5xx', function
     ));
 })->throws(GatewayUnavailableException::class);
 
+it('createPayment ném GatewayUnavailableException khi endpoint trả redirect (307), không theo redirect (M1)', function () {
+    Http::fake([
+        'test-payment.momo.vn/*' => Http::response('', 307, ['Location' => 'https://evil.example/steal']),
+    ]);
+
+    try {
+        momoGateway()->createPayment(new PaymentRequest(
+            gatewayOrderId: 'ORDER1-1',
+            requestId: 'REQ-1',
+            amount: 100000,
+            description: 'Thanh toan don hang ORDER1',
+            returnUrl: 'https://vitaminvui.test/return',
+            notifyUrl: 'https://api.vitaminvui.test/webhooks/payments/momo',
+        ));
+
+        expect(false)->toBeTrue('Phải ném GatewayUnavailableException');
+    } catch (GatewayUnavailableException) {
+        // Không theo redirect: chỉ đúng 1 request được gửi đi (không có
+        // request thứ 2 tới `evil.example`).
+        Http::assertSentCount(1);
+    }
+});
+
+it('createPayment ném GatewayUnavailableException khi payUrl không thuộc allowlist host (M1)', function (string $payUrl) {
+    Http::fake([
+        'test-payment.momo.vn/*' => Http::response([
+            'partnerCode' => momoTestConfig()['partner_code'],
+            'orderId' => 'ORDER1-1',
+            'requestId' => 'REQ-1',
+            'resultCode' => 0,
+            'payUrl' => $payUrl,
+        ], 200),
+    ]);
+
+    momoGateway()->createPayment(new PaymentRequest(
+        gatewayOrderId: 'ORDER1-1',
+        requestId: 'REQ-1',
+        amount: 100000,
+        description: 'Thanh toan don hang ORDER1',
+        returnUrl: 'https://vitaminvui.test/return',
+        notifyUrl: 'https://api.vitaminvui.test/webhooks/payments/momo',
+    ));
+})->with([
+    'host lạ hoàn toàn' => ['https://evil.example/pay'],
+    'sai scheme (http)' => ['http://test-payment.momo.vn/pay/abc'],
+    'host giả mạo bằng subdomain' => ['https://test-payment.momo.vn.evil.com/pay'],
+])->throws(GatewayUnavailableException::class);
+
 // --- parseNotification ---------------------------------------------------
 
 it('parseNotification trả GatewayNotification Succeeded khi resultCode=0 và chữ ký hợp lệ', function () {
-    $request = Request::create('/webhooks/payments/momo', 'POST', signedIpnPayload());
+    $request = jsonPostRequest('/webhooks/payments/momo', signedIpnPayload());
 
     $notification = momoGateway()->parseNotification($request);
 
@@ -228,7 +295,7 @@ it('parseNotification trả GatewayNotification Succeeded khi resultCode=0 và c
 });
 
 it('parseNotification ánh xạ resultCode 9000 sang Pending, không bao giờ Succeeded', function () {
-    $request = Request::create('/webhooks/payments/momo', 'POST', signedIpnPayload(['resultCode' => '9000']));
+    $request = jsonPostRequest('/webhooks/payments/momo', signedIpnPayload(['resultCode' => '9000']));
 
     expect(momoGateway()->parseNotification($request)->status)->toBe(PaymentStatus::Pending);
 });
@@ -237,27 +304,69 @@ it('parseNotification từ chối khi chữ ký sai', function () {
     $payload = signedIpnPayload();
     $payload['signature'] = 'chu-ky-gia';
 
-    momoGateway()->parseNotification(Request::create('/webhooks/payments/momo', 'POST', $payload));
+    momoGateway()->parseNotification(jsonPostRequest('/webhooks/payments/momo', $payload));
 })->throws(InvalidSignatureException::class);
 
 it('parseNotification từ chối khi thiếu trường bắt buộc', function () {
     $payload = signedIpnPayload();
     unset($payload['transId']);
 
-    momoGateway()->parseNotification(Request::create('/webhooks/payments/momo', 'POST', $payload));
+    momoGateway()->parseNotification(jsonPostRequest('/webhooks/payments/momo', $payload));
 })->throws(InvalidSignatureException::class);
 
 it('parseNotification từ chối khi partnerCode không khớp cấu hình', function () {
     $payload = signedIpnPayload(['partnerCode' => 'PARTNER-KHAC']);
 
-    momoGateway()->parseNotification(Request::create('/webhooks/payments/momo', 'POST', $payload));
+    momoGateway()->parseNotification(jsonPostRequest('/webhooks/payments/momo', $payload));
 })->throws(InvalidSignatureException::class);
 
 it('parseNotification từ chối amount không nghiêm ngặt dù chữ ký hợp lệ', function (string $amount) {
     $payload = signedIpnPayload(['amount' => $amount]);
 
-    momoGateway()->parseNotification(Request::create('/webhooks/payments/momo', 'POST', $payload));
+    momoGateway()->parseNotification(jsonPostRequest('/webhooks/payments/momo', $payload));
 })->with(['100000.0', '1e5', '-100000'])->throws(InvalidSignatureException::class);
+
+it('parseNotification từ chối khi 1 trường bắt buộc không phải scalar (mảng/bool/object JSON) (L1)', function (string $field, mixed $value) {
+    // Ghi đè SAU KHI đã ký bằng giá trị hợp lệ — không quan trọng vì kiểm
+    // scalar chạy TRƯỚC verify chữ ký (nếu không sẽ tự thất bại ở bước khác).
+    $payload = signedIpnPayload();
+    $payload[$field] = $value;
+
+    momoGateway()->parseNotification(jsonPostRequest('/webhooks/payments/momo', $payload));
+})->with([
+    'message là mảng' => ['message', ['a']],
+    'orderId là bool' => ['orderId', true],
+    'resultCode là object JSON (mảng liên kết)' => ['resultCode', ['code' => 0]],
+    'extraData là mảng' => ['extraData', ['x' => 1]],
+])->throws(InvalidSignatureException::class);
+
+it('parseNotification: raw chỉ giữ trường đã biết, không lọt trường lạ dù chữ ký hợp lệ (L2)', function () {
+    $payload = signedIpnPayload();
+    $payload['injected'] = 'hack';
+    $payload['another_unexpected'] = ['nested' => true];
+
+    $notification = momoGateway()->parseNotification(jsonPostRequest('/webhooks/payments/momo', $payload));
+
+    $knownFields = [
+        'orderId', 'requestId', 'amount', 'orderInfo', 'orderType',
+        'partnerCode', 'payType', 'responseTime', 'resultCode',
+        'transId', 'message', 'extraData',
+    ];
+
+    expect(array_diff(array_keys($notification->raw), $knownFields))->toBe([])
+        ->and($notification->raw)->not->toHaveKey('injected')
+        ->and($notification->raw)->not->toHaveKey('another_unexpected')
+        ->and($notification->raw)->not->toHaveKey('signature');
+});
+
+it('parseNotification bỏ qua tham số trên query string, chỉ đọc body JSON (L2)', function () {
+    $request = jsonPostRequest('/webhooks/payments/momo?qs_injected=1&orderId=BI-GHI-DE', signedIpnPayload());
+
+    $notification = momoGateway()->parseNotification($request);
+
+    expect($notification->raw)->not->toHaveKey('qs_injected')
+        ->and($notification->gatewayOrderId)->toBe('ORDER1-1');
+});
 
 // --- queryStatus -----------------------------------------------------
 
@@ -351,6 +460,60 @@ it('queryStatus từ chối khi phản hồi không có/sai chữ ký', function
 
     momoGateway()->queryStatus(new PaymentAttemptReference('ORDER1-1', 'REQ-1', 100000));
 })->throws(InvalidSignatureException::class);
+
+it('queryStatus từ chối khi phản hồi có trường không phải scalar (mảng/bool) (L1)', function () {
+    Http::fake([
+        'test-payment.momo.vn/*' => Http::response([
+            'orderId' => 'ORDER1-1',
+            'partnerCode' => momoTestConfig()['partner_code'],
+            'resultCode' => '0',
+            'amount' => '100000',
+            'message' => ['unexpected-array'],
+            'signature' => 'irrelevant-vi-loi-o-buoc-kiem-scalar',
+        ], 200),
+    ]);
+
+    momoGateway()->queryStatus(new PaymentAttemptReference('ORDER1-1', 'REQ-1', 100000));
+})->throws(InvalidSignatureException::class);
+
+it('queryStatus: raw chỉ giữ trường đã biết, không lọt trường lạ (L2)', function () {
+    $config = momoTestConfig();
+    $signer = new MoMoSigner;
+
+    $responseBody = [
+        'amount' => '100000',
+        'extraData' => '',
+        'message' => 'Successful.',
+        'orderId' => 'ORDER1-1',
+        'orderInfo' => 'Thanh toan don hang ORDER1',
+        'orderType' => 'momo_wallet',
+        'partnerCode' => $config['partner_code'],
+        'payType' => 'qr',
+        'responseTime' => '1700000000000',
+        'resultCode' => '0',
+        'transId' => '999999',
+    ];
+
+    $signedFields = array_merge(['accessKey' => $config['access_key']], $responseBody);
+
+    Http::fake(function (Illuminate\Http\Client\Request $request) use ($responseBody, $signedFields, $signer, $config) {
+        $sentRequestId = (string) $request->data()['requestId'];
+        $body = array_merge($responseBody, ['requestId' => $sentRequestId, 'injected' => 'hack']);
+        $fields = array_merge($signedFields, ['requestId' => $sentRequestId]);
+        $body['signature'] = $signer->sign($fields, $config['secret_key']);
+
+        return Http::response($body, 200);
+    });
+
+    $notification = momoGateway()->queryStatus(new PaymentAttemptReference(
+        gatewayOrderId: 'ORDER1-1',
+        requestId: 'ignored-original-request-id',
+        amount: 100000,
+    ));
+
+    expect($notification->raw)->not->toHaveKey('injected')
+        ->and($notification->raw)->not->toHaveKey('signature');
+});
 
 it('queryStatus ném GatewayUnavailableException khi lỗi mạng', function () {
     Http::fake(function () {

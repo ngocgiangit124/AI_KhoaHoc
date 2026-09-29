@@ -29,7 +29,34 @@ use Illuminate\Support\Str;
 final class MoMoGateway implements PaymentGateway
 {
     /**
-     * @param  array{partner_code?: ?string, access_key?: ?string, secret_key?: ?string, endpoint?: ?string, request_type?: ?string}  $config
+     * Danh sách trường của IPN (S12.4/L2 — review bảo mật T17): CHỈ những
+     * trường này được giữ lại trong `GatewayNotification::$raw` (bỏ
+     * `signature` — đã có ở `$required` khi kiểm đủ trường, nhưng không phải
+     * dữ liệu nghiệp vụ nên không liệt kê ở đây). Chặn kịch bản nhồi thêm
+     * khoá lạ/tham số query string vào bản ghi audit (`payment_webhook_events`)
+     * dù chữ ký của các trường đã biết vẫn hợp lệ.
+     *
+     * @var list<string>
+     */
+    private const IPN_KNOWN_FIELDS = [
+        'orderId', 'requestId', 'amount', 'orderInfo', 'orderType',
+        'partnerCode', 'payType', 'responseTime', 'resultCode',
+        'transId', 'message', 'extraData',
+    ];
+
+    /**
+     * Cùng ý nghĩa với {@see self::IPN_KNOWN_FIELDS} nhưng cho phản hồi
+     * `query` (S12.4/L2).
+     *
+     * @var list<string>
+     */
+    private const QUERY_RESPONSE_KNOWN_FIELDS = [
+        'amount', 'extraData', 'message', 'orderId', 'orderInfo', 'orderType',
+        'partnerCode', 'payType', 'requestId', 'responseTime', 'resultCode', 'transId',
+    ];
+
+    /**
+     * @param  array{partner_code?: ?string, access_key?: ?string, secret_key?: ?string, endpoint?: ?string, request_type?: ?string, pay_url_hosts?: list<string>}  $config
      */
     public function __construct(
         private readonly array $config,
@@ -79,6 +106,20 @@ final class MoMoGateway implements PaymentGateway
 
         $body = $this->post('/v2/gateway/api/create', $payload, 'create', $request->requestId);
 
+        // L1 (review bảo mật T17) — kiểm scalar TRƯỚC khi ép (string), tránh
+        // `ErrorException: Array to string conversion` nếu MoMo (hoặc 1 host
+        // giả) trả về mảng/object thay vì chuỗi cho các trường này.
+        foreach (['partnerCode', 'orderId', 'requestId', 'resultCode', 'payUrl'] as $field) {
+            if (array_key_exists($field, $body) && ! is_string($body[$field]) && ! is_int($body[$field])) {
+                Log::channel('payments')->warning('momo.create.invalid_field_type', [
+                    'request_id' => $request->requestId,
+                    'field' => $field,
+                ]);
+
+                throw new GatewayUnavailableException('Phản hồi tạo giao dịch MoMo không hợp lệ.');
+            }
+        }
+
         if (
             (string) ($body['partnerCode'] ?? '') !== (string) $this->config['partner_code']
             || (string) ($body['orderId'] ?? '') !== $request->gatewayOrderId
@@ -105,8 +146,19 @@ final class MoMoGateway implements PaymentGateway
 
         $payUrl = (string) ($body['payUrl'] ?? '');
 
-        if ($payUrl === '' || ! str_starts_with($payUrl, 'https://')) {
-            throw new GatewayUnavailableException('Phản hồi tạo giao dịch MoMo thiếu payUrl hợp lệ.');
+        // M1 (review bảo mật T17) — không chỉ kiểm tiền tố `https://`: pin
+        // đúng HOST của `payUrl` theo allowlist cấu hình (mặc định 2 host
+        // thật của MoMo). Không có allowlist này, một phản hồi hợp lệ về mặt
+        // `partnerCode`/`orderId`/`requestId` (3 giá trị này client tự gửi
+        // lên, host nhận redirect/MITM tầng hạ tầng biết sẵn) nhưng có
+        // `payUrl` trỏ tới domain lừa đảo vẫn được chấp nhận và đưa người
+        // dùng thật tới đó.
+        if ($payUrl === '' || ! $this->isTrustedPayUrl($payUrl)) {
+            Log::channel('payments')->warning('momo.create.untrusted_pay_url', [
+                'request_id' => $request->requestId,
+            ]);
+
+            throw new GatewayUnavailableException('Phản hồi tạo giao dịch MoMo có payUrl không hợp lệ.');
         }
 
         return new PaymentInitResult(
@@ -118,7 +170,13 @@ final class MoMoGateway implements PaymentGateway
 
     public function parseNotification(Request $request): GatewayNotification
     {
-        $payload = $request->all();
+        // L2 (review bảo mật T17) — CHỈ đọc body JSON (`$request->json()`),
+        // KHÔNG dùng `$request->all()`: hàm đó luôn gộp thêm query string
+        // (`$this->query->all()`) vào kết quả BẤT KỂ Content-Type, nên nếu
+        // dùng để dựng `GatewayNotification::$raw` sẽ vô tình lưu cả tham số
+        // trên URL (không nằm trong chữ ký) như thể là dữ liệu đã xác thực.
+        // IPN thật của MoMo là JSON POST.
+        $payload = $request->json()->all();
 
         $required = [
             'orderId', 'requestId', 'amount', 'orderInfo', 'orderType',
@@ -131,6 +189,21 @@ final class MoMoGateway implements PaymentGateway
                 Log::channel('payments')->warning('momo.ipn.missing_field', ['field' => $field]);
 
                 throw new InvalidSignatureException('Thiếu trường bắt buộc trong IPN.');
+            }
+        }
+
+        // L1 (review bảo mật T17) — kiểm scalar TRƯỚC KHI verify chữ ký/ép
+        // (string): payload JSON có thể chứa mảng/object cho bất kỳ trường
+        // nào (vd `"message": ["a"]`), ép `(string)` trên giá trị đó gây
+        // `ErrorException: Array to string conversion` (500) thay vì 400, và
+        // dữ liệu chưa xác thực không cần thiết phải làm crash tiến trình.
+        // `extraData` không nằm trong `$required` (có mặc định `''`) nên
+        // kiểm riêng khi có mặt.
+        foreach ([...$required, 'extraData'] as $field) {
+            if (array_key_exists($field, $payload) && ! is_string($payload[$field]) && ! is_int($payload[$field])) {
+                Log::channel('payments')->warning('momo.ipn.invalid_field_type', ['field' => $field]);
+
+                throw new InvalidSignatureException('Trường IPN không hợp lệ.');
             }
         }
 
@@ -185,7 +258,14 @@ final class MoMoGateway implements PaymentGateway
             status: MoMoResultCode::toStatus((string) $payload['resultCode']),
             resultCode: (string) $payload['resultCode'],
             message: (string) $payload['message'],
-            raw: $this->withoutSecrets($payload),
+            // L2 (review bảo mật T17) — CHỈ giữ trường đã biết/đã ký
+            // (`self::IPN_KNOWN_FIELDS`), KHÔNG dump nguyên `$payload`: chữ
+            // ký chỉ phủ các trường trong danh sách này, nên bên gửi có thể
+            // nhồi thêm khoá lạ (hoặc query string bị `$request->all()` gộp
+            // vào) mà chữ ký vẫn hợp lệ — nếu lưu nguyên `$payload` vào
+            // `payment_webhook_events.payload` (T19), dữ liệu chưa xác thực
+            // đó sẽ bị coi như đã tin cậy (S12.4).
+            raw: array_intersect_key($payload, array_flip(self::IPN_KNOWN_FIELDS)),
         );
     }
 
@@ -220,6 +300,19 @@ final class MoMoGateway implements PaymentGateway
         ];
 
         $body = $this->post('/v2/gateway/api/query', $payload, 'query', $requestId);
+
+        // L1 (review bảo mật T17) — kiểm scalar TRƯỚC KHI ép (string), cùng
+        // lý do với `parseNotification()`.
+        foreach ([...self::QUERY_RESPONSE_KNOWN_FIELDS, 'signature'] as $field) {
+            if (array_key_exists($field, $body) && ! is_string($body[$field]) && ! is_int($body[$field])) {
+                Log::channel('payments')->warning('momo.query.invalid_field_type', [
+                    'gateway_order_id' => $attempt->gatewayOrderId,
+                    'field' => $field,
+                ]);
+
+                throw new InvalidSignatureException('Trường phản hồi query không hợp lệ.');
+            }
+        }
 
         $responseSignedFields = [
             'accessKey' => (string) $this->config['access_key'],
@@ -271,7 +364,8 @@ final class MoMoGateway implements PaymentGateway
             status: MoMoResultCode::toStatus((string) ($body['resultCode'] ?? '')),
             resultCode: (string) ($body['resultCode'] ?? ''),
             message: (string) ($body['message'] ?? ''),
-            raw: $this->withoutSecrets($body),
+            // L2 (review bảo mật T17) — xem giải thích ở `parseNotification()`.
+            raw: array_intersect_key($body, array_flip(self::QUERY_RESPONSE_KNOWN_FIELDS)),
         );
     }
 
@@ -296,6 +390,21 @@ final class MoMoGateway implements PaymentGateway
             ]);
 
             throw new GatewayUnavailableException(previous: $e);
+        }
+
+        // M1 (review bảo mật T17) — `client()` đã tắt theo redirect tự động
+        // (`withoutRedirecting()`), nhưng vẫn kiểm tường minh ở đây: Guzzle
+        // trả thẳng response 3xx thay vì theo redirect. Bất kỳ 3xx nào từ
+        // cổng thanh toán đều bị coi là lỗi (không có API MoMo v2 nào hợp lệ
+        // trả 3xx) — không bao giờ cho phép ứng dụng tự ý theo redirect sang
+        // một host khác khi đang gọi cổng thanh toán.
+        if ($response->redirect()) {
+            Log::channel('payments')->warning('momo.'.$operation.'.unexpected_redirect', [
+                'request_id' => $requestId,
+                'status' => $response->status(),
+            ]);
+
+            throw new GatewayUnavailableException('Phản hồi cổng thanh toán là redirect không hợp lệ.');
         }
 
         if ($response->serverError() || $response->status() >= 500) {
@@ -329,14 +438,41 @@ final class MoMoGateway implements PaymentGateway
     /**
      * `Http::timeout(10)->connectTimeout(5)`, không retry tự động (ADR-001 §2 —
      * tránh tạo 2 giao dịch); luôn verify TLS (không `withoutVerifying()`).
+     * `withoutRedirecting()` (M1, review bảo mật T17) — không bao giờ tự
+     * theo 3xx: mặc định Guzzle theo tối đa 5 redirect (kể cả sang `http://`
+     * hay host khác) và với 307/308 còn gửi lại NGUYÊN body POST (có
+     * `accessKey`, `partnerCode`, `signature`) tới host đó.
      */
     private function client(string $endpoint): PendingRequest
     {
         return Http::baseUrl($endpoint)
+            ->withoutRedirecting()
             ->timeout(10)
             ->connectTimeout(5)
             ->acceptJson()
             ->asJson();
+    }
+
+    /**
+     * M1 (review bảo mật T17) — `payUrl` chỉ được chấp nhận khi `https://`
+     * VÀ host nằm đúng trong allowlist cấu hình (`payments.gateways.momo.pay_url_hosts`,
+     * mặc định 2 host thật của MoMo). Không dùng `str_contains`/tiền tố —
+     * so khớp CHÍNH XÁC host sau khi `parse_url()` để không lọt các biến thể
+     * kiểu `payment.momo.vn.evil.com` hay `evil.com#payment.momo.vn`.
+     */
+    private function isTrustedPayUrl(string $payUrl): bool
+    {
+        $scheme = parse_url($payUrl, PHP_URL_SCHEME);
+        $host = parse_url($payUrl, PHP_URL_HOST);
+
+        if ($scheme !== 'https' || $host === null || $host === '') {
+            return false;
+        }
+
+        /** @var list<string> $allowedHosts */
+        $allowedHosts = (array) ($this->config['pay_url_hosts'] ?? []);
+
+        return in_array($host, $allowedHosts, true);
     }
 
     /**

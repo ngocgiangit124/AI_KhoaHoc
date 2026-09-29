@@ -26,6 +26,13 @@ final class FakeGateway implements PaymentGateway
 {
     private const SECRET = 'fake-gateway-secret';
 
+    /**
+     * Cùng ý nghĩa với `MoMoGateway::IPN_KNOWN_FIELDS` (L2, review bảo mật T17).
+     *
+     * @var list<string>
+     */
+    private const NOTIFICATION_KNOWN_FIELDS = ['orderId', 'requestId', 'amount', 'status', 'transId'];
+
     public function code(): string
     {
         return 'fake';
@@ -46,11 +53,21 @@ final class FakeGateway implements PaymentGateway
 
     public function parseNotification(Request $request): GatewayNotification
     {
-        $payload = $request->all();
+        // L2 (review bảo mật T17) — chỉ đọc body JSON, giống `MoMoGateway`.
+        $payload = $request->json()->all();
 
-        foreach (['orderId', 'requestId', 'amount', 'status', 'signature'] as $field) {
+        $required = ['orderId', 'requestId', 'amount', 'status', 'signature'];
+
+        foreach ($required as $field) {
             if (! array_key_exists($field, $payload)) {
                 throw new InvalidSignatureException;
+            }
+        }
+
+        // L1 (review bảo mật T17) — kiểm scalar trước khi tin/ép kiểu.
+        foreach ($required as $field) {
+            if (! is_string($payload[$field]) && ! is_int($payload[$field])) {
+                throw new InvalidSignatureException('Trường IPN không hợp lệ.');
             }
         }
 
@@ -75,7 +92,8 @@ final class FakeGateway implements PaymentGateway
             status: $status,
             resultCode: $status === PaymentStatus::Succeeded ? '0' : '1',
             message: 'fake',
-            raw: array_diff_key($payload, ['signature' => true]),
+            // L2 — chỉ giữ trường đã biết (xem `MoMoGateway::IPN_KNOWN_FIELDS`).
+            raw: array_intersect_key($payload, array_flip(self::NOTIFICATION_KNOWN_FIELDS)),
         );
     }
 

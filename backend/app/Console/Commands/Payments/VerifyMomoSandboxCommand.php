@@ -71,9 +71,30 @@ class VerifyMomoSandboxCommand extends Command
             return self::FAILURE;
         }
 
+        // L3 (review bảo mật T17) — chặn theo HOST của endpoint, KHÔNG phụ
+        // thuộc `APP_ENV`: lệnh có thể chạy trên máy dev có `.env` chép từ
+        // production (endpoint + credential thật), lúc đó `isProduction()`
+        // vẫn là `false` (APP_ENV=local) nhưng vẫn tạo được giao dịch THẬT
+        // trên MoMo production.
+        $endpointHost = parse_url((string) $momoConfig['endpoint'], PHP_URL_HOST);
+
+        if ($endpointHost !== 'test-payment.momo.vn') {
+            $this->components->error('MOMO_ENDPOINT phải là host sandbox "test-payment.momo.vn" khi chạy lệnh này — không được trỏ vào production.');
+
+            return self::FAILURE;
+        }
+
+        $amountOption = (string) $this->option('amount');
+
+        if (! ctype_digit($amountOption) || (int) $amountOption < 1) {
+            $this->components->error('--amount phải là số nguyên dương.');
+
+            return self::FAILURE;
+        }
+
         $orderId = (string) ($this->option('order-id') ?: 'SANDBOX-VERIFY-'.now()->format('YmdHis'));
         $requestId = (string) Str::uuid();
-        $amount = (int) $this->option('amount');
+        $amount = (int) $amountOption;
 
         $this->components->info("Tạo giao dịch thử sandbox: orderId={$orderId}, amount={$amount}");
 

@@ -12,6 +12,23 @@ use Illuminate\Http\Request;
  * nghiệp vụ (checkout/webhook — T18/T19) mà không cần gọi MoMo thật. Ở đây
  * chỉ kiểm hợp đồng `PaymentGateway` của chính adapter giả này.
  */
+
+/**
+ * L2 (review bảo mật T17) — giống `jsonPostRequest()` của `MoMoGatewayTest.php`:
+ * `FakeGateway::parseNotification()` cũng chỉ đọc body JSON.
+ *
+ * @param  array<string, mixed>  $payload
+ */
+function fakeJsonPostRequest(string $uri, array $payload): Request
+{
+    return Request::create(
+        $uri,
+        'POST',
+        server: ['CONTENT_TYPE' => 'application/json'],
+        content: json_encode($payload),
+    );
+}
+
 it('createPayment trả payUrl giả kèm orderId/requestId', function () {
     $result = (new FakeGateway)->createPayment(new PaymentRequest(
         gatewayOrderId: 'ORDER1-1',
@@ -37,7 +54,7 @@ it('parseNotification chấp nhận payload ký đúng và trả Succeeded/Pendi
     ];
     $payload['signature'] = $gateway->sign($payload);
 
-    $notification = $gateway->parseNotification(Request::create('/webhooks/payments/fake', 'POST', $payload));
+    $notification = $gateway->parseNotification(fakeJsonPostRequest('/webhooks/payments/fake', $payload));
 
     expect($notification->status)->toBe($expected)
         ->and($notification->amount)->toBe(100000)
@@ -59,7 +76,7 @@ it('parseNotification từ chối khi chữ ký sai', function () {
         'signature' => 'chu-ky-gia',
     ];
 
-    $gateway->parseNotification(Request::create('/webhooks/payments/fake', 'POST', $payload));
+    $gateway->parseNotification(fakeJsonPostRequest('/webhooks/payments/fake', $payload));
 })->throws(InvalidSignatureException::class);
 
 it('parseNotification từ chối khi thiếu trường bắt buộc', function () {
@@ -69,7 +86,7 @@ it('parseNotification từ chối khi thiếu trường bắt buộc', function 
     $payload['signature'] = $gateway->sign($payload);
     unset($payload['status']);
 
-    $gateway->parseNotification(Request::create('/webhooks/payments/fake', 'POST', $payload));
+    $gateway->parseNotification(fakeJsonPostRequest('/webhooks/payments/fake', $payload));
 })->throws(InvalidSignatureException::class);
 
 it('parseNotification từ chối amount không nghiêm ngặt dù chữ ký hợp lệ', function (string $amount) {
@@ -78,8 +95,34 @@ it('parseNotification từ chối amount không nghiêm ngặt dù chữ ký h�
     $payload = ['orderId' => 'ORDER1-1', 'requestId' => 'REQ-1', 'amount' => $amount, 'status' => 'succeeded'];
     $payload['signature'] = $gateway->sign($payload);
 
-    $gateway->parseNotification(Request::create('/webhooks/payments/fake', 'POST', $payload));
+    $gateway->parseNotification(fakeJsonPostRequest('/webhooks/payments/fake', $payload));
 })->with(['100000.0', '1e5', '-100000'])->throws(InvalidSignatureException::class);
+
+it('parseNotification từ chối khi 1 trường bắt buộc không phải scalar (mảng/bool) (L1)', function (string $field, mixed $value) {
+    $gateway = new FakeGateway;
+
+    $payload = ['orderId' => 'ORDER1-1', 'requestId' => 'REQ-1', 'amount' => '100000', 'status' => 'succeeded'];
+    $payload['signature'] = $gateway->sign($payload);
+    $payload[$field] = $value;
+
+    $gateway->parseNotification(fakeJsonPostRequest('/webhooks/payments/fake', $payload));
+})->with([
+    'orderId là mảng' => ['orderId', ['a']],
+    'status là bool' => ['status', true],
+])->throws(InvalidSignatureException::class);
+
+it('parseNotification: raw chỉ giữ trường đã biết, không lọt trường lạ dù chữ ký hợp lệ (L2)', function () {
+    $gateway = new FakeGateway;
+
+    $payload = ['orderId' => 'ORDER1-1', 'requestId' => 'REQ-1', 'amount' => '100000', 'status' => 'succeeded'];
+    $payload['signature'] = $gateway->sign($payload);
+    $payload['injected'] = 'hack';
+
+    $notification = $gateway->parseNotification(fakeJsonPostRequest('/webhooks/payments/fake', $payload));
+
+    expect($notification->raw)->not->toHaveKey('injected')
+        ->and($notification->raw)->not->toHaveKey('signature');
+});
 
 it('acknowledge luôn trả 204 (không phân biệt accepted)', function (bool $accepted) {
     expect((new FakeGateway)->acknowledge($accepted)->getStatusCode())->toBe(204);

@@ -46,12 +46,28 @@ final class PaymentGatewayManager extends Manager
         return parent::driver($driver);
     }
 
+    /**
+     * M2 (review bảo mật T17) — fail-closed ở MỌI môi trường (không chỉ
+     * production): `ProductionConfigGuard` chỉ chạy khi `APP_ENV=production`
+     * đúng chính tả. Ở môi trường khác (staging/UAT, hoặc production đặt
+     * nhầm `APP_ENV`), thiếu credential MoMo mà không chặn ở đây sẽ khiến
+     * `MoMoSigner` ký/verify bằng `secretKey=''` — một chữ ký AI CŨNG TÍNH
+     * ĐƯỢC (xem `MoMoSigner`), cho phép giả mạo IPN/query.
+     */
     protected function createMomoDriver(): PaymentGateway
     {
-        return new MoMoGateway(
-            (array) $this->config->get('payments.gateways.momo', []),
-            new MoMoSigner,
-        );
+        $config = (array) $this->config->get('payments.gateways.momo', []);
+
+        foreach (['partner_code', 'access_key', 'secret_key', 'endpoint'] as $key) {
+            if (trim((string) ($config[$key] ?? '')) === '') {
+                throw new RuntimeException(sprintf(
+                    'Thiếu cấu hình MoMo "%s" — không khởi tạo được cổng thanh toán (T17, M2).',
+                    $key,
+                ));
+            }
+        }
+
+        return new MoMoGateway($config, new MoMoSigner);
     }
 
     protected function createFakeDriver(): PaymentGateway

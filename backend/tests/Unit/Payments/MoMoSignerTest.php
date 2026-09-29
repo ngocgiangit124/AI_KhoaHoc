@@ -74,3 +74,42 @@ it('từ chối chữ ký sai và chữ ký rỗng', function () {
     expect($signer->verify($fields, 'secret', 'sai-chu-ky'))->toBeFalse()
         ->and($signer->verify($fields, 'secret', ''))->toBeFalse();
 });
+
+/**
+ * M2 (review bảo mật T17) — `secretKey = ''` không được tạo ra một chữ ký
+ * "hợp lệ" mà ai cũng tính lại được (`hash_hmac` với khoá rỗng vẫn ra kết
+ * quả xác định). `sign()` phải ném lỗi; `verify()` (đường xử lý dữ liệu
+ * KHÔNG ĐÁNG TIN — IPN/phản hồi query) phải luôn trả `false`, không ném lỗi.
+ */
+it('sign() ném InvalidArgumentException khi secretKey rỗng (M2)', function () {
+    (new MoMoSigner)->sign(['a' => '1'], '');
+})->throws(InvalidArgumentException::class);
+
+it('verify() trả false khi secretKey rỗng, kể cả khi chữ ký được tính bằng chính khoá rỗng đó (M2)', function () {
+    $signer = new MoMoSigner;
+    $fields = ['a' => '1', 'b' => '2'];
+
+    // Chữ ký "tự ký" bằng khoá rỗng — ai cũng tính lại được vì không cần biết
+    // bí mật thật. `verify()` phải từ chối ngay từ điều kiện `secretKey === ''`,
+    // không được gọi `sign()` (vốn giờ đã ném lỗi) rồi để lộ exception ra ngoài.
+    $signatureWithEmptyKey = hash_hmac('sha256', $signer->buildRawSignature($fields), '');
+
+    expect($signer->verify($fields, '', $signatureWithEmptyKey))->toBeFalse();
+});
+
+/**
+ * L4 (review bảo mật T17) — `$secretKey` phải có `#[\SensitiveParameter]` để
+ * không lộ (dù chỉ 1 phần) vào stack trace nếu có exception phát sinh trong
+ * khung gọi `sign()`/`verify()` (image `php` không có `php.ini`, mặc định
+ * `zend.exception_ignore_args=Off`).
+ */
+it('sign() và verify() đánh dấu tham số secretKey bằng #[SensitiveParameter] (L4)', function (string $method) {
+    $reflection = new ReflectionMethod(MoMoSigner::class, $method);
+    $secretKeyParam = collect($reflection->getParameters())->firstWhere('name', 'secretKey');
+
+    expect($secretKeyParam)->not->toBeNull();
+
+    $attributes = $secretKeyParam->getAttributes(SensitiveParameter::class);
+
+    expect($attributes)->toHaveCount(1);
+})->with(['sign', 'verify']);
