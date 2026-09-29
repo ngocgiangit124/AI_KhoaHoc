@@ -1,0 +1,14 @@
+---
+name: feedback-vitaminvui-t28-staff-mfa-bypass
+description: When an "escape hatch" route deliberately skips one gating middleware (e.g. must_change_password), check it isn't also silently skipping an unrelated, still-required gate (e.g. MFA) — that combination can fully defeat MFA
+metadata:
+  type: feedback
+---
+
+In T28 (đăng nhập quản trị, [SEC], reviewed 2026-09-29, `claude/zen-dirac-fmucf7-t28` @ `8bdd8b0`), `PUT /admin/auth/password` is correctly exempted from `staff.password_fresh` (it IS the only exit from `must_change_password` — a route can't require the very state it exists to clear). But the Dev also exempted it from `staff.mfa_passed`, reasoning "GV has no MFA anyway; the Service checks `current_password` so early access opens no new hole." That reasoning only holds for GV. For Admin/Quản lý trang (who DO require MFA per ADR-004 §3), it means anyone who merely knows the account's current password — e.g. phished, reused-password leak — can log in, get `mfa_required: true`, and immediately call `PUT /admin/auth/password` (`current_password` check only) to change the password **without ever completing MFA**. `admin.origin` (`EnsureAdminOrigin`) does NOT block this: it only checks the `Origin`/`Referer` header value, trivially spoofable by any non-browser client (curl/script) — it stops browser-CSRF, not a direct scripted attacker who already has valid credentials.
+
+**Why this is exploitable in this project specifically:** `EnsureAdminOrigin::resolveOrigin()` (`backend/app/Http/Middleware/EnsureAdminOrigin.php`) is a plain header equality check with no additional binding (no signed token, no CORS-only enforcement) — treat `admin.origin` purely as a CSRF mitigation, never as an authentication or authorization boundary against a client that already holds valid credentials.
+
+**How to apply:** whenever a route is deliberately carved out of a standard middleware stack because it needs to be "the way out" of gate A (e.g. `must_change_password`, MFA-pending, email-not-verified), check independently whether it was *also* carved out of unrelated gate B, and whether the legitimate user flow actually *requires* skipping B. In this case the legitimate flow never needed to skip `staff.mfa_passed` (every other staff route still requires MFA regardless, so an Admin/QLT would naturally complete MFA before or after changing password anyway) — the exemption from gate B was an unforced, undocumented-by-contract choice that opened a real hole. Don't accept "the Service double-checks X" as sufficient justification for skipping an *unrelated* gate Y; check what Y was actually protecting against.
+
+Related: [[feedback-vitaminvui-otp-throttle-pattern]] (same shape of bug — a control that exists on the "main" path but is missing on a side-door path), [[feedback-laravel-conventions]] (project's `admin.origin`/`role:` middleware conventions).
