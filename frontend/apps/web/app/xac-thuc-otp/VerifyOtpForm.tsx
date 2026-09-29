@@ -49,13 +49,25 @@ function maskedContact(user: AuthUser): string | null {
 /**
  * Header `Retry-After` (giây, api-contract §1.7) chỉ dùng làm thông tin PHỤ cho thông báo khoá
  * (security review T04, giả định (d) đã sửa) — KHÔNG dùng làm nguồn chính cho cooldown gửi lại
- * mã (nguồn chính vẫn là `resend_available_at`). Làm tròn lên phút khi ≥ 60s cho dễ đọc.
+ * mã (nguồn chính vẫn là `resend_available_at`). Làm tròn lên theo bậc dễ đọc nhất.
+ *
+ * Review FW1-otp R1 [SHOULD] — `otp-verify` có trần `max_verify_per_day` (20/ngày,
+ * `AppServiceProvider::configureRateLimiters()` → `Limit::perDay`), khi vượt thì
+ * `Retry-After` có thể lên tới ~86400 giây (khoá xác thực 24h — `docs/security/review-T04.md`
+ * §L3). Trước đây chỉ có 2 bậc (giây/phút) nên 86400s hiện thành "khoảng 1440 phút", người
+ * dùng phải tự quy đổi. Thêm bậc giờ (≥ 3600s) và ngày (≥ 86400s).
  */
 function formatRetryAfter(retryAfterSeconds: number): string {
   if (retryAfterSeconds < 60) {
     return `khoảng ${Math.ceil(retryAfterSeconds)} giây`;
   }
-  return `khoảng ${Math.ceil(retryAfterSeconds / 60)} phút`;
+  if (retryAfterSeconds < 3600) {
+    return `khoảng ${Math.ceil(retryAfterSeconds / 60)} phút`;
+  }
+  if (retryAfterSeconds < 86400) {
+    return `khoảng ${Math.ceil(retryAfterSeconds / 3600)} giờ`;
+  }
+  return `khoảng ${Math.ceil(retryAfterSeconds / 86400)} ngày`;
 }
 
 function appendRetryAfterHint(message: string, retryAfterSeconds: number | undefined): string {

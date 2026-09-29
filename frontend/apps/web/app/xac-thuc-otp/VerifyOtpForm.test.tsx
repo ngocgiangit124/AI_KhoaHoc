@@ -189,6 +189,52 @@ describe("VerifyOtpForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("429 khi xác thực có Retry-After hàng giờ -> gợi ý hiện theo giờ (review R1)", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    authFetchMock
+      .mockResolvedValueOnce({ id: 1, name: "Nguyễn Minh An", email: "minhan2010@gmail.com", is_verified: false })
+      .mockRejectedValueOnce(
+        // 7200s = 2 giờ tròn — kiểm bậc giờ (>= 3600s), tránh nhầm với bậc phút (1440 phút).
+        new ApiError(
+          429,
+          { message: "Bạn đã nhập sai quá nhiều lần. Tài khoản tạm khoá xác thực.", code: "TOO_MANY_ATTEMPTS" },
+          7200,
+        ),
+      );
+    renderForm();
+
+    await screen.findByText("min***@gmail.com");
+    await typeOtp(user, "482913");
+
+    expect(
+      await screen.findByText("Bạn đã nhập sai quá nhiều lần. Tài khoản tạm khoá xác thực. (thử lại sau khoảng 2 giờ)"),
+    ).toBeInTheDocument();
+  });
+
+  it("429 khi xác thực có Retry-After 24h (trần otp-verify/ngày) -> gợi ý hiện theo ngày, không phải 1440 phút (review R1)", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    authFetchMock
+      .mockResolvedValueOnce({ id: 1, name: "Nguyễn Minh An", email: "minhan2010@gmail.com", is_verified: false })
+      .mockRejectedValueOnce(
+        // 86400s = 24h — trần thật của `max_verify_per_day` (auth.otp.max_verify_per_day, 20/ngày).
+        new ApiError(
+          429,
+          { message: "Bạn đã nhập sai quá nhiều lần. Tài khoản tạm khoá xác thực trong 24 giờ.", code: "TOO_MANY_ATTEMPTS" },
+          86400,
+        ),
+      );
+    renderForm();
+
+    await screen.findByText("min***@gmail.com");
+    await typeOtp(user, "482913");
+
+    expect(
+      await screen.findByText(
+        "Bạn đã nhập sai quá nhiều lần. Tài khoản tạm khoá xác thực trong 24 giờ. (thử lại sau khoảng 1 ngày)",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("bấm 'Gửi lại mã' gặp 429 -> dùng Retry-After dựng lại đồng hồ đếm ngược, không cho bấm dồn dập", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     authFetchMock
