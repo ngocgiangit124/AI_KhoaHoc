@@ -49,3 +49,64 @@ Tôi cũng tự tính lại độc lập (Python `hmac`, không dùng lại code
 - Khi T18/T19 nối `PaymentGatewayManager` vào `CheckoutService`/`PaymentWebhookService`: kiểm lại **thứ tự thật** trong `PaymentWebhookService::apply()` — `parseNotification()` (IPN) chỉ trả về `GatewayNotification`, KHÔNG tự so `requestId`/`orderId` với `payment_attempts` trong DB (đúng thiết kế — trách nhiệm này thuộc tầng nghiệp vụ T19 theo ADR-001 §2 mục 3 "orderId khớp attempt; requestId khớp payment_attempts.request_id"). Đảm bảo T19 không bỏ sót bước so khớp này.
 - Test race `/pay` (S12.5) và test khoá dòng chuẩn (DBA #2) thuộc T18/T19, không thuộc T17 — đừng kỳ vọng thấy ở đây.
 - Trước khi bật `momo` thật ở production: chạy `payments:momo:verify-sandbox`, đối chiếu bảng mã/trường ký, và yêu cầu `laravel-security` re-check nhanh phần `MoMoGateway`/`MoMoResultCode` nếu có thay đổi so với bản đã review này.
+
+---
+
+## Vòng 2 (2026-09-29) — sau khi sửa theo `docs/security/review-T17.md`
+
+**Kết luận vòng 2:** **REQUEST CHANGES**
+**Phạm vi:** `git -C <worktree t17> diff 227f00f..d279a82` (đã loại phần merge `227f00f`) — 15 file, gồm sửa M1 (`withoutRedirecting()` + allowlist host `payUrl`), M2 (fail-closed credential rỗng mọi môi trường ở `PaymentGatewayManager::createMomoDriver()` + `MoMoSigner::sign/verify`), L1 (kiểm scalar trước khi ép chuỗi), L2 (`raw` chỉ giữ trường đã biết, đọc `$request->json()->all()` thay vì `->all()`), L3 (lệnh sandbox chặn theo host endpoint + `--amount` nguyên dương), L4 (`#[SensitiveParameter]`), và `docs/security/review-T17.md`, `docs/reviews/review-T17.md` (bổ sung của round 1).
+
+Tôi tự chạy lại độc lập (không chỉ tin báo cáo): `pint --test` sạch (198 file), `phpstan analyse` 0 lỗi, `pest -c phpunit.t17.xml` → **375 passed (915 assertions)** — khớp đúng con số bàn giao.
+
+### Đã kiểm kỹ tính đúng của từng fix (theo yêu cầu điều phối viên)
+
+- **M1 — `withoutRedirecting()`:** đúng, chặn Guzzle tự theo 3xx (mặc định Guzzle theo tối đa 5 lần, kể cả `http://`; với 307/308 còn gửi lại nguyên body POST có `accessKey`/`signature`). `post()` còn kiểm tường minh thêm `$response->redirect()` sau khi gọi — phòng thủ 2 lớp hợp lý (một số driver HTTP có thể không tôn trọng `withoutRedirecting()` giống nhau ở mọi version Guzzle).
+- **M1 — pin host `payUrl` (`isTrustedPayUrl()`):** so khớp CHÍNH XÁC `parse_url($payUrl, PHP_URL_HOST)` với allowlist, không dùng `str_contains`/tiền tố. Tôi tự kiểm các kiểu lách thường gặp:
+  - **userinfo (`user@host`):** `https://evil.com@payment.momo.vn/pay` → PHP `parse_url` trả `host = payment.momo.vn` (đúng, vì `evil.com` nằm ở vị trí userinfo trước `@`) → được chấp nhận đúng, không phải lỗ hổng vì host thật vẫn là MoMo. Chiều ngược lại `https://payment.momo.vn@evil.com/pay` → `host = evil.com` → bị từ chối đúng.
+  - **port:** `https://payment.momo.vn:1234/pay` → `host = payment.momo.vn` (port tách riêng, không ảnh hưởng so khớp host) → được chấp nhận dù port lạ. Đây là lỗ hổng nhỏ (không pin port) nhưng vô hại về mặt tin cậy nguồn (vẫn đúng domain MoMo, DNS+TLS chứng thực domain chứ không chứng thực port) — đã được Dev/Security ghi nhận là **I2 chấp nhận được** trong `docs/security/review-T17.md`, không phải vấn đề mới.
+  - **hoa/thường:** PHP `parse_url()` **không lowercase** host. `https://PAYMENT.MOMO.VN/pay` → `host = PAYMENT.MOMO.VN`, so khớp bằng `in_array(..., true)` (strict, phân biệt hoa/thường) với `payment.momo.vn` → **KHÔNG khớp → bị từ chối**. Đây là lỗi về phía "quá chặt" (fail-closed, có thể từ chối nhầm response hợp lệ nếu MoMo trả host viết hoa — hiếm nhưng có thể xảy ra do CDN/load balancer), không phải lỗ hổng bảo mật. Không chặn merge, nhưng nên `mb_strtolower()` cả 2 vế trước khi so khớp để tránh lỡ chặn nhầm response thật (rủi ro về tính sẵn sàng, không phải toàn vẹn).
+  → Không tìm được cách lách khiến host lạ được chấp nhận. Kết luận: **thuật toán so khớp đúng**.
+- **L2 — đổi `$request->all()` → `$request->json()->all()`:** đây là điểm điều phối viên yêu cầu soi kỹ nhất ("có làm hỏng IPN thật của MoMo nếu Content-Type khác không"). Đã xác nhận:
+  - MoMo IPN v2 gửi `Content-Type: application/json` (tài liệu MoMo công khai, đúng như ADR-001 giả định "IPN thật của MoMo là JSON POST" trong comment code) → `$request->json()` hoạt động đúng.
+  - Rủi ro thật: nếu vì lý do nào đó (proxy/gateway nội bộ, hoặc MoMo đổi hành vi) IPN đến với `Content-Type` khác (`application/x-www-form-urlencoded` hoặc thiếu header) thì `Illuminate\Http\Request::json()` **không tự fallback** sang `$request->request` — nó luôn cố `json_decode($this->getContent())`. Nếu content không phải JSON hợp lệ, `json()->all()` trả mảng rỗng `[]` (Symfony `InputBag` rỗng khi decode thất bại) chứ không throw. Hệ quả: toàn bộ IPN đó rơi vào nhánh "thiếu trường bắt buộc" (`array_key_exists` fail cho mọi field) → `InvalidSignatureException` → **400, không 500** (đã kiểm code: vòng lặp required-fields chạy trước, ném lỗi có kiểm soát). Đây là hành vi **fail-closed đúng hướng** (từ chối IPN thay vì hiểu sai thành thanh toán thành công), không có nguy cơ tạo lỗ hổng toàn vẹn — chỉ có nguy cơ về **tính sẵn sàng** nếu MoMo thực tế gửi form-encoded thay vì JSON (giả định trong comment code sai). Đây là rủi ro cùng nhóm với R1 (chưa kiểm chứng sandbox thật) — không phải lỗi mới, không chặn merge, nhưng nhấn mạnh thêm tầm quan trọng của R1.
+  - Không tìm thấy cách nào Content-Type khác khiến `parseNotification()` chấp nhận sai/verify sai chữ ký (vẫn fail-closed).
+- **M2:** `MoMoSigner::sign()` ném lỗi khi `secretKey === ''`, `verify()` luôn trả `false` khi `secretKey === ''` (không gọi `sign()` nên không lộ exception ra ngoài luồng verify) — đúng yêu cầu "verify là đường dữ liệu không đáng tin, phải luôn từ chối, không ném lỗi". `PaymentGatewayManager::createMomoDriver()` kiểm đủ 4 khoá (`partner_code/access_key/secret_key/endpoint`) không rỗng ở **mọi** environment (không chỉ production) — đúng thiết kế fail-closed, có test 4 khoá × rỗng/khoảng trắng.
+- **L1, L3, L4:** đọc code + test đều đúng như mô tả trong `docs/security/review-T17.md`, không phát hiện thêm vấn đề.
+
+### R4 [BLOCKER] `ProductionConfigGuard::guardMomo()` không ràng buộc `payments.gateways.momo.pay_url_hosts` ở production — mặc định vẫn cho phép host sandbox
+- Vị trí: `backend/app/Support/ProductionConfigGuard.php:141-161` (`guardMomo()`), `backend/config/payments.php` (`pay_url_hosts`), `backend/.env.example:91`.
+- Vấn đề: M1 thêm allowlist `pay_url_hosts` để pin đúng host `payUrl` trả về từ MoMo — đúng hướng. Nhưng giá trị **mặc định** trong `.env.example`/`config/payments.php` là `MOMO_PAY_URL_HOSTS=payment.momo.vn,test-payment.momo.vn` (gộp cả 2 môi trường vào 1 default dùng chung), và `guardMomo()` — nơi duy nhất chịu trách nhiệm "khoá cứng cấu hình đúng ở production" cho toàn bộ phần MoMo (đã có sẵn logic tương tự cho `endpoint`, `partner_code`, `access_key`, `secret_key`) — **không kiểm `pay_url_hosts` ở production**. Hệ quả: nếu vận hành chỉ copy `.env.example` sang `.env` production và quên override riêng `MOMO_PAY_URL_HOSTS` (rất dễ bỏ sót — đây là biến mới, tên không gợi ý rõ "phải khác nhau theo môi trường" như `MOMO_ENDPOINT`), ứng dụng **vẫn boot bình thường ở production** với allowlist chứa cả `test-payment.momo.vn`. Khi đó, đúng kịch bản tấn công mà M1 mô tả (MoMo/proxy/egress trả một `payUrl` bất thường) chỉ cần trỏ tới `test-payment.momo.vn` thay vì domain hoàn toàn lạ là **vẫn được production chấp nhận** — thu hẹp nhưng không đóng lỗ hổng M1 tại production, và quan trọng hơn: **không có test nào bắt được việc thiếu ràng buộc này** (`ProductionConfigGuardTest.php` không đổi trong commit sửa, không có case nào set `pay_url_hosts` chứa host lạ/sandbox rồi gọi `check()` ở production).
+- Đây đúng là kiểu lỗi mà chính `ProductionConfigGuard` được thiết kế ra để chặn (comment đầu file: "ALLOWLIST... thay vì blocklist... không để lộ đường 'an toàn giả' phụ thuộc vào việc ops nhớ set đúng biến môi trường" — bài học M3/M4 đã rút ra trước đó trong chính file này). `guardMomo()` đã tự áp dụng nguyên tắc này cho `endpoint`/3 secret, nhưng bỏ sót đúng field mới thêm ở vòng sửa bảo mật lần này.
+- Vì PO đã quyết định tạm hoãn security review tới cuối dự án và vòng review này được xác định là **cổng cuối trước khi gộp**, tôi xếp đây là BLOCKER thay vì SHOULD: đây là một điều kiện an toàn có chủ đích (M1) bị vô hiệu hoá một phần bởi thiếu 1 dòng ràng buộc ở đúng nơi lẽ ra phải có, chi phí sửa rất thấp, và không có review bảo mật nào khác sẽ bắt lại việc này trước khi lên production.
+- Đề xuất:
+  ```php
+  private function guardMomo(): void
+  {
+      // ... giữ nguyên phần endpoint/secret hiện có ...
+
+      $payUrlHosts = (array) config('payments.gateways.momo.pay_url_hosts', []);
+
+      throw_if(
+          $payUrlHosts !== ['payment.momo.vn'],
+          RuntimeException::class,
+          "MOMO_PAY_URL_HOSTS ở production phải đúng CHỈ 'payment.momo.vn' (không được kèm host sandbox), hiện là: ".implode(',', $payUrlHosts)
+      );
+  }
+  ```
+  Kèm test trong `ProductionConfigGuardTest.php`: `pay_url_hosts` mặc định (2 host) ở production → ném lỗi; `pay_url_hosts = ['payment.momo.vn']` → không ném. Đồng thời cân nhắc tách `MOMO_PAY_URL_HOSTS` khỏi `.env.example` chung — hoặc ghi rõ trong comment `.env.example` rằng **bắt buộc override** ở production thành đúng 1 giá trị `payment.momo.vn`.
+
+### Điểm nhỏ ghi nhận thêm (không chặn merge)
+- `isTrustedPayUrl()` so khớp host `strict` (phân biệt hoa/thường) — nên `mb_strtolower()` cả host thu được lẫn từng phần tử allowlist trước khi so khớp, để tránh từ chối nhầm nếu MoMo/hạ tầng trả host viết hoa (rủi ro tính sẵn sàng, không phải bảo mật — NIT).
+- Giả định "IPN MoMo luôn là JSON" (nền tảng của fix L2) chưa được xác nhận với sandbox thật — cùng nhóm rủi ro với R1, nhấn mạnh thêm lý do R1 phải là gate go-live bắt buộc trước khi bật MoMo thật.
+
+### Đối chiếu điều kiện của `docs/security/review-T17.md`
+
+| Điều kiện | Trạng thái | Ghi chú |
+|---|---|---|
+| M1 sửa + test trước T18 | Đạt phần lớn, còn hở ở production default | Thuật toán/logic đúng (đã tự kiểm bypass userinfo/port/hoa-thường); nhưng `ProductionConfigGuard` chưa khoá cứng `pay_url_hosts` → xem R4 (BLOCKER) |
+| M2 sửa + test trước T19 | Đạt | Fail-closed mọi environment, test đủ 4 khoá × rỗng/khoảng trắng |
+| L1-L4 | Đạt | Đọc code + test khớp mô tả |
+| R1 (gate go-live, không chặn merge T17) | Chưa đổi, đúng như đã thống nhất | Vẫn cần chạy `payments:momo:verify-sandbox` với sandbox thật trước khi bật MoMo production — nay có thêm lý do L2 (giả định Content-Type JSON) cũng cần xác nhận cùng lúc |
+
+**Kết luận cuối:** REQUEST CHANGES do R4. Sau khi thêm ràng buộc `pay_url_hosts` vào `guardMomo()` (kèm test), coi như đủ điều kiện gộp — không cần vòng review bảo mật riêng nữa vì thay đổi chỉ là mở rộng đúng pattern đã có sẵn trong cùng file, `laravel-reviewer` có thể tự xác nhận nhanh ở vòng 3 mà không cần gọi lại `laravel-security`.

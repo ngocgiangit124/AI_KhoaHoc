@@ -469,8 +469,16 @@ final class MoMoGateway implements PaymentGateway
             return false;
         }
 
+        // NIT (review vòng 2) — `parse_url()` KHÔNG lowercase host; so khớp
+        // strict phân biệt hoa/thường trước đây có thể từ chối nhầm 1
+        // `payUrl` hợp lệ nếu MoMo/hạ tầng (CDN, load balancer) trả host
+        // viết hoa. Domain không phân biệt hoa/thường, nên lowercase cả 2 vế
+        // trước khi so khớp không làm yếu allowlist.
+        $host = mb_strtolower($host);
+
         /** @var list<string> $allowedHosts */
         $allowedHosts = (array) ($this->config['pay_url_hosts'] ?? []);
+        $allowedHosts = array_map(mb_strtolower(...), $allowedHosts);
 
         return in_array($host, $allowedHosts, true);
     }

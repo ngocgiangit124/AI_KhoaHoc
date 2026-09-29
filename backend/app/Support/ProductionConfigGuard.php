@@ -158,5 +158,22 @@ class ProductionConfigGuard
                 "Thiếu cấu hình MOMO_{$key} ở production (S4, T17)."
             );
         }
+
+        // R4 (review vòng 2 docs/reviews/review-T17.md) — `pay_url_hosts`
+        // (M1) pin host của `payUrl` MoMo trả về, nhưng giá trị MẶC ĐỊNH
+        // trong `.env.example`/`config/payments.php` gộp CẢ host sandbox
+        // (`test-payment.momo.vn`) để dùng chung 1 default cho mọi môi
+        // trường. Nếu vận hành quên override riêng cho production, ứng dụng
+        // vẫn boot và `MoMoGateway::isTrustedPayUrl()` sẽ chấp nhận cả
+        // `payUrl` trỏ tới host sandbox — thu hẹp nhưng không đóng lỗ hổng
+        // mà M1 định chặn. Bắt buộc ĐÚNG CHỈ 1 phần tử `payment.momo.vn`
+        // (không rỗng, không kèm host nào khác kể cả sandbox).
+        $payUrlHosts = (array) config('payments.gateways.momo.pay_url_hosts', []);
+
+        throw_if(
+            $payUrlHosts !== ['payment.momo.vn'],
+            RuntimeException::class,
+            "MOMO_PAY_URL_HOSTS ở production phải đúng CHỈ 'payment.momo.vn' (không được kèm host sandbox), hiện là: ".implode(',', $payUrlHosts)
+        );
     }
 }

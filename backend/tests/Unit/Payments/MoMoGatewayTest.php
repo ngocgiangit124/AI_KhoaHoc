@@ -281,6 +281,29 @@ it('createPayment ném GatewayUnavailableException khi payUrl không thuộc all
     'host giả mạo bằng subdomain' => ['https://test-payment.momo.vn.evil.com/pay'],
 ])->throws(GatewayUnavailableException::class);
 
+it('createPayment chấp nhận payUrl có host viết hoa (so khớp không phân biệt hoa/thường) (NIT)', function () {
+    Http::fake([
+        'test-payment.momo.vn/*' => Http::response([
+            'partnerCode' => momoTestConfig()['partner_code'],
+            'orderId' => 'ORDER1-1',
+            'requestId' => 'REQ-1',
+            'resultCode' => 0,
+            'payUrl' => 'https://TEST-PAYMENT.MOMO.VN/pay/abc',
+        ], 200),
+    ]);
+
+    $result = momoGateway()->createPayment(new PaymentRequest(
+        gatewayOrderId: 'ORDER1-1',
+        requestId: 'REQ-1',
+        amount: 100000,
+        description: 'Thanh toan don hang ORDER1',
+        returnUrl: 'https://vitaminvui.test/return',
+        notifyUrl: 'https://api.vitaminvui.test/webhooks/payments/momo',
+    ));
+
+    expect($result->payUrl)->toBe('https://TEST-PAYMENT.MOMO.VN/pay/abc');
+});
+
 // --- parseNotification ---------------------------------------------------
 
 it('parseNotification trả GatewayNotification Succeeded khi resultCode=0 và chữ ký hợp lệ', function () {
