@@ -104,6 +104,8 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 
 ## Quy tắc làm việc đã thống nhất với PO
 
+- (2026-09-29, PO) **Tạm hoãn `laravel-security` theo từng task.** Quy trình mỗi task: dev → `laravel-reviewer` → gộp. Mọi task [SEC] làm từ nay (T05, T28 trở đi) ghi vào danh sách "Chờ security cuối dự án" bên dưới; security chạy một lượt khi xong dự án, trước release. Các phát hiện security đã có (T04 M3, T17 gate sandbox) vẫn theo dõi như cũ.
+
 - (2026-09-28, L2) Staff (admin/QLT/GV) đăng nhập đúng mật khẩu ở trang học sinh: **chuyển về trang quản trị/giáo viên** (`admin.vitaminvui.vn`). Giữ `WRONG_PORTAL`, frontend web điều hướng sang trang quản trị. PO chấp nhận rủi ro host học sinh cho biết mật khẩu staff đúng (lớp chặn còn lại: throttle 10 lần sai/giờ/tài khoản + 50/giờ/IP). Làm ở T28 + FA1; cách truyền URL trang quản trị (biến môi trường frontend hay thêm trường vào response) do Architect chốt.
 
 - Chỉ commit/push khi PO đồng ý. `main` chỉ chứa code đã qua review. Nhánh làm việc `claude/zen-dirac-fmucf7` được commit WIP (PO đồng ý 2026-09-28).
@@ -112,6 +114,10 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 - Dev chạy mọi thứ trong Docker ở máy local. Trên cloud, `scripts/cloud-setup.sh` cài trực tiếp (xem CLAUDE.md).
 - Không cài package ngoài danh sách đã duyệt trong tasks.md (cổng G2) mà không hỏi PO.
 - Không tự bịa field ngoài api-contract. Thấy thiếu hoặc mâu thuẫn thì dừng và hỏi Architect.
+
+## Chờ security cuối dự án
+
+Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 2026-09-29): (chưa có)
 
 ## Gate trước go-live
 
