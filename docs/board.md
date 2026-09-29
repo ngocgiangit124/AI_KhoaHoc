@@ -14,11 +14,12 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T03 | Đăng ký/đăng nhập học sinh | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS có điều kiện (còn: L3 phần DB — DBA trước staging; L2 — PO; N5 — Architect sửa api-contract §1.7) | — | 2026-09-28 |
 | FW1 (phần 1) | Màn đăng ký/đăng nhập/đăng xuất (apps/web) | Chờ QA giai đoạn 1 | ✅ Review PASS; Security PASS | — | 2026-09-28 |
 | FW1 (phần 2) | Màn xác thực OTP | Dev xong, chưa review | Nhánh `claude/zen-dirac-fmucf7-fw1-otp` (7e5fa1f). Có 4 giả định cần đối chiếu với T04 | T04 | 2026-09-28 |
-| T04 | OTP | Dev sửa sau security | Review APPROVE (2 vòng). Security PASS có điều kiện (`docs/security/review-T04.md` trong worktree t04): M1 mã không gắn địa chỉ nhận, M2 trần gửi vượt được bằng request song song → đang sửa cùng L1–L3. M3 chờ PO | — | 2026-09-28 |
-| T05 | Một phiên học sinh | Chưa làm | — | Chờ gộp T03/T04 (sửa cùng file) | — |
+| T04 | OTP | Xong (đã gộp) | Gộp vào nhánh chính. Review APPROVE, Security PASS có điều kiện: M1/M2/N1 đã sửa. **Còn M3** (đổi liên hệ cần xác minh) — PO/Architect chốt, dev sửa trước T27. `composer ci` xanh 339 test. Chờ QA giai đoạn 1 | M3 (PO) | 2026-09-29 |
+| T05 | Một phiên học sinh | Dev | Worktree `.claude/worktrees/t05` từ nhánh chính (đã có T03+T04) | — | 2026-09-29 |
 | T06 | Chuyên đề | Xong (đã gộp) | Gộp vào nhánh chính (3f420ba). Review APPROVE vòng 2. `composer ci` xanh, Pest 264. Chờ QA giai đoạn 2 | — | 2026-09-28 |
 | T07 → T10 | Schema nội dung → danh mục công khai | Xong (đã gộp) | Gộp vào nhánh chính (b5b753b). Review APPROVE, DBA duyệt. `composer ci` nhánh chính xanh, Pest 246. Chờ QA giai đoạn 2 | R1 (PO) trước T13 | 2026-09-28 |
-| T17 | Thanh toán: abstraction + MoMo | Dev gần xong, chưa chạy hết test | Nhánh `claude/zen-dirac-fmucf7-t17`. Chưa kiểm chứng sandbox MoMo thật | — | 2026-09-28 |
+| T17 | Thanh toán: abstraction + MoMo | Dev sửa sau security | Worktree `.claude/worktrees/t17`, nhánh local `t17`. Review APPROVE; Security PASS có điều kiện (M1 redirect/payUrl host, M2 credential rỗng, L1–L4) → đang sửa hết trong T17. **Gate go-live:** chưa kiểm chứng sandbox MoMo thật (R1) — chạy `php artisan payments:momo:verify-sandbox` khi có key | — | 2026-09-29 |
+| T28 | Đăng nhập quản trị | Dev | Worktree `.claude/worktrees/t28` từ nhánh chính. Chặn T08, T24, T33, FA1+ | — | 2026-09-29 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
 
@@ -112,6 +113,11 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 - Không cài package ngoài danh sách đã duyệt trong tasks.md (cổng G2) mà không hỏi PO.
 - Không tự bịa field ngoài api-contract. Thấy thiếu hoặc mâu thuẫn thì dừng và hỏi Architect.
 
+## Gate trước go-live
+
+- **Thanh toán MoMo (T17 R1/R2):** chạy `php artisan payments:momo:verify-sandbox` với key sandbox, đối chiếu danh sách trường ký create/IPN/query và bảng `resultCode` với tài liệu MoMo hiện hành; sau đó thêm verify chữ ký phản hồi create (R2). Chưa làm thì không bật `PAYMENT_GATEWAYS=momo` ở production.
+- **Pháp chế (T17):** vai trò MoMo khi nhận dữ liệu (có cần thoả thuận xử lý dữ liệu), thời hạn lưu `payment_webhook_events`/`create_response`.
+
 ## Việc đã hoãn (có người phụ trách)
 
 - Quyền MySQL/trigger chặn sửa `audit_logs` (DBA, trước staging).
@@ -142,6 +148,8 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 - 2026-09-28 · T03, FW1 · Dev + Reviewer (2 vòng) + Security · Review PASS; Security PASS có điều kiện, đã sửa; 192 test backend, 111 test frontend. Cloud: PHP 8.4, không chạy được Larastan (mạng chặn tải phpstan) → chạy `composer ci` trên Docker local trước khi merge main
 - 2026-09-28 · PO · Đổi quy trình: QA theo giai đoạn; chạy song song task độc lập (T04, T06, T07→T10, T17, FW1 phần 2)
 - 2026-09-28 · Orchestrator · Dừng các agent cloud, push nhánh phụ WIP để PO chuyển về local làm tiếp
+- 2026-09-29 · Orchestrator · Gộp T04 vào nhánh chính, `composer ci` xanh 339 test. Bắt đầu T05 + T28 song song
+- 2026-09-29 · Orchestrator · CI chạy thêm `tests/Arch` (4cbd935, trước đó bị bỏ qua). T04 security vòng 2 PASS có điều kiện (N1). T17 review APPROVE, security PASS có điều kiện
 - 2026-09-28 · Orchestrator · Gộp T06 vào nhánh chính (3f420ba), `composer ci` xanh 264 test. T04 security PASS có điều kiện (M1, M2 đang sửa)
 - 2026-09-28 · Orchestrator · PO duyệt: gộp T07-T10 vào nhánh chính (b5b753b), `composer ci` xanh 246 test
 - 2026-09-28 · Dev + Reviewer + DBA · T07-T10 hoàn thiện, review APPROVE, DBA thêm index; T04 dev xong (Pest 236); T06 bắt đầu hoàn thiện. Worktree test: mount `-v <wt>/backend:/var/www/wt -w /var/www/wt`, DB `vitaminvui_testing_<task>`, file `phpunit.<task>.xml` (untracked)

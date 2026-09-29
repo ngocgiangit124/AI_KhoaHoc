@@ -1,1 +1,2 @@
 - [OTP race & destination binding](feedback_vitaminvui_otp_race.md) — throttle Laravel không nguyên tử khi song song; OTP phải gắn destination; đổi liên hệ cần xác minh trước T27
+- [Payment HTTP/HMAC pitfalls](feedback_vitaminvui_payment_http.md) — Http theo redirect mặc định; secret rỗng phải fail-closed ngoài production; raw IPN chỉ trường đã ký
