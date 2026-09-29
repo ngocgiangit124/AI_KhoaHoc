@@ -298,7 +298,11 @@ Compose). Nhóm chính:
   bắt buộc `admin.origin` + `auth:sanctum` + `role`/`can:access-admin-area`
   (`RouteMiddlewareGroupsTest`).
 - `tests/Arch/*`: cấm `$guarded = []` trên mọi Model; cấm `$request->all()`
-  trong Controllers.
+  trong Controllers; cấm gọi thật `createToken(` trong `app/` (S24) — quét
+  bằng `token_get_all()` bỏ qua T_COMMENT/T_DOC_COMMENT nên không bắt nhầm
+  chuỗi này khi chỉ xuất hiện trong comment/docblock. `phpunit.xml` khai
+  testsuite riêng `Arch` (directory `tests/Arch`) — không có testsuite này thì
+  `vendor/bin/pest`/`composer ci` bỏ qua toàn bộ `tests/Arch`.
 
 ## 9. Đã sửa theo review bảo mật + QA (2026-09-28)
 
