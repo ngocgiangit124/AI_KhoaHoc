@@ -94,3 +94,35 @@ Tuy nhiên có **một lỗ hổng bảo mật thật** trong luồng MFA/đổi
 - Kiểm bằng 2 trình duyệt/2 profile thật (không chỉ Postman) case "đổi mật khẩu ở thiết bị A, thiết bị B bị đăng xuất ở request tiếp theo" — đúng cơ chế R2 mô tả, để chắc chắn hành vi qua cookie thật (không chỉ qua test giả lập session).
 - Kiểm `staff.idle` với đồng hồ thật (không chỉ giả lập timestamp trong session) ít nhất 1 lần thủ công, vì middleware đọc `staff_login_at`/`staff_last_activity` — đảm bảo `ConfigureHostContext`/cấu hình cookie session thật không có lệch múi giờ.
 - Kiểm luồng GV (không MFA) đăng nhập từ thiết bị mới thật (không giả lập `X-Device-Id`) để xác nhận email cảnh báo tới đúng hộp thư GV, không lộ trong log (S21 — kiểm log không chứa mã OTP/mật khẩu, đã có `dontFlash` từ T01 nhưng đáng xác nhận lại với luồng mới).
+
+---
+
+## Vòng 2 (2026-09-29) — commit `d9497ee` (sau `8bdd8b0`)
+**Kết luận:** PASS
+**Phạm vi:** `git -C <worktree> diff 8bdd8b0..d9497ee` — 6 file (+343/−21): `PasswordController.php`, `routes/admin.php`, `RouteMiddlewareGroupsTest.php`, `StaffPasswordTest.php`, `StaffSessionRevocationTest.php` (mới), `docs/reviews/review-T28.md`.
+
+Dev báo: Pint sạch, Larastan 0 lỗi, Pest 369 pass (366 vòng 1 + 3 test mới: 2 ở `StaffPasswordTest`, 1 ở `StaffSessionRevocationTest` — khớp số học 366+3=369, không có test nào bị âm thầm xoá/skip).
+
+### R1 — ĐÃ ĐÓNG
+`routes/admin.php`: thêm `staff.mfa_passed` vào middleware của `PUT /admin/auth/password`, giữ nguyên miễn `staff.password_fresh`. `RouteMiddlewareGroupsTest.php`: tách `VV_ADMIN_MFA_OR_PASSWORD_ROUTE_NAMES` (gộp, sai) thành `VV_ADMIN_MFA_EXEMPT_ROUTE_NAMES` (chỉ `admin.auth.mfa.verify`) và `VV_ADMIN_PASSWORD_FRESH_EXEMPT_ROUTE_NAMES` (`mfa.verify` + `password.update`) — đúng đề xuất, đóng đúng lỗ hổng mà không ảnh hưởng luồng GV. Test mới trong `StaffPasswordTest.php` khẳng định cả 2 chiều: Admin `staff_mfa_passed=false` gọi đổi mật khẩu → 403 `MFA_REQUIRED` **và mật khẩu không đổi** (assert `Hash::check` lại mật khẩu cũ + audit `staff.password_changed` không được ghi); GV không cần MFA vẫn đổi được ngay. Đọc lại middleware stack + 2 test này: đúng, đủ, đối xứng.
+
+### R2 — ĐÃ ĐÓNG, đã kiểm tra test có thực sự "cắn" được lỗi
+`StaffSessionRevocationTest.php` (mới) dựng 2 "thiết bị" bằng 2 cookie jar thật qua `withUnencryptedCookie()`/`withCredentials()` (không dùng `actingAs()`/`withSession()`), có `flush()` session store + `Auth::forgetGuards()` giữa các lệnh gọi để tránh dính state singleton của Pest/TestCase giữa các "request" giả lập trong cùng 1 hàm test — kỹ thuật này đã có tiền lệ ở `tests/Feature/T05/SingleStudentSessionTest.php` (không phải Dev tự chế cho lần này).
+
+Đã tự kiểm bằng cách đọc `vendor/laravel/sanctum/src/Http/Middleware/AuthenticateSession.php` và truy vết lại đúng trình tự 5 request trong test (login A, login B, B gọi `/admin/auth/me` lần 1, A đổi mật khẩu, B gọi `/admin/auth/me` lần 2) để trả lời câu hỏi "nếu bỏ `staff.session` khỏi route `/admin/auth/me` thì test có fail không":
+- Lần B gọi `/admin/auth/me` **đầu tiên** (trước khi A đổi mật khẩu) chính là lượt **ghi** `password_hash_web` (hash CŨ) vào session B — do middleware chạy `tap(next($request), ...)` sau khi controller xong. Đây là bước bắt buộc để cơ chế có gì mà so sánh ở lượt sau.
+- A đổi mật khẩu (route `PUT /admin/auth/password` vẫn có `staff.session`) → sau khi controller đổi xong, middleware ghi `password_hash_web` (hash MỚI) vào session A.
+- B gọi `/admin/auth/me` **lần 2**: nếu route này **có** `staff.session` (đúng như code hiện tại) → so `password_hash_web` đã lưu trong session B (hash CŨ) với `user->password` hiện tại (hash MỚI) → lệch → tự đăng xuất session B → 401 (khớp `assertStatus(401)`).
+- Nếu **bỏ** `staff.session` khỏi `/admin/auth/me` (thử nghĩ, không sửa code thật — bị chặn bởi sandbox read-only phiên này) → middleware không chạy ở lượt gọi thứ 2 của B → không có bước so sánh nào cả → response trả **200 như bình thường** → dòng `$meFromB->assertStatus(401)` sẽ **fail**.
+
+Kết luận: test **thực sự chứng minh được** sự hiện diện của `staff.session` trên route đang gọi, không phải test "giả xanh" (không phải kiểu chỉ set sẵn đúng dữ liệu rồi tự pass bất kể middleware có chạy hay không). Đây đúng là điều R2 yêu cầu.
+
+*Ghi chú kỹ thuật (không phải lỗi):* việc Dev đổi từ `app()->bound('session.store')` sang `app()->resolved('session.store')` — có ghi rõ lý do trong docblock (tránh dựng `Store` quá sớm với tên cookie mặc định của host học sinh trước khi `ConfigureHostContext` set `vv_admin_session`) — và dùng khoá tĩnh `config('session.admin_cookie')` (không bị ghi đè theo request, khác `session.cookie`) để so tên cookie — cả hai đều đã tự giải thích đúng nguyên nhân gốc, không cần sửa thêm.
+
+### R3 — ĐÃ ĐÓNG
+`RouteMiddlewareGroupsTest.php`, test `'moi route auth:sanctum co du middleware chuan theo host'`: thêm `'staff.session'` vào `$required` cho nhánh admin-api, áp dụng cho **mọi** route `auth:sanctum` trên host này (kể cả `mfa.verify`/`password.update`, không có ngoại lệ) — đúng đề xuất, khớp đúng lý do "đây là cơ chế duy nhất thực thi huỷ phiên khi đổi mật khẩu, phải bắt buộc cho toàn bộ route đã đăng nhập, không riêng gì route đổi mật khẩu".
+
+### Còn lại
+Không phát hiện vấn đề mới trong 6 file đổi ở vòng 2. Không tự chạy lại `composer ci` được ở vòng này do bị chặn bởi lớp permission của môi trường (đã chạy sạch — 366 pass — ở vòng 1 với cùng cấu hình mount; vòng 2 chỉ thêm 3 test thuần tuý + 1 dòng middleware + tách 1 hằng số thành 2, không đổ vỡ gì có thể suy luận được qua đọc code); đề nghị Orchestrator/CI xác nhận lại số 369 trước khi gộp nếu muốn chắc chắn tuyệt đối.
+
+**Kết luận cuối T28:** PASS — đủ điều kiện gộp vào nhánh chính.
