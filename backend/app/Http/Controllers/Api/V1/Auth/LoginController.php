@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\Auth\UserResource;
+use App\Models\User;
 use App\Services\Auth\LoginService;
+use App\Services\Auth\StudentSessionService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +17,10 @@ use Illuminate\Support\Facades\Auth;
  */
 class LoginController extends Controller
 {
-    public function __construct(private readonly LoginService $loginService) {}
+    public function __construct(
+        private readonly LoginService $loginService,
+        private readonly StudentSessionService $studentSessionService,
+    ) {}
 
     public function store(LoginRequest $request): UserResource
     {
@@ -24,11 +29,9 @@ class LoginController extends Controller
             (string) $request->validated('password'),
         );
 
-        Auth::login($user);
-        $request->session()->regenerate();
-
-        // TODO(T05): StudentSessionService::bind() (ADR-003) — huỷ phiên cũ +
-        // tombstone. Ở T03, đăng nhập chưa ép "1 thiết bị/1 phiên".
+        // T05 (ADR-003) — huỷ phiên cũ (nếu có) + tombstone + ghi
+        // current_session_id/current_device_id, tất cả trong `bind()`.
+        $this->studentSessionService->bind($request, $user);
 
         return new UserResource($user);
     }
@@ -40,6 +43,14 @@ class LoginController extends Controller
      */
     public function destroy(Request $request): Response
     {
+        /** @var User $user */
+        $user = $request->user();
+
+        // T05 (ADR-003, AC3) — đặt `logged_out` TRƯỚC khi invalidate session
+        // cục bộ, có điều kiện (chỉ khi vẫn là phiên hiện hành) để không ảnh
+        // hưởng phiên của thiết bị khác vừa đăng nhập đúng lúc này.
+        $this->studentSessionService->logout($user, $request->session()->getId());
+
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

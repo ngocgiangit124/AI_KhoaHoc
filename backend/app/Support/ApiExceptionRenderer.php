@@ -33,7 +33,7 @@ class ApiExceptionRenderer
     {
         $requestId = $request->attributes->get('request_id');
 
-        [$status, $code, $message, $errors] = self::resolve($e);
+        [$status, $code, $message, $errors] = self::resolve($e, $request);
 
         if ($status >= 500 && ! app()->hasDebugModeEnabled()) {
             // Không bao giờ lộ chi tiết/stack trace ở production (S22).
@@ -89,7 +89,7 @@ class ApiExceptionRenderer
     /**
      * @return array{0: int, 1: string, 2: string, 3: array<string, mixed>|null}
      */
-    private static function resolve(Throwable $e): array
+    private static function resolve(Throwable $e, Request $request): array
     {
         if ($e instanceof DomainException) {
             return [$e->status(), $e->code(), $e->getMessage(), $e->context() ?: null];
@@ -100,7 +100,7 @@ class ApiExceptionRenderer
         }
 
         if ($e instanceof AuthenticationException) {
-            return [401, 'UNAUTHENTICATED', 'Vui lòng đăng nhập để tiếp tục.', null];
+            return self::resolveAuthenticationException($request);
         }
 
         if ($e instanceof HttpExceptionInterface) {
@@ -110,6 +110,64 @@ class ApiExceptionRenderer
         }
 
         return [500, 'INTERNAL_ERROR', 'Đã có lỗi xảy ra. Vui lòng thử lại sau.', null];
+    }
+
+    /**
+     * T05 (ADR-003) — `auth:sanctum` ném `AuthenticationException` khi phiên
+     * cũ đã bị `StudentSessionService` xoá khỏi store (trường hợp thường gặp
+     * SAU khi thiết bị khác đăng nhập). Tra tombstone bằng session id lấy
+     * TRỰC TIẾP TỪ COOKIE ĐÃ GIẢI MÃ (`$request->cookies`, do
+     * `App\Http\Middleware\EncryptCookies` đã decrypt TRƯỚC ĐÓ trong cùng
+     * pipeline) — KHÔNG dùng `$request->session()->getId()`: với driver
+     * "array"/StartSession, một session id không tồn tại trong store vẫn có
+     * thể được GIỮ NGUYÊN thay vì cấp id mới (chỉ đổi khi sai ĐỊNH DẠNG), nên
+     * 2 cách đọc thường ra cùng giá trị — nhưng ADR-003 chốt rõ dùng cookie
+     * thô để không phụ thuộc hành vi nội bộ đó của `Store`.
+     *
+     * Không có tombstone (phiên chưa từng bị thay/thu hồi — vd chưa đăng nhập
+     * bao giờ, hoặc TTL tombstone đã hết) → `UNAUTHENTICATED` mặc định.
+     *
+     * @return array{0: int, 1: string, 2: string, 3: array<string, mixed>|null}
+     */
+    private static function resolveAuthenticationException(Request $request): array
+    {
+        $unauthenticated = [401, 'UNAUTHENTICATED', 'Vui lòng đăng nhập để tiếp tục.', null];
+
+        $sessionId = $request->cookies->get((string) config('session.cookie'));
+
+        if (! is_string($sessionId) || $sessionId === '') {
+            return $unauthenticated;
+        }
+
+        $tombstone = SessionTombstoneStore::get($sessionId);
+
+        if ($tombstone === null) {
+            return $unauthenticated;
+        }
+
+        return match ($tombstone['reason']) {
+            'replaced' => self::resolveReplacedTombstone($request, $tombstone),
+            'password_changed' => [401, 'SESSION_REVOKED', 'Mật khẩu đã được thay đổi, vui lòng đăng nhập lại.', null],
+            'locked' => [403, 'ACCOUNT_LOCKED', 'Tài khoản của bạn đã bị khoá.', null],
+            default => $unauthenticated,
+        };
+    }
+
+    /**
+     * @param  array{reason: string, new_device_id: string|null, at: string}  $tombstone
+     * @return array{0: int, 1: string, 2: string, 3: array<string, mixed>|null}
+     */
+    private static function resolveReplacedTombstone(Request $request, array $tombstone): array
+    {
+        $deviceId = DeviceId::normalize($request->header('X-Device-Id'));
+
+        if ($deviceId !== null && $deviceId === $tombstone['new_device_id']) {
+            // Chính thiết bị này vừa đăng nhập lại (bấm 2 lần/tải lại) — KHÔNG
+            // báo nhầm "thiết bị khác" (ADR-003).
+            return [401, 'SESSION_EXPIRED', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', null];
+        }
+
+        return [401, 'SESSION_REPLACED', 'Tài khoản của bạn đã đăng nhập ở thiết bị khác. Nếu không phải bạn, hãy đổi mật khẩu ngay.', null];
     }
 
     /**

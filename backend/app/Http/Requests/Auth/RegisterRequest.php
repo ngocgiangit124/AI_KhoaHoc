@@ -70,8 +70,8 @@ class RegisterRequest extends FormRequest
             'accept_privacy' => ['required', 'accepted'],
             // L5 (review bảo mật) — token Turnstile thật ≤ 2048 ký tự.
             'captcha_token' => ['required', 'string', 'max:2048'],
-            // Chưa dùng ở T03 (single-session/bind phiên là T05/ADR-003) — chấp
-            // nhận và bỏ qua để không phá hợp đồng khi frontend đã gửi kèm.
+            // T05 (ADR-003) — dự phòng nếu FE không gửi header `X-Device-Id`
+            // (nguồn CHUẨN — xem `App\Support\DeviceId::fromRequest()`).
             'device_id' => ['nullable', 'string', 'max:64'],
         ];
     }
