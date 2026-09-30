@@ -6,6 +6,7 @@ use App\Enums\CouponDiscountType;
 use App\Enums\CouponStatus;
 use App\Exceptions\DomainException;
 use App\Models\Coupon;
+use App\Models\Course;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Support\Carbon;
@@ -16,10 +17,67 @@ use Illuminate\Support\Facades\DB;
  * thật khi order thanh toán thành công — BR7) thuộc T18 (Checkout); ở đây chỉ
  * ĐỌC `used_count` denormalize (mặc định 0) để quyết định có cho sửa/xoá hay
  * không (US-013 "Trường hợp biên & lỗi").
+ *
+ * Mọi thao tác ghi đi qua `DB::transaction` và khoá dòng `coupons` theo PK
+ * (`lockForUpdate`) TRƯỚC khi kiểm `used_count` (DBA T15 M2 — tránh TOCTOU với
+ * luồng thanh toán T18 tăng `used_count`).
  */
 class CouponService
 {
     public function __construct(private readonly AuditLogger $auditLogger) {}
+
+    /**
+     * S18 — mã "rủi ro cao": giảm 100%, hoặc `fixed_amount` ≥ giá khóa rẻ nhất
+     * trong phạm vi mã. Không xác định được giá rẻ nhất (phạm vi không có khóa
+     * nào có giá > 0, kể cả draft) thì coi là rủi ro cao (R1 review-T15) —
+     * khóa được publish sau đó sẽ khiến mã giảm hết giá mà không giới hạn.
+     *
+     * @param  list<int>  $courseIds
+     * @param  list<int>  $subjectIds
+     */
+    public function isHighRisk(string $type, int $value, array $courseIds, array $subjectIds): bool
+    {
+        if ($type === CouponDiscountType::Percent->value) {
+            return $value === 100;
+        }
+
+        if ($type !== CouponDiscountType::FixedAmount->value) {
+            return false;
+        }
+
+        $cheapest = $this->cheapestPrice($courseIds, $subjectIds);
+
+        return $cheapest === null || $value >= $cheapest;
+    }
+
+    /**
+     * Giá rẻ nhất (`price > 0`, khóa ở MỌI trạng thái, chưa xoá mềm) trong
+     * phạm vi mã: hợp `course_ids` ∪ khóa thuộc `subject_ids`; không giới hạn
+     * phạm vi → toàn bộ khóa. `null` nếu không có khóa nào.
+     *
+     * @param  list<int>  $courseIds
+     * @param  list<int>  $subjectIds
+     */
+    public function cheapestPrice(array $courseIds, array $subjectIds): ?int
+    {
+        $query = Course::query()->where('price', '>', 0);
+
+        if ($courseIds !== [] || $subjectIds !== []) {
+            $query->where(function ($scoped) use ($courseIds, $subjectIds): void {
+                if ($courseIds !== []) {
+                    $scoped->orWhereIn('id', $courseIds);
+                }
+
+                if ($subjectIds !== []) {
+                    $scoped->orWhereHas('subjects', fn ($sq) => $sq->whereIn('subjects.id', $subjectIds));
+                }
+            });
+        }
+
+        $min = $query->min('price');
+
+        return $min === null ? null : (int) $min;
+    }
 
     /**
      * @param  array{code:string,name?:string|null,discount_type:string,discount_value:int,
@@ -39,7 +97,7 @@ class CouponService
                 'discount_value' => $data['discount_value'],
                 'max_uses' => $data['max_uses'] ?? null,
                 'valid_from' => $data['valid_from'],
-                'valid_until' => $data['valid_until'] ?? null,
+                'valid_until' => $this->parseValidUntil($data['valid_until'] ?? null),
             ]);
             // S17 — status/is_restricted/created_by KHÔNG nằm trong $fillable,
             // gán trực tiếp (không mass-assign).
@@ -65,6 +123,9 @@ class CouponService
     public function update(Coupon $coupon, array $data): Coupon
     {
         return DB::transaction(function () use ($coupon, $data): Coupon {
+            // DBA M2 — khoá dòng theo PK rồi mới kiểm `used_count` trên bản MỚI.
+            $coupon = $this->lock($coupon);
+
             $courseIds = $data['course_ids'] ?? [];
             $subjectIds = $data['subject_ids'] ?? [];
 
@@ -76,6 +137,17 @@ class CouponService
                 $data['code'] = $coupon->code;
                 $data['discount_type'] = $coupon->discount_type->value;
                 $data['discount_value'] = $coupon->discount_value;
+            }
+
+            $maxUses = $data['max_uses'] ?? null;
+
+            if ($maxUses !== null && $maxUses < $coupon->used_count) {
+                throw new DomainException(
+                    code: 'VALIDATION_ERROR',
+                    message: 'Số lượt tối đa không được thấp hơn số lượt đã dùng.',
+                    status: 422,
+                    context: ['max_uses' => ['Số lượt tối đa không được thấp hơn số lượt đã dùng.']],
+                );
             }
 
             $before = $this->auditPayload(
@@ -92,9 +164,9 @@ class CouponService
             // cần tự ép kiểu tương ứng trước khi gán.
             $coupon->discount_type = CouponDiscountType::from($data['discount_type']);
             $coupon->discount_value = $data['discount_value'];
-            $coupon->max_uses = $data['max_uses'] ?? null;
+            $coupon->max_uses = $maxUses;
             $coupon->valid_from = Carbon::parse($data['valid_from']);
-            $coupon->valid_until = isset($data['valid_until']) ? Carbon::parse($data['valid_until']) : null;
+            $coupon->valid_until = $this->parseValidUntil($data['valid_until'] ?? null);
             $coupon->is_restricted = $courseIds !== [] || $subjectIds !== [];
             $coupon->save();
 
@@ -113,14 +185,23 @@ class CouponService
 
     public function deactivate(Coupon $coupon): Coupon
     {
-        $coupon->status = CouponStatus::Inactive;
-        $coupon->save();
+        return DB::transaction(function () use ($coupon): Coupon {
+            $coupon = $this->lock($coupon);
 
-        $this->auditLogger->log('coupon.deactivate', $coupon, [
-            'coupon_code' => $coupon->code,
-        ]);
+            // Lần hai: đã inactive → không ghi audit thêm.
+            if ($coupon->status === CouponStatus::Inactive) {
+                return $coupon;
+            }
 
-        return $coupon;
+            $coupon->status = CouponStatus::Inactive;
+            $coupon->save();
+
+            $this->auditLogger->log('coupon.deactivate', $coupon, [
+                'coupon_code' => $coupon->code,
+            ]);
+
+            return $coupon;
+        });
     }
 
     /**
@@ -130,19 +211,43 @@ class CouponService
      */
     public function delete(Coupon $coupon): void
     {
-        if ($coupon->used_count > 0) {
-            throw new DomainException(
-                code: 'COUPON_IN_USE',
-                message: 'Mã giảm giá đã được sử dụng nên không thể xoá. Hãy vô hiệu hoá thay thế.',
-                status: 409,
-            );
+        DB::transaction(function () use ($coupon): void {
+            $coupon = $this->lock($coupon);
+
+            if ($coupon->used_count > 0) {
+                throw new DomainException(
+                    code: 'COUPON_IN_USE',
+                    message: 'Mã giảm giá đã được sử dụng nên không thể xoá. Hãy vô hiệu hoá thay thế.',
+                    status: 409,
+                );
+            }
+
+            $coupon->delete();
+
+            $this->auditLogger->log('coupon.delete', $coupon, [
+                'coupon_code' => $coupon->code,
+            ]);
+        });
+    }
+
+    private function lock(Coupon $coupon): Coupon
+    {
+        return Coupon::query()->lockForUpdate()->findOrFail($coupon->getKey());
+    }
+
+    /**
+     * R4 — `valid_until` chỉ có ngày (Y-m-d) hết hạn CUỐI ngày đó (23:59:59);
+     * chuỗi có giờ giữ nguyên.
+     */
+    private function parseValidUntil(?string $value): ?Carbon
+    {
+        if ($value === null || $value === '') {
+            return null;
         }
 
-        $coupon->delete();
+        $parsed = Carbon::parse($value);
 
-        $this->auditLogger->log('coupon.delete', $coupon, [
-            'coupon_code' => $coupon->code,
-        ]);
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $parsed->endOfDay() : $parsed;
     }
 
     /**
@@ -165,6 +270,13 @@ class CouponService
             'is_restricted' => $coupon->is_restricted,
             'course_ids' => $courseIds,
             'subject_ids' => $subjectIds,
+            // S18 / data-model §3.5 — đánh dấu mã rủi ro cao cho người soát audit.
+            'high_risk_full_discount' => $this->isHighRisk(
+                $coupon->discount_type->value,
+                $coupon->discount_value,
+                $courseIds,
+                $subjectIds,
+            ),
         ];
     }
 }

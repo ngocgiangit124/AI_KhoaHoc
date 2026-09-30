@@ -4,8 +4,8 @@ namespace App\Http\Requests\Admin;
 
 use App\Enums\CouponDiscountType;
 use App\Models\Coupon;
-use App\Models\Course;
 use App\Rules\PlainText;
+use App\Services\Coupon\CouponService;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -26,8 +26,8 @@ class CouponRequest extends FormRequest
      * thác hàng loạt / giữ chỗ ảo vô thời hạn). CHECK DB
      * `chk_coupons_full_discount_limited` chỉ phủ được trường hợp percent=100
      * (tĩnh); trường hợp fixed ≥ giá rẻ nhất phụ thuộc `courses.price` thay
-     * đổi theo thời gian nên chỉ kiểm được ở đây (App) — ghi vào `audit_logs`
-     * qua `CouponService` (payload `high_risk_full_discount`).
+     * đổi theo thời gian nên chỉ kiểm được ở đây (App); `CouponService` ghi cờ
+     * `high_risk_full_discount` vào audit.
      */
     private const HIGH_DISCOUNT_MESSAGE = 'Mã giảm 100% (hoặc giảm hết giá trị đơn hàng thấp nhất) bắt buộc có giới hạn lượt dùng và ngày hết hạn để tránh bị lộ mã và giữ chỗ ảo.';
 
@@ -73,21 +73,23 @@ class CouponRequest extends FormRequest
                 'required',
                 'integer',
                 'min:1',
+                'max:1000000000',
                 function (string $attribute, mixed $value, Closure $fail): void {
                     if ($this->input('discount_type') === CouponDiscountType::Percent->value && (int) $value > 100) {
                         $fail('Giá trị giảm không được vượt quá 100%.');
                     }
                 },
             ],
-            'max_uses' => ['nullable', 'integer', 'min:1'],
+            // R5 — không hạ dưới `used_count`; trần để không tràn cột unsigned int (422, không 500).
+            'max_uses' => ['nullable', 'integer', 'min:'.max(1, (int) $coupon?->used_count), 'max:1000000'],
             'valid_from' => ['required', 'date'],
             // data-model §3.5: `valid_until >= valid_from` (AC5 chỉ đòi hỏi
             // không được TRƯỚC ngày bắt đầu, không cấm trùng ngày).
             'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],
             'course_ids' => ['nullable', 'array'],
-            'course_ids.*' => ['integer', Rule::exists('courses', 'id')],
+            'course_ids.*' => ['integer', 'distinct', Rule::exists('courses', 'id')],
             'subject_ids' => ['nullable', 'array'],
-            'subject_ids.*' => ['integer', Rule::exists('subjects', 'id')],
+            'subject_ids.*' => ['integer', 'distinct', Rule::exists('subjects', 'id')],
         ];
     }
 
@@ -111,6 +113,7 @@ class CouponRequest extends FormRequest
             'code.unique' => 'Mã giảm giá đã tồn tại.',
             'discount_type.required' => 'Vui lòng chọn loại giảm giá.',
             'discount_value.required' => 'Vui lòng nhập giá trị giảm.',
+            'max_uses.min' => 'Số lượt tối đa không được thấp hơn số lượt đã dùng (và tối thiểu 1).',
             'valid_from.required' => 'Vui lòng chọn ngày bắt đầu hiệu lực.',
             'valid_until.after_or_equal' => 'Ngày kết thúc phải sau ngày bắt đầu.',
         ];
@@ -156,12 +159,15 @@ class CouponRequest extends FormRequest
             return;
         }
 
-        $value = (int) $rawValue;
-        $isFullPercent = $type === CouponDiscountType::Percent->value && $value === 100;
-        $cheapest = $type === CouponDiscountType::FixedAmount->value ? $this->cheapestApplicablePrice() : null;
-        $isFixedAboveCheapest = $cheapest !== null && $value >= $cheapest;
+        // Phép tính "rủi ro cao" dùng chung với ghi audit nằm ở CouponService (R2/R7).
+        $isHighRisk = app(CouponService::class)->isHighRisk(
+            $type,
+            (int) $rawValue,
+            array_values(array_map('intval', (array) $this->input('course_ids', []))),
+            array_values(array_map('intval', (array) $this->input('subject_ids', []))),
+        );
 
-        if (! $isFullPercent && ! $isFixedAboveCheapest) {
+        if (! $isHighRisk) {
             return;
         }
 
@@ -172,40 +178,5 @@ class CouponRequest extends FormRequest
         if (blank($this->input('valid_until'))) {
             $validator->errors()->add('valid_until', self::HIGH_DISCOUNT_MESSAGE);
         }
-    }
-
-    /**
-     * Giá khóa rẻ nhất đang bán (`published`, `price > 0`) trong phạm vi áp
-     * dụng của mã (hợp `course_ids` ∪ khóa thuộc `subject_ids` — data-model
-     * §3.5); không giới hạn phạm vi (không gửi course_ids/subject_ids) →
-     * tính trên toàn bộ khóa `published`. Không có khóa nào khớp (phạm vi
-     * rỗng/chưa publish) → trả `null`, bỏ qua ràng buộc (không có gì để bảo
-     * vệ ở thời điểm tạo mã — **giả định, cần Reviewer/DBA xác nhận** vì
-     * data-model không nói rõ "giá khóa rẻ nhất" tính theo phạm vi hay toàn
-     * site).
-     */
-    private function cheapestApplicablePrice(): ?int
-    {
-        $courseIds = array_values(array_map('intval', (array) $this->input('course_ids', [])));
-        $subjectIds = array_values(array_map('intval', (array) $this->input('subject_ids', [])));
-        $restricted = $courseIds !== [] || $subjectIds !== [];
-
-        $query = Course::query()->published()->where('price', '>', 0);
-
-        if ($restricted) {
-            $query->where(function ($scoped) use ($courseIds, $subjectIds): void {
-                if ($courseIds !== []) {
-                    $scoped->orWhereIn('id', $courseIds);
-                }
-
-                if ($subjectIds !== []) {
-                    $scoped->orWhereHas('subjects', fn ($sq) => $sq->whereIn('subjects.id', $subjectIds));
-                }
-            });
-        }
-
-        $min = $query->min('price');
-
-        return $min === null ? null : (int) $min;
     }
 }
