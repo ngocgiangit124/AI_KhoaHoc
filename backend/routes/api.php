@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Auth\OtpController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\Catalog\CourseController;
 use App\Http\Controllers\Api\V1\Catalog\SubjectController;
+use App\Http\Controllers\Api\V1\Enrollment\FreeEnrollmentController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
 use Illuminate\Support\Facades\Route;
@@ -111,6 +112,24 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
                 ->name('api.auth.contact.update');
         });
 
-    // Catalog (T10), Cart/Checkout (T16/T18), Learn (T13), Webhooks (T19) —
-    // thêm dần ở các task sau.
+    // T14 (US-012, api-contract §2.4) — đăng ký khóa học miễn phí. Nhóm
+    // `student` chuẩn + `account.verified` (T04, api-contract §1.7
+    // `ACCOUNT_NOT_VERIFIED`) + `parent.consent` (bản tạm, tasks.md T18) —
+    // BR7 (US-012): phải đã xác thực OTP + không đang bị chặn vì thiếu xác
+    // nhận phụ huynh.
+    Route::post('/courses/{course}/free-enrollments', [FreeEnrollmentController::class, 'store'])
+        ->middleware([
+            'auth:sanctum',
+            'account.active',
+            'student.single_session',
+            'no_store',
+            'role:hoc_sinh',
+            'account.verified',
+            'parent.consent',
+            'throttle:free-enroll',
+        ])
+        ->name('api.courses.free-enrollments.store');
+
+    // Cart/Checkout (T16/T18), Learn (T13), Webhooks (T19) — thêm dần ở các
+    // task sau.
 });

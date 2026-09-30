@@ -9,15 +9,25 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Mỗi lần xin học/mua là 1 dòng — giữ lịch sử từ chối/thu hồi (data-model §3.3,
  * US-012). `order_id` CHƯA có FK tới `orders` (bảng đó thuộc T18) — xem
  * docblock migration `..._create_enrollments_table.php`.
  *
+ * Larastan không tự suy ra kiểu cast từ `casts()` (chỉ đọc `protected $casts`
+ * khai báo tĩnh — như đã ghi ở `App\Models\User`) — khai tường minh các cột
+ * ngày giờ được `EnrollmentResource`/`EnrollmentRequestResource` (T14) gọi
+ * `->toIso8601String()`.
+ *
  * @property EnrollmentStatus $status
  * @property EnrollmentSource $source
  * @property int|null $live_flag
+ * @property Carbon|null $requested_at
+ * @property Carbon|null $approved_at
+ * @property Carbon|null $activated_at
+ * @property Carbon|null $revoked_at
  */
 class Enrollment extends Model
 {

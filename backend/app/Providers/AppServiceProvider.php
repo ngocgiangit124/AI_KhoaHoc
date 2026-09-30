@@ -179,6 +179,10 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perSecond(1, 30)->by('check-payment:'.$orderKey);
         });
 
+        // T14 review R3 — chặn vòng lặp gửi/bị từ chối/gửi lại sinh vô hạn dòng
+        // `rejected` và làm nhiễu người duyệt.
+        RateLimiter::for('free-enroll', fn (Request $request) => Limit::perMinute(10)->by('free-enroll:'.$this->identity($request)));
+
         RateLimiter::for('playback', fn (Request $request) => Limit::perMinute(30)->by($this->identity($request)));
 
         RateLimiter::for('heartbeat', function (Request $request) {

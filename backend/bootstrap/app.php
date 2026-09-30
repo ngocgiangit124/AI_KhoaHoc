@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureAccountVerified;
 use App\Http\Middleware\EnsureAdminOrigin;
 use App\Http\Middleware\EnsureGuest;
+use App\Http\Middleware\EnsureParentConsent;
 use App\Http\Middleware\EnsurePasswordFresh;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureStaffMfaPassed;
@@ -101,9 +102,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'account.active' => EnsureAccountActive::class,
             // T04 (api-contract §1.7 `403 ACCOUNT_NOT_VERIFIED`) — khung cho các
             // route yêu cầu đã xác thực OTP (checkout — T18, đăng ký miễn phí —
-            // T14...). Chưa gắn vào route nào ở T04 (auth/otp/*, auth/contact tự
-            // thân là luồng XÁC THỰC, không thể tự đòi đã xác thực).
+            // T14). T14 gắn vào `POST /courses/{course}/free-enrollments`;
+            // checkout (T18) thêm sau.
             'account.verified' => EnsureAccountVerified::class,
+            // T14 (api-contract §1.7 `403 PARENT_CONSENT_REQUIRED`, tasks.md
+            // T18) — bản TẠM (xem docblock `EnsureParentConsent`), gắn cùng
+            // `account.verified` ở free-enrollments; T18 (checkout) dùng lại.
+            'parent.consent' => EnsureParentConsent::class,
             // T03 (api-contract §2.2) — ghi đè alias mặc định của Laravel
             // (`RedirectIfAuthenticated`, dành cho app Blade): API JSON thuần
             // không có route `login` để redirect tới (xem EnsureGuest).
