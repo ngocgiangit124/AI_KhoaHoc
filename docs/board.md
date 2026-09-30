@@ -24,7 +24,7 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T14 | EnrollmentService | Xong | Gộp 2026-09-30; review PASS; tạo `counters:recount` | Chờ PO câu 13 (R2) | 2026-09-30 |
 | T15 | Mã giảm giá quản trị | Xong | Gộp 2026-09-30; review vòng 2 PASS; DBA PASS; recounter đã nối `counters:recount` | T18: chặn xoá mã khi còn đơn, recounter nguyên tử (DBA M1), atomic `used_count` | 2026-09-30 |
 | T09 | Chương/bài | Xong | Gộp 2026-09-30; review PASS; 828 test toàn dự án | Chờ PO câu 15 | 2026-09-30 |
-| T16 | Giỏ hàng | Sửa review | Review PASS; dev sửa R1 (limiter), R2 (khôi phục mã COUPON_EXPIRED theo contract), R3, R5, R6 | Kiểm limiter với Redis thật trước staging | 2026-09-30 |
+| T16 | Giỏ hàng | Xong | Gộp 2026-09-30; review PASS; 907 test toàn dự án | T18: dỡ cầu nối `hasTable(coupon_usages)`; kiểm limiter với Redis thật trước staging | 2026-09-30 |
 | T11 | Contract video | Dev | Worktree `.claude/worktrees/t11` | — | 2026-09-30 |
 | T21 | Soạn quiz | Dev | Worktree `.claude/worktrees/t21` | — | 2026-09-30 |
 
@@ -161,7 +161,7 @@ Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 202
 13. (T14 R2 — PO) Khóa miễn phí đang có yêu cầu chờ duyệt mà bị đổi sang có phí: (A) chặn đổi giá khi còn yêu cầu pending (CourseService T08), hay (B) lúc duyệt kiểm lại khóa còn miễn phí + published, không thì từ chối tự động. Đề xuất (B).
 14. (T15 — PO) Ngày hết hạn mã giảm giá: design đánh dấu bắt buộc, data-model cho để trống (dev theo data-model). Và có cần endpoint kích hoạt lại mã đã hủy không.
 15. (T09 — PO) Link Vimeo unlisted (có hash `vimeo.com/ID/HASH`) đang bị từ chối: có cần hỗ trợ không? GV phụ trách bật `is_preview` cho mọi bài (thành công khai) — có cần hạn chế chỉ staff?
-16. (T16 → Architect) Sửa api-contract §1.7 (COUPON_EXPIRED/INVALID) và data-model §3.5: phân bổ giảm giá theo "phần dư lớn nhất" thay vì dồn dòng cuối (dòng cuối có thể bị giảm quá giá).
+16. (T16 → Architect) Thêm vào api-contract: `DELETE /cart/items/{courseId}` nhận id số, 404 khi không có trong giỏ; mã `CART_TOO_LARGE` (422), notice `PRICING_LIMIT`; `COUPON_EXHAUSTED` ở giỏ là 422 (409 ở checkout). Sửa api-contract §1.7 (COUPON_EXPIRED/INVALID) và data-model §3.5: phân bổ giảm giá theo "phần dư lớn nhất" thay vì dồn dòng cuối (dòng cuối có thể bị giảm quá giá).
 
 ## Nhật ký
 
