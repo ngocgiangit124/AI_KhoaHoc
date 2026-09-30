@@ -23,8 +23,8 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T08 | Quản trị khoá học | Xong | Gộp 2026-09-30; review PASS; 672 test toàn dự án | HtmlSanitizer tạm (xem "Chờ security cuối dự án") | 2026-09-30 |
 | T14 | EnrollmentService | Xong | Gộp 2026-09-30; review PASS; tạo `counters:recount` | Chờ PO câu 13 (R2) | 2026-09-30 |
 | T15 | Mã giảm giá quản trị | Xong | Gộp 2026-09-30; review vòng 2 PASS; DBA PASS; recounter đã nối `counters:recount` | T18: chặn xoá mã khi còn đơn, recounter nguyên tử (DBA M1), atomic `used_count` | 2026-09-30 |
-| T09 | Chương/bài | Dev | Worktree `.claude/worktrees/t09` từ nhánh chính @ba58fe6+ | — | 2026-09-30 |
-| T16 | Giỏ hàng | Dev | Worktree `.claude/worktrees/t16` | — | 2026-09-30 |
+| T09 | Chương/bài | Sửa review | Review PASS; dev sửa R1-R3 (chặn xoá bài, chặn xoá bài cuối khoá published, trần reorder) | Chờ PO: Vimeo unlisted; GV bật is_preview | 2026-09-30 |
+| T16 | Giỏ hàng | Sửa review | Review PASS; dev sửa R1 (limiter), R2 (khôi phục mã COUPON_EXPIRED theo contract), R3, R5, R6 | Kiểm limiter với Redis thật trước staging | 2026-09-30 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
 
@@ -127,6 +127,8 @@ Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 202
 - T05 — điểm cần soi: `docs/reviews/review-T05.md` + báo cáo dev (tombstone, Redis thật, revokeForLock chưa ai gọi, revokeForPasswordChange cho T27)
 - T08 — thay `HtmlSanitizer` tự viết (ext-dom, do sandbox chặn cài Purifier) bằng `ezyang/htmlpurifier`/`mews/purifier` khi cài được ngoài sandbox, rồi soi lại; ImageUploadService (memory_limit php-fpm với ảnh 4000x4000, fuzz file hỏng); Nginx phục vụ `STATIC_URL` cần nosniff/CSP/chặn thực thi (thuộc T31). Xem `docs/reviews/review-T08.md`
 - T14 — race gửi trùng (unique `live_flag`) cần test song song thật trên MySQL; `parent.consent` là bản tạm. Xem `docs/reviews/review-T14.md`
+- T09 — `ExternalVideoLink::parse` (đã thử 50 payload, không bypass), race reorder/xoá song song thật trên MySQL. Xem `docs/reviews/review-T09.md`
+- T16 — `CouponAttemptLimiter` cần kiểm với Redis thật; `GET /cart` có ghi DB khi tự gỡ mã (chấp nhận); T18 dỡ cầu nối `Schema::hasTable('coupon_usages')` ở `DatabaseCouponUsageChecker`. Xem `docs/reviews/review-T16.md`
 
 ## Gate trước go-live
 
@@ -156,6 +158,8 @@ Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 202
 12. (T28 → FA1 — Architect) Hình dạng response `GET /admin/auth/me` (dev dùng `StaffMeResource`: id, name, email, role, must_change_password, `permissions: {manage_system}`), `POST /admin/auth/mfa/verify`, `PUT /admin/auth/password` chưa có trong api-contract §2.5. Chốt trước FA1. Cũng chốt L2: cách FE học sinh biết URL trang quản trị khi nhận WRONG_PORTAL.
 13. (T14 R2 — PO) Khóa miễn phí đang có yêu cầu chờ duyệt mà bị đổi sang có phí: (A) chặn đổi giá khi còn yêu cầu pending (CourseService T08), hay (B) lúc duyệt kiểm lại khóa còn miễn phí + published, không thì từ chối tự động. Đề xuất (B).
 14. (T15 — PO) Ngày hết hạn mã giảm giá: design đánh dấu bắt buộc, data-model cho để trống (dev theo data-model). Và có cần endpoint kích hoạt lại mã đã hủy không.
+15. (T09 — PO) Link Vimeo unlisted (có hash `vimeo.com/ID/HASH`) đang bị từ chối: có cần hỗ trợ không? GV phụ trách bật `is_preview` cho mọi bài (thành công khai) — có cần hạn chế chỉ staff?
+16. (T16 → Architect) Sửa api-contract §1.7 (COUPON_EXPIRED/INVALID) và data-model §3.5: phân bổ giảm giá theo "phần dư lớn nhất" thay vì dồn dòng cuối (dòng cuối có thể bị giảm quá giá).
 
 ## Nhật ký
 
