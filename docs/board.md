@@ -25,8 +25,9 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T15 | Mã giảm giá quản trị | Xong | Gộp 2026-09-30; review vòng 2 PASS; DBA PASS; recounter đã nối `counters:recount` | T18: chặn xoá mã khi còn đơn, recounter nguyên tử (DBA M1), atomic `used_count` | 2026-09-30 |
 | T09 | Chương/bài | Xong | Gộp 2026-09-30; review PASS; 828 test toàn dự án | Chờ PO câu 15 | 2026-09-30 |
 | T16 | Giỏ hàng | Xong | Gộp 2026-09-30; review PASS; 907 test toàn dự án | T18: dỡ cầu nối `hasTable(coupon_usages)`; kiểm limiter với Redis thật trước staging | 2026-09-30 |
-| T11 | Contract video | Dev | Worktree `.claude/worktrees/t11` | — | 2026-09-30 |
-| T21 | Soạn quiz | Dev | Worktree `.claude/worktrees/t21` | — | 2026-09-30 |
+| T11 | Contract video | Tạm dừng | Worktree `.claude/worktrees/t11` (dev mới bắt đầu, dừng giữa chừng 2026-09-30, có thể còn file dở chưa commit) | Tuần sau: resume dev hoặc làm lại | 2026-09-30 |
+| T21 | Soạn quiz | Tạm dừng | Worktree `.claude/worktrees/t21` (dev dừng giữa chừng 2026-09-30, có thể còn file dở chưa commit) | Tuần sau: resume dev hoặc làm lại | 2026-09-30 |
+| T18 | Checkout | Chưa làm | Đã tạo worktree `.claude/worktrees/t18` + DB `vitaminvui_testing_t18`, chưa giao dev. Đủ điều kiện (T16, T17 xong) | — | 2026-09-30 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
 
@@ -182,3 +183,4 @@ Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 202
 - 2026-09-28 · Dev + Reviewer + DBA · T07-T10 hoàn thiện, review APPROVE, DBA thêm index; T04 dev xong (Pest 236); T06 bắt đầu hoàn thiện. Worktree test: mount `-v <wt>/backend:/var/www/wt -w /var/www/wt`, DB `vitaminvui_testing_<task>`, file `phpunit.<task>.xml` (untracked)
 - 2026-09-28 · Dev + Reviewer · Dựng máy local; sửa phpunit DB_PASSWORD, Larastan 16 lỗi, pnpm/compose UID, `.env.example` frontend; review APPROVE; chờ PO duyệt commit
 - 2026-09-30 · T08, T14, T15 · dev → reviewer (T15 thêm DBA) · Gộp; toàn dự án 672 test xanh (Pint, Larastan). Sau khi gộp T08 phải chạy `composer install` trong container php (thêm `intervention/image`).
+- 2026-09-30 · PO tạm dừng đến tuần sau. Nhánh chính 907 test xanh, chưa push. Việc tiếp: T11, T21 (dở), T18 (chưa giao), T13 (sau T11), rồi T19, T20, T22–T25... Còn các câu hỏi PO 10, 12, 13, 14, 15, 16.
