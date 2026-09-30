@@ -32,14 +32,15 @@ class CartItemController extends Controller
     }
 
     /**
-     * Route binding `withTrashed()`: khóa đã gỡ/xoá mềm vẫn phải xoá khỏi giỏ
-     * được. Chỉ xoá dòng trong giỏ CỦA CHÍNH người dùng.
+     * Nhận ID số (không model binding, không lộ khóa nháp/đã xoá có tồn tại
+     * hay không). Chỉ xoá dòng trong giỏ CỦA CHÍNH người dùng; id không nằm
+     * trong giỏ → 404 `NOT_FOUND` đồng nhất.
      */
-    public function destroy(Request $request, Course $course): CartResource
+    public function destroy(Request $request, int $courseId): CartResource
     {
         /** @var User $user */
         $user = $request->user();
 
-        return new CartResource($this->cart->remove($user, $course->id));
+        return new CartResource($this->cart->remove($user, $courseId));
     }
 }

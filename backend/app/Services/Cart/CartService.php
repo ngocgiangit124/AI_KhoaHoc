@@ -13,6 +13,7 @@ use App\Models\Enrollment;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Giỏ hàng của học sinh (US-004, data-model §3.5, §6).
@@ -29,6 +30,8 @@ use Illuminate\Support\Facades\DB;
  */
 class CartService
 {
+    private const NOTICE_PRICING_LIMIT = 'PRICING_LIMIT';
+
     public function __construct(
         private readonly CouponEvaluator $evaluator,
         private readonly PricingCalculator $pricing,
@@ -118,22 +121,31 @@ class CartService
     }
 
     /**
-     * DELETE /cart/items/{course}. Idempotent (khóa không có trong giỏ → giỏ
-     * nguyên vẹn). Mã không còn đủ điều kiện được `view()` tự gỡ kèm thông báo.
+     * DELETE /cart/items/{courseId}. Mã không còn đủ điều kiện được `view()`
+     * tự gỡ kèm thông báo.
+     *
+     * @throws DomainException `NOT_FOUND` (404) khi khóa không nằm trong giỏ của
+     *                         người dùng (đồng nhất cho id không tồn tại/nháp/của người khác)
      */
     public function remove(User $user, int $courseId): CartView
     {
         $cart = $this->findCart($user);
 
+        $deleted = 0;
+
         if ($cart !== null) {
-            DB::transaction(function () use ($cart, $courseId): void {
+            $deleted = DB::transaction(function () use ($cart, $courseId): int {
                 Cart::query()->lockForUpdate()->findOrFail($cart->id);
 
-                CartItem::query()
+                return CartItem::query()
                     ->where('cart_id', $cart->id)
                     ->where('course_id', $courseId)
                     ->delete();
             }, 3);
+        }
+
+        if ($deleted === 0) {
+            throw new DomainException('NOT_FOUND', 'Khóa học không có trong giỏ hàng.', 404);
         }
 
         return $this->view($user);
@@ -159,6 +171,13 @@ class CartService
 
                 $locked->coupon_id = $coupon->id;
                 $locked->save();
+
+                // Giỏ quá lớn để tính giảm giá an toàn → không áp mã (rollback).
+                $priced = $this->build($locked, $user);
+
+                if (collect($priced->notices)->contains('code', self::NOTICE_PRICING_LIMIT)) {
+                    throw new DomainException('CART_TOO_LARGE', 'Giỏ hàng quá lớn để áp dụng mã giảm giá.', 422);
+                }
             }, 3);
         });
 
@@ -304,7 +323,19 @@ class CartService
             $purchasable,
         );
 
-        $pricing = $this->pricing->calculate($lines, $coupon?->discount_type, $coupon?->discount_value);
+        try {
+            $pricing = $this->pricing->calculate($lines, $coupon?->discount_type, $coupon?->discount_value);
+        } catch (InvalidArgumentException) {
+            // Giỏ quá lớn để tính giảm giá an toàn (vượt giới hạn số nguyên; gần
+            // như không thể xảy ra với giá <= 50 triệu): KHÔNG 500. Trả giá gốc,
+            // không giảm, kèm thông báo có mã — học sinh vẫn xoá bớt khóa được.
+            $coupon = null;
+            $pricing = $this->pricing->calculate($lines);
+            $notices[] = [
+                'code' => self::NOTICE_PRICING_LIMIT,
+                'message' => 'Giỏ hàng quá lớn để áp dụng giảm giá, vui lòng bớt khóa học khỏi giỏ.',
+            ];
+        }
 
         return new CartView($cart, $items, $unavailable, $coupon, $pricing, $notices);
     }

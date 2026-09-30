@@ -129,9 +129,23 @@ test('phan bo giam gia bat bien tren nhieu tap ngau nhien (tong khop, khong am, 
     }
 });
 
-test('gia am hoac tong qua lon bi tu choi', function () {
+test('gia am bi tu choi', function () {
+    expect(fn () => (new PricingCalculator)->calculate([new PricingLine(1, -1, true)]))->toThrow(InvalidArgumentException::class);
+});
+
+test('gioi han tran so nguyen dua tren gia dong toi da: 61 khoa 50 trieu van tinh duoc, hang nghin khoa thi bi tu choi co kiem soat (R6)', function () {
     $calc = new PricingCalculator;
 
-    expect(fn () => $calc->calculate([new PricingLine(1, -1, true)]))->toThrow(InvalidArgumentException::class);
-    expect(fn () => $calc->calculate([new PricingLine(1, 3_000_000_001, true)]))->toThrow(InvalidArgumentException::class);
+    $lines = array_map(fn ($i) => new PricingLine($i, 50_000_000, true), range(1, 61));
+    $result = $calc->calculate($lines, CouponDiscountType::FixedAmount, 2_000_000_000);
+    expect($result->discount)->toBe(2_000_000_000);
+    expect(array_sum(array_map(fn ($l) => $l->discountAmount, $result->lines)))->toBe(2_000_000_000);
+
+    // Khong co ma: khong bao gio nem, ke ca tong rat lon.
+    $huge = array_map(fn ($i) => new PricingLine($i, 50_000_000, true), range(1, 5000));
+    expect($calc->calculate($huge)->subtotal)->toBe(250_000_000_000);
+
+    // discount * gia dong > PHP_INT_MAX -> InvalidArgumentException (CartService bat, khong 500).
+    expect(fn () => $calc->calculate($huge, CouponDiscountType::FixedAmount, 250_000_000_000))
+        ->toThrow(InvalidArgumentException::class);
 });

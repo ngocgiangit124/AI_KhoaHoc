@@ -28,22 +28,16 @@ use InvalidArgumentException;
 class PricingCalculator
 {
     /**
-     * Trần tổng phần thuộc phạm vi mã (VND). `discount * unitPrice` <= tổng²
-     * nên phép nhân số nguyên 64-bit không tràn khi tổng <= 3.000.000.000
-     * (~ căn bậc hai của PHP_INT_MAX); giá khóa thực tế nhỏ hơn nhiều bậc.
-     */
-    private const MAX_ELIGIBLE_SUBTOTAL = 3_000_000_000;
-
-    /**
      * @param  list<PricingLine>  $lines
      * @param  int|null  $discountValue  null = không áp mã
      *
-     * @throws InvalidArgumentException giá âm hoặc giá trị giảm không hợp lệ
+     * @throws InvalidArgumentException giá âm, giá trị giảm không hợp lệ hoặc tổng vượt giới hạn tính toán
      */
     public function calculate(array $lines, ?CouponDiscountType $discountType = null, ?int $discountValue = null): PricingResult
     {
         $subtotal = 0;
         $eligibleSubtotal = 0;
+        $maxEligiblePrice = 0;
 
         foreach ($lines as $line) {
             if ($line->unitPrice < 0) {
@@ -54,14 +48,19 @@ class PricingCalculator
 
             if ($line->eligible) {
                 $eligibleSubtotal += $line->unitPrice;
+                $maxEligiblePrice = max($maxEligiblePrice, $line->unitPrice);
             }
         }
 
-        if ($eligibleSubtotal > self::MAX_ELIGIBLE_SUBTOTAL) {
+        $discount = $this->totalDiscount($eligibleSubtotal, $discountType, $discountValue);
+
+        // Phép nhân phân bổ `discount * unitPrice` (và `subtotal * percent`) phải
+        // vừa số nguyên 64-bit. Giá khóa <= 50.000.000 (validate quản trị) nên
+        // chỉ vượt khi hàng nghìn khóa giá tối đa nằm cùng 1 mã — `CartService`
+        // bắt lỗi này thành kết quả có kiểm soát (không 500).
+        if ($maxEligiblePrice > 0 && $discount > intdiv(PHP_INT_MAX, $maxEligiblePrice)) {
             throw new InvalidArgumentException('Tổng giá vượt giới hạn tính toán.');
         }
-
-        $discount = $this->totalDiscount($eligibleSubtotal, $discountType, $discountValue);
         $allocation = $this->allocate($lines, $eligibleSubtotal, $discount);
 
         $priced = [];
@@ -82,6 +81,10 @@ class PricingCalculator
 
         if ($value < 0) {
             throw new InvalidArgumentException('Giá trị giảm không được âm.');
+        }
+
+        if ($eligibleSubtotal > intdiv(PHP_INT_MAX, 100)) {
+            throw new InvalidArgumentException('Tổng giá vượt giới hạn tính toán.');
         }
 
         $raw = match ($type) {

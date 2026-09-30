@@ -60,6 +60,11 @@ test('chi PUT /cart/coupon co throttle:coupon', function () {
     }
 });
 
-test('route xoa dong gio bind withTrashed de xoa duoc khoa da xoa mem', function () {
-    expect(vvCartRoutes()['api.cart.items.destroy']->allowsTrashedBindings())->toBeTrue();
+test('route xoa dong gio dung id so, khong model binding (khong lo ton tai khoa)', function () {
+    $route = vvCartRoutes()['api.cart.items.destroy'];
+
+    expect($route->allowsTrashedBindings())->toBeFalse();
+    expect($route->getAction('controller'))->toContain('CartItemController@destroy');
+    expect($route->wheres)->toHaveKey('courseId');
+    expect($route->parameterNames())->toBe(['courseId']);
 });

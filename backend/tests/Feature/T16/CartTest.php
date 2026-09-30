@@ -155,16 +155,53 @@ test('xoa khoa khoi gio: tong duoc tinh lai (AC4)', function () {
     $response->assertJsonPath('pricing.total', 299000);
 });
 
-test('xoa khoa khong co trong gio la idempotent', function () {
+test('xoa id khong nam trong gio tra 404 dong nhat (khong lo khoa nhap/da xoa/khong ton tai)', function () {
     $student = User::factory()->student()->create();
-    $a = vvPaidCourse();
-    vvAddToCart($student, $a);
-    $other = vvPaidCourse();
+    vvAddToCart($student, vvPaidCourse());
 
-    $response = test()->actingAs($student)->deleteJson(vvCartUrl("/items/{$other->id}"), [], vvCartHeaders());
+    $otherPublished = vvPaidCourse();
+    $draft = Course::factory()->create(['price' => 199000]);
+    $deleted = vvPaidCourse();
+    $deleted->delete();
 
-    $response->assertOk();
-    $response->assertJsonPath('count', 1);
+    $bodies = [];
+
+    foreach ([$otherPublished->id, $draft->id, $deleted->id, 99999999] as $id) {
+        $response = test()->actingAs($student)->deleteJson(vvCartUrl("/items/{$id}"), [], vvCartHeaders());
+
+        $response->assertStatus(404);
+        $bodies[] = [$response->json('code'), $response->json('message')];
+    }
+
+    expect(collect($bodies)->unique()->values())->toHaveCount(1);
+    // Gio nguyen ven.
+    test()->actingAs($student)->getJson(vvCartUrl(), vvCartHeaders())->assertJsonPath('count', 1);
+});
+
+test('id khoa khong phai so nguyen tra 404 (route whereNumber)', function () {
+    $student = User::factory()->student()->create();
+
+    test()->actingAs($student)->deleteJson(vvCartUrl('/items/abc'), [], vvCartHeaders())->assertStatus(404);
+    test()->actingAs($student)->deleteJson(vvCartUrl('/items/1.5'), [], vvCartHeaders())->assertStatus(404);
+});
+
+test('xoa khoa hai lan: lan 2 tra 404', function () {
+    $student = User::factory()->student()->create();
+    $course = vvPaidCourse();
+    vvAddToCart($student, $course);
+
+    test()->actingAs($student)->deleteJson(vvCartUrl("/items/{$course->id}"), [], vvCartHeaders())->assertOk();
+    test()->actingAs($student)->deleteJson(vvCartUrl("/items/{$course->id}"), [], vvCartHeaders())->assertStatus(404);
+});
+
+test('hoc sinh khong xoa duoc dong trong gio nguoi khac (404, dong van con)', function () {
+    $alice = User::factory()->student()->create();
+    $bob = User::factory()->student()->create();
+    $course = vvPaidCourse();
+    vvAddToCart($alice, $course);
+
+    test()->actingAs($bob)->deleteJson(vvCartUrl("/items/{$course->id}"), [], vvCartHeaders())->assertStatus(404);
+    expect(CartItem::query()->count())->toBe(1);
 });
 
 test('khoa da go publish hoac xoa mem van hien trong gio voi co unavailable va xoa duoc', function () {
@@ -187,7 +224,7 @@ test('khoa da go publish hoac xoa mem van hien trong gio voi co unavailable va x
     $response->assertJsonPath('notices.0.code', 'COURSE_UNAVAILABLE');
     $response->assertJsonPath('notices.0.course_id', $gone->id);
 
-    // Xoa duoc khoa da xoa mem (route binding withTrashed).
+    // Xoa duoc khoa da xoa mem (route nhan id so, khong model binding).
     $delete = test()->actingAs($student)->deleteJson(vvCartUrl("/items/{$gone->id}"), [], vvCartHeaders());
     $delete->assertOk();
     $delete->assertJsonPath('count', 1);
@@ -232,8 +269,8 @@ test('gio hang la cua rieng tung hoc sinh (IDOR): khong thay/xoa duoc gio nguoi 
     // Bob khong thay gio cua Alice.
     test()->actingAs($bob)->getJson(vvCartUrl(), vvCartHeaders())->assertJsonPath('count', 0);
 
-    // Bob "xoa" cung course_id chi tac dong gio cua Bob.
-    test()->actingAs($bob)->deleteJson(vvCartUrl("/items/{$course->id}"), [], vvCartHeaders())->assertOk();
+    // Bob "xoa" cung course_id: khong co trong gio cua Bob -> 404, gio Alice khong doi.
+    test()->actingAs($bob)->deleteJson(vvCartUrl("/items/{$course->id}"), [], vvCartHeaders())->assertStatus(404);
     expect(CartItem::query()->count())->toBe(1);
 
     // Body co user_id/cart_id la thong tin la, bi bo qua.

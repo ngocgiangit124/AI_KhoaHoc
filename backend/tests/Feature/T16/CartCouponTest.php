@@ -11,6 +11,8 @@ use App\Models\Course;
 use App\Models\Subject;
 use App\Models\User;
 use App\Services\Cart\CouponUsageChecker;
+use App\Services\Cart\PricingCalculator;
+use App\Services\Cart\PricingResult;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -92,17 +94,15 @@ test('fixed_amount lon hon gia gio: giam toi da bang gia, tong khong am (BR8)', 
     $response->assertJsonPath('pricing', ['subtotal' => 100000, 'discount' => 100000, 'total' => 0]);
 });
 
-test('ma khong ton tai / chua bat dau / vo hieu / het han / het luot: CUNG COUPON_INVALID, cung thong diep (S18)', function () {
+test('ma khong ton tai / chua bat dau / vo hieu: CUNG COUPON_INVALID, cung thong diep (S18)', function () {
     vvCartWith($this->student, [vvPaid()]);
 
     Coupon::factory()->create(['code' => 'CHUABATDAU', 'valid_from' => now()->addDay(), 'valid_until' => now()->addMonth()]);
     Coupon::factory()->inactive()->create(['code' => 'VOHIEU']);
-    Coupon::factory()->expired()->create(['code' => 'HETHAN']);
-    Coupon::factory()->create(['code' => 'HETLUOT', 'max_uses' => 5, 'used_count' => 5]);
 
     $bodies = [];
 
-    foreach (['KHONGTONTAI', 'CHUABATDAU', 'VOHIEU', 'HETHAN', 'HETLUOT', 'sai dinh dang!!', str_repeat('A', 50)] as $code) {
+    foreach (['KHONGTONTAI', 'CHUABATDAU', 'VOHIEU', 'sai dinh dang!!', str_repeat('A', 50)] as $code) {
         $response = vvApply($this->student, $code);
 
         $response->assertStatus(422);
@@ -113,6 +113,21 @@ test('ma khong ton tai / chua bat dau / vo hieu / het han / het luot: CUNG COUPO
     // Code + message giong het nhau (khong co truong nao phan biet ly do).
     expect(collect($bodies)->map(fn ($b) => [$b['code'], $b['message']])->unique()->values())->toHaveCount(1);
     expect(collect($bodies)->map(fn ($b) => array_keys($b))->unique()->values())->toHaveCount(1);
+    expect(Cart::query()->firstOrFail()->coupon_id)->toBeNull();
+});
+
+test('ma het han tra COUPON_EXPIRED, het luot tra COUPON_EXHAUSTED (api-contract 1.7, AC8), khong doi gio', function () {
+    vvCartWith($this->student, [vvPaid()]);
+    Coupon::factory()->expired()->create(['code' => 'HETHAN']);
+    Coupon::factory()->create(['code' => 'HETLUOT', 'max_uses' => 5, 'used_count' => 5]);
+
+    $expired = vvApply($this->student, 'HETHAN');
+    $expired->assertStatus(422)->assertJson(['code' => 'COUPON_EXPIRED']);
+
+    $exhausted = vvApply($this->student, 'HETLUOT');
+    $exhausted->assertStatus(422)->assertJson(['code' => 'COUPON_EXHAUSTED']);
+
+    expect($expired->json('message'))->not->toBe($exhausted->json('message'));
     expect(Cart::query()->firstOrFail()->coupon_id)->toBeNull();
 });
 
@@ -447,4 +462,97 @@ test('ma giam 100% khong lam tong am', function () {
     $response->assertOk();
     $response->assertJsonPath('pricing', ['subtotal' => 50000, 'discount' => 50000, 'total' => 0]);
     expect(Coupon::query()->firstOrFail()->discount_type)->toBe(CouponDiscountType::Percent);
+});
+
+test('nguoi da cham tran tai khoan spam tiep KHONG dot han muc IP (R1)', function () {
+    config(['coupon.max_failed_per_day' => 5, 'coupon.max_failed_per_day_per_ip' => 100]);
+    vvCartWith($this->student, [vvPaid()]);
+    RateLimiter::for('coupon', fn () => Limit::none());
+
+    for ($i = 1; $i <= 5; $i++) {
+        vvApply($this->student, 'SAI'.$i)->assertStatus(422);
+    }
+
+    $ipKey = 'coupon-fail:ip:127.0.0.1';
+    expect(RateLimiter::attempts($ipKey))->toBe(5);
+
+    for ($i = 0; $i < 200; $i++) {
+        vvApply($this->student, 'SPAM'.$i)->assertStatus(429);
+    }
+
+    expect(RateLimiter::attempts($ipKey))->toBe(5);
+    expect(RateLimiter::attempts('coupon-fail:user:'.$this->student->id))->toBe(5);
+
+    // Hoc sinh khac cung IP van dung duoc (IP chua bi dot).
+    $other = User::factory()->student()->create();
+    vvCartWith($other, [vvPaid()]);
+    vvApply($other, 'SAI')->assertStatus(422);
+});
+
+test('bi chan theo IP thi khong bi cong vao han muc tai khoan (R1)', function () {
+    config(['coupon.max_failed_per_day' => 100, 'coupon.max_failed_per_day_per_ip' => 2]);
+    vvCartWith($this->student, [vvPaid()]);
+    RateLimiter::for('coupon', fn () => Limit::none());
+
+    vvApply($this->student, 'SAI1')->assertStatus(422);
+    vvApply($this->student, 'SAI2')->assertStatus(422);
+
+    for ($i = 0; $i < 10; $i++) {
+        vvApply($this->student, 'BLOCKED'.$i)->assertStatus(429);
+    }
+
+    expect(RateLimiter::attempts('coupon-fail:user:'.$this->student->id))->toBe(2);
+    expect(RateLimiter::attempts('coupon-fail:ip:127.0.0.1'))->toBe(2);
+});
+
+test('audit coupon.attempt_limit ghi scope user hoac ip', function () {
+    config(['coupon.max_failed_per_day' => 1, 'coupon.max_failed_per_day_per_ip' => 100]);
+    vvCartWith($this->student, [vvPaid()]);
+    RateLimiter::for('coupon', fn () => Limit::none());
+
+    vvApply($this->student, 'SAI1')->assertStatus(422);
+    vvApply($this->student, 'SAI2')->assertStatus(429);
+
+    $log = AuditLog::query()->where('action', 'coupon.attempt_limit')->firstOrFail();
+    expect($log->changes)->toBe(['scope' => 'user']);
+});
+
+function vvBindOverflowingCalculator(): void
+{
+    // Mo phong gio vuot gioi han so nguyen: calculate() ne InvalidArgumentException khi co ma.
+    app()->instance(PricingCalculator::class, new class extends PricingCalculator
+    {
+        public function calculate(array $lines, ?CouponDiscountType $discountType = null, ?int $discountValue = null): PricingResult
+        {
+            if ($discountType !== null) {
+                throw new InvalidArgumentException('Tổng giá vượt giới hạn tính toán.');
+            }
+
+            return parent::calculate($lines);
+        }
+    });
+}
+
+test('gio qua lon de tinh giam gia: ap ma bi 422 CART_TOO_LARGE, khong luu ma', function () {
+    vvCartWith($this->student, [vvPaid(200000)]);
+    Coupon::factory()->create(['code' => 'GIAM10']);
+    vvBindOverflowingCalculator();
+
+    vvApply($this->student, 'GIAM10')->assertStatus(422)->assertJson(['code' => 'CART_TOO_LARGE']);
+
+    expect(Cart::query()->firstOrFail()->coupon_id)->toBeNull();
+});
+
+test('gio dang co ma nhung qua lon de tinh: GET /cart khong 500, tra gia goc kem PRICING_LIMIT', function () {
+    $cart = vvCartWith($this->student, [vvPaid(200000)]);
+    $coupon = Coupon::factory()->create(['code' => 'GIAM10']);
+    $cart->forceFill(['coupon_id' => $coupon->id])->save();
+    vvBindOverflowingCalculator();
+
+    $response = test()->actingAs($this->student)->getJson('http://'.config('app.api_host').'/api/v1/cart', vvCouponHeaders());
+
+    $response->assertOk();
+    $response->assertJsonPath('coupon', null);
+    $response->assertJsonPath('pricing', ['subtotal' => 200000, 'discount' => 0, 'total' => 200000]);
+    $response->assertJsonPath('notices.0.code', 'PRICING_LIMIT');
 });

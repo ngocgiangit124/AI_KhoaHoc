@@ -143,9 +143,11 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             Route::get('/', [CartController::class, 'show'])->name('api.cart.show');
 
             Route::post('/items', [CartItemController::class, 'store'])->name('api.cart.items.store');
-            // withTrashed: khóa đã gỡ/xoá mềm vẫn phải xoá khỏi giỏ được.
-            Route::delete('/items/{course}', [CartItemController::class, 'destroy'])
-                ->withTrashed()
+            // Nhận ID số thô (KHÔNG model binding): khóa đã gỡ/xoá mềm vẫn xoá khỏi
+            // giỏ được mà không lộ khác biệt tồn tại/nháp qua mã trả về — id
+            // không nằm trong giỏ của người dùng → 404 đồng nhất.
+            Route::delete('/items/{courseId}', [CartItemController::class, 'destroy'])
+                ->whereNumber('courseId')
                 ->name('api.cart.items.destroy');
 
             Route::put('/coupon', [CartCouponController::class, 'update'])

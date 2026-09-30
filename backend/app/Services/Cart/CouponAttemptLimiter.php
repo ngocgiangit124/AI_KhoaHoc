@@ -45,41 +45,58 @@ class CouponAttemptLimiter
             $keys[self::ipKey($ip)] = (int) config('coupon.max_failed_per_day_per_ip');
         }
 
-        $blocked = false;
+        // Dừng ở khoá ĐẦU TIÊN bị vượt và hoàn lượt các khoá đã đếm (kể cả khoá vừa
+        // vượt): request bị chặn không phải "lần sai", nên học sinh đã chạm trần
+        // tài khoản không thể tiếp tục đốt hạn mức IP dùng chung NAT (và ngược lại).
+        $counted = [];
 
         foreach ($keys as $key => $max) {
-            if (RateLimiter::hit($key, self::DECAY_SECONDS) > $max) {
-                $blocked = true;
+            $hits = RateLimiter::hit($key, self::DECAY_SECONDS);
+            $counted[] = $key;
+
+            if ($hits > $max) {
+                array_map(self::refund(...), $counted);
+
+                throw $this->blocked($user, $key === self::userKey($user) ? 'user' : 'ip', $key);
             }
-        }
-
-        if ($blocked) {
-            $retryAfter = max(array_map(RateLimiter::availableIn(...), array_keys($keys)));
-
-            // Chỉ ghi audit MỘT lần mỗi lần chạm trần (tự hết hạn cùng cửa sổ 24h).
-            if (Cache::add('coupon-limit-audit:'.self::userKey($user), true, self::DECAY_SECONDS)) {
-                $this->audit->log('coupon.attempt_limit', $user);
-            }
-
-            throw new DomainException(
-                code: 'TOO_MANY_ATTEMPTS',
-                message: 'Bạn đã nhập sai mã giảm giá quá nhiều lần, vui lòng thử lại sau.',
-                status: 429,
-                headers: ['Retry-After' => (string) max(1, $retryAfter)],
-            );
         }
 
         $result = $attempt();
 
         // Thành công (không ném): hoàn lại lượt đã đếm trước đó. Ngoại lệ (mã
         // sai, lỗi hệ thống...) → giữ nguyên lượt đã tính.
-        foreach (array_keys($keys) as $key) {
-            if (RateLimiter::decrement($key, self::DECAY_SECONDS) < 0) {
-                RateLimiter::resetAttempts($key);
-            }
-        }
+        array_map(self::refund(...), $counted);
 
         return $result;
+    }
+
+    private function blocked(User $user, string $scope, string $key): DomainException
+    {
+        // Chỉ ghi audit MỘT lần mỗi lần chạm trần (tự hết hạn cùng cửa sổ 24h).
+        // Ghi audit TRƯỚC khi đặt cờ: nếu audit lỗi thì lần sau còn ghi lại.
+        $flag = 'coupon-limit-audit:'.$scope.':'.$key;
+
+        if (! Cache::has($flag)) {
+            $this->audit->log('coupon.attempt_limit', $user, ['scope' => $scope]);
+            Cache::put($flag, true, self::DECAY_SECONDS);
+        }
+
+        return new DomainException(
+            code: 'TOO_MANY_ATTEMPTS',
+            message: 'Bạn đã nhập sai mã giảm giá quá nhiều lần, vui lòng thử lại sau.',
+            status: 429,
+            headers: ['Retry-After' => (string) max(1, RateLimiter::availableIn($key))],
+        );
+    }
+
+    /**
+     * Hoàn 1 lượt; không để số đếm âm (khoá hết hạn giữa `hit` và hoàn lượt).
+     */
+    private static function refund(string $key): void
+    {
+        if (RateLimiter::decrement($key, self::DECAY_SECONDS) < 0) {
+            RateLimiter::resetAttempts($key);
+        }
     }
 
     private static function userKey(User $user): string
