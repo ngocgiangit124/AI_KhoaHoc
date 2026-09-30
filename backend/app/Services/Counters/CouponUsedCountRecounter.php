@@ -1,0 +1,79 @@
+<?php
+
+namespace App\Services\Counters;
+
+use App\Models\Coupon;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+/**
+ * Đối soát `coupons.used_count` (denormalize) theo số dòng THẬT trong
+ * `coupon_usages` (data-model §3.5, DBA #5 —
+ * docs/db/design-review.md mục 2.3/2.9: "cân nhắc thêm cron
+ * `coupons:recount-used` đối soát `used_count` giống `courses:recount-enrollments`").
+ *
+ * TODO(T18): `coupon_usages` chỉ được TẠO Ở T18 (Checkout) vì cần FK tới
+ * `orders` (chưa tồn tại ở nhánh này — tasks.md T15 chỉ tạo `coupons` +
+ * `coupon_course`/`coupon_subject`, xem data-model §5 mục migration 4 vs 6).
+ * `recount()` tự phát hiện việc này qua `Schema::hasTable()` và BỎ QUA AN
+ * TOÀN (không throw, không giả định/bịa cấu trúc bảng `coupon_usages` khi nó
+ * chưa được T18 chốt) thay vì đoán bừa.
+ *
+ * Đã nối vào `counters:recount` qua `CounterServiceProvider` (gộp T14+T15).
+ * TODO(T18, DBA M1): viết lại `recount()` thành 1 câu UPDATE nguyên tử theo
+ * chunk id (như `CourseEnrollmentsCountRecounter`) khi `coupon_usages` có thật.
+ */
+class CouponUsedCountRecounter implements Recounter
+{
+    public function label(): string
+    {
+        return 'coupons.used_count';
+    }
+
+    public function recount(): int
+    {
+        if (! Schema::hasTable('coupon_usages')) {
+            return 0;
+        }
+
+        /** @var Collection<int, int> $actualCounts coupon_id => số lượt đã dùng thật */
+        $actualCounts = DB::table('coupon_usages')
+            ->select('coupon_id', DB::raw('COUNT(*) as total'))
+            ->groupBy('coupon_id')
+            ->pluck('total', 'coupon_id');
+
+        return $this->applyCounts($actualCounts);
+    }
+
+    /**
+     * Tách riêng khỏi `recount()` để test được logic "áp số đếm vào từng mã"
+     * mà KHÔNG cần bảng `coupon_usages` thật (bảng đó chưa tồn tại tới khi
+     * T18 gộp — xem TODO(T18) ở trên). `counters:recount` (T14) chỉ cần gọi
+     * `recount()`; `applyCounts()` public chủ yếu phục vụ unit test.
+     *
+     * @param  Collection<int, int>  $actualCounts  coupon_id => số lượt đã dùng thật
+     */
+    public function applyCounts(Collection $actualCounts): int
+    {
+        $fixed = 0;
+
+        Coupon::query()->select(['id', 'used_count'])->chunkById(200, function (EloquentCollection $coupons) use ($actualCounts, &$fixed): void {
+            foreach ($coupons as $coupon) {
+                $actual = (int) ($actualCounts[$coupon->id] ?? 0);
+
+                if ($coupon->used_count !== $actual) {
+                    // S17 — `used_count` không nằm trong $fillable, gán trực
+                    // tiếp thuộc tính (KHÔNG mass-assign) rồi lưu, giống
+                    // `SubjectService::updateStatus()`.
+                    $coupon->used_count = $actual;
+                    $coupon->save();
+                    $fixed++;
+                }
+            }
+        });
+
+        return $fixed;
+    }
+}

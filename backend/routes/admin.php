@@ -4,9 +4,11 @@ use App\Http\Controllers\Api\V1\Admin\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MeController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MfaController;
 use App\Http\Controllers\Api\V1\Admin\Auth\PasswordController;
+use App\Http\Controllers\Api\V1\Admin\CouponController;
 use App\Http\Controllers\Api\V1\Admin\EnrollmentRequestController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
+use App\Models\Coupon;
 use App\Models\Subject;
 use Illuminate\Support\Facades\Route;
 
@@ -158,7 +160,25 @@ Route::domain(config('app.admin_api_host'))
                 ->middleware('can:decide,enrollment')
                 ->name('admin.enrollment-requests.reject');
 
-            // Khóa học/chương/bài (T08+), mã giảm giá/đơn hàng (T15, T24) —
-            // thêm dần ở các task sau.
+            // Mã giảm giá quản trị (T15, US-013, api-contract §2.5). `index`
+            // không có `can:...` ở route (giống `/subjects`) — authorize chạy
+            // TRONG controller (`$this->authorize('viewAny', ...)`) vì không
+            // có route-model-binding nào để middleware `can:` bám vào.
+            Route::get('/coupons', [CouponController::class, 'index'])->name('admin.coupons.index');
+            Route::post('/coupons', [CouponController::class, 'store'])
+                ->middleware('can:create,'.Coupon::class)
+                ->name('admin.coupons.store');
+            Route::put('/coupons/{coupon}', [CouponController::class, 'update'])
+                ->middleware('can:update,coupon')
+                ->name('admin.coupons.update');
+            Route::post('/coupons/{coupon}/deactivate', [CouponController::class, 'deactivate'])
+                ->middleware('can:deactivate,coupon')
+                ->name('admin.coupons.deactivate');
+            Route::delete('/coupons/{coupon}', [CouponController::class, 'destroy'])
+                ->middleware('can:delete,coupon')
+                ->name('admin.coupons.destroy');
+
+            // Khóa học/chương/bài (T08+), đơn hàng (T24) — thêm dần ở các
+            // task sau.
         });
     });

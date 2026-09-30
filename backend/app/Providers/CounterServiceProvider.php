@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Console\Commands\CountersRecountCommand;
+use App\Services\Counters\CouponUsedCountRecounter;
 use App\Services\Counters\CourseEnrollmentsCountRecounter;
 use Illuminate\Support\ServiceProvider;
 
@@ -20,6 +21,7 @@ class CounterServiceProvider extends ServiceProvider
             ->needs('$recounters')
             ->give(fn () => [
                 $this->app->make(CourseEnrollmentsCountRecounter::class),
+                $this->app->make(CouponUsedCountRecounter::class),
             ]);
     }
 }
