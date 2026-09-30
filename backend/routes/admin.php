@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Admin\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MeController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MfaController;
 use App\Http\Controllers\Api\V1\Admin\Auth\PasswordController;
+use App\Http\Controllers\Api\V1\Admin\EnrollmentRequestController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
 use App\Models\Subject;
@@ -142,6 +143,20 @@ Route::domain(config('app.admin_api_host'))
             Route::patch('/subjects/{subject}/status', [SubjectController::class, 'updateStatus'])
                 ->middleware('can:updateStatus,subject')
                 ->name('admin.subjects.status');
+
+            // T14 (US-012, api-contract §2.5) — duyệt đăng ký khóa miễn phí.
+            // `index` tự authorize trong controller (cần course_id ĐÃ
+            // validate — không đặt được ở middleware `can:` route, giống
+            // `SubjectController::index`); `approve`/`reject` dùng
+            // `can:decide,enrollment` (mẫu T06).
+            Route::get('/enrollment-requests', [EnrollmentRequestController::class, 'index'])
+                ->name('admin.enrollment-requests.index');
+            Route::post('/enrollment-requests/{enrollment}/approve', [EnrollmentRequestController::class, 'approve'])
+                ->middleware('can:decide,enrollment')
+                ->name('admin.enrollment-requests.approve');
+            Route::post('/enrollment-requests/{enrollment}/reject', [EnrollmentRequestController::class, 'reject'])
+                ->middleware('can:decide,enrollment')
+                ->name('admin.enrollment-requests.reject');
 
             // Khóa học/chương/bài (T08+), mã giảm giá/đơn hàng (T15, T24) —
             // thêm dần ở các task sau.
