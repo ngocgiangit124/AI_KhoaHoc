@@ -7,6 +7,8 @@ use App\Services\Audit\AuditLogger;
 use App\Services\Auth\Captcha\CaptchaVerifier;
 use App\Services\Auth\Captcha\FakeCaptchaVerifier;
 use App\Services\Auth\Captcha\TurnstileVerifier;
+use App\Services\Cart\CouponUsageChecker;
+use App\Services\Cart\DatabaseCouponUsageChecker;
 use App\Support\ProductionConfigGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -39,6 +41,9 @@ class AppServiceProvider extends ServiceProvider
         // hoa/thường) được chấp nhận; driver lạ ném exception ngay lúc resolve
         // (ứng dụng "không boot" được luồng cần captcha, thay vì âm thầm bỏ
         // qua bảo vệ).
+        // T16 — cầu nối tới `coupon_usages` (T18 tạo bảng).
+        $this->app->bind(CouponUsageChecker::class, DatabaseCouponUsageChecker::class);
+
         $this->app->bind(CaptchaVerifier::class, function () {
             return match (config('captcha.driver')) {
                 'turnstile' => new TurnstileVerifier((string) config('services.turnstile.secret')),
@@ -159,12 +164,14 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
+        // T16 (S18) — chỉ còn lớp theo PHÚT (chống dồn dập) và theo giờ/IP. Trần
+        // "30 lần SAI/ngày" trước đây là `Limit::perDay(30)` ở đây đếm CẢ lần
+        // đúng lẫn sai, và `ThrottleRequests` kiểm-rồi-mới-đếm nên không nguyên
+        // tử; giờ nằm ở `CouponAttemptLimiter` (đếm trước bằng INCR nguyên tử,
+        // hoàn lại lượt khi áp mã thành công) — xem docblock class đó.
         RateLimiter::for('coupon', function (Request $request) {
-            $identity = $this->identity($request);
-
             return [
-                Limit::perMinute(10)->by('coupon:'.$identity),
-                Limit::perDay(30)->by('coupon-day:'.$identity),
+                Limit::perMinute(10)->by('coupon:'.$this->identity($request)),
                 Limit::perHour(60)->by('coupon-ip:'.$request->ip()),
             ];
         });

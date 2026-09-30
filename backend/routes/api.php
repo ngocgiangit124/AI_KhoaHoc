@@ -6,6 +6,9 @@ use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\MeController;
 use App\Http\Controllers\Api\V1\Auth\OtpController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
+use App\Http\Controllers\Api\V1\Cart\CartController;
+use App\Http\Controllers\Api\V1\Cart\CartCouponController;
+use App\Http\Controllers\Api\V1\Cart\CartItemController;
 use App\Http\Controllers\Api\V1\Catalog\CourseController;
 use App\Http\Controllers\Api\V1\Catalog\SubjectController;
 use App\Http\Controllers\Api\V1\Enrollment\FreeEnrollmentController;
@@ -130,6 +133,29 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         ])
         ->name('api.courses.free-enrollments.store');
 
-    // Cart/Checkout (T16/T18), Learn (T13), Webhooks (T19) — thêm dần ở các
-    // task sau.
+    // T16 (US-004, api-contract §2.3) — giỏ hàng. Nhóm `student` chuẩn (api-contract
+    // §1.3). CỐ Ý KHÔNG có `account.verified`/`parent.consent`: học sinh chưa xác
+    // thực OTP vẫn xem/ thêm giỏ được (chỉ checkout — T18 — mới đòi cả hai).
+    // Giỏ luôn suy từ người đăng nhập, không có tham số chọn giỏ (không IDOR).
+    Route::middleware(['auth:sanctum', 'account.active', 'student.single_session', 'no_store', 'role:hoc_sinh'])
+        ->prefix('cart')
+        ->group(function (): void {
+            Route::get('/', [CartController::class, 'show'])->name('api.cart.show');
+
+            Route::post('/items', [CartItemController::class, 'store'])->name('api.cart.items.store');
+            // Nhận ID số thô (KHÔNG model binding): khóa đã gỡ/xoá mềm vẫn xoá khỏi
+            // giỏ được mà không lộ khác biệt tồn tại/nháp qua mã trả về — id
+            // không nằm trong giỏ của người dùng → 404 đồng nhất.
+            Route::delete('/items/{courseId}', [CartItemController::class, 'destroy'])
+                ->whereNumber('courseId')
+                ->name('api.cart.items.destroy');
+
+            Route::put('/coupon', [CartCouponController::class, 'update'])
+                ->middleware('throttle:coupon')
+                ->name('api.cart.coupon.update');
+            Route::delete('/coupon', [CartCouponController::class, 'destroy'])
+                ->name('api.cart.coupon.destroy');
+        });
+
+    // Checkout (T18), Learn (T13), Webhooks (T19) — thêm dần ở các task sau.
 });
