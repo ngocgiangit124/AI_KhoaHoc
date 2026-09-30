@@ -123,6 +123,8 @@ Máy mới: copy `infra/.env.example` → `infra/.env`, `backend/.env.example` �
 Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 2026-09-29):
 - T28 — điểm cần soi: phần "Điểm cần Security soi kỹ" trong báo cáo dev + `docs/reviews/review-T28.md` (thứ tự kiểm đăng nhập staff, staff.idle, audit login_failed, X-Device-Id tự khai, AuthenticateSession; test R2 mới chứng minh tĩnh — nên chạy mutation thật: bỏ `staff.session` khỏi `/admin/auth/me` thì StaffSessionRevocationTest phải fail)
 - T05 — điểm cần soi: `docs/reviews/review-T05.md` + báo cáo dev (tombstone, Redis thật, revokeForLock chưa ai gọi, revokeForPasswordChange cho T27)
+- T08 — thay `HtmlSanitizer` tự viết (ext-dom, do sandbox chặn cài Purifier) bằng `ezyang/htmlpurifier`/`mews/purifier` khi cài được ngoài sandbox, rồi soi lại; ImageUploadService (memory_limit php-fpm với ảnh 4000x4000, fuzz file hỏng); Nginx phục vụ `STATIC_URL` cần nosniff/CSP/chặn thực thi (thuộc T31). Xem `docs/reviews/review-T08.md`
+- T14 — race gửi trùng (unique `live_flag`) cần test song song thật trên MySQL; `parent.consent` là bản tạm. Xem `docs/reviews/review-T14.md`
 
 ## Gate trước go-live
 
@@ -150,6 +152,8 @@ Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 202
 10. (T04, M3 — PO + Architect, chốt trước T27) Đổi email/SĐT (`PUT /auth/contact`) hiện không cần mật khẩu, không báo về địa chỉ cũ, không audit → người dùng chung máy ở trường đổi email rồi "quên mật khẩu" là chiếm tài khoản. Security đề xuất: bắt mật khẩu hiện tại hoặc OTP kênh cũ; thông báo về địa chỉ cũ; audit; T27 tạm không gửi tới kênh vừa đổi. Đổi api-contract.
 11. (T04, L1/S20 — PO) Thời hạn dọn tài khoản chưa xác thực; thời hạn lưu `otp_codes` (có PII `destination`) và `failed_jobs` — cần pháp chế.
 12. (T28 → FA1 — Architect) Hình dạng response `GET /admin/auth/me` (dev dùng `StaffMeResource`: id, name, email, role, must_change_password, `permissions: {manage_system}`), `POST /admin/auth/mfa/verify`, `PUT /admin/auth/password` chưa có trong api-contract §2.5. Chốt trước FA1. Cũng chốt L2: cách FE học sinh biết URL trang quản trị khi nhận WRONG_PORTAL.
+13. (T14 R2 — PO) Khóa miễn phí đang có yêu cầu chờ duyệt mà bị đổi sang có phí: (A) chặn đổi giá khi còn yêu cầu pending (CourseService T08), hay (B) lúc duyệt kiểm lại khóa còn miễn phí + published, không thì từ chối tự động. Đề xuất (B).
+14. (T15 — PO) Ngày hết hạn mã giảm giá: design đánh dấu bắt buộc, data-model cho để trống (dev theo data-model). Và có cần endpoint kích hoạt lại mã đã hủy không.
 
 ## Nhật ký
 
