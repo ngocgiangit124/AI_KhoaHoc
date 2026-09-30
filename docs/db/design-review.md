@@ -274,6 +274,8 @@ Vì hiện chưa có DB thật, đây là checklist DBA đề xuất chạy **kh
 6. Test deadlock có chủ đích: script N request checkout đồng thời dùng chung 1 mã giảm giá đã set `max_uses` nhỏ → theo dõi `SHOW ENGINE INNODB STATUS \G` (phần `LATEST DETECTED DEADLOCK`) và xác nhận tổng số đơn thành công dùng mã **không vượt** `max_uses`, đồng thời không có request nào bị lỗi 500 (retry `DB::transaction($fn, 3)` xử lý hết).
 7. Nếu Architect chọn đổi collation (mục 2.8): test insert 2 chuyên đề tên có/không dấu → xác nhận hành vi unique giống mong đợi trước khi merge migration đầu tiên.
 
+**Đã kiểm chứng (T15, 2026-09-30, MySQL 8.4.11):** mục 5 (CHECK, lỗi 3819) đạt cho `chk_coupons_percent_range` và `chk_coupons_full_discount_limited` (kể cả NULL `max_uses`/`valid_until`); mục 7 đạt cho `coupons.code` (`abc`/`ÀBC`/`ĐABC` bị coi trùng). Mục 6 (race `max_uses`) CHƯA làm — chờ T16/T18. Chi tiết: `docs/db/T15-review.md`.
+
 ---
 
 ## 6. Tóm tắt cho người dùng
