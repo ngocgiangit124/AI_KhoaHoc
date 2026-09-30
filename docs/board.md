@@ -23,8 +23,10 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T08 | Quản trị khoá học | Xong | Gộp 2026-09-30; review PASS; 672 test toàn dự án | HtmlSanitizer tạm (xem "Chờ security cuối dự án") | 2026-09-30 |
 | T14 | EnrollmentService | Xong | Gộp 2026-09-30; review PASS; tạo `counters:recount` | Chờ PO câu 13 (R2) | 2026-09-30 |
 | T15 | Mã giảm giá quản trị | Xong | Gộp 2026-09-30; review vòng 2 PASS; DBA PASS; recounter đã nối `counters:recount` | T18: chặn xoá mã khi còn đơn, recounter nguyên tử (DBA M1), atomic `used_count` | 2026-09-30 |
-| T09 | Chương/bài | Sửa review | Review PASS; dev sửa R1-R3 (chặn xoá bài, chặn xoá bài cuối khoá published, trần reorder) | Chờ PO: Vimeo unlisted; GV bật is_preview | 2026-09-30 |
+| T09 | Chương/bài | Xong | Gộp 2026-09-30; review PASS; 828 test toàn dự án | Chờ PO câu 15 | 2026-09-30 |
 | T16 | Giỏ hàng | Sửa review | Review PASS; dev sửa R1 (limiter), R2 (khôi phục mã COUPON_EXPIRED theo contract), R3, R5, R6 | Kiểm limiter với Redis thật trước staging | 2026-09-30 |
+| T11 | Contract video | Dev | Worktree `.claude/worktrees/t11` | — | 2026-09-30 |
+| T21 | Soạn quiz | Dev | Worktree `.claude/worktrees/t21` | — | 2026-09-30 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
 
