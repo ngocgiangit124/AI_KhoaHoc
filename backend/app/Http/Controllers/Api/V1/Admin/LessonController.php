@@ -9,7 +9,6 @@ use App\Models\Chapter;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Services\Curriculum\LessonService;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -23,21 +22,21 @@ class LessonController extends Controller
 
     public function store(LessonRequest $request, Course $course, Chapter $chapter): LessonResource
     {
-        $lesson = $this->lessons->create($course, $chapter, $request->validated(), $request->user());
+        $lesson = $this->lessons->create($course, $chapter, $request->validated());
 
         return LessonResource::make($lesson);
     }
 
     public function update(LessonRequest $request, Course $course, Chapter $chapter, Lesson $lesson): LessonResource
     {
-        $lesson = $this->lessons->update($course, $chapter, $lesson, $request->validated(), $request->user());
+        $lesson = $this->lessons->update($course, $chapter, $lesson, $request->validated());
 
         return LessonResource::make($lesson);
     }
 
-    public function destroy(Request $request, Course $course, Chapter $chapter, Lesson $lesson): Response
+    public function destroy(Course $course, Chapter $chapter, Lesson $lesson): Response
     {
-        $this->lessons->delete($course, $chapter, $lesson, $request->user());
+        $this->lessons->delete($course, $chapter, $lesson);
 
         return response()->noContent();
     }

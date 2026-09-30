@@ -5,7 +5,6 @@ namespace App\Services\Curriculum;
 use App\Models\Chapter;
 use App\Models\Course;
 use App\Models\Lesson;
-use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,7 +27,7 @@ class CurriculumOrderService
     /**
      * @param  list<array{chapter_id: int, lesson_ids: list<int>}>  $items
      */
-    public function reorder(Course $course, array $items, User $actor): void
+    public function reorder(Course $course, array $items): void
     {
         DB::transaction(function () use ($course, $items): void {
             $locked = ContentLock::course($course);

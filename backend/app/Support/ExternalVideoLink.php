@@ -8,7 +8,7 @@ namespace App\Support;
  * bắt bằng regex CHẶT (khớp toàn chuỗi); URL embed luôn được DỰNG LẠI từ ID
  * (`youtube-nocookie.com`, Vimeo `dnt=1`).
  *
- * Ràng buộc: bắt buộc `https`, không có userinfo/port/fragment lạ, host nằm
+ * Ràng buộc: bắt buộc `https`, không có userinfo/port, host nằm
  * trong whitelist (so khớp chính xác, không dùng `str_contains`/`endsWith`
  * nên `evil-youtube.com`, `youtube.com.evil.io` đều bị loại), không có ký tự
  * điều khiển/khoảng trắng.

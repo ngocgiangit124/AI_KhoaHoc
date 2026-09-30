@@ -7,7 +7,6 @@ use App\Exceptions\DomainException;
 use App\Models\Chapter;
 use App\Models\Course;
 use App\Models\Lesson;
-use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Support\ExternalVideoLink;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +28,7 @@ class LessonService
      *
      * @param  array{title: string, is_preview: bool, video_source: string, external_url?: string|null, duration_seconds?: int|null}  $data
      */
-    public function create(Course $course, Chapter $chapter, array $data, User $actor): Lesson
+    public function create(Course $course, Chapter $chapter, array $data): Lesson
     {
         return DB::transaction(function () use ($course, $chapter, $data): Lesson {
             ContentLock::course($course);
@@ -56,7 +55,7 @@ class LessonService
     /**
      * @param  array{title: string, is_preview: bool, video_source: string, external_url?: string|null, duration_seconds?: int|null}  $data
      */
-    public function update(Course $course, Chapter $chapter, Lesson $lesson, array $data, User $actor): Lesson
+    public function update(Course $course, Chapter $chapter, Lesson $lesson, array $data): Lesson
     {
         return DB::transaction(function () use ($course, $chapter, $lesson, $data): Lesson {
             ContentLock::course($course);
@@ -79,12 +78,21 @@ class LessonService
         });
     }
 
-    public function delete(Course $course, Chapter $chapter, Lesson $lesson, User $actor): void
+    public function delete(Course $course, Chapter $chapter, Lesson $lesson): void
     {
         DB::transaction(function () use ($course, $chapter, $lesson): void {
-            ContentLock::course($course);
+            $lockedCourse = ContentLock::course($course);
             $lockedChapter = ContentLock::chapter($course, $chapter);
             $locked = ContentLock::lesson($lockedChapter, $lesson);
+
+            // R1/R2 (review-T09): cùng bất biến với xoá chương — không lách
+            // được bằng cách xoá từng bài.
+            ContentGuard::assertNoActiveLearners(
+                $lockedCourse,
+                'LESSON_HAS_ACTIVE_LEARNERS',
+                'Khóa học đang có học sinh học nên không thể xoá bài học.',
+            );
+            ContentGuard::assertPublishedKeepsContent($lockedCourse, [(int) $locked->getKey()]);
 
             $locked->delete();
 

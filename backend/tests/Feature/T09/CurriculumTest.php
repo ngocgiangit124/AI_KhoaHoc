@@ -319,6 +319,13 @@ test('link ngoai: thieu url, host la, scheme la, ID sai => 422 (S13)', function 
     'khoang trang' => ['https://youtu.be/dQw4w9WgXcQ evil'],
     'xuong dong' => ["https://youtu.be/dQw4w9WgXcQ\nhttps://evil.com"],
     'backslash' => ['https://youtu.be\\@evil.com/dQw4w9WgXcQ'],
+    'host dau cham cuoi' => ['https://youtube.com./watch?v=dQw4w9WgXcQ'],
+    'fragment @' => ['https://evil.com#@youtu.be/dQw4w9WgXcQ'],
+    'query @' => ['https://evil.com?@youtu.be/dQw4w9WgXcQ'],
+    // NBSP ở CUỐI bị middleware TrimStrings của Laravel cắt trước (vô hại); ở GIỮA thì phải bị loại.
+    'NBSP giua' => ["https://youtu.be/dQw4w\u{00A0}9WgXcQ"],
+    'host Cyrillic' => ["https://www.y\u{043E}utube.com/watch?v=dQw4w9WgXcQ"],
+    'so Vimeo Unicode' => ["https://vimeo.com/\u{0661}\u{0662}\u{0663}\u{0664}\u{0665}\u{0666}\u{0667}"],
 ]);
 
 test('bai upload: bo qua duration tu request, chua co asset', function () {
@@ -653,4 +660,162 @@ test('moi route chuong/bai/thu tu la scopeBindings, co can:manageContent, ten ad
         expect($route->gatherMiddleware())->toContain('can:manageContent,course');
         expect($route->getName())->toStartWith('admin.');
     }
+});
+
+// --- Review vòng 1: R1 (xoá bài chặn khi có học sinh active) ---------------
+
+test('xoa bai bi chan 409 LESSON_HAS_ACTIVE_LEARNERS khi khoa co hoc sinh active (R1)', function () {
+    $admin = User::factory()->admin()->create();
+    [$course, $chapter, $lesson] = cxCourseWithLesson();
+    Enrollment::factory()->create(['course_id' => $course->id]);
+    $teacher = cxTeacherOf($course);
+    $url = cxUrl("/{$course->id}/chapters/{$chapter->id}/lessons/{$lesson->id}");
+
+    foreach ([$admin, $teacher] as $actor) {
+        $this->actingAs($actor)->deleteJson($url, [], cxHeaders())
+            ->assertStatus(409)->assertJsonPath('code', 'LESSON_HAS_ACTIVE_LEARNERS');
+    }
+
+    expect($lesson->fresh())->not->toBeNull();
+    expect(AuditLog::query()->where('action', 'lesson.delete')->count())->toBe(0);
+});
+
+test('khong the lach chan bang cach xoa tung bai roi xoa chuong (R1)', function () {
+    $admin = User::factory()->admin()->create();
+    [$course, $chapter, $lesson] = cxCourseWithLesson();
+    Enrollment::factory()->create(['course_id' => $course->id]);
+
+    $this->actingAs($admin)->deleteJson(cxUrl("/{$course->id}/chapters/{$chapter->id}/lessons/{$lesson->id}"), [], cxHeaders())->assertStatus(409);
+    $this->actingAs($admin)->deleteJson(cxUrl("/{$course->id}/chapters/{$chapter->id}"), [], cxHeaders())->assertStatus(409);
+
+    expect(Lesson::query()->whereKey($lesson->id)->exists())->toBeTrue();
+    expect(Chapter::query()->whereKey($chapter->id)->exists())->toBeTrue();
+});
+
+test('enrollment khong active khong chan xoa bai / chuong (R1)', function (string $state) {
+    $admin = User::factory()->admin()->create();
+    [$course, $chapter, $lesson] = cxCourseWithLesson();
+    $second = Lesson::factory()->create(['course_id' => $course->id, 'chapter_id' => $chapter->id, 'position' => 2]);
+    Enrollment::factory()->{$state}()->create(['course_id' => $course->id]);
+
+    $this->actingAs($admin)->deleteJson(cxUrl("/{$course->id}/chapters/{$chapter->id}/lessons/{$second->id}"), [], cxHeaders())->assertNoContent();
+    $this->actingAs($admin)->deleteJson(cxUrl("/{$course->id}/chapters/{$chapter->id}"), [], cxHeaders())->assertNoContent();
+})->with(['pendingApproval', 'rejected', 'revoked']);
+
+test('hoc sinh active van cho doi ten / sap xep / them bai, chi chan xoa (R1)', function () {
+    $admin = User::factory()->admin()->create();
+    [$course, $chapter, $lesson] = cxCourseWithLesson();
+    Enrollment::factory()->create(['course_id' => $course->id]);
+    $base = "/{$course->id}/chapters/{$chapter->id}/lessons";
+
+    $this->actingAs($admin)->postJson(cxUrl($base), cxLessonPayload(), cxHeaders())->assertCreated();
+    $this->actingAs($admin)->putJson(cxUrl("{$base}/{$lesson->id}"), cxLessonPayload(['title' => 'Đổi']), cxHeaders())->assertOk();
+    $this->actingAs($admin)->putJson(cxUrl("/{$course->id}/chapters/{$chapter->id}"), ['title' => 'Đổi'], cxHeaders())->assertOk();
+});
+
+// --- R2: khóa published phải còn ít nhất 1 bài -------------------------------
+
+test('xoa bai cuoi cua khoa published bi 409 COURSE_WOULD_BE_EMPTY (R2)', function () {
+    $admin = User::factory()->admin()->create();
+    $course = Course::factory()->published()->create();
+    $chapter = Chapter::factory()->create(['course_id' => $course->id]);
+    $lesson = Lesson::factory()->create(['course_id' => $course->id, 'chapter_id' => $chapter->id]);
+
+    $this->actingAs($admin)->deleteJson(cxUrl("/{$course->id}/chapters/{$chapter->id}/lessons/{$lesson->id}"), [], cxHeaders())
+        ->assertStatus(409)->assertJsonPath('code', 'COURSE_WOULD_BE_EMPTY');
+    $this->actingAs($admin)->deleteJson(cxUrl("/{$course->id}/chapters/{$chapter->id}"), [], cxHeaders())
+        ->assertStatus(409)->assertJsonPath('code', 'COURSE_WOULD_BE_EMPTY');
+
+    expect($lesson->fresh())->not->toBeNull();
+    expect($chapter->fresh())->not->toBeNull();
+});
+
+test('khoa published: xoa bai/chuong khi van con bai khac thi duoc (R2)', function () {
+    $admin = User::factory()->admin()->create();
+    $course = Course::factory()->published()->create();
+    $ch1 = Chapter::factory()->create(['course_id' => $course->id, 'position' => 1]);
+    $ch2 = Chapter::factory()->create(['course_id' => $course->id, 'position' => 2]);
+    $l1 = Lesson::factory()->create(['course_id' => $course->id, 'chapter_id' => $ch1->id]);
+    $l2 = Lesson::factory()->create(['course_id' => $course->id, 'chapter_id' => $ch1->id, 'position' => 2]);
+    Lesson::factory()->create(['course_id' => $course->id, 'chapter_id' => $ch2->id]);
+
+    $this->actingAs($admin)->deleteJson(cxUrl("/{$course->id}/chapters/{$ch1->id}/lessons/{$l1->id}"), [], cxHeaders())->assertNoContent();
+    // ch1 còn l2 nhưng ch2 còn 1 bài => xoá cả chương ch1 được.
+    $this->actingAs($admin)->deleteJson(cxUrl("/{$course->id}/chapters/{$ch1->id}"), [], cxHeaders())->assertNoContent();
+    expect(Lesson::query()->where('course_id', $course->id)->count())->toBe(1);
+    expect(Lesson::query()->whereKey($l2->id)->exists())->toBeFalse();
+});
+
+test('khoa published: chuong rong xoa duoc du la chuong cuoi (R2 khong chan chuong rong)', function () {
+    $admin = User::factory()->admin()->create();
+    $course = Course::factory()->published()->create();
+    $chapter = Chapter::factory()->create(['course_id' => $course->id]);
+    $empty = Chapter::factory()->create(['course_id' => $course->id, 'position' => 2]);
+    Lesson::factory()->create(['course_id' => $course->id, 'chapter_id' => $chapter->id]);
+
+    $this->actingAs($admin)->deleteJson(cxUrl("/{$course->id}/chapters/{$empty->id}"), [], cxHeaders())->assertNoContent();
+});
+
+test('khoa draft / unpublished xoa bai cuoi van duoc (R2)', function (string $state) {
+    $admin = User::factory()->admin()->create();
+    $course = $state === 'unpublished' ? Course::factory()->unpublished()->create() : Course::factory()->create();
+    $chapter = Chapter::factory()->create(['course_id' => $course->id]);
+    $lesson = Lesson::factory()->create(['course_id' => $course->id, 'chapter_id' => $chapter->id]);
+
+    $this->actingAs($admin)->deleteJson(cxUrl("/{$course->id}/chapters/{$chapter->id}/lessons/{$lesson->id}"), [], cxHeaders())->assertNoContent();
+})->with(['draft', 'unpublished']);
+
+// --- R3: trần kích thước curriculum/order -----------------------------------
+
+test('sap xep: qua 200 chuong => 422 (R3)', function () {
+    $admin = User::factory()->admin()->create();
+    [$course] = cxTree();
+    $payload = array_map(fn (int $i) => ['chapter_id' => $i + 1, 'lesson_ids' => []], range(1, 201));
+
+    $response = $this->actingAs($admin)->putJson(cxUrl("/{$course->id}/curriculum/order"), $payload, cxHeaders());
+
+    $response->assertStatus(422)->assertJsonValidationErrors('curriculum');
+    expect(json_encode($response->json(), JSON_UNESCAPED_UNICODE))->toContain('giới hạn');
+});
+
+test('sap xep: qua 2000 bai moi chuong => 422 (R3)', function () {
+    $admin = User::factory()->admin()->create();
+    [$course, $ch] = cxTree();
+
+    $response = $this->actingAs($admin)->putJson(cxUrl("/{$course->id}/curriculum/order"), [
+        ['chapter_id' => $ch[1]->id, 'lesson_ids' => range(1, 2001)],
+        ['chapter_id' => $ch[2]->id, 'lesson_ids' => []],
+    ], cxHeaders());
+
+    $response->assertStatus(422)->assertJsonValidationErrors('curriculum');
+    expect(json_encode($response->json(), JSON_UNESCAPED_UNICODE))->toContain('giới hạn');
+});
+
+test('sap xep: dung o tran (200 chuong, 2000 bai) qua validate nhanh, bi tu choi vi sai tap ID (R3)', function () {
+    $admin = User::factory()->admin()->create();
+    [$course, $ch] = cxTree();
+
+    $payload = [['chapter_id' => $ch[1]->id, 'lesson_ids' => range(1, 2000)]];
+    foreach (range(1, 199) as $i) {
+        $payload[] = ['chapter_id' => 1000 + $i, 'lesson_ids' => []];
+    }
+
+    $start = microtime(true);
+    $response = $this->actingAs($admin)->putJson(cxUrl("/{$course->id}/curriculum/order"), $payload, cxHeaders());
+    $elapsed = microtime(true) - $start;
+
+    $response->assertStatus(422)->assertJsonValidationErrors('curriculum');
+    expect(json_encode($response->json(), JSON_UNESCAPED_UNICODE))->not->toContain('giới hạn');
+    // Bỏ `distinct` bậc hai: ngưỡng rộng để không flaky, đủ bắt hồi quy (bản cũ ~2s/10k ID).
+    expect($elapsed)->toBeLessThan(5.0);
+});
+
+test('sap xep: id trung trong cung mot chuong hoac giua cac chuong van bi service chan (thay distinct)', function () {
+    $admin = User::factory()->admin()->create();
+    [$course, $ch, $ls] = cxTree();
+
+    $this->actingAs($admin)->putJson(cxUrl("/{$course->id}/curriculum/order"), [
+        ['chapter_id' => $ch[1]->id, 'lesson_ids' => [$ls[1]->id, $ls[1]->id, $ls[2]->id]],
+        ['chapter_id' => $ch[2]->id, 'lesson_ids' => [$ls[3]->id]],
+    ], cxHeaders())->assertStatus(422)->assertJsonValidationErrors('curriculum');
 });

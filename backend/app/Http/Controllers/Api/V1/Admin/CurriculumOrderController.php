@@ -22,7 +22,7 @@ class CurriculumOrderController extends Controller
         /** @var list<array{chapter_id: int, lesson_ids: list<int>}> $items */
         $items = array_values($request->validated());
 
-        $this->order->reorder($course, $items, $request->user());
+        $this->order->reorder($course, $items);
 
         $chapters = $course->chapters()
             ->with(['lessons' => fn ($q) => $q->orderBy('position')->orderBy('id')])

@@ -2,13 +2,9 @@
 
 namespace App\Services\Curriculum;
 
-use App\Enums\EnrollmentStatus;
-use App\Exceptions\DomainException;
 use App\Models\Chapter;
 use App\Models\Course;
-use App\Models\Enrollment;
 use App\Models\Lesson;
-use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Support\Facades\DB;
 
@@ -30,7 +26,7 @@ class ChapterService
      *
      * @param  array{title: string}  $data
      */
-    public function create(Course $course, array $data, User $actor): Chapter
+    public function create(Course $course, array $data): Chapter
     {
         return DB::transaction(function () use ($course, $data): Chapter {
             $locked = ContentLock::course($course);
@@ -56,7 +52,7 @@ class ChapterService
     /**
      * @param  array{title: string}  $data
      */
-    public function update(Course $course, Chapter $chapter, array $data, User $actor): Chapter
+    public function update(Course $course, Chapter $chapter, array $data): Chapter
     {
         return DB::transaction(function () use ($course, $chapter, $data): Chapter {
             ContentLock::course($course);
@@ -80,10 +76,10 @@ class ChapterService
      * mềm các bài — CHẶN (409) nếu khóa học đang có học sinh `active` đang
      * học. Chương rỗng luôn xoá được. Xoá mềm nên tiến độ học cũ được giữ.
      */
-    public function delete(Course $course, Chapter $chapter, User $actor): void
+    public function delete(Course $course, Chapter $chapter): void
     {
         DB::transaction(function () use ($course, $chapter): void {
-            ContentLock::course($course);
+            $lockedCourse = ContentLock::course($course);
             $locked = ContentLock::chapter($course, $chapter);
 
             $lessonIds = Lesson::query()
@@ -91,18 +87,14 @@ class ChapterService
                 ->lockForUpdate()
                 ->pluck('id');
 
-            if ($lessonIds->isNotEmpty() && Enrollment::query()
-                ->where('course_id', $course->getKey())
-                ->where('status', EnrollmentStatus::Active->value)
-                ->exists()) {
-                throw new DomainException(
-                    code: 'CHAPTER_HAS_ACTIVE_LEARNERS',
-                    message: 'Khóa học đang có học sinh học nên không thể xoá chương còn bài học. Hãy xoá/chuyển từng bài trước.',
-                    status: 409,
-                );
-            }
-
             if ($lessonIds->isNotEmpty()) {
+                ContentGuard::assertNoActiveLearners(
+                    $lockedCourse,
+                    'CHAPTER_HAS_ACTIVE_LEARNERS',
+                    'Khóa học đang có học sinh học nên không thể xoá chương còn bài học.',
+                );
+                ContentGuard::assertPublishedKeepsContent($lockedCourse, $lessonIds->map(fn ($id): int => (int) $id)->all());
+
                 Lesson::query()->whereIn('id', $lessonIds)->delete();
             }
 

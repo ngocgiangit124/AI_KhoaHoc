@@ -8,7 +8,6 @@ use App\Http\Resources\Admin\ChapterResource;
 use App\Models\Chapter;
 use App\Models\Course;
 use App\Services\Curriculum\ChapterService;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -22,21 +21,21 @@ class ChapterController extends Controller
 
     public function store(ChapterRequest $request, Course $course): ChapterResource
     {
-        $chapter = $this->chapters->create($course, $request->validated(), $request->user());
+        $chapter = $this->chapters->create($course, $request->validated());
 
         return ChapterResource::make($chapter);
     }
 
     public function update(ChapterRequest $request, Course $course, Chapter $chapter): ChapterResource
     {
-        $chapter = $this->chapters->update($course, $chapter, $request->validated(), $request->user());
+        $chapter = $this->chapters->update($course, $chapter, $request->validated());
 
         return ChapterResource::make($chapter);
     }
 
-    public function destroy(Request $request, Course $course, Chapter $chapter): Response
+    public function destroy(Course $course, Chapter $chapter): Response
     {
-        $this->chapters->delete($course, $chapter, $request->user());
+        $this->chapters->delete($course, $chapter);
 
         return response()->noContent();
     }
