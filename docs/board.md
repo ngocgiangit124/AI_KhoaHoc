@@ -20,9 +20,9 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T07 → T10 | Schema nội dung → danh mục công khai | Xong (đã gộp) | Gộp vào nhánh chính (b5b753b). Review APPROVE, DBA duyệt. `composer ci` nhánh chính xanh, Pest 246. Chờ QA giai đoạn 2 | R1 (PO) trước T13 | 2026-09-28 |
 | T17 | Thanh toán: abstraction + MoMo | Xong (đã gộp) | Gộp vào nhánh chính. Review APPROVE (2 vòng), Security PASS có điều kiện: M1, M2, L1–L4, R4 đã sửa. **Gate go-live:** kiểm chứng sandbox MoMo thật (R1/R2). `composer ci` xanh 450 test | Gate go-live | 2026-09-29 |
 | T28 | Đăng nhập quản trị | Xong (đã gộp) | Gộp vào nhánh chính. Review PASS vòng 2 (R1 BLOCKER đổi mật khẩu bỏ qua MFA đã sửa). [SEC] chờ security cuối dự án. **FA1 cần chốt:** hình dạng response `/admin/auth/me` (`permissions`), mfa/verify, password — contract chưa định nghĩa. 502 test xanh | — | 2026-09-29 |
-| T08 | Quản trị khoá học | Review | Worktree `.claude/worktrees/t08` từ nhánh chính @b23efe4 | Dev xong a45e66e (554 test). HtmlSanitizer tự viết vì sandbox chặn cài Purifier: cần security cuối dự án soi + thay Purifier khi cài được | 2026-09-30 |
-| T14 | EnrollmentService | Review | Worktree `.claude/worktrees/t14`; tạo `counters:recount` | Dev xong bf17bb3 (530 test). parent.consent là bản tạm, T18/T29 hoàn thiện | 2026-09-30 |
-| T15 | Mã giảm giá quản trị | Sửa review | Worktree `.claude/worktrees/t15`; recounter `coupons.used_count` riêng, nối vào lệnh khi gộp với T14 | — | 2026-09-30 |
+| T08 | Quản trị khoá học | Xong | Gộp 2026-09-30; review PASS; 672 test toàn dự án | HtmlSanitizer tạm (xem "Chờ security cuối dự án") | 2026-09-30 |
+| T14 | EnrollmentService | Xong | Gộp 2026-09-30; review PASS; tạo `counters:recount` | Chờ PO câu 13 (R2) | 2026-09-30 |
+| T15 | Mã giảm giá quản trị | Xong | Gộp 2026-09-30; review vòng 2 PASS; DBA PASS; recounter đã nối `counters:recount` | T18: chặn xoá mã khi còn đơn, recounter nguyên tử (DBA M1), atomic `used_count` | 2026-09-30 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
 
@@ -173,3 +173,4 @@ Task [SEC] đã gộp nhưng chưa qua `laravel-security` (do PO tạm hoãn 202
 - 2026-09-28 · Orchestrator · PO duyệt: gộp T07-T10 vào nhánh chính (b5b753b), `composer ci` xanh 246 test
 - 2026-09-28 · Dev + Reviewer + DBA · T07-T10 hoàn thiện, review APPROVE, DBA thêm index; T04 dev xong (Pest 236); T06 bắt đầu hoàn thiện. Worktree test: mount `-v <wt>/backend:/var/www/wt -w /var/www/wt`, DB `vitaminvui_testing_<task>`, file `phpunit.<task>.xml` (untracked)
 - 2026-09-28 · Dev + Reviewer · Dựng máy local; sửa phpunit DB_PASSWORD, Larastan 16 lỗi, pnpm/compose UID, `.env.example` frontend; review APPROVE; chờ PO duyệt commit
+- 2026-09-30 · T08, T14, T15 · dev → reviewer (T15 thêm DBA) · Gộp; toàn dự án 672 test xanh (Pint, Larastan). Sau khi gộp T08 phải chạy `composer install` trong container php (thêm `intervention/image`).
