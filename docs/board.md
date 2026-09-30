@@ -23,6 +23,8 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T08 | Quản trị khoá học | Xong | Gộp 2026-09-30; review PASS; 672 test toàn dự án | HtmlSanitizer tạm (xem "Chờ security cuối dự án") | 2026-09-30 |
 | T14 | EnrollmentService | Xong | Gộp 2026-09-30; review PASS; tạo `counters:recount` | Chờ PO câu 13 (R2) | 2026-09-30 |
 | T15 | Mã giảm giá quản trị | Xong | Gộp 2026-09-30; review vòng 2 PASS; DBA PASS; recounter đã nối `counters:recount` | T18: chặn xoá mã khi còn đơn, recounter nguyên tử (DBA M1), atomic `used_count` | 2026-09-30 |
+| T09 | Chương/bài | Dev | Worktree `.claude/worktrees/t09` từ nhánh chính @ba58fe6+ | — | 2026-09-30 |
+| T16 | Giỏ hàng | Dev | Worktree `.claude/worktrees/t16` | — | 2026-09-30 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
 
