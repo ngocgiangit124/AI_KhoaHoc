@@ -8,6 +8,8 @@ use App\Models\Enrollment;
 use App\Models\Lesson;
 use App\Models\Subject;
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
+use App\Services\Courses\CourseService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -405,4 +407,51 @@ test('danh sach giao vien chi tra id va name', function () {
     $response->assertOk();
     expect($response->json('data'))->toHaveCount(1);
     expect(array_keys($response->json('data.0')))->toBe(['id', 'name']);
+});
+
+// --- R1/R2/R5 (review-T08) --------------------------------------------------
+
+test('list admin khong tra description, show thi co (R5)', function () {
+    $admin = User::factory()->admin()->create();
+    $course = Course::factory()->create(['description' => '<p>Nội dung</p>']);
+
+    $list = $this->actingAs($admin)->getJson(courseUrl(), courseHeaders());
+    expect($list->json('data.0'))->not->toHaveKey('description');
+
+    $show = $this->actingAs($admin)->getJson(courseUrl('/'.$course->id), courseHeaders());
+    expect($show->json('description'))->toBe('<p>Nội dung</p>');
+});
+
+test('update loi sau khi luu anh moi: anh cu con, anh moi bi don (R1)', function () {
+    $admin = User::factory()->admin()->create();
+    $course = Course::factory()->create();
+    $this->actingAs($admin)->put(courseUrl('/'.$course->id), ['thumbnail' => UploadedFile::fake()->image('a.png', 100, 100)], courseHeaders() + ['Accept' => 'application/json'])->assertOk();
+    $old = $course->fresh()->thumbnail_path;
+
+    // Ép lỗi ở bước sau khi lưu ảnh (ghi audit) để transaction rollback.
+    $this->mock(AuditLogger::class, function ($mock) {
+        $mock->shouldReceive('log')->andThrow(new RuntimeException('boom'));
+    });
+
+    $service = app(CourseService::class);
+    expect(fn () => $service->update($course->fresh(), ['thumbnail' => UploadedFile::fake()->image('b.png', 100, 100)], $admin))
+        ->toThrow(RuntimeException::class);
+
+    Storage::disk('uploads')->assertExists($old);
+    expect(Storage::disk('uploads')->allFiles())->toBe([$old]);
+    expect($course->fresh()->thumbnail_path)->toBe($old);
+});
+
+test('create loi giua chung: file moi bi don (R1)', function () {
+    $admin = User::factory()->admin()->create();
+    $this->mock(AuditLogger::class, function ($mock) {
+        $mock->shouldReceive('log')->andThrow(new RuntimeException('boom'));
+    });
+
+    $payload = validCoursePayload();
+    $service = app(CourseService::class);
+
+    expect(fn () => $service->create($payload, $admin))->toThrow(RuntimeException::class);
+    expect(Storage::disk('uploads')->allFiles())->toBe([]);
+    expect(Course::query()->count())->toBe(0);
 });

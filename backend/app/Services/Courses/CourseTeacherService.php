@@ -67,7 +67,7 @@ class CourseTeacherService
             }
 
             $this->auditLogger->log('course.teachers.sync', $course, [
-                'teacher_ids' => ['before' => $current,'after' => $teacherIds],
+                'teacher_ids' => ['before' => $current, 'after' => $teacherIds],
             ]);
 
             return $course->load('teachers');

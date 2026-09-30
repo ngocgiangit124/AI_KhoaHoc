@@ -13,7 +13,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * KHÔNG nằm ở đây — tách riêng `GET /courses/{slug}/viewer-state` để endpoint
  * này cache được (S16, api-contract §2.1).
  *
- * `description` đã sanitize theo Purifier profile `course_description` LÚC
+ * `description` đã sanitize bằng `HtmlSanitizer` (profile `course_description`) LÚC
  * GHI (`CourseService` — T08); sanitize LẠI LÚC ĐỌC ở đây (S8, api-contract
  * §4 — "sanitize khi ghi và khi đọc"), phòng dữ liệu cũ/ghi trực tiếp DB chưa
  * qua Service. Việc gọi lại `HtmlSanitizer` 2 lần (ghi + đọc) là idempotent —

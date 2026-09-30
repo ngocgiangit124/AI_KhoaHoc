@@ -82,6 +82,11 @@ class HtmlSanitizer
             return '';
         }
 
+        // R7 — chuẩn hoá về UTF-8 hợp lệ (byte sai thành `?`): libxml gặp
+        // byte UTF-8 sai sẽ đoán lại encoding và làm hỏng (mojibake) cả văn
+        // bản tiếng Việt còn lại.
+        $html = mb_convert_encoding($html, 'UTF-8', 'UTF-8');
+
         $document = new DOMDocument;
 
         // Bọc trong <body> khai `meta charset="utf-8"` để libxml không tự
@@ -118,7 +123,7 @@ class HtmlSanitizer
     private function renderNode(DOMNode $node): string
     {
         if ($node instanceof DOMText) {
-            return htmlspecialchars($node->wholeText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            return htmlspecialchars($node->wholeText, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
         }
 
         if (! $node instanceof DOMElement) {
@@ -167,7 +172,7 @@ class HtmlSanitizer
             return $innerHtml;
         }
 
-        $safeHref = htmlspecialchars($href, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $safeHref = htmlspecialchars($href, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
 
         // HTML.TargetBlank + HTML.Nofollow (api-contract §4) — ép cứng theo
         // cấu hình, không đọc `target`/`rel` gốc từ input.
@@ -182,6 +187,16 @@ class HtmlSanitizer
      */
     private function isAllowedUri(string $uri): bool
     {
+        // R4 — trình duyệt coi `\` như `/` trong URL: `\\host` và `/\host`
+        // là protocol-relative. Chuẩn hoá backslash TRƯỚC khi kiểm `//`.
+        // Ký tự điều khiển (tab/newline... bị trình duyệt bỏ khi phân tích
+        // scheme) → từ chối hẳn.
+        if (preg_match('/[\x00-\x1F\x7F]/', $uri) === 1) {
+            return false;
+        }
+
+        $uri = str_replace('\\', '/', $uri);
+
         if (str_starts_with($uri, '//')) {
             return false;
         }

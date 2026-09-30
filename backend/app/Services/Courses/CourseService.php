@@ -16,6 +16,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * US-009 — CRUD/publish/unpublish/xoá khóa học (host admin-api, `staff`).
@@ -48,40 +49,50 @@ class CourseService
      */
     public function create(array $data, User $actor): Course
     {
-        return DB::transaction(function () use ($data, $actor): Course {
-            $course = new Course([
-                'title' => $data['title'],
-                'slug' => $this->uniqueSlug($data['title']),
-                'short_description' => $data['short_description'],
-                'description' => $this->sanitizer->sanitize($data['description'] ?? null),
-                'grade_level' => $data['grade_level'],
-                'price' => $data['price'],
-            ]);
-            $course->status = CourseStatus::Draft;
-            $course->created_by = $actor->getKey();
-            $course->thumbnail_path = $this->images->store($data['thumbnail']);
-            $course->save();
+        $storedThumbnail = null;
 
-            $course->subjects()->attach(array_values(array_unique($data['subject_ids'])));
+        try {
+            return DB::transaction(function () use ($data, $actor, &$storedThumbnail): Course {
+                $course = new Course([
+                    'title' => $data['title'],
+                    'slug' => $this->uniqueSlug($data['title']),
+                    'short_description' => $data['short_description'],
+                    'description' => $this->sanitizer->sanitize($data['description'] ?? null),
+                    'grade_level' => $data['grade_level'],
+                    'price' => $data['price'],
+                ]);
+                $course->status = CourseStatus::Draft;
+                $course->created_by = $actor->getKey();
+                $storedThumbnail = $this->images->store($data['thumbnail']);
+                $course->thumbnail_path = $storedThumbnail;
+                $course->save();
 
-            // BR8 — GV tự tạo: LUÔN chỉ chính mình, không đọc `teacher_ids`
-            // của request dù có gửi lên (api-contract §2.5 "GV gửi thì bị bỏ
-            // qua, tự thêm chính mình").
-            $teacherIds = $actor->isTeacher()
-                ? [$actor->getKey()]
-                : array_values(array_unique($data['teacher_ids'] ?? []));
+                $course->subjects()->attach(array_values(array_unique($data['subject_ids'])));
 
-            $course->teachers()->attach($this->teacherPivotData($teacherIds, $actor));
+                // BR8 — GV tự tạo: LUÔN chỉ chính mình, không đọc `teacher_ids`
+                // của request dù có gửi lên (api-contract §2.5 "GV gửi thì bị bỏ
+                // qua, tự thêm chính mình").
+                $teacherIds = $actor->isTeacher()
+                    ? [$actor->getKey()]
+                    : array_values(array_unique($data['teacher_ids'] ?? []));
 
-            $this->auditLogger->log('course.create', $course, [
-                'title' => $course->title,
-                'status' => $course->status->value,
-                'price' => $course->price,
-                'grade_level' => $course->grade_level,
-            ]);
+                $course->teachers()->attach($this->teacherPivotData($teacherIds, $actor));
 
-            return $course;
-        });
+                $this->auditLogger->log('course.create', $course, [
+                    'title' => $course->title,
+                    'status' => $course->status->value,
+                    'price' => $course->price,
+                    'grade_level' => $course->grade_level,
+                ]);
+
+                return $course;
+            });
+        } catch (Throwable $e) {
+            // R1 — transaction rollback thì file vừa lưu thành mồ côi: dọn.
+            $this->images->delete($storedThumbnail);
+
+            throw $e;
+        }
     }
 
     /**
@@ -99,50 +110,62 @@ class CourseService
      */
     public function update(Course $course, array $data, User $actor): Course
     {
-        return DB::transaction(function () use ($course, $data): Course {
-            $priceChange = null;
+        $newThumbnail = null;
 
-            if (array_key_exists('title', $data)) {
-                $course->title = $data['title'];
-            }
+        try {
+            return DB::transaction(function () use ($course, $data, &$newThumbnail): Course {
+                $priceChange = null;
 
-            if (array_key_exists('short_description', $data)) {
-                $course->short_description = $data['short_description'];
-            }
+                if (array_key_exists('title', $data)) {
+                    $course->title = $data['title'];
+                }
 
-            if (array_key_exists('description', $data)) {
-                $course->description = $this->sanitizer->sanitize($data['description']);
-            }
+                if (array_key_exists('short_description', $data)) {
+                    $course->short_description = $data['short_description'];
+                }
 
-            if (array_key_exists('grade_level', $data)) {
-                $course->grade_level = $data['grade_level'];
-            }
+                if (array_key_exists('description', $data)) {
+                    $course->description = $this->sanitizer->sanitize($data['description']);
+                }
 
-            if (array_key_exists('price', $data) && $data['price'] !== $course->price) {
-                $priceChange = ['before' => $course->price, 'after' => $data['price']];
-                $course->price = $data['price'];
-            }
+                if (array_key_exists('grade_level', $data)) {
+                    $course->grade_level = $data['grade_level'];
+                }
 
-            if (array_key_exists('thumbnail', $data) && $data['thumbnail'] instanceof UploadedFile) {
-                $previousThumbnail = $course->thumbnail_path;
-                $course->thumbnail_path = $this->images->store($data['thumbnail']);
-                $this->images->delete($previousThumbnail);
-            }
+                if (array_key_exists('price', $data) && $data['price'] !== $course->price) {
+                    $priceChange = ['before' => $course->price, 'after' => $data['price']];
+                    $course->price = $data['price'];
+                }
 
-            $course->save();
+                if (array_key_exists('thumbnail', $data) && $data['thumbnail'] instanceof UploadedFile) {
+                    // R1 — chỉ xoá file cũ SAU KHI transaction commit thành công
+                    // (rollback thì callback bị huỷ, khóa học vẫn trỏ file cũ còn nguyên).
+                    $previousThumbnail = $course->thumbnail_path;
+                    $newThumbnail = $this->images->store($data['thumbnail']);
+                    $course->thumbnail_path = $newThumbnail;
+                    DB::afterCommit(fn () => $this->images->delete($previousThumbnail));
+                }
 
-            if (array_key_exists('subject_ids', $data)) {
-                $course->subjects()->sync(array_values(array_unique($data['subject_ids'])));
-            }
+                $course->save();
 
-            if ($priceChange !== null) {
-                $this->auditLogger->log('course.price.change', $course, $priceChange);
-            }
+                if (array_key_exists('subject_ids', $data)) {
+                    $course->subjects()->sync(array_values(array_unique($data['subject_ids'])));
+                }
 
-            $this->auditLogger->log('course.update', $course, ['fields' => array_keys($data)]);
+                if ($priceChange !== null) {
+                    $this->auditLogger->log('course.price.change', $course, $priceChange);
+                }
 
-            return $course;
-        });
+                $this->auditLogger->log('course.update', $course, ['fields' => array_keys($data)]);
+
+                return $course;
+            });
+        } catch (Throwable $e) {
+            // R1 — rollback thì ảnh mới vừa lưu thành mồ côi: dọn.
+            $this->images->delete($newThumbnail);
+
+            throw $e;
+        }
     }
 
     /**
@@ -156,21 +179,25 @@ class CourseService
      */
     public function delete(Course $course): void
     {
-        if (Enrollment::query()->where('course_id', $course->getKey())->exists()) {
-            throw new DomainException(
-                code: 'COURSE_HAS_ENROLLMENT',
-                message: 'Khóa học đã có học sinh mua/đăng ký nên không thể xoá. Hãy chuyển sang "Ngừng bán".',
-                status: 409,
-            );
-        }
-
+        // R2 — khoá hàng course TRƯỚC khi kiểm enrollment, toàn bộ trong 1
+        // transaction (audit cũng nằm trong transaction).
         DB::transaction(function () use ($course): void {
-            Lesson::query()->where('course_id', $course->getKey())->delete();
-            Chapter::query()->where('course_id', $course->getKey())->delete();
-            $course->delete();
-        });
+            $locked = $this->lockCourse($course);
 
-        $this->auditLogger->log('course.delete', $course, ['title' => $course->title]);
+            if (Enrollment::query()->where('course_id', $locked->getKey())->exists()) {
+                throw new DomainException(
+                    code: 'COURSE_HAS_ENROLLMENT',
+                    message: 'Khóa học đã có học sinh mua/đăng ký nên không thể xoá. Hãy chuyển sang "Ngừng bán".',
+                    status: 409,
+                );
+            }
+
+            Lesson::query()->where('course_id', $locked->getKey())->delete();
+            Chapter::query()->where('course_id', $locked->getKey())->delete();
+            $locked->delete();
+
+            $this->auditLogger->log('course.delete', $locked, ['title' => $locked->title]);
+        });
     }
 
     /**
@@ -178,51 +205,68 @@ class CourseService
      * `published_at` chỉ set ở LẦN publish ĐẦU TIÊN (data-model §3.2 "Set lần
      * đầu publish") — publish lại sau khi unpublish KHÔNG đổi mốc thời gian
      * này (giữ ổn định cho sort "mới nhất"/hiển thị "ngày phát hành").
+     * R2 — khoá hàng course rồi mới kiểm điều kiện.
      */
     public function publish(Course $course): Course
     {
-        if ($course->status === CourseStatus::Published) {
-            return $course;
-        }
+        return DB::transaction(function () use ($course): Course {
+            $locked = $this->lockCourse($course);
 
-        if (! $course->chapters()->exists() || ! $course->lessons()->exists()) {
-            throw new DomainException(
-                code: 'COURSE_NOT_PUBLISHABLE',
-                message: 'Khóa học cần có ít nhất 1 chương và 1 bài học để xuất bản.',
-                status: 422,
-            );
-        }
+            if ($locked->status === CourseStatus::Published) {
+                return $locked;
+            }
 
-        $course->status = CourseStatus::Published;
-        $course->published_at ??= now();
-        $course->save();
+            if (! $locked->chapters()->exists() || ! $locked->lessons()->exists()) {
+                throw new DomainException(
+                    code: 'COURSE_NOT_PUBLISHABLE',
+                    message: 'Khóa học cần có ít nhất 1 chương và 1 bài học để xuất bản.',
+                    status: 422,
+                );
+            }
 
-        $this->auditLogger->log('course.publish', $course);
+            $locked->status = CourseStatus::Published;
+            $locked->published_at ??= now();
+            $locked->save();
 
-        return $course;
+            $this->auditLogger->log('course.publish', $locked);
+
+            return $locked;
+        });
     }
 
     /**
      * BR2/BR4 — chỉ có ý nghĩa khi khóa ĐANG `published`; unpublish 1 khóa
      * chưa từng xuất bản (`draft`) không phải nghiệp vụ hợp lệ (không có gì
-     * để "ngừng bán").
+     * để "ngừng bán"). R2 — khoá hàng course rồi mới kiểm trạng thái.
      */
     public function unpublish(Course $course): Course
     {
-        if ($course->status !== CourseStatus::Published) {
-            throw new DomainException(
-                code: 'COURSE_NOT_PUBLISHED',
-                message: 'Khóa học chưa được xuất bản nên không thể ngừng bán.',
-                status: 409,
-            );
-        }
+        return DB::transaction(function () use ($course): Course {
+            $locked = $this->lockCourse($course);
 
-        $course->status = CourseStatus::Unpublished;
-        $course->save();
+            if ($locked->status !== CourseStatus::Published) {
+                throw new DomainException(
+                    code: 'COURSE_NOT_PUBLISHED',
+                    message: 'Khóa học chưa được xuất bản nên không thể ngừng bán.',
+                    status: 409,
+                );
+            }
 
-        $this->auditLogger->log('course.unpublish', $course);
+            $locked->status = CourseStatus::Unpublished;
+            $locked->save();
 
-        return $course;
+            $this->auditLogger->log('course.unpublish', $locked);
+
+            return $locked;
+        });
+    }
+
+    /**
+     * R2 — đọc lại hàng course với `FOR UPDATE` (phải gọi trong transaction).
+     */
+    private function lockCourse(Course $course): Course
+    {
+        return Course::query()->whereKey($course->getKey())->lockForUpdate()->firstOrFail();
     }
 
     /**

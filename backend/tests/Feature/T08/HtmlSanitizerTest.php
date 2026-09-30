@@ -108,3 +108,79 @@ test('html hong nang van tra ve chuoi rong thay vi loi 500', function () {
     // ném ra (an toàn hơn để lộ 500).
     expect(fn () => sanitize('<p><strong>chưa đóng thẻ'))->not->toThrow(Throwable::class);
 });
+
+// --- R3/R4 (review-T08): khoá hành vi với payload XSS/mXSS thực tế ---------
+
+test('payload XSS/mXSS khong de lai vector nao trong output', function (string $payload) {
+    $out = (string) sanitize($payload);
+
+    expect(strtolower($out))
+        ->not->toContain('javascript')
+        ->not->toContain('vbscript')
+        ->not->toContain('onerror')
+        ->not->toContain('onload')
+        ->not->toContain('<script')
+        ->not->toContain('<img')
+        ->not->toContain('<svg')
+        ->not->toContain('<math')
+        ->not->toContain('style=');
+
+    // Idempotent: ghi rồi đọc lại không đổi.
+    expect(sanitize($out))->toBe($out);
+})->with([
+    'tab trong scheme' => ["<a href=\"java\tscript:alert(1)\">x</a>"],
+    'newline trong scheme' => ["<a href=\"java\nscript:alert(1)\">x</a>"],
+    'entity so' => ['<a href="&#106;avascript:alert(1)">x</a>'],
+    'entity tab' => ['<a href="jav&#x09;ascript:alert(1)">x</a>'],
+    'entity colon' => ['<a href="javascript&#x3A;alert(1)">x</a>'],
+    'ky tu dieu khien dau' => ["<a href=\"\x01javascript:alert(1)\">x</a>"],
+    'khoang trang dau' => ['<a href=" javascript:alert(1)">x</a>'],
+    'viet hoa' => ['<a href="JaVaScRiPt:alert(1)">x</a>'],
+    'vbscript' => ['<a href="vbscript:msgbox(1)">x</a>'],
+    'img onerror' => ['<img src=x onerror=alert(1)>'],
+    'svg onload' => ['<svg/onload=alert(1)>'],
+    'math mglyph mxss' => ['<math><mtext><table><mglyph><style><img src=x onerror=alert(1)>'],
+    'noscript mxss' => ['<noscript><p title="</noscript><img src=x onerror=alert(1)>">'],
+    'style tag' => ['<style>@import "javascript:alert(1)"</style>x'],
+    'comment dieu kien' => ['<!--[if IE]><script>alert(1)</script><![endif]-->x'],
+    'script bi phan manh' => ["<scr\0ipt>alert(1)</scr\0ipt>"],
+    'nested anchor' => ['<a href="https://a.com"><a href="javascript:alert(1)" onclick="x()">y</a></a>'],
+    'textarea/xmp' => ['<textarea></textarea><img src=x onerror=alert(1)><xmp><img src=x onerror=alert(1)></xmp>'],
+]);
+
+test('anchor long nhau khong sinh the a long nhau nguy hiem', function () {
+    $out = sanitize('<a href="https://a.com"><a href="javascript:alert(1)">y</a></a>');
+
+    expect($out)->not->toContain('javascript');
+});
+
+test('tieng Viet, emoji va ky tu dac biet duoc giu nguyen', function () {
+    $html = '<p>Đại số & Hình học — học vui 😀 “ngoặc”</p>';
+
+    expect(sanitize($html))->toBe('<p>Đại số &amp; Hình học — học vui 😀 “ngoặc”</p>');
+    expect(sanitize(sanitize($html)))->toBe(sanitize($html));
+});
+
+test('href bat dau bang backslash hoac /\\ bi tu choi nhu protocol-relative (R4)', function (string $href) {
+    $out = (string) sanitize('<a href="'.$href.'">x</a>');
+
+    expect($out)->toBe('x');
+})->with([
+    'hai backslash' => ['\\\\evil.example'],
+    'slash backslash' => ['/\\evil.example'],
+    'backslash slash' => ['\\/evil.example'],
+    'hai slash' => ['//evil.example'],
+]);
+
+test('byte UTF-8 sai khong lam mat ca text node (R7)', function () {
+    $out = (string) sanitize("<p>Xin chào \xC3\x28 bạn</p>");
+
+    expect($out)->toContain('Xin chào')->toContain('bạn');
+});
+
+test('chen dau nhay + onmouseover vao href bi escape, khong thanh thuoc tinh (R3)', function () {
+    $out = (string) sanitize('<a href="https://a.com&quot; onmouseover=&quot;alert(1)">x</a>');
+
+    expect($out)->toContain('&quot;')->not->toContain('" onmouseover');
+    expect(sanitize($out))->toBe($out);
+});

@@ -41,7 +41,7 @@ class StoreCourseRequest extends FormRequest
                 Rule::exists('subjects', 'id')->where('status', SubjectStatus::Active->value),
             ],
             'short_description' => ['required', 'string', 'max:500', new PlainText],
-            // HTML thô — sanitize (Purifier profile `course_description`,
+            // HTML thô — sanitize (`HtmlSanitizer`, profile `course_description`,
             // api-contract §4) diễn ra ở `CourseService`, KHÔNG ở đây.
             'description' => ['nullable', 'string', 'max:20000'],
             'price' => ['required', 'integer', 'between:0,50000000'],

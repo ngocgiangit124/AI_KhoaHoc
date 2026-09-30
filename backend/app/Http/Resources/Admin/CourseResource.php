@@ -39,7 +39,12 @@ class CourseResource extends JsonResource
             'title' => $this->title,
             'slug' => $this->slug,
             'short_description' => $this->short_description,
-            'description' => app(HtmlSanitizer::class)->sanitize($this->description),
+            // R5 — danh sách không cần `description` (nặng, tốn DOM parse
+            // cho từng dòng); chỉ trả ở show/store/update/publish...
+            'description' => $this->when(
+                ! $request->routeIs('admin.courses.index'),
+                fn () => app(HtmlSanitizer::class)->sanitize($this->description),
+            ),
             'grade_level' => $this->grade_level,
             'price' => $this->price,
             'thumbnail_path' => $this->thumbnail_path,
