@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Catalog;
 
 use App\Models\Course;
+use App\Services\Content\HtmlSanitizer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -12,9 +13,11 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * KHÔNG nằm ở đây — tách riêng `GET /courses/{slug}/viewer-state` để endpoint
  * này cache được (S16, api-contract §2.1).
  *
- * `description` đã sanitize theo Purifier profile `course_description` LÚC
- * GHI (T08 — HtmlSanitizer chưa hiện thực ở T07/T10); TODO(T08): sanitize lại
- * ở đây LÚC ĐỌC (S8, api-contract §4 — "sanitize khi ghi và khi đọc").
+ * `description` đã sanitize bằng `HtmlSanitizer` (profile `course_description`) LÚC
+ * GHI (`CourseService` — T08); sanitize LẠI LÚC ĐỌC ở đây (S8, api-contract
+ * §4 — "sanitize khi ghi và khi đọc"), phòng dữ liệu cũ/ghi trực tiếp DB chưa
+ * qua Service. Việc gọi lại `HtmlSanitizer` 2 lần (ghi + đọc) là idempotent —
+ * sanitize HTML đã sạch cho ra chính nó.
  *
  * @property-read Course $resource
  *
@@ -32,7 +35,7 @@ class CourseResource extends JsonResource
             'title' => $this->title,
             'slug' => $this->slug,
             'short_description' => $this->short_description,
-            'description' => $this->description,
+            'description' => app(HtmlSanitizer::class)->sanitize($this->description),
             'grade_level' => $this->grade_level,
             'price' => $this->price,
             'thumbnail_path' => $this->thumbnail_path,

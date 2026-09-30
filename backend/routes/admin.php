@@ -5,10 +5,15 @@ use App\Http\Controllers\Api\V1\Admin\Auth\MeController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MfaController;
 use App\Http\Controllers\Api\V1\Admin\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Admin\CouponController;
+use App\Http\Controllers\Api\V1\Admin\CourseController;
+use App\Http\Controllers\Api\V1\Admin\CoursePublicationController;
+use App\Http\Controllers\Api\V1\Admin\CourseTeacherController;
 use App\Http\Controllers\Api\V1\Admin\EnrollmentRequestController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
+use App\Http\Controllers\Api\V1\Admin\TeacherController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
 use App\Models\Coupon;
+use App\Models\Course;
 use App\Models\Subject;
 use Illuminate\Support\Facades\Route;
 
@@ -178,7 +183,51 @@ Route::domain(config('app.admin_api_host'))
                 ->middleware('can:delete,coupon')
                 ->name('admin.coupons.destroy');
 
-            // Khóa học/chương/bài (T08+), đơn hàng (T24) — thêm dần ở các
-            // task sau.
+            // Giáo viên (T08, US-009) — chỉ id/name, dùng cho MultiSelect
+            // "Giáo viên phụ trách". Staff-only: role bổ sung THU HẸP nhóm
+            // `admin,quan_ly_trang,giao_vien` của group cha xuống còn
+            // `admin,quan_ly_trang` (M1 — `role:` chỉ là lớp chặn thô, nhưng
+            // ở đây không có Model/Policy tự nhiên nào để hang `can:` lên,
+            // nên dùng thêm 1 lớp `role:` hẹp hơn thay vì Gate rời rạc).
+            Route::get('/teachers', [TeacherController::class, 'index'])
+                ->middleware('role:admin,quan_ly_trang')
+                ->name('admin.teachers.index');
+
+            // Khóa học (T08, US-009). Quy tắc chung S5 (api-contract §2.5):
+            // `course_id`/`created_by` không bao giờ lấy từ request;
+            // `CoursePolicy` là nơi DUY NHẤT quyết định staff/GV được vào
+            // action nào — `can:` chạy TRƯỚC `FormRequest::rules()` (mẫu T06,
+            // R2 review-T06) nên GV gửi payload sai vẫn nhận 403 thay vì lộ
+            // chi tiết 422 khi không có quyền truy cập khóa học đó (AC7).
+            Route::get('/courses', [CourseController::class, 'index'])->name('admin.courses.index');
+            Route::post('/courses', [CourseController::class, 'store'])
+                ->middleware('can:create,'.Course::class)
+                ->name('admin.courses.store');
+            Route::get('/courses/{course}', [CourseController::class, 'show'])
+                ->middleware('can:view,course')
+                ->name('admin.courses.show');
+            Route::put('/courses/{course}', [CourseController::class, 'update'])
+                ->middleware('can:update,course')
+                ->name('admin.courses.update');
+            Route::delete('/courses/{course}', [CourseController::class, 'destroy'])
+                ->middleware('can:delete,course')
+                ->name('admin.courses.destroy');
+            // BR2 — publish/unpublish CHỈ Admin/Quản lý trang, dùng CHUNG 1
+            // ability `publish` của `CoursePolicy` cho cả 2 route.
+            Route::post('/courses/{course}/publish', [CoursePublicationController::class, 'publish'])
+                ->middleware('can:publish,course')
+                ->name('admin.courses.publish');
+            Route::post('/courses/{course}/unpublish', [CoursePublicationController::class, 'unpublish'])
+                ->middleware('can:publish,course')
+                ->name('admin.courses.unpublish');
+            Route::patch('/courses/{course}/manual-order', [CourseController::class, 'updateManualOrder'])
+                ->middleware('can:updateManualOrder,course')
+                ->name('admin.courses.manual-order');
+            Route::put('/courses/{course}/teachers', [CourseTeacherController::class, 'update'])
+                ->middleware('can:manageTeachers,course')
+                ->name('admin.courses.teachers.update');
+
+            // Chương/bài (T09), mã giảm giá/đơn hàng (T15, T24) — thêm dần ở
+            // các task sau.
         });
     });
