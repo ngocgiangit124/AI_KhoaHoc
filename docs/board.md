@@ -20,9 +20,9 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T07 → T10 | Schema nội dung → danh mục công khai | Xong (đã gộp) | Gộp vào nhánh chính (b5b753b). Review APPROVE, DBA duyệt. `composer ci` nhánh chính xanh, Pest 246. Chờ QA giai đoạn 2 | R1 (PO) trước T13 | 2026-09-28 |
 | T17 | Thanh toán: abstraction + MoMo | Xong (đã gộp) | Gộp vào nhánh chính. Review APPROVE (2 vòng), Security PASS có điều kiện: M1, M2, L1–L4, R4 đã sửa. **Gate go-live:** kiểm chứng sandbox MoMo thật (R1/R2). `composer ci` xanh 450 test | Gate go-live | 2026-09-29 |
 | T28 | Đăng nhập quản trị | Xong (đã gộp) | Gộp vào nhánh chính. Review PASS vòng 2 (R1 BLOCKER đổi mật khẩu bỏ qua MFA đã sửa). [SEC] chờ security cuối dự án. **FA1 cần chốt:** hình dạng response `/admin/auth/me` (`permissions`), mfa/verify, password — contract chưa định nghĩa. 502 test xanh | — | 2026-09-29 |
-| T08 | Quản trị khoá học | Dev | Worktree `.claude/worktrees/t08` từ nhánh chính @b23efe4 | — | 2026-09-29 |
-| T14 | EnrollmentService | Dev | Worktree `.claude/worktrees/t14`; tạo `counters:recount` | — | 2026-09-29 |
-| T15 | Mã giảm giá quản trị | Dev | Worktree `.claude/worktrees/t15`; recounter `coupons.used_count` riêng, nối vào lệnh khi gộp với T14 | — | 2026-09-29 |
+| T08 | Quản trị khoá học | Review | Worktree `.claude/worktrees/t08` từ nhánh chính @b23efe4 | Dev xong a45e66e (554 test). HtmlSanitizer tự viết vì sandbox chặn cài Purifier: cần security cuối dự án soi + thay Purifier khi cài được | 2026-09-30 |
+| T14 | EnrollmentService | Review | Worktree `.claude/worktrees/t14`; tạo `counters:recount` | Dev xong bf17bb3 (530 test). parent.consent là bản tạm, T18/T29 hoàn thiện | 2026-09-30 |
+| T15 | Mã giảm giá quản trị | Sửa review | Worktree `.claude/worktrees/t15`; recounter `coupons.used_count` riêng, nối vào lệnh khi gộp với T14 | — | 2026-09-30 |
 
 ## Bàn giao về máy local (2026-09-28, cuối phiên Claude Code on the web)
 
