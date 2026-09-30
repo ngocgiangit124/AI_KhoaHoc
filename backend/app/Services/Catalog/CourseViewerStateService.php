@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\User;
+use App\Services\Cart\CartService;
 
 /**
  * GET /courses/{slug}/viewer-state (US-003, api-contract §2.1) — tách khỏi
@@ -15,6 +16,8 @@ use App\Models\User;
  */
 class CourseViewerStateService
 {
+    public function __construct(private readonly CartService $cart) {}
+
     /**
      * @return array{viewer_state: string, resume_lesson_id: int|null}
      */
@@ -38,10 +41,13 @@ class CourseViewerStateService
             return ['viewer_state' => 'pending_approval', 'resume_lesson_id' => null];
         }
 
-        // TODO(T16): kiểm giỏ hàng của user — nếu khóa đang trong giỏ, trả
-        // 'in_cart' thay vì 'can_buy' (chưa có bảng `cart_items` ở T07/T10).
         if ((int) $course->price === 0) {
             return ['viewer_state' => 'can_register_free', 'resume_lesson_id' => null];
+        }
+
+        // T16 — khóa có phí đang nằm trong giỏ của chính user.
+        if ($this->cart->contains($user, $course)) {
+            return ['viewer_state' => 'in_cart', 'resume_lesson_id' => null];
         }
 
         return ['viewer_state' => 'can_buy', 'resume_lesson_id' => null];
