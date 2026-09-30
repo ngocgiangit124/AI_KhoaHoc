@@ -4,11 +4,14 @@ use App\Http\Controllers\Api\V1\Admin\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MeController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MfaController;
 use App\Http\Controllers\Api\V1\Admin\Auth\PasswordController;
+use App\Http\Controllers\Api\V1\Admin\ChapterController;
 use App\Http\Controllers\Api\V1\Admin\CouponController;
 use App\Http\Controllers\Api\V1\Admin\CourseController;
 use App\Http\Controllers\Api\V1\Admin\CoursePublicationController;
 use App\Http\Controllers\Api\V1\Admin\CourseTeacherController;
+use App\Http\Controllers\Api\V1\Admin\CurriculumOrderController;
 use App\Http\Controllers\Api\V1\Admin\EnrollmentRequestController;
+use App\Http\Controllers\Api\V1\Admin\LessonController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Admin\TeacherController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
@@ -227,7 +230,39 @@ Route::domain(config('app.admin_api_host'))
                 ->middleware('can:manageTeachers,course')
                 ->name('admin.courses.teachers.update');
 
-            // Chương/bài (T09), mã giảm giá/đơn hàng (T15, T24) — thêm dần ở
-            // các task sau.
+            // Chương/bài (T09, US-009, api-contract §2.5, S5). `scopeBindings()`
+            // BẮT BUỘC cho mọi route lồng: `{chapter}` phải thuộc `{course}`,
+            // `{lesson}` phải thuộc `{chapter}` (sai → 404, không lộ tồn tại).
+            // Policy kiểm trên KHÓA GỐC `{course}` (`can:manageContent,course`),
+            // chạy TRƯỚC FormRequest nên GV không phụ trách nhận 403 (không
+            // phải 422). `course_id`/`position`/`video_asset_id` không bao giờ
+            // lấy từ request. Phần video upload thuộc T11.
+            Route::scopeBindings()->group(function (): void {
+                Route::post('/courses/{course}/chapters', [ChapterController::class, 'store'])
+                    ->middleware('can:manageContent,course')
+                    ->name('admin.courses.chapters.store');
+                Route::put('/courses/{course}/chapters/{chapter}', [ChapterController::class, 'update'])
+                    ->middleware('can:manageContent,course')
+                    ->name('admin.courses.chapters.update');
+                Route::delete('/courses/{course}/chapters/{chapter}', [ChapterController::class, 'destroy'])
+                    ->middleware('can:manageContent,course')
+                    ->name('admin.courses.chapters.destroy');
+
+                Route::put('/courses/{course}/curriculum/order', [CurriculumOrderController::class, 'update'])
+                    ->middleware('can:manageContent,course')
+                    ->name('admin.courses.curriculum.order');
+
+                Route::post('/courses/{course}/chapters/{chapter}/lessons', [LessonController::class, 'store'])
+                    ->middleware('can:manageContent,course')
+                    ->name('admin.courses.chapters.lessons.store');
+                Route::put('/courses/{course}/chapters/{chapter}/lessons/{lesson}', [LessonController::class, 'update'])
+                    ->middleware('can:manageContent,course')
+                    ->name('admin.courses.chapters.lessons.update');
+                Route::delete('/courses/{course}/chapters/{chapter}/lessons/{lesson}', [LessonController::class, 'destroy'])
+                    ->middleware('can:manageContent,course')
+                    ->name('admin.courses.chapters.lessons.destroy');
+            });
+
+            // Đơn hàng (T24) — thêm ở task sau.
         });
     });

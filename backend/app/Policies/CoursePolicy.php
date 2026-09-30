@@ -86,6 +86,17 @@ class CoursePolicy
         return $user->isStaff();
     }
 
+    /**
+     * T09 — chương/bài (và sau này video, quiz — T11, T21): staff luôn được;
+     * Giáo Viên chỉ khóa mình CÓ TÊN trong `course_teacher` (BR6, ADR-004 §3
+     * "Chương, bài, video, quiz (`manageContent`)"). Luôn kiểm trên KHÓA GỐC
+     * (`{course}` của route đã `scopeBindings` với chapter/lesson con) — S5.
+     */
+    public function manageContent(User $user, Course $course): bool
+    {
+        return $this->view($user, $course);
+    }
+
     private function isAssignedTeacher(User $user, Course $course): bool
     {
         return $course->teachers()->whereKey($user->getKey())->exists();
