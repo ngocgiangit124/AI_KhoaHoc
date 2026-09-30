@@ -12,7 +12,9 @@ use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 /**
  * US-012 — nơi DUY NHẤT đổi `enrollments.status` (api-contract §3 "Trách
@@ -114,11 +116,12 @@ class EnrollmentService
 
         $enrollment->refresh();
 
-        $this->auditLogger->log('enrollment.approve', $enrollment, [
-            'course_id' => $enrollment->course_id,
-        ]);
-
-        $this->sendDecisionMailIfEnabled($enrollment, approved: true, reason: null);
+        $this->afterCommit('approve', function () use ($enrollment): void {
+            $this->auditLogger->log('enrollment.approve', $enrollment, [
+                'course_id' => $enrollment->course_id,
+            ]);
+        });
+        $this->afterCommit('approve_mail', fn () => $this->sendDecisionMailIfEnabled($enrollment, approved: true, reason: null));
 
         return $enrollment;
     }
@@ -148,12 +151,13 @@ class EnrollmentService
 
         $enrollment->refresh();
 
-        $this->auditLogger->log('enrollment.reject', $enrollment, [
-            'course_id' => $enrollment->course_id,
-            'reason' => $reason,
-        ]);
-
-        $this->sendDecisionMailIfEnabled($enrollment, approved: false, reason: $reason);
+        $this->afterCommit('reject', function () use ($enrollment, $reason): void {
+            $this->auditLogger->log('enrollment.reject', $enrollment, [
+                'course_id' => $enrollment->course_id,
+                'reason' => $reason,
+            ]);
+        });
+        $this->afterCommit('reject_mail', fn () => $this->sendDecisionMailIfEnabled($enrollment, approved: false, reason: $reason));
 
         return $enrollment;
     }
@@ -188,21 +192,40 @@ class EnrollmentService
 
         $enrollment->refresh();
 
-        $this->auditLogger->log('enrollment.revoke', $enrollment, [
-            'course_id' => $enrollment->course_id,
-            'reason' => $reason,
-        ]);
+        $this->afterCommit('revoke', function () use ($enrollment, $reason): void {
+            $this->auditLogger->log('enrollment.revoke', $enrollment, [
+                'course_id' => $enrollment->course_id,
+                'reason' => $reason,
+            ]);
+        });
 
         return $enrollment;
     }
 
-    private function findLiveEnrollment(User $student, Course $course): ?Enrollment
+    protected function findLiveEnrollment(User $student, Course $course): ?Enrollment
     {
         return Enrollment::query()
             ->where('user_id', $student->getKey())
             ->where('course_id', $course->getKey())
             ->whereNotNull('live_flag')
             ->first();
+    }
+
+    /**
+     * Việc phụ SAU khi trạng thái đã đổi (audit, mail): lỗi ở đây (queue/Redis
+     * sập) không được làm API trả 500 — trạng thái đã commit, người duyệt bấm
+     * lại chỉ nhận 409. Chỉ report + log cảnh báo (không kèm PII/lý do).
+     *
+     * @param  callable(): void  $task
+     */
+    private function afterCommit(string $name, callable $task): void
+    {
+        try {
+            $task();
+        } catch (Throwable $e) {
+            report($e);
+            Log::warning('enrollment.after_commit_failed', ['task' => $name]);
+        }
     }
 
     private function alreadyLiveException(Enrollment $existing): DomainException

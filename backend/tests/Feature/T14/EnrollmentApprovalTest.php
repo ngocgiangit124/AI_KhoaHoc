@@ -247,3 +247,41 @@ test('hoc sinh khong duoc goi route duyet (role)', function () {
 
     $response->assertStatus(403);
 });
+
+test('loi queue mail khong lam approve tra 500 khi trang thai da doi (R1)', function () {
+    config(['features.enrollment_decision_mail' => true]);
+    Mail::shouldReceive('to')->andThrow(new RuntimeException('queue down'));
+
+    $admin = User::factory()->admin()->create();
+    $course = Course::factory()->published()->free()->create();
+    $enrollment = Enrollment::factory()->pendingApproval()->create(['course_id' => $course->id]);
+
+    $response = test()->actingAs($admin)
+        ->postJson(vvEnrollmentAdminUrl("/{$enrollment->id}/approve"), [], vvEnrollmentAdminHeaders());
+
+    $response->assertOk();
+    expect($enrollment->fresh()->status)->toBe(EnrollmentStatus::Active);
+});
+
+test('loi queue mail khong lam reject tra 500 (R1)', function () {
+    config(['features.enrollment_decision_mail' => true]);
+    Mail::shouldReceive('to')->andThrow(new RuntimeException('queue down'));
+
+    $admin = User::factory()->admin()->create();
+    $course = Course::factory()->published()->free()->create();
+    $enrollment = Enrollment::factory()->pendingApproval()->create(['course_id' => $course->id]);
+
+    test()->actingAs($admin)
+        ->postJson(vvEnrollmentAdminUrl("/{$enrollment->id}/reject"), ['reason' => 'x'], vvEnrollmentAdminHeaders())
+        ->assertOk();
+
+    expect($enrollment->fresh()->status)->toBe(EnrollmentStatus::Rejected);
+});
+
+test('per_page ngoai khoang bi 422 (R7)', function () {
+    $admin = User::factory()->admin()->create();
+
+    test()->actingAs($admin)
+        ->getJson(vvEnrollmentAdminUrl('?per_page=500'), vvEnrollmentAdminHeaders())
+        ->assertStatus(422);
+});

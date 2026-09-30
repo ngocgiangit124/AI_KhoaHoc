@@ -126,6 +126,7 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             'role:hoc_sinh',
             'account.verified',
             'parent.consent',
+            'throttle:free-enroll',
         ])
         ->name('api.courses.free-enrollments.store');
 

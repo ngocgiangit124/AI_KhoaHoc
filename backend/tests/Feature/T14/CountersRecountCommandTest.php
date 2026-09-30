@@ -34,3 +34,13 @@ test('counters:recount chi dem enrollment active, khong dem pending/rejected/rev
 
     expect($course->fresh()->enrollments_count)->toBe(1);
 });
+
+test('counters:recount bao gom khoa xoa mem (R6)', function () {
+    $course = Course::factory()->published()->create(['enrollments_count' => 7]);
+    Enrollment::factory()->create(['course_id' => $course->id]);
+    $course->delete();
+
+    $this->artisan('counters:recount')->assertExitCode(0);
+
+    expect(Course::withTrashed()->find($course->id)->enrollments_count)->toBe(1);
+});

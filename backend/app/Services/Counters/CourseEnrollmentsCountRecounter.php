@@ -4,6 +4,7 @@ namespace App\Services\Counters;
 
 use App\Enums\EnrollmentStatus;
 use App\Models\Course;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Đối soát `courses.enrollments_count` theo số enrollment `active` THẬT
@@ -11,6 +12,10 @@ use App\Models\Course;
  * (`approve()`/`revoke()`) đã tự tăng/giảm cột này trong transaction — class
  * này chỉ SỬA LỆCH (chạy qua `counters:recount` hằng ngày), không phải đường
  * ghi chính.
+ *
+ * Nguyên tử theo từng lô id (review R6): một câu UPDATE tự đếm bằng subquery,
+ * không đọc-rồi-ghi ở PHP nên approve chạy xen giữa không bị ghi đè lệch.
+ * Bao gồm khóa xoá mềm.
  */
 class CourseEnrollmentsCountRecounter implements Recounter
 {
@@ -23,24 +28,22 @@ class CourseEnrollmentsCountRecounter implements Recounter
     {
         $fixed = 0;
 
-        Course::query()
-            ->select(['id', 'enrollments_count'])
-            ->withCount(['enrollments as active_enrollments_count' => function ($query): void {
-                $query->where('status', EnrollmentStatus::Active->value);
-            }])
+        Course::withTrashed()
+            ->select('id')
             ->chunkById(500, function ($courses) use (&$fixed): void {
-                foreach ($courses as $course) {
-                    /** @var int $actual */
-                    $actual = $course->getAttribute('active_enrollments_count');
-
-                    if ((int) $course->enrollments_count !== $actual) {
-                        Course::query()->whereKey($course->getKey())->update([
-                            'enrollments_count' => $actual,
-                        ]);
-
-                        $fixed++;
-                    }
-                }
+                $fixed += DB::update(
+                    'UPDATE courses SET enrollments_count = ('
+                    .'SELECT COUNT(*) FROM enrollments WHERE enrollments.course_id = courses.id AND enrollments.status = ?'
+                    .') WHERE courses.id BETWEEN ? AND ? AND enrollments_count <> ('
+                    .'SELECT COUNT(*) FROM enrollments WHERE enrollments.course_id = courses.id AND enrollments.status = ?'
+                    .')',
+                    [
+                        EnrollmentStatus::Active->value,
+                        $courses->first()->id,
+                        $courses->last()->id,
+                        EnrollmentStatus::Active->value,
+                    ]
+                );
             });
 
         return $fixed;

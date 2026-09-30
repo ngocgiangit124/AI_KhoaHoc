@@ -115,3 +115,15 @@ test('khach chua dang nhap bi 401', function () {
 
     $response->assertStatus(401);
 });
+
+test('throttle free-enroll: qua 10 lan/phut theo user bi 429 (R3)', function () {
+    $student = User::factory()->student()->verified()->create();
+    $course = Course::factory()->published()->free()->create();
+
+    for ($i = 0; $i < 10; $i++) {
+        test()->actingAs($student)->postJson(vvFreeEnrollUrl($course), [], vvFreeEnrollHeaders());
+    }
+
+    test()->actingAs($student)->postJson(vvFreeEnrollUrl($course), [], vvFreeEnrollHeaders())
+        ->assertStatus(429);
+});

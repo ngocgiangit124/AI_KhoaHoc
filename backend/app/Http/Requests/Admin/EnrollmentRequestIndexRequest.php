@@ -25,6 +25,7 @@ class EnrollmentRequestIndexRequest extends FormRequest
     {
         return [
             'course_id' => ['nullable', 'integer', 'exists:courses,id'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ];
     }
 }
