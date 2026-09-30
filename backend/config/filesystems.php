@@ -53,6 +53,25 @@ return [
             'report' => false,
         ],
 
+        // T08 (api-contract §4, S2) — ảnh do người dùng tải lên (thumbnail
+        // khóa học, sau này avatar/ảnh câu hỏi): server đã đọc lại, mã hoá lại
+        // sang WebP và bỏ EXIF trước khi ghi (`ImageUploadService`) — file trên
+        // disk này LUÔN an toàn để phục vụ công khai. Phục vụ từ `STATIC_URL`
+        // (tên miền tĩnh riêng, KHÔNG chia sẻ cookie với api/admin-api — L1,
+        // tách khỏi 'local'/'public' vì 2 disk đó không dành cho nội dung công
+        // khai do người dùng tải lên). `serve` không khai — driver 'local'
+        // không tự đăng ký route (chỉ `'serve' => true` mới làm vậy, xem disk
+        // 'local' ở trên); việc phục vụ file thật do Nginx đọc thẳng thư mục
+        // này qua `STATIC_URL` (hạ tầng — ngoài phạm vi T08).
+        'uploads' => [
+            'driver' => 'local',
+            'root' => storage_path('app/uploads'),
+            'url' => rtrim((string) env('STATIC_URL', ''), '/'),
+            'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

@@ -127,4 +127,22 @@ class Course extends Model
     {
         return $query->where('status', CourseStatus::Published);
     }
+
+    /**
+     * Danh sách quản trị (US-009 AC6, api-contract §2.5 "Scope `visibleTo`"):
+     * Admin/Quản lý trang thấy TẤT CẢ khóa học; Giáo Viên chỉ thấy khóa học
+     * mình có tên trong `course_teacher` (BR6). Vai trò khác không gọi tới
+     * scope này (route đã chặn ở `role:`/`CoursePolicy::viewAny`).
+     *
+     * @param  Builder<Course>  $query
+     * @return Builder<Course>
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        if ($user->isStaff()) {
+            return $query;
+        }
+
+        return $query->whereHas('teachers', fn (Builder $q) => $q->whereKey($user->getKey()));
+    }
 }
