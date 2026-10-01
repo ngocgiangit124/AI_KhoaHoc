@@ -10,3 +10,6 @@
 - [VitaminVui T28 staff MFA bypass pattern](feedback_vitaminvui_t28_staff_mfa_bypass.md) — an "escape hatch" route exempted from one gate (must_change_password) must not also be silently exempted from an unrelated still-required gate (MFA); `admin.origin` is CSRF mitigation only, not an auth boundary against scripted attackers with valid credentials
 - [VitaminVui shared test-infra collision across parallel worktrees](feedback_vitaminvui_shared_test_infra_collision.md) — T05 & T28 both override `Tests\TestCase::actingAs()`; each branch's CI is green alone but merge will conflict/regress silently — always diff shared test files against every other in-flight branch
 - [VitaminVui T05 single-session (ADR-003) review notes](feedback_vitaminvui_t05_session_review.md) — S11 fix verified solid via real-HTTP cookie tests; recurring gap: fail-closed catch branches around DB/cache writes need failure-injection tests, not just by-inspection trust
+- [Quy ước review dự án](project_review_conventions.md) — đường dẫn báo cáo docs/reviews/, security hoãn, kiểm Redis thật, TODO cầu nối task
+- [Lỗi hay lặp lại](feedback_recurring_issues.md) — limiter nhiều khoá, withTrashed binding, insertOrIgnore, chặn tràn số
+- [Mẫu review theo task](project_review_patterns.md) — mẫu lỗi lặp lại ghi từ review T09
