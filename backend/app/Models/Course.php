@@ -94,6 +94,14 @@ class Course extends Model
     }
 
     /**
+     * @return HasMany<Quiz, $this>
+     */
+    public function quizzes(): HasMany
+    {
+        return $this->hasMany(Quiz::class);
+    }
+
+    /**
      * @return HasMany<Lesson, $this>
      */
     public function lessons(): HasMany

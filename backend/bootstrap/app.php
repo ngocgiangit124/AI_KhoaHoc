@@ -12,6 +12,7 @@ use App\Http\Middleware\EnsurePasswordFresh;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureStaffMfaPassed;
 use App\Http\Middleware\EnsureStatefulSession;
+use App\Http\Middleware\LimitRequestBody;
 use App\Http\Middleware\NoStoreForAuthenticated;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\StaffIdleTimeout;
@@ -132,6 +133,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // `web` mặc định — dự án không có middleware group đó).
             'staff.session' => SanctumAuthenticateSession::class,
             'student.single_session' => EnforceSingleStudentSession::class,
+            // T21 — trần kích thước body cho route soạn nội dung: `body.limit:128` (KB).
+            'body.limit' => LimitRequestBody::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
