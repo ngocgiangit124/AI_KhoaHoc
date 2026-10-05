@@ -152,7 +152,7 @@ describe('POST /auth/otp/verify', function () {
 
         vvOtpVerify($wrong)
             ->assertStatus(422)
-            ->assertJson(['code' => 'VALIDATION_ERROR', 'errors' => ['code' => [OtpService::MESSAGE_WRONG]]]);
+            ->assertJson(['code' => 'OTP_INVALID', 'errors' => ['code' => [OtpService::MESSAGE_WRONG]]]);
 
         expect(OtpCode::first()->attempts)->toBe(1)->and($user->fresh()->email_verified_at)->toBeNull();
     });
@@ -165,7 +165,7 @@ describe('POST /auth/otp/verify', function () {
 
         vvOtpVerify($sender->lastCode())
             ->assertStatus(422)
-            ->assertJson(['errors' => ['code' => [OtpService::MESSAGE_EXPIRED]]]);
+            ->assertJson(['code' => 'OTP_EXPIRED', 'errors' => ['code' => [OtpService::MESSAGE_EXPIRED]]]);
     });
 
     test('chua tung gui ma -> 422', function () {

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Exceptions\DomainException;
+use App\Exceptions\OtpValidationException;
 use App\Services\Auth\StudentSessionService;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
@@ -67,7 +68,7 @@ class ApiExceptionRenderer
         }
 
         if ($e instanceof ValidationException) {
-            return [422, 'VALIDATION_ERROR', 'Dữ liệu gửi lên không hợp lệ.', $e->errors()];
+            return [422, $e instanceof OtpValidationException ? $e->errorCode : 'VALIDATION_ERROR', 'Dữ liệu gửi lên không hợp lệ.', $e->errors()];
         }
 
         if ($e instanceof AuthenticationException) {

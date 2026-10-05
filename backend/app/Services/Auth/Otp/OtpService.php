@@ -4,6 +4,7 @@ namespace App\Services\Auth\Otp;
 
 use App\Enums\OtpPurpose;
 use App\Exceptions\DomainException;
+use App\Exceptions\OtpValidationException;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
@@ -206,11 +207,11 @@ class OtpService
         }
 
         if ($otp === null || $otp->expires_at->isPast()) {
-            throw ValidationException::withMessages(['code' => self::MESSAGE_EXPIRED]);
+            throw OtpValidationException::expired(self::MESSAGE_EXPIRED);
         }
 
         if ($destinationStillValid !== null && ! $destinationStillValid($otp, $user)) {
-            throw ValidationException::withMessages(['code' => self::MESSAGE_EXPIRED]);
+            throw OtpValidationException::expired(self::MESSAGE_EXPIRED);
         }
 
         // S9: tăng TRƯỚC khi so, trong 1 câu UPDATE có điều kiện. 0 dòng = hết lượt/hết hạn/đã bị
@@ -228,7 +229,7 @@ class OtpService
         }
 
         if (! Hash::check($code, $otp->code_hash)) {
-            throw ValidationException::withMessages(['code' => self::MESSAGE_WRONG]);
+            throw OtpValidationException::invalid(self::MESSAGE_WRONG);
         }
 
         DB::transaction(function () use ($user, $otp, $destinationStillValid, $apply): void {
@@ -236,7 +237,7 @@ class OtpService
             $locked = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
 
             if ($destinationStillValid !== null && ! $destinationStillValid($otp, $locked)) {
-                throw ValidationException::withMessages(['code' => self::MESSAGE_EXPIRED]);
+                throw OtpValidationException::expired(self::MESSAGE_EXPIRED);
             }
 
             // Consume: đúng 1 request thắng (UPDATE có điều kiện), các request song song còn lại thua.
@@ -247,7 +248,7 @@ class OtpService
                 ->update(['consumed_at' => now()]);
 
             if ($consumed !== 1) {
-                throw ValidationException::withMessages(['code' => self::MESSAGE_WRONG]);
+                throw OtpValidationException::invalid(self::MESSAGE_WRONG);
             }
 
             if ($apply !== null) {
@@ -287,7 +288,7 @@ class OtpService
             );
         }
 
-        throw ValidationException::withMessages(['code' => self::MESSAGE_EXPIRED]);
+        throw OtpValidationException::expired(self::MESSAGE_EXPIRED);
     }
 
     /**

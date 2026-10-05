@@ -97,6 +97,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // `guest` trên API (còn dùng cho các route guest-only sau này, vd quên mật khẩu): người đã
         // đăng nhập → 403 JSON, không redirect. Login KHÔNG dùng `guest` (ADR-003, T05) và register dùng
         // `guest.student` (bỏ qua phiên cũ đã bị thay thế/đăng xuất) — xem routes/api.php.
+        // T28 BUG-2: API không có route `login` để redirect; khách chưa đăng nhập luôn nhận 401 JSON envelope
+        // (ApiExceptionRenderer) dù request thiếu `Accept: application/json`.
+        $middleware->redirectGuestsTo(fn () => null);
+
         $middleware->redirectUsersTo(function (): never {
             throw new DomainException(
                 code: 'FORBIDDEN',

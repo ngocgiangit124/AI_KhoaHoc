@@ -6,12 +6,16 @@ use App\Enums\CourseStatus;
 use App\Enums\EnrollmentSource;
 use App\Enums\EnrollmentStatus;
 use App\Exceptions\DomainException;
+use App\Mail\EnrollmentDecisionMail;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 /**
  * Nơi DUY NHẤT đổi `enrollments.status` và `courses.enrollments_count` (api-contract §3, S17).
@@ -90,7 +94,7 @@ class EnrollmentService
      */
     public function approve(Enrollment $enrollment, User $actor, ?string $note = null): Enrollment
     {
-        return $this->decide($enrollment, function (Enrollment $locked) use ($actor, $note): void {
+        $result = $this->decide($enrollment, function (Enrollment $locked) use ($actor, $note): void {
             // Khóa đã chuyển sang có phí khi yêu cầu còn chờ: không cấp quyền miễn phí (rollback, giữ pending để
             // người duyệt từ chối hoặc học sinh mua). Khóa `courses` đã được khoá ở `decide()`.
             $course = Course::withTrashed()->whereKey($locked->course_id)->first();
@@ -117,6 +121,10 @@ class EnrollmentService
                 'note' => $note,
             ], fn ($v) => $v !== null));
         });
+
+        $this->notifyDecision($result, true);
+
+        return $result;
     }
 
     /**
@@ -124,7 +132,7 @@ class EnrollmentService
      */
     public function reject(Enrollment $enrollment, User $actor, ?string $reason = null): Enrollment
     {
-        return $this->decide($enrollment, function (Enrollment $locked) use ($reason): void {
+        $result = $this->decide($enrollment, function (Enrollment $locked) use ($reason): void {
             $locked->forceFill([
                 'status' => EnrollmentStatus::Rejected,
                 // Không ghi approved_by/approved_at: người và thời điểm từ chối nằm ở audit `enrollment.reject`.
@@ -136,6 +144,44 @@ class EnrollmentService
                 'user_id' => $locked->user_id,
                 'reason' => $reason,
             ], fn ($v) => $v !== null));
+        });
+
+        $this->notifyDecision($result, false);
+
+        return $result;
+    }
+
+    /**
+     * US-012 AC2/AC3: email báo kết quả (queue, tiếng Việt). `DB::afterCommit` — nếu caller bọc thêm transaction
+     * thì chỉ gửi khi transaction ngoài cùng commit (rollback = không gửi). Học sinh không có email đã xác thực
+     * (chỉ có SĐT) thì bỏ qua. Lỗi đẩy queue/gửi mail KHÔNG làm hỏng việc duyệt đã commit: chỉ ghi log (không PII).
+     */
+    private function notifyDecision(Enrollment $enrollment, bool $approved): void
+    {
+        $enrollmentId = $enrollment->getKey();
+
+        DB::afterCommit(function () use ($enrollmentId, $approved): void {
+            try {
+                $enrollment = Enrollment::query()->with(['user', 'course' => fn ($q) => $q->withTrashed()])->find($enrollmentId);
+                $student = $enrollment?->user;
+                $course = $enrollment?->course;
+
+                if ($student === null || $course === null || $student->email === null || $student->email_verified_at === null) {
+                    return;
+                }
+
+                $url = rtrim((string) config('app.frontend_url'), '/').'/khoa-hoc/'.$course->slug;
+
+                Mail::to($student->email)->queue(new EnrollmentDecisionMail(
+                    approved: $approved,
+                    studentName: (string) $student->name,
+                    courseTitle: (string) $course->title,
+                    courseUrl: $url,
+                    reason: $approved ? null : $enrollment->rejection_reason,
+                ));
+            } catch (Throwable $e) {
+                Log::warning('Không gửi được email kết quả duyệt đăng ký.', ['enrollment_id' => $enrollmentId, 'exception' => $e::class]);
+            }
         });
     }
 

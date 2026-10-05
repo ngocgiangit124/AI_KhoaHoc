@@ -92,8 +92,13 @@ test('QA: gui lai ma MFA toi da 5 lan/gio (tran), du da qua cooldown 60s', funct
 });
 
 test('QA BUG-2 (R6): request chua dang nhap khong gui Accept JSON van nhan 401 (khong 500)', function () {
-    test()->get(vvAdminUrl('/admin/auth/me'), vvAdminHeaders())->assertUnauthorized();
-})->skip('BUG-2 (QA T28-FA1, review R6): 500 "Route [login] not defined" khi không có Accept JSON. Bỏ skip khi Dev sửa.');
+    test()->get(vvAdminUrl('/admin/auth/me'), vvAdminHeaders())
+        ->assertUnauthorized()
+        ->assertJsonPath('code', 'UNAUTHENTICATED');
+    test()->get(vvApiUrl('/auth/me'), vvWebHeaders())
+        ->assertUnauthorized()
+        ->assertJsonPath('code', 'UNAUTHENTICATED');
+});
 
 test('QA R3: gui mail canh bao lan dau loi, lan dang nhap sau van duoc canh bao', function () {
     $teacher = vvStaffUser('teacher');
@@ -156,4 +161,18 @@ test('QA BUG-1: dang nhap lai voi cookie phien CU (bi huy sau doi mat khau) va m
     // Trình duyệt khác còn giữ cookie cũ (không nhận cookie mới) đăng nhập bằng mật khẩu mới.
     app('auth')->forgetGuards();
     vvAdminLogin((string) $teacher->email, 'mat-khau-moi-123')->assertOk();
-})->skip('BUG-1 (QA T28-FA1): Sanctum EnsureFrontendRequestsAreStateful gắn AuthenticateSession cho cả route login nên cookie cũ trả 401 UNAUTHENTICATED ở lần đăng nhập đầu. Bỏ skip khi Dev sửa.');
+});
+
+test('BUG-1: lay csrf-token voi cookie phien CU (bi huy sau doi mat khau) van 200 va dang nhap lai duoc', function () {
+    $teacher = vvStaffUser('teacher');
+    vvAdminFollow(vvAdminLogin((string) $teacher->email)->assertOk());
+    vvAdminGet('/admin/auth/me')->assertOk();
+    app('auth')->forgetGuards();
+    test()->putJson(vvAdminUrl('/admin/auth/password'), vvAdminPasswordPayload(), vvAdminHeaders())->assertOk();
+
+    // "Trình duyệt khác" giữ cookie cũ: lấy CSRF không bị 401, đăng nhập mật khẩu mới vào được; route cần đăng nhập vẫn 401.
+    app('auth')->forgetGuards();
+    vvAdminGet('/csrf-token')->assertOk()->assertJsonStructure(['token']);
+    app('auth')->forgetGuards();
+    vvAdminLogin((string) $teacher->email, 'mat-khau-moi-123')->assertOk();
+});

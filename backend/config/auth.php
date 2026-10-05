@@ -2,6 +2,9 @@
 
 use App\Models\User;
 
+$otpRelaxed = filter_var(env('AUTH_OTP_E2E_RELAXED', false), FILTER_VALIDATE_BOOL)
+    && in_array(env('APP_ENV', 'production'), ['local', 'testing'], true);
+
 return [
 
     /*
@@ -128,9 +131,17 @@ return [
     'otp' => [
         'channels' => array_filter(array_map('trim', explode(',', (string) env('AUTH_OTP_CHANNELS', 'email')))),
         'ttl_minutes' => (int) env('AUTH_OTP_TTL_MINUTES', 10),
-        'cooldown_seconds' => (int) env('AUTH_OTP_COOLDOWN_SECONDS', 60),
-        'max_per_hour' => (int) env('AUTH_OTP_MAX_PER_HOUR', 5),
-        'max_per_day' => (int) env('AUTH_OTP_MAX_PER_DAY', 10),
+        // Chế độ nới hạn mức cho e2e/dev: CHỈ có hiệu lực khi APP_ENV là local/testing (production luôn bỏ qua
+        // AUTH_OTP_E2E_RELAXED và giữ 1/phút, 5/giờ, 10/ngày).
+        'e2e_relaxed' => $otpRelaxed,
+        'cooldown_seconds' => $otpRelaxed ? 1 : (int) env('AUTH_OTP_COOLDOWN_SECONDS', 60),
+        'max_per_hour' => $otpRelaxed ? 1000 : (int) env('AUTH_OTP_MAX_PER_HOUR', 5),
+        'max_per_day' => $otpRelaxed ? 10000 : (int) env('AUTH_OTP_MAX_PER_DAY', 10),
+        // Số lần gọi route gửi OTP/phút/tài khoản (limiter `otp-send`) và trần/giờ/IP; quên mật khẩu theo tài khoản.
+        'send_per_minute' => $otpRelaxed ? 1000 : 1,
+        'send_per_ip_hour' => $otpRelaxed ? 10000 : 30,
+        'forgot_cooldown_max' => $otpRelaxed ? 1000 : 1,
+        'forgot_per_hour' => $otpRelaxed ? 1000 : 5,
         'max_verify_per_minute' => (int) env('AUTH_OTP_MAX_VERIFY_PER_MINUTE', 5),
         'max_verify_per_day' => (int) env('AUTH_OTP_MAX_VERIFY_PER_DAY', 20),
         'max_attempts_per_code' => (int) env('AUTH_OTP_MAX_ATTEMPTS_PER_CODE', 5),

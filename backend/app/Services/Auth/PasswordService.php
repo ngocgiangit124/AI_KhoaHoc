@@ -5,6 +5,7 @@ namespace App\Services\Auth;
 use App\Enums\OtpPurpose;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Exceptions\OtpValidationException;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
@@ -71,8 +72,8 @@ class PasswordService
     {
         $identity = self::throttleIdentity($login);
         $limits = [
-            ['password-reset-cooldown:'.$identity, 1, 60],
-            ['password-reset:'.$identity, 5, 3600],
+            ['password-reset-cooldown:'.$identity, (int) config('auth.otp.forgot_cooldown_max'), 60],
+            ['password-reset:'.$identity, (int) config('auth.otp.forgot_per_hour'), 3600],
         ];
 
         foreach ($limits as [$key, $max]) {
@@ -122,7 +123,7 @@ class PasswordService
             // Cân bằng thời gian với nhánh có tài khoản (so hash).
             Hash::check($code, LoginService::dummyHash());
 
-            throw ValidationException::withMessages(['code' => OtpService::MESSAGE_EXPIRED]);
+            throw OtpValidationException::expired(OtpService::MESSAGE_EXPIRED);
         }
 
         // Cân bằng thời gian: tài khoản có thật nhưng không có mã hiệu lực cũng tốn 1 lần băm (R1 review T27).
@@ -150,7 +151,7 @@ class PasswordService
             function (OtpCode $otp, User $locked) use ($newPassword): void {
                 // Bị khoá/ẩn danh sau khi mã được gửi → không hoàn tất (BR8); rollback cả việc tiêu thụ mã.
                 if (! self::isEligible($locked)) {
-                    throw ValidationException::withMessages(['code' => OtpService::MESSAGE_EXPIRED]);
+                    throw OtpValidationException::expired(OtpService::MESSAGE_EXPIRED);
                 }
 
                 $this->applyNewPassword($locked, $newPassword);

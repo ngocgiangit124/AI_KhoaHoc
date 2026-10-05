@@ -140,10 +140,10 @@ class AppServiceProvider extends ServiceProvider
             $identity = $this->identity($request);
 
             return [
-                Limit::perMinute(1)->by('otp-send-cooldown:'.$identity),
+                Limit::perMinute((int) config('auth.otp.send_per_minute'))->by('otp-send-cooldown:'.$identity),
                 Limit::perHour((int) config('auth.otp.max_per_hour'))->by('otp-send-hour:'.$identity),
                 Limit::perDay((int) config('auth.otp.max_per_day'))->by('otp-send-day:'.$identity),
-                Limit::perHour(30)->by('otp-send-ip:'.$request->ip()),
+                Limit::perHour((int) config('auth.otp.send_per_ip_hour'))->by('otp-send-ip:'.$request->ip()),
             ];
         });
 
