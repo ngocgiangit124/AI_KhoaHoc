@@ -230,7 +230,8 @@ const VV_API_GUEST_WRITE_ROUTE_NAMES = [
     'api.auth.login',
     'api.auth.password.forgot',
     'api.auth.password.reset',
-    // T19 sẽ thêm: webhook.
+    'api.webhooks.video',
+    // T19 sẽ thêm: webhook thanh toán.
 ];
 
 /**

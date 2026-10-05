@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Catalog\SubjectController as CatalogSubjectContr
 use App\Http\Controllers\Api\V1\Enrollment\FreeEnrollmentController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
+use App\Http\Controllers\Api\V1\Webhook\VideoWebhookController;
 use App\Http\Middleware\VaryOnOrigin;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
@@ -125,6 +126,14 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             ->middleware('account.verified')
             ->name('api.courses.free-enrollments.store');
     });
+
+    // T11 — webhook video (ADR-002 §2): payload không được tin, service gọi lại getVideo(). Tên provider chỉ
+    // nhận allowlist (fake chỉ ở local/testing); provider chưa bật/chưa cấu hình → 404.
+    Route::post('/webhooks/video/{provider}', VideoWebhookController::class)
+        ->whereIn('provider', app()->environment('local', 'testing') ? ['internal', 'bunny', 'fake'] : ['internal', 'bunny'])
+        ->withoutMiddleware(EnsureFrontendRequestsAreStateful::class)
+        ->middleware('throttle:webhook')
+        ->name('api.webhooks.video');
 
     // Auth (T04/T05/T27), Catalog (T10), Cart/Checkout (T16/T18),
     // Learn (T13), Webhooks (T19) — thêm dần ở các task sau.

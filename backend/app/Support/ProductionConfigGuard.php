@@ -40,6 +40,7 @@ class ProductionConfigGuard
         $this->guardStatefulDomains();
         $this->guardTrustedProxies();
         $this->guardPayments();
+        $this->guardVideo();
     }
 
     private function guardCaptcha(): void
@@ -125,6 +126,21 @@ class ProductionConfigGuard
             ! $isAllowedMomoEndpoint,
             RuntimeException::class,
             'MOMO_ENDPOINT phải đúng https://payment.momo.vn ở production (S4, M4).'
+        );
+    }
+
+    /** T11 — cấm nhà cung cấp video `fake` lọt production. */
+    private function guardVideo(): void
+    {
+        $providers = array_map(
+            static fn ($provider) => mb_strtolower((string) $provider),
+            [...(array) config('video.enabled_providers', []), (string) config('video.provider')]
+        );
+
+        throw_if(
+            in_array('fake', $providers, true),
+            RuntimeException::class,
+            'FakeVideoProvider bị cấm ở production (ADR-002).'
         );
     }
 }

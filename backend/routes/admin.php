@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Admin\CourseTeacherController;
 use App\Http\Controllers\Api\V1\Admin\CurriculumOrderController;
 use App\Http\Controllers\Api\V1\Admin\EnrollmentRequestController;
 use App\Http\Controllers\Api\V1\Admin\LessonController;
+use App\Http\Controllers\Api\V1\Admin\LessonVideoUploadController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Admin\TeacherController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
@@ -117,6 +118,16 @@ Route::domain(config('app.admin_api_host'))
                 Route::post('/admin/courses/{course}/chapters/{chapter}/lessons', [LessonController::class, 'store'])->name('admin.lessons.store');
                 Route::put('/admin/courses/{course}/chapters/{chapter}/lessons/{lesson}', [LessonController::class, 'update'])->name('admin.lessons.update');
                 Route::delete('/admin/courses/{course}/chapters/{chapter}/lessons/{lesson}', [LessonController::class, 'destroy'])->name('admin.lessons.destroy');
+            });
+
+            // T11 — Upload video cho bài + trạng thái xử lý (US-009 AC11). Quyền `manageContent` theo khóa;
+            // scopeBindings: bài phải thuộc khóa (sai/đã xoá → 404). Hạn mức 20 GB/ngày kiểm ở service.
+            Route::scopeBindings()->group(function (): void {
+                Route::post('/admin/courses/{course}/lessons/{lesson}/video-uploads', [LessonVideoUploadController::class, 'store'])
+                    ->middleware('throttle:20,1')
+                    ->name('admin.lessons.video-uploads.store');
+                Route::get('/admin/courses/{course}/lessons/{lesson}/video', [LessonVideoUploadController::class, 'show'])
+                    ->name('admin.lessons.video.show');
             });
 
             // T14 — Duyệt đăng ký khóa miễn phí (US-012). Quyền theo EnrollmentPolicy: staff mọi khóa,
