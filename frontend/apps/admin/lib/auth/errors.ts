@@ -30,7 +30,13 @@ export function mfaErrorMessage(err: unknown): string {
   if (err instanceof NetworkError) return err.message;
   if (err instanceof ApiError) {
     if (err.status === 429 || err.code === "TOO_MANY_ATTEMPTS") return MFA_TOO_MANY_MESSAGE;
-    if (err.status === 422) return err.errors?.code?.[0] ?? MFA_WRONG_MESSAGE;
+    if (err.status === 422) {
+      // Backend (OtpService) chỉ trả ValidationException field `code` với CHUỖI khác nhau, không có mã lỗi riêng
+      // phân biệt sai/hết hạn → buộc phải khớp chuỗi. Nếu backend thêm mã (vd `code: "OTP_INVALID"`) thì chuyển sang so mã.
+      // Sai mã: luôn dùng hằng (khớp nhãn "Mã xác nhận"); hết hạn/đã xác thực: giữ thông điệp server vì có hướng dẫn riêng.
+      const msg = err.errors?.code?.[0];
+      return msg && !/không đúng/i.test(msg) ? msg : MFA_WRONG_MESSAGE;
+    }
     return err.message || UNKNOWN_ERROR_MESSAGE;
   }
   return UNKNOWN_ERROR_MESSAGE;

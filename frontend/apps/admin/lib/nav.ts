@@ -24,7 +24,7 @@ export const DEFAULT_LANDING = "/quan-tri";
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/quan-tri", label: "Tổng quan", roles: ALL, ready: true },
   { href: "/quan-tri/khoa-hoc", label: "Khóa học", roles: ALL, ready: false },
-  { href: "/quan-tri/chuyen-de", permission: "manage_subjects", label: "Chuyên đề", roles: STAFF, ready: false },
+  { href: "/quan-tri/chuyen-de", permission: "manage_subjects", label: "Chuyên đề", roles: STAFF, ready: true },
   { href: "/quan-tri/ma-giam-gia", permission: "manage_coupons", label: "Mã giảm giá", roles: STAFF, ready: false },
   { href: "/quan-tri/don-hang", permission: "view_orders", label: "Đơn hàng", roles: STAFF, ready: false },
   { href: "/quan-tri/tai-khoan", permission: "manage_system", label: "Tài khoản staff", roles: ADMIN, ready: false },

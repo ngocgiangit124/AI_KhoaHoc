@@ -9,3 +9,4 @@
 - [Docker container phân giải *.localhost](docker_wildcard_localhost_dns.md) — --network host + --add-host để test với backend thật.
 - [FW1 OTP + AuthProvider](fw1_otp_auth_context.md) — /auth/me dùng chung, flash chỉ verified, lệnh docker kiểm tra.
 - [FA1 admin auth](fa1_admin_auth.md) — SessionProvider /admin/auth/me, route, lệnh docker macOS.
+- [FA2 màn Chuyên đề](fa2_subjects_screen.md) — object đơn phẳng, Modal onClose ổn định, giới hạn OTP khi e2e thật.

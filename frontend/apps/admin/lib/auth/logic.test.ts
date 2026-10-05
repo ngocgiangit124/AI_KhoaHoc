@@ -37,6 +37,7 @@ describe("errors", () => {
   });
   it("MFA: 422 lấy field code, 429 báo sai quá nhiều", () => {
     expect(mfaErrorMessage(err(422, { errors: { code: ["Mã đã hết hạn"] } }))).toBe("Mã đã hết hạn");
+    expect(mfaErrorMessage(err(422, { errors: { code: ["Mã OTP đã hết hạn. Bấm 'Gửi lại mã' để nhận mã mới."] } }))).toBe("Mã OTP đã hết hạn. Bấm 'Gửi lại mã' để nhận mã mới.");
     expect(mfaErrorMessage(err(422, {}))).toBe("Mã xác nhận không đúng, vui lòng thử lại.");
     expect(mfaErrorMessage(err(429, { code: "TOO_MANY_ATTEMPTS" }))).toMatch(/quá nhiều lần/);
   });

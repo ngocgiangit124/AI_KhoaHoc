@@ -24,11 +24,11 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T08 | Quản trị khóa học | Xong | ✅ Review, QA (upload: không lỗ thực thi/XSS); Minor: lỗi validate tiếng Anh (chung toàn dự án) | — | 2026-10-05 |
 | T10 | Danh mục công khai + chi tiết | Xong | ✅ Review, QA (320 khóa thật, 0,05–0,09 s) | — | 2026-10-05 |
 | T14 | EnrollmentService (xin học, duyệt, grantPurchase) | Xong | ✅ Review, QA (race xoá khóa ↔ xin học đã sửa); chưa có email báo duyệt/từ chối (AC2/AC3) | — | 2026-10-05 |
-| FA2 | Màn chuyên đề admin | QA | Review APPROVE, đã sửa; đang QA | — | 2026-10-05 |
+| FA2 | Màn chuyên đề admin | Xong | ✅ Review, QA (khoá giữa phiên thật, hai tab, 31 chuyên đề); Minor: ẩn/hiện gặp 404 không tải lại, overlay khoá còn lộ khung phía sau | — | 2026-10-05 |
 
 ## Việc tiếp theo (theo thứ tự)
 
-1. Commit FA2 khi QA xong.
+1. FA3 (kèm 2 Minor của FA2).
 2. Lượt mới: **T09** Chương/bài (sau T08), **T15** Mã giảm giá (T07, T06), **FA3** Khóa học admin (T08; lưu ý lỗi 413 HTML của Nginx, errors.teacher_ids), **FW1 còn lại** (quên/đổi mật khẩu theo API T27), **FW2** Danh mục (T10).
 3. Gom sửa lỗi nhỏ (một task riêng): file `lang/vi/validation.php` cho toàn dự án; T28 BUG-1 (csrf 419 sau khi phiên bị huỷ) và BUG-2 (thiếu Accept JSON → 500); mã lỗi OTP riêng `OTP_INVALID`/`OTP_EXPIRED`; nới hạn mức OTP cho môi trường e2e; email báo duyệt/từ chối đăng ký (US-012 AC2/AC3).
 4. Sau đó: T11 → T12 ∥ T13; T16 (sau T14, T15) → T18 → T19 → T20; FA6 (duyệt đăng ký).

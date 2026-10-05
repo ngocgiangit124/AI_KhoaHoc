@@ -56,11 +56,11 @@ describe("MfaForm", () => {
   });
 
   it("sai mã → báo lỗi, xoá ô nhập, không chuyển trang", async () => {
-    vi.mocked(verifyMfa).mockRejectedValue(new ApiError(422, { message: "x", errors: { code: ["Mã không đúng"] } }));
+    vi.mocked(verifyMfa).mockRejectedValue(new ApiError(422, { message: "x", errors: { code: ["Mã OTP không đúng, vui lòng thử lại."] } }));
     setSession({ kind: "mfa_required" });
     render(<MfaForm />);
     await userEvent.setup().keyboard("000000");
-    expect(await screen.findByText("Mã không đúng")).toBeInTheDocument();
+    expect(await screen.findByText("Mã xác nhận không đúng, vui lòng thử lại.")).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
   });
 
