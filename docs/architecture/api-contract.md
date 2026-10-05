@@ -74,6 +74,7 @@ Ngoại lệ duy nhất: `POST /auth/logout` và `POST /admin/auth/logout` chỉ
 | `playback` | 30/phút/user | — |
 | `heartbeat` | 6/phút/user/bài | — |
 | `catalog` | — | 120/phút |
+| `csrf` | — | 120/phút (PO chốt 2026-10-05, lớp học dùng chung NAT) |
 | `webhook` | — | 120/phút |
 | `export` | 10 lần tạo/ngày/user | — |
 
@@ -154,6 +155,14 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 | POST | /auth/password/forgot | `Auth\PasswordResetController@request` | guest, throttle:password-reset | login, captcha_token | 202 **luôn cùng thông điệp** dù tài khoản có tồn tại hay không. **US-015 — chờ BA viết story** |
 | POST | /auth/password/reset | `Auth\PasswordResetController@reset` | guest, throttle:otp-verify | login, code, password (confirmed) | 200; huỷ mọi phiên (tombstone `password_changed`) |
 | PUT | /auth/password | `Auth\PasswordController@update` | student | current_password, password (confirmed) | 200; huỷ phiên khác, bind lại phiên hiện tại (ADR-003) |
+
+**Bổ sung từ T03 (2026-10-05):**
+- `user` trong response register/login (phẳng): `id, name, email, phone, role, grade_level, is_verified (= email_verified_at != null), parent_consent_status`. Không có `parent_*` (chỉ `/auth/me` trả bản đã che).
+- `password`: min 8, **max 128**; lỗi xác nhận không khớp nằm ở field `password_confirmation` (rule `same:password`, bắt buộc). Email (và `parent_email`) dùng `email:rfc,strict` + chặn khoảng trắng/comment RFC. Số điện thoại chấp nhận `+84`/`84`/dấu cách, lưu dạng `0xxxxxxxxx`; email lưu lowercase.
+- Đã đăng nhập mà gọi register/login (route `guest`) → **403 `FORBIDDEN`**.
+- Captcha kiểm **trước** mọi rule khác (kể cả unique); thiếu Origin hợp lệ → 400 `ORIGIN_NOT_ALLOWED` trước khi gọi captcha. Token Turnstile dùng 1 lần nên frontend phải reset widget sau mọi lỗi 422/`CAPTCHA_FAILED`.
+- Login: bộ đếm "sai 10/giờ/`login` + 50/giờ/IP" chỉ tăng ở lượt SAI, xoá bộ đếm tài khoản khi đúng; `throttle:login` ở route chỉ là chống flood (120/phút/IP). Vượt → 429 `TOO_MANY_ATTEMPTS` + `Retry-After`.
+- Response register/login có `Cache-Control: no-store, private`.
 
 ### 2.3 Học sinh — giỏ hàng, checkout, đơn (host api, nhóm `student` + `role:hoc_sinh`)
 

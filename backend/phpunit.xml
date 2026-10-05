@@ -29,6 +29,7 @@
         <env name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
         <env name="BCRYPT_ROUNDS" value="4" force="true"/>
         <env name="BROADCAST_CONNECTION" value="null" force="true"/>
+        <env name="CAPTCHA_DRIVER" value="fake" force="true"/>
         <env name="CACHE_STORE" value="array" force="true"/>
         <!-- BUG-2 (QA T01/T02): mặc định RateLimiter::for()/`throttle` dùng
              config('cache.limiter') = 'redis-limiter' → Redis THẬT (REDIS_LIMITER_DB),
@@ -45,7 +46,6 @@
         <env name="DB_PORT" value="3306" force="true"/>
         <env name="DB_DATABASE" value="vitaminvui_testing" force="true"/>
         <env name="DB_USERNAME" value="vitaminvui" force="true"/>
-        <env name="DB_PASSWORD" value="secret" force="true"/>
         <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
@@ -71,7 +71,6 @@
         <server name="DB_PORT" value="3306" force="true"/>
         <server name="DB_DATABASE" value="vitaminvui_testing" force="true"/>
         <server name="DB_USERNAME" value="vitaminvui" force="true"/>
-        <server name="DB_PASSWORD" value="secret" force="true"/>
         <server name="DB_URL" value="" force="true"/>
         <server name="MAIL_MAILER" value="array" force="true"/>
         <server name="QUEUE_CONNECTION" value="sync" force="true"/>

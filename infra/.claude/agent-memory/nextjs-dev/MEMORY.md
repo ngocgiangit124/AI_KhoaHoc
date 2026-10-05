@@ -1,0 +1,1 @@
+- [Frontend Docker trên macOS + quy ước auth FW1](project_frontend_env.md) — pnpm.sh lỗi UID, cách chạy thay thế

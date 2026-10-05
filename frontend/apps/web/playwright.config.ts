@@ -8,6 +8,8 @@ import { defineConfig, devices } from "@playwright/test";
  * web --real-backend`) để gọi thẳng backend Laravel thật đang chạy ở `api.localhost:8000`
  * (infra/docker-compose.yml của laravel-dev).
  */
+// Web chạy ở api.localhost:3000 (cùng site với API api.localhost:8000) — Chromium coi
+// localhost/app.localhost và api.localhost là cross-site nên cookie SameSite=Lax bị bỏ (419).
 const useRealBackend = process.env.E2E_REAL_BACKEND === "1";
 
 export default defineConfig({
@@ -17,7 +19,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [["list"]],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: "http://api.localhost:3000",
     trace: "on-first-retry",
   },
   projects: [
@@ -41,7 +43,7 @@ export default defineConfig({
       // Gọi thẳng binary local (không qua "pnpm run dev") để chạy được trong ảnh
       // mcr.microsoft.com/playwright (không có pnpm/corepack sẵn — xem scripts/playwright.sh).
       command: "./node_modules/.bin/next dev --port 3000",
-      url: "http://localhost:3000",
+      url: "http://api.localhost:3000",
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
       env: useRealBackend

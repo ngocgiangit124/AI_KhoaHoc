@@ -86,7 +86,7 @@ Nginx vào `127.0.0.1:8000` rồi gọi `http://host.docker.internal:8000` từ 
 container Docker độc lập khác (bridge network riêng, mô phỏng đúng container
 `web`/`admin` của `frontend/docker-compose.yml`) — vẫn trả `200`, kể cả không
 khai `--add-host` tường minh (Docker Desktop tự cấp DNS này). Vì vậy không
-cần mở `0.0.0.0` cho Nginx. Ứng dụng admin Next.js (`admin.localhost:3001`)
+cần mở `0.0.0.0` cho Nginx. Ứng dụng admin Next.js (`admin-api.localhost:3001`)
 do `nextjs-dev` tự phục vụ bằng dev server của Next.js, **không** đi qua
 Nginx của backend.
 
@@ -99,7 +99,7 @@ Chrome/Firefox tự phân giải `*.localhost` về `127.0.0.1` — không cần
 ```bash
 curl -i --resolve api.localhost:8000:127.0.0.1 http://api.localhost:8000/api/v1/health
 curl -i --resolve admin-api.localhost:8000:127.0.0.1 http://admin-api.localhost:8000/api/v1/csrf-token \
-  -H "Origin: http://admin.localhost:3001"
+  -H "Origin: http://admin-api.localhost:3001"
 ```
 
 ### 2.4 Khởi tạo ứng dụng lần đầu

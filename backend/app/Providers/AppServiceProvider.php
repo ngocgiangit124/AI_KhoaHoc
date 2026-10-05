@@ -3,6 +3,9 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Auth\Captcha\CaptchaVerifier;
+use App\Services\Auth\Captcha\FakeCaptchaVerifier;
+use App\Services\Auth\Captcha\TurnstileVerifier;
 use App\Support\ProductionConfigGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +15,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,7 +24,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(CaptchaVerifier::class, fn () => match ((string) config('captcha.driver')) {
+            'turnstile' => new TurnstileVerifier,
+            // fake chỉ hợp lệ ở local/testing; ProductionConfigGuard cấm ở production.
+            'fake' => new FakeCaptchaVerifier,
+            default => throw new RuntimeException('CAPTCHA_DRIVER không hợp lệ (turnstile|fake).'),
+        });
     }
 
     /**
@@ -77,12 +86,9 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configureRateLimiters(): void
     {
-        RateLimiter::for('login', function (Request $request) {
-            return [
-                Limit::perHour(10)->by('login:'.mb_strtolower((string) $request->input('login'))),
-                Limit::perHour(50)->by('login-ip:'.$request->ip()),
-            ];
-        });
+        // `login`: CHỈ là lớp chống flood thô theo IP (đếm mọi request). Giới hạn "sai 10 lần/giờ/tài
+        // khoản" + "50 lần sai/giờ/IP" (contract §1.6) đếm lượt SAI trong LoginService (R1).
+        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(120)->by('login-flood:'.$request->ip()));
 
         RateLimiter::for('register', fn (Request $request) => Limit::perHour(30)->by($request->ip()));
 
@@ -150,7 +156,7 @@ class AppServiceProvider extends ServiceProvider
         // M3 (review bảo mật T01/T02) — `csrf-token` không throttle trước đó:
         // client ngoài trình duyệt chỉ cần đặt Origin là tạo được 1 phiên Redis
         // mới (7 ngày) mỗi request, không giới hạn.
-        RateLimiter::for('csrf', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
+        RateLimiter::for('csrf', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
     }
 
     private function identity(Request $request): string

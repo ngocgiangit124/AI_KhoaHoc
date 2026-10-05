@@ -4,7 +4,7 @@
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.MOCK_API_PORT ?? 8000);
-const ADMIN_ORIGIN = process.env.MOCK_ADMIN_ORIGIN ?? "http://admin.localhost:3001";
+const ADMIN_ORIGIN = process.env.MOCK_ADMIN_ORIGIN ?? "http://admin-api.localhost:3001";
 
 const CONFIG_PUBLIC_FIXTURE = {
   referral_code_enabled: false,

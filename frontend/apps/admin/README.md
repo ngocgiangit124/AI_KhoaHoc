@@ -10,5 +10,5 @@ Chạy nhanh (từ gốc repo):
 HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f frontend/docker-compose.yml up admin
 ```
 
-Mở http://admin.localhost:3001 (cần thêm `admin.localhost` vào trình duyệt hoặc dùng
-trực tiếp — Chrome/Firefox tự phân giải `*.localhost` về 127.0.0.1).
+Mở http://admin-api.localhost:3001 (Chrome/Firefox tự phân giải `*.localhost` về 127.0.0.1; cùng site với
+admin-api.localhost:8000 — xem `frontend/README.md`; copy `.env.example` thành `.env.local`).

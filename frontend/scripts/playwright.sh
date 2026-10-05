@@ -33,7 +33,6 @@ if [ "$MODE" = "--real-backend" ]; then
     --network host
     --add-host api.localhost:127.0.0.1
     --add-host admin-api.localhost:127.0.0.1
-    --add-host admin.localhost:127.0.0.1
   )
   ENV_ARGS+=(-e E2E_REAL_BACKEND=1)
 fi

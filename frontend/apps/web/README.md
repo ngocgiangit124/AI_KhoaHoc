@@ -9,4 +9,4 @@ Chạy nhanh (từ gốc repo):
 HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f frontend/docker-compose.yml up web
 ```
 
-Mở http://localhost:3000.
+Mở http://api.localhost:3000 (cùng site với API local — xem `frontend/README.md`; copy `.env.example` thành `.env.local`).

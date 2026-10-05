@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const REQUIRED_ENV = {
   NEXT_PUBLIC_API_URL: "http://api.localhost:8000",
-  NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
+  NEXT_PUBLIC_SITE_URL: "http://api.localhost:3000",
   NEXT_PUBLIC_STATIC_URL: "http://localhost:8080",
 };
 

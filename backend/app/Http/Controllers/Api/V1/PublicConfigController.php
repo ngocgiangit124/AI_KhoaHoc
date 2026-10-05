@@ -23,7 +23,7 @@ class PublicConfigController extends Controller
                 'resend_cooldown_seconds' => config('auth.otp.cooldown_seconds'),
             ],
             'grades' => range(6, 12),
-            'captcha_site_key' => config('services.turnstile.site_key'),
+            'captcha_site_key' => config('services.turnstile.site_key') ?: null,
             'policy_version' => config('privacy.policy_version'),
             'parent_consent_age' => config('privacy.parent_consent_age'),
         ])->header('Cache-Control', 'public, max-age=60');

@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("trang /dang-nhap lấy được CSRF token từ admin-api (CORS đúng origin) và có CSP nonce", async ({
   page,
 }) => {
-  const response = await page.goto("http://admin.localhost:3001/dang-nhap");
+  const response = await page.goto("http://admin-api.localhost:3001/dang-nhap");
   expect(response).not.toBeNull();
 
   const csp = response?.headers()["content-security-policy"];

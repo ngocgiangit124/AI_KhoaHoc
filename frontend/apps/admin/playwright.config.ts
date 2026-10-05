@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Smoke test FE0 (tasks.md). Khởi cả app `admin` (3001) và `web` (../web, 3000) vì test
+ * Smoke test FE0 (tasks.md). Khởi cả app `admin` (3001, host admin-api.localhost cùng site với admin-api.localhost:8000) và `web` (../web, api.localhost:3000) vì test
  * "gọi admin-api từ origin web bị chặn" cần mở trang web thật để lấy đúng Origin trình
  * duyệt.
  *
@@ -37,21 +37,21 @@ export default defineConfig({
             reuseExistingServer: !process.env.CI,
             timeout: 15_000,
             env: {
-              MOCK_ADMIN_ORIGIN: "http://admin.localhost:3001",
+              MOCK_ADMIN_ORIGIN: "http://admin-api.localhost:3001",
             },
           },
         ]),
     {
       // Gọi thẳng binary local — xem giải thích ở apps/web/playwright.config.ts.
       command: "./node_modules/.bin/next dev --port 3001",
-      url: "http://admin.localhost:3001",
+      url: "http://admin-api.localhost:3001",
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },
     {
       command: "../web/node_modules/.bin/next dev --port 3000",
       cwd: "../web",
-      url: "http://localhost:3000",
+      url: "http://api.localhost:3000",
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
       env: useRealBackend

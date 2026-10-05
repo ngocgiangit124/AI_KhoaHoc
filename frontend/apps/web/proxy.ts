@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/env";
 
+/** Route có Turnstile — được thêm Cloudflare vào connect-src/frame-src (ADR-004 §2.6). */
+const CAPTCHA_PATHS = new Set(["/dang-ky"]);
+
 /**
  * Proxy (đổi tên từ middleware ở Next.js 16 — xem node_modules/next/dist/docs/01-app/
  * 03-api-reference/03-file-conventions/proxy.md) sinh nonce CSP + header bảo mật cho
@@ -12,6 +15,9 @@ export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
 
+  // Turnstile chỉ ở route có captcha (ADR-004 §2.6); script-src không cần host Cloudflare nhờ strict-dynamic.
+  const captchaSrc = CAPTCHA_PATHS.has(request.nextUrl.pathname) ? "https://challenges.cloudflare.com " : "";
+
   const videoHosts = env.NEXT_PUBLIC_VIDEO_HOSTS.join(" ");
 
   const cspHeader = `
@@ -20,9 +26,9 @@ export function proxy(request: NextRequest) {
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: ${env.NEXT_PUBLIC_STATIC_URL};
     font-src 'self';
-    connect-src 'self' ${env.NEXT_PUBLIC_API_URL} ${videoHosts};
+    connect-src 'self' ${env.NEXT_PUBLIC_API_URL} ${captchaSrc}${videoHosts};
     media-src 'self' blob: ${videoHosts};
-    frame-src https://www.youtube-nocookie.com https://player.vimeo.com;
+    frame-src https://www.youtube-nocookie.com https://player.vimeo.com ${captchaSrc.trim()};
     object-src 'none';
     base-uri 'none';
     frame-ancestors 'none';

@@ -1,0 +1,2 @@
+
+Cookie/site local (đã kiểm Chromium thật, 2026-10-05): chỉ cặp CÙNG hostname khác cổng mới gửi cookie SameSite=Lax (api.localhost:3000 ↔ api.localhost:8000). localhost / app.localhost / admin.localhost ↔ api.localhost là cross-site. Vì vậy web local = api.localhost:3000, admin = admin-api.localhost:3001. Probe Chromium trong Docker: page phải do server thật phục vụ (page.route fulfilled bị chặn bởi Local Network Access). `playwright.sh` mock mode lỗi trên bash 3.2 macOS (mảng rỗng + set -u).

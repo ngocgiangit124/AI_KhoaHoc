@@ -1,2 +1,3 @@
 - [VitaminVui project layout & how to run checks](project_vitaminvui.md) — repo layout, which docs are load-bearing, safe read-only check commands
 - [VitaminVui recurring defect pattern](feedback_vitaminvui_review_findings.md) — always `route:list --json` for package-registered routes bypassing origin checks; curl 500 without Origin header is expected Sanctum behavior
+- [T03 auth review pitfalls](feedback_t03_auth_review.md) — throttle counts successes, 1062 message parsing, fake captcha, review file location docs/review

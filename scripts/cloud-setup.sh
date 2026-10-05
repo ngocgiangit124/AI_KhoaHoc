@@ -6,7 +6,7 @@
 # Cloud sandbox thường không có Docker, nên script cài trực tiếp:
 #   PHP 8.3 + Composer, MySQL, Redis, Node 22 + pnpm 9
 # rồi dựng lại đúng những gì phpunit.xml cần (host "mysql", DB vitaminvui_testing,
-# user vitaminvui/secret). Script idempotent: chạy lại nhiều lần không sao.
+# user vitaminvui; mật khẩu lấy từ backend/.env). Script idempotent: chạy lại nhiều lần không sao.
 
 set -uo pipefail
 
@@ -76,7 +76,7 @@ run $SUDO service redis-server start || run redis-server --daemonize yes || true
 grep -qE '\smysql(\s|$)' /etc/hosts || echo "127.0.0.1 mysql redis" | $SUDO tee -a /etc/hosts >/dev/null
 
 for i in $(seq 1 30); do $SUDO mysqladmin ping >/dev/null 2>&1 && break; sleep 1; done
-log "Tạo DB/user cho test (vitaminvui_testing, user vitaminvui/secret theo phpunit.xml)"
+log "Tạo DB/user cho test (vitaminvui_testing, user vitaminvui/secret, khớp backend/.env cloud)"
 run $SUDO mysql -uroot <<'EOF'
 CREATE DATABASE IF NOT EXISTS vitaminvui CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 CREATE DATABASE IF NOT EXISTS vitaminvui_testing CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;

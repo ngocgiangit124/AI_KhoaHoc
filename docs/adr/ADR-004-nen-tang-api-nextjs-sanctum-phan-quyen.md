@@ -28,12 +28,14 @@
 
 | Vai trò | Production | Staging (tên miền riêng — tên cụ thể chờ PO) | Local |
 |---|---|---|---|
-| Web học sinh (Next.js) | `https://vitaminvui.vn` | `https://vitaminvui-staging.vn` | `http://localhost:3000` |
-| Admin (Next.js) | `https://admin.vitaminvui.vn` | `https://admin.vitaminvui-staging.vn` | `http://admin.localhost:3001` |
+| Web học sinh (Next.js) | `https://vitaminvui.vn` | `https://vitaminvui-staging.vn` | `http://api.localhost:3000` (*) |
+| Admin (Next.js) | `https://admin.vitaminvui.vn` | `https://admin.vitaminvui-staging.vn` | `http://admin-api.localhost:3001` (*) |
 | API học sinh (Laravel) | `https://api.vitaminvui.vn` | `https://api.vitaminvui-staging.vn` | `http://api.localhost:8000` |
 | API quản trị (cùng app Laravel) | `https://admin-api.vitaminvui.vn` | `https://admin-api.vitaminvui-staging.vn` | `http://admin-api.localhost:8000` |
 | File tĩnh do người dùng tải lên | `https://static.vitaminvui-media.net` (**tên miền đăng ký riêng**, không có cookie — S2; chờ PO mua) | `https://static.vitaminvui-staging-media.net` | `http://localhost:8080` |
 | Video (VideoLab/Bunny CDN) | `https://video.vitaminvui.vn` (VideoLab) / host CDN Bunny | tương ứng | `http://video.localhost:8000` |
+
+(*) Local: web/admin mở cùng hostname với API (khác cổng) vì Chromium coi các host `*.localhost` khác nhau là cross-site → cookie `SameSite=Lax` của API bị bỏ (POST 419). Production/staging cùng registrable domain nên không bị.
 
 Cùng một ứng dụng Laravel phục vụ 2 host API bằng `Route::domain(config('app.api_host'))` và `Route::domain(config('app.admin_api_host'))`. Route quản trị **chỉ tồn tại** trên host admin-api; route học sinh chỉ trên host api. Webhook thanh toán/video nằm trên host api.
 
@@ -55,7 +57,7 @@ Cùng một ứng dụng Laravel phục vụ 2 host API bằng `Route::domain(co
   - Host khác danh sách → 404.
 - `$middleware->trustHosts(at: [api_host, admin_api_host])` — chống giả header `Host`.
 - **CSRF không cần cookie đọc được từ JS:** frontend gọi `GET /api/v1/csrf-token` (trả `{ "token": "..." }`) và gửi header `X-CSRF-TOKEN` cho mọi request thay đổi dữ liệu. Cookie `XSRF-TOKEN` (nếu Laravel vẫn set) là host-only, không cần đọc. Endpoint này chỉ đọc được qua CORS từ đúng origin.
-- `SANCTUM_STATEFUL_DOMAINS` theo từng môi trường, **không wildcard, không `localhost` ở production**: prod `vitaminvui.vn,admin.vitaminvui.vn`; local `localhost:3000,admin.localhost:3001`.
+- `SANCTUM_STATEFUL_DOMAINS` theo từng môi trường, **không wildcard, không `localhost` ở production**: prod `vitaminvui.vn,admin.vitaminvui.vn`; local `api.localhost:3000,admin-api.localhost:3001`.
 - **Chặn chéo origin cho khu quản trị:**
   - Middleware `EnsureAdminOrigin` trên mọi route admin-api: `Origin` (hoặc `Referer` với GET) phải bằng `ADMIN_URL`, nếu không → 403.
   - Đăng nhập ở host api chỉ chấp nhận vai trò `hoc_sinh`; ở host admin-api chỉ chấp nhận `admin`/`quan_ly_trang`/`giao_vien`. Kiểm sau khi mật khẩu đúng, thông điệp không lộ vai trò; sai host → thông báo "Vui lòng đăng nhập tại trang dành cho bạn".
@@ -88,6 +90,7 @@ Cùng một ứng dụng Laravel phục vụ 2 host API bằng `Route::domain(co
   - `img-src 'self' data: {STATIC_URL}; font-src 'self'`
   - `connect-src 'self' {API_URL} {VIDEO_HOSTS}; media-src 'self' blob: {VIDEO_HOSTS}`
   - `frame-src https://www.youtube-nocookie.com https://player.vimeo.com` — chỉ app web; app admin: `frame-src 'none'`
+  - Turnstile (captcha): `script-src` KHÔNG thêm host Cloudflare (script do bundle có nonce nạp động, `strict-dynamic` cho phép). Chỉ ở route dùng captcha (hiện `/dang-ky`) mới thêm `https://challenges.cloudflare.com` vào `connect-src` và `frame-src`; thêm route mới (vd quên mật khẩu) thì mở rộng danh sách route trong `apps/web/proxy.ts`.
   - `object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`
 - Header khác: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`.
 - **Hợp đồng render nội dung** (khớp api-contract §4):

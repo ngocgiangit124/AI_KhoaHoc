@@ -88,8 +88,8 @@ Nếu skeleton Laravel 13 đã cấu hình Pest sẵn (tuỳ lựa chọn của 
   - header `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`.
 
 **`.env.example` (đủ khoá):**
-- Ứng dụng: `APP_ENV`, `APP_DEBUG`, `APP_TIMEZONE=Asia/Ho_Chi_Minh`, `APP_API_HOST=api.localhost`, `APP_ADMIN_API_HOST=admin-api.localhost`, `FRONTEND_URL=http://localhost:3000`, `ADMIN_URL=http://admin.localhost:3001`, `STATIC_URL`
-- Phiên & proxy: `SANCTUM_STATEFUL_DOMAINS=localhost:3000,admin.localhost:3001`, `SESSION_DRIVER=redis`, `SESSION_DOMAIN=null`, `SESSION_SECURE_COOKIE=false` (local), `SESSION_COOKIE=vv_session`, `SESSION_ADMIN_COOKIE=vv_admin_session`, `TRUSTED_PROXIES=`
+- Ứng dụng: `APP_ENV`, `APP_DEBUG`, `APP_TIMEZONE=Asia/Ho_Chi_Minh`, `APP_API_HOST=api.localhost`, `APP_ADMIN_API_HOST=admin-api.localhost`, `FRONTEND_URL=http://api.localhost:3000`, `ADMIN_URL=http://admin-api.localhost:3001`, `STATIC_URL`
+- Phiên & proxy: `SANCTUM_STATEFUL_DOMAINS=api.localhost:3000,admin-api.localhost:3001`, `SESSION_DRIVER=redis`, `SESSION_DOMAIN=null`, `SESSION_SECURE_COOKIE=false` (local), `SESSION_COOKIE=vv_session`, `SESSION_ADMIN_COOKIE=vv_admin_session`, `TRUSTED_PROXIES=`
 - DB: `DB_*` (mysql)
 - Redis: `REDIS_PASSWORD`, `REDIS_DB_SESSION=1`, `REDIS_CACHE_DB=2`, `REDIS_QUEUE_DB=3`, `REDIS_LIMITER_DB=4`
 - Mail: `MAIL_*` (Mailpit)
@@ -192,8 +192,8 @@ frontend/
   package.json            ("private": true, scripts: dev, build, lint, typecheck, test, e2e — chạy -r)
   pnpm-workspace.yaml     (apps/*, packages/*)
   .nvmrc  .npmrc  .gitignore
-  apps/web/               Next.js — học sinh; cổng 3000; host local localhost:3000
-  apps/admin/             Next.js — quản trị; cổng 3001; host local admin.localhost:3001
+  apps/web/               Next.js — học sinh; cổng 3000; host local api.localhost:3000
+  apps/admin/             Next.js — quản trị; cổng 3001; host local admin-api.localhost:3001
   packages/api-client/    TS thuần: publicFetch, authFetch, getCsrfToken (cache trong bộ nhớ), deviceId (UUID v4 lưu localStorage),
                           xử lý lỗi theo `code` (api-contract §1.7): SESSION_REPLACED → sự kiện 'forced-logout';
                           SESSION_EXPIRED/REVOKED/UNAUTHENTICATED/STAFF_IDLE_TIMEOUT → 'login-required'; 419 → lấy lại CSRF và thử lại 1 lần;
@@ -219,8 +219,8 @@ Cài ở task sau:
 
 | App | Biến |
 |---|---|
-| web | `NEXT_PUBLIC_API_URL=http://api.localhost:8000`, `NEXT_PUBLIC_SITE_URL=http://localhost:3000`, `NEXT_PUBLIC_STATIC_URL`, `NEXT_PUBLIC_VIDEO_HOSTS`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `NEXT_PUBLIC_MOMO_HOSTS=test-payment.momo.vn` (prod: `payment.momo.vn`); server-only: `API_INTERNAL_URL` (SSR trang công khai) |
-| admin | `NEXT_PUBLIC_ADMIN_API_URL=http://admin-api.localhost:8000`, `NEXT_PUBLIC_ADMIN_URL=http://admin.localhost:3001`, `NEXT_PUBLIC_STATIC_URL`, `NEXT_PUBLIC_VIDEO_UPLOAD_URL=http://video.localhost:8000` |
+| web | `NEXT_PUBLIC_API_URL=http://api.localhost:8000`, `NEXT_PUBLIC_SITE_URL=http://api.localhost:3000`, `NEXT_PUBLIC_STATIC_URL`, `NEXT_PUBLIC_VIDEO_HOSTS`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `NEXT_PUBLIC_MOMO_HOSTS=test-payment.momo.vn` (prod: `payment.momo.vn`); server-only: `API_INTERNAL_URL` (SSR trang công khai) |
+| admin | `NEXT_PUBLIC_ADMIN_API_URL=http://admin-api.localhost:8000`, `NEXT_PUBLIC_ADMIN_URL=http://admin-api.localhost:3001`, `NEXT_PUBLIC_STATIC_URL`, `NEXT_PUBLIC_VIDEO_UPLOAD_URL=http://video.localhost:8000` |
 
 **Nền bảo mật bắt buộc (ADR-004 §2.5–2.6):**
 - `proxy.ts` (tên mới của `middleware.ts` trong Next.js 16) mỗi app sinh nonce + CSP cho **mọi route HTML** (ADR-004 §2.7), web/admin khác nhau ở `frame-src`; HSTS (prod), `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`.
@@ -392,6 +392,7 @@ Cài ở task sau:
 - [ ] **T31 Checklist production & DNS** (~1 ngày) **[SEC]**
   - ADR-004 §6 (S22): Nginx 4 host + tên miền tĩnh; header; Redis; secret; staging domain riêng; rà DNS chống subdomain takeover (S6).
   - Kiểm `php artisan about` staging = production.
+  - Staging (`APP_ENV=staging`) **không được** dùng `CAPTCHA_DRIVER=fake` (ProductionConfigGuard chỉ chặn ở `production`): mở rộng guard hoặc kiểm tay; mặc định config đã là `turnstile` (R3, review T03).
 
 ## Frontend Next.js (agent `nextjs-dev`)
 

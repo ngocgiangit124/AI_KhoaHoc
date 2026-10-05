@@ -126,7 +126,7 @@ test('moi route auth:sanctum co du middleware chuan theo host', function () {
         }
 
         if ($domain === config('app.api_host')) {
-            $required = ['account.active', 'student.single_session', 'no_store'];
+            $required = ['account.active', 'student.single_session', 'no_store', 'role:hoc_sinh'];
         } elseif ($domain === config('app.admin_api_host')) {
             $required = ['admin.origin', 'account.active', 'staff.idle', 'no_store'];
 
@@ -151,12 +151,9 @@ test('moi route auth:sanctum co du middleware chuan theo host', function () {
 
     expect($violations)->toBe([]);
 
-    // R4 (review T01/T02): khẳng định đúng số route auth:sanctum hiện có (0 ở
-    // T01/T02) thay vì assertion vô nghĩa (>= 0 luôn đúng). TODO(T03): đổi
-    // thành `expect($checked)->toBeGreaterThan(0)` khi route auth:sanctum đầu
-    // tiên (auth/me, .../otp/*...) được thêm — nếu quên đổi, test này sẽ FAIL
-    // và nhắc phải cập nhật, không "xanh giả".
-    expect($checked)->toBe(0);
+    // R4 (review T01/T02): từ T03 đã có route auth:sanctum đầu tiên (auth/logout).
+    // Nếu ai đó vô tình bỏ hết route bảo vệ, test này phải FAIL thay vì xanh giả.
+    expect($checked)->toBeGreaterThan(0);
 });
 
 /**
@@ -216,4 +213,92 @@ test('logic kiem tra bat duoc route admin gia thieu admin.origin (M1)', function
 test('route storage.local va storage.local.upload khong con duoc dang ky (L1)', function () {
     expect(Route::has('storage.local'))->toBeFalse();
     expect(Route::has('storage.local.upload'))->toBeFalse();
+});
+
+/**
+ * Route trên host api KHÔNG cần đăng nhập nhưng được phép ghi dữ liệu (POST/PUT/...),
+ * allowlist theo TÊN route. Thêm route mới ở đây là một quyết định có chủ đích.
+ *
+ * @var list<string>
+ */
+const VV_API_GUEST_WRITE_ROUTE_NAMES = [
+    'api.auth.register',
+    'api.auth.login',
+    // T27 sẽ thêm: 'api.auth.password.forgot', 'api.auth.password.reset'; T19: webhook.
+];
+
+/**
+ * @return list<string>
+ */
+function vvApiRouteViolations(): array
+{
+    $violations = [];
+
+    /** @var RouteObject $route */
+    foreach (Route::getRoutes() as $route) {
+        $domain = $route->getDomain();
+        $uri = $route->uri();
+
+        if ($domain !== config('app.api_host') || $uri === 'up') {
+            continue;
+        }
+
+        $name = $route->getName();
+        $middleware = $route->gatherMiddleware();
+        $isWrite = array_diff($route->methods(), ['GET', 'HEAD', 'OPTIONS']) !== [];
+
+        if (vvHasAuthSanctum($middleware)) {
+            // Ngoại lệ duy nhất: logout (api-contract §1.3). Còn lại phải có role:hoc_sinh.
+            if (! str_ends_with($uri, 'auth/logout') && ! in_array('role:hoc_sinh', $middleware, true)) {
+                $violations[] = "{$uri} (tên: ".($name ?? '—').") thiếu 'role:hoc_sinh'";
+            }
+
+            continue;
+        }
+
+        $hasThrottle = collect($middleware)->contains(fn ($m) => str_starts_with($m, 'throttle:'));
+
+        if (! $hasThrottle) {
+            $violations[] = "{$uri} (tên: ".($name ?? '—').') công khai nhưng thiếu throttle';
+        }
+
+        if ($isWrite && ($name === null || ! in_array($name, VV_API_GUEST_WRITE_ROUTE_NAMES, true))) {
+            $violations[] = "{$uri} (tên: ".($name ?? '—').') ghi dữ liệu không cần đăng nhập nhưng chưa nằm trong allowlist';
+        }
+    }
+
+    return $violations;
+}
+
+test('moi route tren host api: auth:sanctum thi co role:hoc_sinh, cong khai thi co throttle va ghi thi nam trong allowlist (M1)', function () {
+    expect(vvApiRouteViolations())->toBe([]);
+});
+
+test('logic kiem tra host api bat duoc route auth:sanctum thieu role:hoc_sinh (M1)', function () {
+    Route::domain(config('app.api_host'))
+        ->prefix('api/v1')
+        ->middleware(['auth:sanctum', 'account.active', 'student.single_session', 'no_store'])
+        ->name('api.__test.missing-role')
+        ->get('/__test/missing-role', fn () => response()->json(['ok' => true]));
+
+    expect(collect(vvApiRouteViolations())->contains(fn ($v) => str_contains($v, 'missing-role')))->toBeTrue();
+});
+
+test('logic kiem tra host api bat duoc route POST cong khai ngoai allowlist (M1)', function () {
+    Route::domain(config('app.api_host'))
+        ->prefix('api/v1')
+        ->middleware(['throttle:catalog'])
+        ->name('api.__test.open-write')
+        ->post('/__test/open-write', fn () => response()->json(['ok' => true]));
+
+    expect(collect(vvApiRouteViolations())->contains(fn ($v) => str_contains($v, 'open-write')))->toBeTrue();
+});
+
+test('logic kiem tra host api bat duoc route cong khai thieu throttle (M1)', function () {
+    Route::domain(config('app.api_host'))
+        ->prefix('api/v1')
+        ->name('api.__test.no-throttle')
+        ->get('/__test/no-throttle', fn () => response()->json(['ok' => true]));
+
+    expect(collect(vvApiRouteViolations())->contains(fn ($v) => str_contains($v, 'no-throttle')))->toBeTrue();
 });

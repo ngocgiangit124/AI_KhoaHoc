@@ -37,3 +37,11 @@ test('health tra ve 200 va khong lo phien ban', function () {
     expect($body)->not->toContain('Laravel')
         ->and($body)->not->toContain(app()->version());
 });
+
+test('captcha_site_key la null (khong phai chuoi rong) khi chua cau hinh', function () {
+    config(['services.turnstile.site_key' => '']);
+
+    $this->getJson('http://'.config('app.api_host').'/api/v1/config/public')
+        ->assertOk()
+        ->assertJsonPath('captcha_site_key', null);
+});

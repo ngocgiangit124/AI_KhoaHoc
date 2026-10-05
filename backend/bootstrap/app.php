@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\DomainException;
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\ConfigureHostContext;
 use App\Http\Middleware\EnforceSingleStudentSession;
@@ -89,6 +90,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(AssignRequestId::class);
 
         $middleware->statefulApi();
+
+        // `guest` trên API: người đã đăng nhập gọi register/login → 403 JSON, không redirect.
+        $middleware->redirectUsersTo(function (): never {
+            throw new DomainException(
+                code: 'FORBIDDEN',
+                message: 'Bạn đã đăng nhập. Hãy đăng xuất trước khi thực hiện thao tác này.',
+                status: 403,
+            );
+        });
 
         $middleware->alias([
             'no_store' => NoStoreForAuthenticated::class,

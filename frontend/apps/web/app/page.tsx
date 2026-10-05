@@ -1,3 +1,5 @@
+import { AuthNav } from "@/components/auth/AuthNav";
+import { RegisterSuccessBanner } from "@/components/auth/RegisterSuccessBanner";
 import { publicFetchServer } from "@/lib/api.server";
 import { parsePublicConfig } from "@/lib/types/config";
 
@@ -19,6 +21,10 @@ export default async function HomePage() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
+      <div className="mb-6 flex justify-end">
+        <AuthNav />
+      </div>
+      <RegisterSuccessBanner />
       <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">VitaminVui — Học Toán 6–12</h1>
       <p className="mt-2 text-sm text-gray-700 md:text-base">
         Chọn lớp học để xem danh mục khóa học phù hợp.

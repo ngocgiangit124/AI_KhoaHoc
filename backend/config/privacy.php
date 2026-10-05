@@ -15,4 +15,8 @@ return [
     // và cần `parent_consent_status = granted` trước khi checkout/đăng ký học miễn phí.
     'parent_consent_age' => (int) env('PRIVACY_PARENT_CONSENT_AGE', 18),
 
+    // Múi giờ dùng để tính tuổi lúc đăng ký (US-001: "theo ngày hiện tại của server").
+    // app.timezone là UTC nên phải chỉ định riêng để sinh nhật không lệch 1 ngày.
+    'age_timezone' => env('PRIVACY_AGE_TIMEZONE', 'Asia/Ho_Chi_Minh'),
+
 ];

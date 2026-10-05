@@ -56,8 +56,17 @@ tra lại trước khi dùng cho môi trường khác.
 HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f frontend/docker-compose.yml up
 ```
 
-- Web: http://localhost:3000
-- Admin: http://admin.localhost:3001 (Chrome/Firefox tự phân giải `*.localhost` → 127.0.0.1)
+- Web: http://api.localhost:3000
+- Admin: http://admin-api.localhost:3001
+  (Chrome/Firefox tự phân giải `*.localhost` → 127.0.0.1, không cần sửa `/etc/hosts`.)
+
+**Vì sao web mở ở `api.localhost` chứ không phải `localhost`/`app.localhost`:** Chromium coi các host
+`*.localhost` khác nhau (và `localhost`) là *cross-site*; cookie phiên của API (`SameSite=Lax`) bị bỏ ở
+request cross-site, mọi POST trả 419. Đã kiểm bằng Chromium thật: chỉ cặp CÙNG hostname (khác cổng) mới gửi
+cookie (`api.localhost:3000` ↔ `api.localhost:8000`, `admin-api.localhost:3001` ↔ `admin-api.localhost:8000`).
+Production (`vitaminvui.vn` ↔ `api.vitaminvui.vn`) cùng registrable domain nên không bị. Backend phải khớp:
+`FRONTEND_URL=http://api.localhost:3000`, `ADMIN_URL=http://admin-api.localhost:3001`,
+`SANCTUM_STATEFUL_DOMAINS=api.localhost:3000,admin-api.localhost:3001` (xem `backend/.env.example`).
 
 Chạy riêng 1 app: `docker compose -f frontend/docker-compose.yml up web` (hoặc `admin`).
 
@@ -106,14 +115,14 @@ frontend/scripts/playwright.sh admin --real-backend
 ```
 
 `--real-backend` bỏ qua mock, dùng `--network host` + `--add-host api.localhost:127.0.0.1
---add-host admin-api.localhost:127.0.0.1 --add-host admin.localhost:127.0.0.1` (xem
+--add-host admin-api.localhost:127.0.0.1` (xem
 `scripts/playwright.sh`) để container Docker phân giải `*.localhost` — glibc resolver mặc
 định (khác trình duyệt) KHÔNG tự phân giải các domain này. Cả 2 chế độ đều pass (3/3 test).
 
 Test hiện có (đã chạy pass ở cả mock và backend thật):
 - `apps/web/e2e/home.spec.ts` — trang chủ hiển thị lớp 6–12, có header CSP chứa `nonce-`.
 - `apps/admin/e2e/dang-nhap.spec.ts` — `/dang-nhap` lấy được CSRF token từ admin-api (CORS đúng origin), có CSP.
-- `apps/admin/e2e/cross-origin-blocked.spec.ts` — gọi admin-api từ origin web (`localhost:3000`) bị CORS chặn.
+- `apps/admin/e2e/cross-origin-blocked.spec.ts` — gọi admin-api từ origin web (`api.localhost:3000`) bị CORS chặn (mở web ở `api.localhost:3000`).
 
 ## Biến môi trường
 
@@ -202,7 +211,7 @@ của `laravel-dev`. Khi ghép:
   là** `infra/docker-compose.yml` publish cổng 8000 ra host. Nếu muốn 2 compose project
   dùng chung network Docker (không qua host), cần thêm `networks: { default: { external: true, name: ... } }`
   vào cả 2 file — đề nghị thống nhất tên network với `laravel-dev`.
-- Nginx của infra cần thêm `admin.localhost`/`admin-api.localhost` vào cấu hình
+- Nginx của infra cần thêm `admin-api.localhost` vào cấu hình
   host-based routing đã mô tả ở ADR-004 §2.1 (nếu chưa có).
 - `NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_ADMIN_API_URL` trong `.env.local` đã khớp domain cục
   bộ theo bảng ADR-004 §2.1 — không cần đổi khi backend lên đúng cổng 8000.
