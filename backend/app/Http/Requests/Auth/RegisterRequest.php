@@ -114,7 +114,8 @@ class RegisterRequest extends FormRequest
             'accept_terms' => ['accepted'],
             'accept_privacy' => ['accepted'],
             'captcha_token' => ['nullable', 'string', 'max:2048'],
-            'device_id' => ['nullable', 'string', 'max:64'],
+            // Chỉ nhận chuỗi; chuỗi sai định dạng/quá dài bị bỏ qua (ADR-003), không báo lỗi: chỉ dùng để chọn thông điệp.
+            'device_id' => ['nullable', 'string'],
         ];
     }
 

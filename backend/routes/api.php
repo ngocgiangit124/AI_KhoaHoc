@@ -41,17 +41,20 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         ->middleware('throttle:csrf')
         ->name('api.csrf-token');
 
-    // Đăng ký/đăng nhập (T03). Cần session (EnsureFrontendRequestsAreStateful giữ nguyên)
-    // nhưng chưa đăng nhập: `guest`. Throttle 2 lớp ở AppServiceProvider (S10).
-    Route::middleware(['guest:web'])->group(function (): void {
-        Route::post('/auth/register', RegisterController::class)
-            ->middleware(['throttle:register', 'no_store'])
-            ->name('api.auth.register');
+    // Đăng ký/đăng nhập (T03). Cần session (EnsureFrontendRequestsAreStateful giữ nguyên).
+    // Throttle 2 lớp ở AppServiceProvider (S10).
+    // - register: `guest.student` — đã đăng nhập hợp lệ thì 403 FORBIDDEN; phiên cũ đã bị thay thế /
+    //   đăng xuất / bị khoá thì coi như khách (không trả FORBIDDEN gây lẫn lý do mất phiên).
+    // - login: KHÔNG có `guest` (ADR-003, T05): đăng nhập lại khi cookie cũ còn sống (cùng thiết bị bấm 2 lần,
+    //   phiên đã bị thay thế, tài khoản vừa bị khoá) đi qua LoginService như bình thường -> bind phiên mới,
+    //   hoặc ACCOUNT_LOCKED đúng mã lỗi.
+    Route::post('/auth/register', RegisterController::class)
+        ->middleware(['guest.student', 'throttle:register', 'no_store'])
+        ->name('api.auth.register');
 
-        Route::post('/auth/login', [LoginController::class, 'store'])
-            ->middleware(['throttle:login', 'no_store'])
-            ->name('api.auth.login');
-    });
+    Route::post('/auth/login', [LoginController::class, 'store'])
+        ->middleware(['throttle:login', 'no_store'])
+        ->name('api.auth.login');
 
     // Ngoại lệ duy nhất của nhóm student (api-contract §1.3): logout chỉ cần auth:sanctum.
     Route::post('/auth/logout', [LoginController::class, 'destroy'])

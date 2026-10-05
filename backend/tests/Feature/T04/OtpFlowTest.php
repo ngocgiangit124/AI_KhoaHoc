@@ -242,7 +242,7 @@ describe('POST /auth/otp/verify', function () {
         vvOtpSend();
         // Mô phỏng đổi email không qua ContactService (không huỷ mã): mã không được dùng.
         User::whereKey($user->id)->update(['email' => 'khac@example.com']);
-        $this->actingAs($user->fresh());
+        vvActAsStudent($user->fresh());
 
         vvOtpVerify($sender->lastCode())->assertStatus(422);
         expect($user->fresh()->email_verified_at)->toBeNull();

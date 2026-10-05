@@ -14,7 +14,7 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T03 | Đăng ký/đăng nhập học sinh | Chờ PO duyệt commit | ✅ Review (APPROVE), Security (PASS có điều kiện, nợ v2 ở docs/security/backlog-v2.md), QA (PASS có điều kiện: 232 test; 7/21 e2e web chờ chạy lại do limiter) | — | 2026-10-05 |
 | FW1 (phần 1) | Màn đăng ký/đăng nhập (apps/web) | Chờ PO duyệt commit | ✅ Review (APPROVE), QA (PASS có điều kiện); còn R3 (/auth/me) làm cùng T04 | — | 2026-10-05 |
 | T04 | OTP + GET /auth/me | Chờ PO duyệt commit | ✅ Review (APPROVE), QA (PASS: 316 test, e2e OTP 11/11); nợ bảo mật T04-1..5 ở docs/security/backlog-v2.md | — | 2026-10-05 |
-| T05 | Một phiên học sinh | Chưa làm | — | T03 | — |
+| T05 | Một phiên học sinh | Xong | ✅ Review (APPROVE), QA (PASS: 360 test, e2e 2 thiết bị 7/7); nợ bảo mật T05-1..5 ở docs/security/backlog-v2.md | — | 2026-10-05 |
 
 ## Việc tiếp theo (theo thứ tự)
 
@@ -28,13 +28,14 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 ## Ghi chú kỹ thuật còn mở (T04)
 
 - Middleware `account.verified` đã có nhưng **chưa gắn vào route nào**: AC9 (chặn checkout khi chưa xác thực) hoàn tất ở T14/T18 khi có route checkout/đăng ký học miễn phí.
-- Middleware `student.single_session` vẫn **pass-through** cho tới T05 (ADR-003).
+- Middleware `student.single_session` đã hiện thực ở T05 (ADR-003). Login không còn `guest` (login lại hợp lệ), register dùng `guest.student`. Test dùng `actingAs` cho route nhóm student phải gọi `vvActAsStudent()` (tests/Feature/T04/helpers.php) để gắn `current_session_id` + cookie.
 
 ## Quy tắc làm việc đã thống nhất với PO
 
 - **2026-10-05 · Tạm dừng cổng `laravel-security`** (và việc sửa lỗi bảo mật không nghiêm trọng) để đẩy tiến độ; quy trình mỗi task tạm thời là dev → `laravel-reviewer` → `laravel-qa` → PO duyệt. Lỗi bảo mật đã biết được ghi ở `docs/security/backlog-v2.md`, review lại và sửa ở v2, bắt buộc trước go-live. Lỗi Critical/High vẫn phải báo PO ngay.
 
 - Chỉ commit/push khi PO đồng ý. `main` chỉ chứa code đã qua review.
+- **2026-10-05 · PO cho phép commit tự động (không push)** sau khi task qua dev → reviewer → QA PASS, mỗi task một commit. Push vẫn do PO tự làm.
 - Dev chạy mọi thứ trong Docker ở máy local. Trên cloud, `scripts/cloud-setup.sh` cài trực tiếp (xem CLAUDE.md).
 - Không cài package ngoài danh sách đã duyệt trong tasks.md (cổng G2) mà không hỏi PO.
 - Không tự bịa field ngoài api-contract. Thấy thiếu hoặc mâu thuẫn thì dừng và hỏi Architect.
@@ -60,3 +61,4 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - 2026-09-28 · T03, FW1 · Dev · Tạm dừng trước khi code, bàn giao cho Claude Code on the web
 - 2026-10-05 · T03, FW1 · Dev + Reviewer + Security + QA · Review APPROVE; Security PASS có điều kiện (hoãn v2); QA tìm BUG-1..5, đã sửa, PASS có điều kiện; host local đổi thành api.localhost:3000 và admin-api.localhost:3001; csrf throttle 120/phút
 - 2026-10-05 · T04, FW1 (OTP) · Dev + Reviewer + QA · Review APPROVE; QA tìm BUG-1..4 (mã OTP rò vào log, Retry-After chưa expose CORS...), đã sửa, PASS
+- 2026-10-05 · T05 · Dev + Reviewer · Một phiên học sinh (ADR-003): bind/tombstone/middleware thật; login bỏ `guest`, register `guest.student`; Review APPROVE, đã sửa R1 (không destroy trước bind), R2 (register 201 không phiên khi bind lỗi), R3, R4, R6; R5 ghi vào T27; chờ QA

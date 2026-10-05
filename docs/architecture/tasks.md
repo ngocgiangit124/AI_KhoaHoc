@@ -261,7 +261,7 @@ Cài ở task sau:
   - `PUT /auth/contact` huỷ mã cũ + reset verified (S9).
   - Middleware `account.verified`.
   - Test: 20 verify song song (`Http::pool` vào server test hoặc nhiều process) → tối đa 5 lần được so; grep log không có mã 6 số.
-- [ ] **T05 Một phiên học sinh** (~1 ngày) **[SEC]** — phụ thuộc T03
+- [x] **T05 Một phiên học sinh** (dev xong 2026-10-05, chờ Reviewer/QA) (~1 ngày) **[SEC]** — phụ thuộc T03
   - Theo ADR-003 mới: bind + destroy session cũ + tombstone; logout đặt `logged_out`; không có nhánh "nhận nuôi".
   - Renderer `AuthenticationException` đọc tombstone → `SESSION_REPLACED`/`SESSION_EXPIRED`/`SESSION_REVOKED`.
   - Validate `X-Device-Id`.
@@ -270,6 +270,7 @@ Cài ở task sau:
   - OTP `reset_password` qua email, captcha.
   - Phản hồi luôn giống nhau dù tài khoản có tồn tại hay không.
   - Huỷ mọi phiên (tombstone `password_changed`); `password_changed_at`.
+  - Test HTTP thật (từ T05 review R5): A và B đăng nhập, đổi/đặt lại mật khẩu qua endpoint → phiên khác nhận `SESSION_REVOKED`; đang đăng nhập mà đổi mật khẩu thì `StudentSessionService::revoke()` rồi bind lại phiên hiện tại (regenerate + bind) để người đổi không bị văng (không chỉ gọi `revoke()` trực tiếp như test T05).
 - [ ] **T28 Đăng nhập quản trị** (~2 ngày) **[SEC]** — phụ thuộc T04; **phải xong trước FE-ADMIN FA1**
   - Host admin-api: login (chỉ staff/GV), `EnsureAdminOrigin`, MFA email cho admin/QLT (`staff.mfa_passed`, flag `FEATURE_STAFF_MFA`).
   - Email cảnh báo thiết bị mới cho GV.

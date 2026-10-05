@@ -32,3 +32,13 @@ Chưa có dòng code nào của M1–M3, L1–L5 được viết (đã xác nh�
 | T04-3 | Low | Đếm verify 5/phút và 20/ngày theo throttle middleware (cache): đếm cả request sai định dạng, khoá hết ngày thay vì "khoá xác thực 24h" có audit như data-model §3.1; trần ngày chưa ghi audit cho verify | Hoãn v2 |
 | T04-4 | Low | `otp-send` throttle đếm cả request 422 (vd. kênh sai) vào cooldown 1/phút | Hoãn v2 |
 | T04-5 | Info | Cảnh báo/khoá xác thực 24h theo IP + user khi bị dò hàng loạt; chưa có metric/cảnh báo | Hoãn v2 |
+
+## T05 (một phiên học sinh) — điểm nghi ngờ ghi nhận, không có Critical/High (2026-10-05)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T05-1 | Low | Request mang cookie của session đã bị xoá (có tombstone) vẫn được StartSession tái tạo một session rỗng cùng id cũ (hành vi mặc định Laravel với id lạ). Không cấp quyền nhưng id đó vẫn được dùng lại (fixation nhẹ); login gọi `regenerate()` (Laravel tự xoá payload cũ khi `login()`; dev giữ snapshot để khôi phục nếu bind lỗi) nên không bị lợi dụng. Đề xuất: bỏ id lạ/rỗng ở middleware đầu pipeline | Hoãn v2 |
+| T05-2 | Low | Tombstone nằm ở cache còn session nằm ở store `session`: nếu cache bị `cache:clear`/mất thì thiết bị cũ nhận `UNAUTHENTICATED` thay vì `SESSION_REPLACED` (vẫn bị chặn, chỉ sai thông điệp). Cần Redis DB cache tách riêng đúng ADR-004 §6 | Hoãn v2 (T31) |
+| T05-3 | Low | `device_id` chỉ so sánh để chọn thông điệp (đúng ADR); kẻ biết UUID thiết bị chủ có thể ép thông báo `SESSION_EXPIRED` thay `SESSION_REPLACED` (không cấp quyền) | Chấp nhận |
+| T05-4 | Info | `StudentSessionService::revoke()` đã sẵn cho T27 (đổi/đặt lại mật khẩu) và luồng khoá học sinh; hiện chưa có lệnh/endpoint khoá học sinh nào gọi nó (`staff:lock` chỉ cho staff/GV). Khi có chức năng khoá học sinh (quản trị) phải gọi `revoke($user, 'locked')`; đổi mật khẩu khi đang đăng nhập phải bind lại phiên hiện tại (ADR-003) | Theo dõi ở T27 |
+| T05-5 | Info | Chưa có test song song thật (2 process login cùng lúc) cho `lockForUpdate` của `bind()` | QA bổ sung nếu cần |

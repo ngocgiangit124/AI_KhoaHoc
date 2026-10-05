@@ -3,6 +3,8 @@
 use App\Enums\OtpPurpose;
 use App\Models\User;
 use App\Services\Auth\Otp\OtpSender;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 
 require_once __DIR__.'/../T03/helpers.php';
 
@@ -40,8 +42,20 @@ function vvFakeOtp(): VvCapturingOtpSender
 /** Học sinh chưa xác thực, đã đăng nhập (actingAs) — gọi API với Origin web. */
 function vvOtpStudent(array $attrs = []): User
 {
-    $user = User::factory()->create($attrs);
-    test()->actingAs($user);
+    return vvActAsStudent(User::factory()->create($attrs));
+}
+
+/**
+ * actingAs + gắn phiên hiện hành (T05): mọi request tiếp theo của test gửi cookie `vv_session` khớp
+ * `users.current_session_id`, nên qua được middleware `student.single_session`.
+ */
+function vvActAsStudent(User $user): User
+{
+    $sessionId = Str::random(40);
+    User::query()->whereKey($user->getKey())->update(['current_session_id' => $sessionId]);
+    $user = $user->fresh();
+
+    test()->actingAs($user)->withCredentials()->withCookie((string) config('session.cookie'), $sessionId);
 
     return $user;
 }
@@ -59,4 +73,15 @@ function vvOtpVerify(string $code)
 function vvContactUpdate(array $payload)
 {
     return test()->putJson(vvApiUrl('/auth/contact'), $payload, vvWebHeaders());
+}
+
+/**
+ * Mô phỏng trình duyệt giữ cookie phiên từ response đăng ký/đăng nhập cho các request sau (T05:
+ * `student.single_session` so session id của request với `users.current_session_id`).
+ */
+function vvFollowSession(TestResponse $response): void
+{
+    $cookie = $response->getCookie((string) config('session.cookie'));
+
+    test()->withCredentials()->withCookie((string) config('session.cookie'), $cookie->getValue());
 }

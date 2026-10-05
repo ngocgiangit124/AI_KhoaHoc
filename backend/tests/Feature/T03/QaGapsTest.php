@@ -119,11 +119,14 @@ test('BUG-1: email chứa khoảng trắng/tab/comment RFC phải bị từ ch�
     expect(User::count())->toBe(0);
 })->with(['an @example.com', "an\t@example.com", '(c)an@example.com']);
 
-test('Biên: referral_code 50 ký tự được (flag bật), 51 bị từ chối, device_id 65 ký tự bị từ chối', function () {
+test('Biên: referral_code 50 ký tự được (flag bật), 51 bị từ chối, device_id 65 ký tự bị bỏ qua', function () {
     config(['features.referral_code' => true]);
 
     vvRegister(['referral_code' => str_repeat('A', 51)])->assertStatus(422)->assertJsonValidationErrors('referral_code');
-    vvRegister(['device_id' => str_repeat('d', 65)])->assertStatus(422)->assertJsonValidationErrors('device_id');
+    // T05/ADR-003: device_id sai định dạng/quá dài bị bỏ qua (không 422), chỉ dùng để chọn thông điệp.
+    vvRegister(['email' => 'd@example.com', 'phone' => '0933333333', 'device_id' => str_repeat('d', 65)])->assertCreated();
+    expect(User::where('email', 'd@example.com')->firstOrFail()->current_device_id)->toBeNull();
+    vvWipeUsers();
     vvRegister(['referral_code' => str_repeat('A', 50)])->assertCreated();
 
     expect(User::firstOrFail()->referral_code_used)->toBe(str_repeat('A', 50));

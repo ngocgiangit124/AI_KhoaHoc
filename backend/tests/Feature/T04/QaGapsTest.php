@@ -72,7 +72,7 @@ test('AC8 ranh gioi het han: ma con 1 giay dung duoc, qua han 1 giay bi tu choi'
     $this->travelBack();
 
     $user2 = User::factory()->create();
-    $this->actingAs($user2);
+    vvActAsStudent($user2);
     vvOtpSend();
     $code2 = $sender->lastCode();
     $otp2 = OtpCode::query()->where('user_id', $user2->id)->first();

@@ -39,9 +39,9 @@ test('AC1 dang ky thanh cong: role hoc_sinh, chua xac thuc, tu dang nhap, co con
         ->toBe([ConsentType::PrivacyPolicy->value, ConsentType::Terms->value])
         ->and($consents->every(fn ($c) => $c->granted_by === 'self' && $c->policy_version === config('privacy.policy_version')))->toBeTrue();
 
-    // Đã đăng nhập: route nhóm guest (login) giờ bị từ chối.
+    // T05: login không còn `guest` (đăng nhập lại là hợp lệ, sai mật khẩu vẫn là 422 thông điệp chung).
     $this->postJson(vvApiUrl('/auth/login'), ['login' => 'an@example.com', 'password' => 'x'], vvWebHeaders())
-        ->assertForbidden();
+        ->assertStatus(422);
 });
 
 test('S17 role/status/verified_at/parent_consent_status trong body bi bo qua', function () {

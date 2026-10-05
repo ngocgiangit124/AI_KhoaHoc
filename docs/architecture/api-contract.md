@@ -89,11 +89,11 @@ Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $statu
 | HTTP | code | Khi nào |
 |---|---|---|
 | 401 | `UNAUTHENTICATED` | Chưa đăng nhập / phiên hết hạn |
-| 401 | `SESSION_REPLACED` | HS bị đăng xuất vì đăng nhập thiết bị khác (ADR-003) |
-| 401 | `SESSION_EXPIRED` | Phiên cũ trên cùng thiết bị (bấm đăng nhập 2 lần) |
-| 401 | `SESSION_REVOKED` | Đã đổi/đặt lại mật khẩu |
+| 401 | `SESSION_REPLACED` | HS bị đăng xuất vì đăng nhập thiết bị khác (ADR-003). Tombstone `replaced` (renderer `AuthenticationException`) hoặc phiên không khớp `current_session_id` (middleware `student.single_session`) với `X-Device-Id` khác thiết bị đang giữ phiên |
+| 401 | `SESSION_EXPIRED` | Phiên cũ trên cùng thiết bị (`X-Device-Id` hợp lệ == thiết bị đang giữ phiên; bấm đăng nhập 2 lần). FE: chuyển `/dang-nhap`, không báo "thiết bị khác" |
+| 401 | `SESSION_REVOKED` | Đã đổi/đặt lại mật khẩu (tombstone `password_changed`) |
 | 401 | `STAFF_IDLE_TIMEOUT` | Phiên quản trị quá 120 phút không hoạt động hoặc quá 12 giờ |
-| 403 | `ACCOUNT_LOCKED` | Tài khoản bị khoá — **chỉ trả khi mật khẩu đúng** (S20) |
+| 403 | `ACCOUNT_LOCKED` | Tài khoản bị khoá — ở login **chỉ trả khi mật khẩu đúng** (S20); route đã đăng nhập: `account.active`; phiên HS bị huỷ do khoá (tombstone `locked`) |
 | 403 | `ACCOUNT_NOT_VERIFIED` | Chưa xác thực OTP mà checkout/đăng ký học miễn phí |
 | 403 | `PARENT_CONSENT_REQUIRED` | HS dưới ngưỡng tuổi chưa có xác nhận phụ huynh (US-017, chờ pháp chế) |
 | 403 | `MFA_REQUIRED` | Staff chưa nhập OTP đăng nhập |
@@ -146,8 +146,8 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 
 | Method | URI | Controller@action | Middleware | Request | Response |
 |---|---|---|---|---|---|
-| POST | /auth/register | `Auth\RegisterController` | guest, throttle:register | `RegisterRequest`: name (≤150), date_of_birth, email, phone (VN), grade_level (6–12), password (min 8, confirmed), parent_phone/parent_email (≥1 khi dưới `privacy.parent_consent_age`), referral_code (chỉ khi flag bật), **accept_terms (accepted)**, **accept_privacy (accepted)**, **captcha_token**, device_id. `role`/`status`/`*_verified_at` **không nằm trong validated()** (S17) | 201 user; tự đăng nhập + bind phiên; tạo `consents` (self); gửi OTP; nếu dưới ngưỡng tuổi → `parent_consent_status=pending` + gửi email xác nhận cho phụ huynh (US-017) |
-| POST | /auth/login | `Auth\LoginController@store` | guest, throttle:login | `LoginRequest`: login (email hoặc SĐT), password, device_id | 200 user. Sai → 422 thông điệp chung. Khoá → 403 `ACCOUNT_LOCKED` **chỉ khi mật khẩu đúng**. Vai trò không phải `hoc_sinh` → 403 `WRONG_PORTAL` (sau khi mật khẩu đúng) |
+| POST | /auth/register | `Auth\RegisterController` | guest.student (T05: đã đăng nhập hợp lệ → 403 `FORBIDDEN`; phiên cũ đã bị thay thế/đăng xuất coi như khách), throttle:register | `RegisterRequest`: name (≤150), date_of_birth, email, phone (VN), grade_level (6–12), password (min 8, confirmed), parent_phone/parent_email (≥1 khi dưới `privacy.parent_consent_age`), referral_code (chỉ khi flag bật), **accept_terms (accepted)**, **accept_privacy (accepted)**, **captcha_token**, device_id. `role`/`status`/`*_verified_at` **không nằm trong validated()** (S17) | 201 user; tự đăng nhập + bind phiên; tạo `consents` (self); gửi OTP; nếu dưới ngưỡng tuổi → `parent_consent_status=pending` + gửi email xác nhận cho phụ huynh (US-017) |
+| POST | /auth/login | `Auth\LoginController@store` | throttle:login (T05: **không** `guest` — đăng nhập lại khi cookie cũ còn sống là hợp lệ, ADR-003) | `LoginRequest`: login (email hoặc SĐT), password, device_id (UUID; sai định dạng bị bỏ qua, không 422) | 200 user; bind phiên 1 thiết bị, huỷ session cũ + tombstone. Sai → 422 thông điệp chung. Khoá → 403 `ACCOUNT_LOCKED` **chỉ khi mật khẩu đúng**. Vai trò không phải `hoc_sinh` → 403 `WRONG_PORTAL` (sau khi mật khẩu đúng) |
 | POST | /auth/logout | `Auth\LoginController@destroy` | auth:sanctum | — | 204 |
 | GET | /auth/me | `Auth\MeController` | student | — | **T04:** đúng shape `user` ở khối "Bổ sung từ T03" (phẳng, không `parent_*`). `cart_count` thêm ở T16, thông tin phụ huynh **đã che** thêm ở T29 (thêm field = tương thích) |
 | POST | /auth/otp/send | `Auth\OtpController@send` | student, throttle:otp-send | `SendOtpRequest`: channel ∈ `config('auth.otp.channels')` (production MVP: chỉ `email`) | 202 `{ resend_available_at }` (ISO 8601 có offset). Mã chỉ gửi tới email/SĐT **hiện tại** của tài khoản, chưa xác thực; đã xác thực → 422 field `channel` |
@@ -164,6 +164,8 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 - Captcha kiểm **trước** mọi rule khác (kể cả unique); thiếu Origin hợp lệ → 400 `ORIGIN_NOT_ALLOWED` trước khi gọi captcha. Token Turnstile dùng 1 lần nên frontend phải reset widget sau mọi lỗi 422/`CAPTCHA_FAILED`.
 - Login: bộ đếm "sai 10/giờ/`login` + 50/giờ/IP" chỉ tăng ở lượt SAI, xoá bộ đếm tài khoản khi đúng; `throttle:login` ở route chỉ là chống flood (120/phút/IP). Vượt → 429 `TOO_MANY_ATTEMPTS` + `Retry-After`.
 - Response register/login có `Cache-Control: no-store, private`.
+
+**Bổ sung từ T05 (2026-10-05):** `POST /auth/register` tạo tài khoản xong mới bind phiên; nếu bind lỗi (DB) thì vẫn trả **201** nhưng **không có phiên** (không Set-Cookie phiên đăng nhập). FE: sau 201, gọi `/auth/me`; nhận 401 thì chuyển sang `/dang-nhap` (không đăng ký lại vì sẽ trùng email/SĐT). `device_id` ở register/login chỉ nhận chuỗi (mảng → 422), chuỗi sai định dạng/quá dài bị bỏ qua.
 
 **Bổ sung từ T04 (2026-10-06):**
 - `is_verified` = đã xác thực OTP ít nhất một kênh liên hệ (`email_verified_at` HOẶC `phone_verified_at`; production MVP chỉ có email nên thực tế = email). Đổi email/SĐT reset cột tương ứng. Middleware `account.verified` dùng cùng định nghĩa (`User::isVerified()`), lỗi 403 `ACCOUNT_NOT_VERIFIED`.

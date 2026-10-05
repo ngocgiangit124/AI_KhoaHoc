@@ -111,13 +111,11 @@ test('dang nhap tao session moi (chong session fixation) va co cookie vv_session
         ->and($cookie->getDomain())->toBeNull();
 });
 
-test('da dang nhap thi login/register -> 403 FORBIDDEN (guest)', function () {
+test('da dang nhap: login lai -> 200 (T05, ADR-003; register 403 xem T05/SingleSessionTest)', function () {
     vvStudent();
     vvLogin(['login' => 'hs@example.com', 'password' => 'dung-mat-khau-1'])->assertOk();
 
-    vvLogin(['login' => 'hs@example.com', 'password' => 'dung-mat-khau-1'])
-        ->assertStatus(403)->assertJsonPath('code', 'FORBIDDEN');
-    vvRegister()->assertStatus(403);
+    vvLogin(['login' => 'hs@example.com', 'password' => 'dung-mat-khau-1'])->assertOk();
 });
 
 describe('throttle 2 lop (S10)', function () {

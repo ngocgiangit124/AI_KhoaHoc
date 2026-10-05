@@ -12,6 +12,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -83,7 +84,15 @@ class RegistrationService
             throw self::duplicateToValidation($e);
         }
 
-        $this->login->startSession($request, $user);
+        // Tài khoản đã commit: lỗi bind phiên (DB) không được biến thành 500 khiến người dùng đăng ký lại
+        // và vấp lỗi trùng. Trả 201 không có phiên (FE yêu cầu đăng nhập). Log không chứa PII.
+        try {
+            $this->login->startSession($request, $user);
+        } catch (Throwable $e) {
+            Log::error('registration.session_bind_failed', ['exception' => $e::class, 'user_id' => $user->id]);
+
+            return $user;
+        }
 
         // AC1: gửi OTP xác thực qua email. Sự cố gửi (queue/mail) KHÔNG làm hỏng đăng ký — tài khoản
         // đã tạo, học sinh bấm "Gửi lại mã" được. Không log nội dung có mã (chỉ báo lỗi hệ thống).

@@ -7,7 +7,7 @@ Ngày công là ước lượng của tài liệu, chưa tính thời gian chờ
 
 | Nhóm | Tổng | Đã xong | Đang làm | Chưa làm | Ngày công còn lại |
 |---|---|---|---|---|---|
-| Backend (T01–T34, không có T32) | 33 | 4 | 0 | 29 | ~49 |
+| Backend (T01–T34, không có T32) | 33 | 4 | 1 | 28 | ~48 |
 | Frontend (FE0, FW1–FW7, FA1–FA10) | 18 | 1 | 1 | 16 | ~30 |
 
 Ghi chú: T03 và FW1 phần 1 đã commit local (`190c08c`), chưa push. Cổng `laravel-security` tạm dừng theo quyết định PO; nợ bảo mật ở `docs/security/backlog-v2.md`.
@@ -27,13 +27,13 @@ Ghi chú: T03 và FW1 phần 1 đã commit local (`190c08c`), chưa push. Cổng
 | Task | Tên | Bước hiện tại | Ngày công |
 |---|---|---|---|
 | T04 | OTP + `GET /auth/me` | Review APPROVE, QA PASS (316 test, e2e OTP 11/11); chờ PO duyệt commit | 1,5 |
+| T05 | Một phiên học sinh | Review APPROVE, QA PASS (360 test, e2e 2 thiết bị 7/7); đã commit | 1 |
 | FW1 (phần OTP) | Màn `/xac-thuc-otp`, gửi lại mã, đổi liên hệ, banner xác thực, nav hiện tên | Review APPROVE, QA PASS; chờ PO duyệt commit | (trong 3 của FW1) |
 
 ## 3. Chưa làm — Backend
 
 | Task | Tên | Ngày công | Phụ thuộc | Cờ |
 |---|---|---|---|---|
-| T05 | Một phiên học sinh | 1 | T03 | SEC |
 | T27 | Quên/đổi mật khẩu | 1,5 | T04, T05 | SEC |
 | T28 | Đăng nhập quản trị (phải xong trước FA1) | 2 | T04 | SEC |
 | T06 | Chuyên đề | 0,5 | — | |

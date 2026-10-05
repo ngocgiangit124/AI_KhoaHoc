@@ -126,7 +126,7 @@ test('S21 grep log sau luong dang ky/gui/verify khong co ma OTP 6 so, khong co S
     Mail::fake();
 
     // Đăng ký → OTP email.
-    vvRegister(['email' => 'log@example.com', 'phone' => '0912345678'])->assertCreated();
+    vvFollowSession(vvRegister(['email' => 'log@example.com', 'phone' => '0912345678'])->assertCreated());
     $emailCode = Mail::queued(OtpMail::class)->first()->code;
     expect($emailCode)->toMatch('/^\d{6}$/');
 
@@ -139,7 +139,7 @@ test('S21 grep log sau luong dang ky/gui/verify khong co ma OTP 6 so, khong co S
     app(OtpService::class)->sendVerification($sms, 'sms');
 
     // Đổi liên hệ.
-    $this->actingAs(User::query()->where('email', 'log@example.com')->firstOrFail());
+    vvActAsStudent(User::query()->where('email', 'log@example.com')->firstOrFail());
     vvContactUpdate(['email' => 'log2@example.com'])->assertOk();
 
     $log = (string) file_get_contents($logFile);

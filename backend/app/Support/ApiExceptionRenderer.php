@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Exceptions\DomainException;
+use App\Services\Auth\StudentSessionService;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,7 +26,7 @@ class ApiExceptionRenderer
     {
         $requestId = $request->attributes->get('request_id');
 
-        [$status, $code, $message, $errors] = self::resolve($e);
+        [$status, $code, $message, $errors] = self::resolve($e, $request);
 
         if ($status >= 500 && ! app()->hasDebugModeEnabled()) {
             // Không bao giờ lộ chi tiết/stack trace ở production (S22).
@@ -59,7 +60,7 @@ class ApiExceptionRenderer
     /**
      * @return array{0: int, 1: string, 2: string, 3: array<string, mixed>|null}
      */
-    private static function resolve(Throwable $e): array
+    private static function resolve(Throwable $e, Request $request): array
     {
         if ($e instanceof DomainException) {
             return [$e->status(), $e->code(), $e->getMessage(), $e->context() ?: null];
@@ -70,7 +71,7 @@ class ApiExceptionRenderer
         }
 
         if ($e instanceof AuthenticationException) {
-            return [401, 'UNAUTHENTICATED', 'Vui lòng đăng nhập để tiếp tục.', null];
+            return self::resolveUnauthenticated($request);
         }
 
         if ($e instanceof HttpExceptionInterface) {
@@ -80,6 +81,40 @@ class ApiExceptionRenderer
         }
 
         return [500, 'INTERNAL_ERROR', 'Đã có lỗi xảy ra. Vui lòng thử lại sau.', null];
+    }
+
+    /**
+     * ADR-003: phiên học sinh đã bị xoá khỏi store thì request cũ không còn đăng nhập; lấy lý do từ
+     * tombstone theo session id trong cookie ĐÃ GIẢI MÃ (EncryptCookies đã chạy, StartSession chưa cấp id mới
+     * vào cookie của request). Chỉ đọc, không xoá tombstone (hết hạn theo TTL).
+     *
+     * @return array{0: int, 1: string, 2: string, 3: array<string, mixed>|null}
+     */
+    private static function resolveUnauthenticated(Request $request): array
+    {
+        $cookie = $request->cookies->get((string) config('session.cookie'));
+        $tombstone = is_string($cookie) && $cookie !== '' && strlen($cookie) <= 255
+            ? StudentSessionService::tombstone($cookie)
+            : null;
+
+        if ($tombstone !== null) {
+            switch ($tombstone['reason']) {
+                case StudentSessionService::REASON_REPLACED:
+                    $device = StudentSessionService::deviceIdFromRequest($request);
+
+                    if ($device !== null && $device === ($tombstone['new_device_id'] ?? null)) {
+                        return [401, 'SESSION_EXPIRED', 'Phiên đăng nhập đã hết hiệu lực, vui lòng đăng nhập lại.', null];
+                    }
+
+                    return [401, 'SESSION_REPLACED', 'Tài khoản của bạn đã đăng nhập ở thiết bị khác. Nếu không phải bạn, hãy đổi mật khẩu ngay.', null];
+                case StudentSessionService::REASON_PASSWORD_CHANGED:
+                    return [401, 'SESSION_REVOKED', 'Mật khẩu đã được thay đổi, vui lòng đăng nhập lại.', null];
+                case StudentSessionService::REASON_LOCKED:
+                    return [403, 'ACCOUNT_LOCKED', 'Tài khoản của bạn đã bị khoá.', null];
+            }
+        }
+
+        return [401, 'UNAUTHENTICATED', 'Vui lòng đăng nhập để tiếp tục.', null];
     }
 
     private static function codeForStatus(int $status): string

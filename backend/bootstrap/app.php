@@ -7,6 +7,7 @@ use App\Http\Middleware\EnforceSingleStudentSession;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureAccountVerified;
 use App\Http\Middleware\EnsureAdminOrigin;
+use App\Http\Middleware\EnsureGuestStudent;
 use App\Http\Middleware\EnsurePasswordFresh;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureStaffMfaPassed;
@@ -92,7 +93,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->statefulApi();
 
-        // `guest` trên API: người đã đăng nhập gọi register/login → 403 JSON, không redirect.
+        // `guest` trên API (còn dùng cho các route guest-only sau này, vd quên mật khẩu): người đã
+        // đăng nhập → 403 JSON, không redirect. Login KHÔNG dùng `guest` (ADR-003, T05) và register dùng
+        // `guest.student` (bỏ qua phiên cũ đã bị thay thế/đăng xuất) — xem routes/api.php.
         $middleware->redirectUsersTo(function (): never {
             throw new DomainException(
                 code: 'FORBIDDEN',
@@ -105,9 +108,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'no_store' => NoStoreForAuthenticated::class,
             'admin.origin' => EnsureAdminOrigin::class,
             'role' => EnsureRole::class,
+            'guest.student' => EnsureGuestStudent::class,
             'account.active' => EnsureAccountActive::class,
             'account.verified' => EnsureAccountVerified::class,
-            // Khung cho T05/T28 (api-contract §1.3) — pass-through tới khi hiện thực.
+            // Khung cho T28 (api-contract §1.3) — pass-through tới khi hiện thực. `student.single_session` đã hiện thực ở T05.
             'staff.idle' => StaffIdleTimeout::class,
             'staff.mfa_passed' => EnsureStaffMfaPassed::class,
             'staff.password_fresh' => EnsurePasswordFresh::class,

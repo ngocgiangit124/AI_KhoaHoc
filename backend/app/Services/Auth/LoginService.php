@@ -11,14 +11,18 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
- * Đăng nhập học sinh ở host api (US-001). Bind phiên 1 thiết bị (ADR-003) là T05:
- * mọi nơi bắt đầu phiên học sinh phải đi qua `startSession()` để T05 gắn `bind()` vào MỘT chỗ.
+ * Đăng nhập học sinh ở host api (US-001). Mọi nơi bắt đầu phiên học sinh đi qua `startSession()`,
+ * nơi DUY NHẤT gọi `StudentSessionService::bind()` (ADR-003).
  */
 class LoginService
 {
+    public function __construct(private readonly StudentSessionService $sessions) {}
+
     private static ?string $dummyHash = null;
 
     private const ACCOUNT_MAX_FAILURES = 10;
@@ -102,19 +106,56 @@ class LoginService
     }
 
     /**
-     * Đăng nhập session (KHÔNG remember-me) + đổi session id chống session fixation.
-     * TODO(T05): gọi StudentSessionService::bind() tại đây (ADR-003).
+     * Đăng nhập session (KHÔNG remember-me) + đổi session id chống session fixation,
+     * rồi bind phiên 1 thiết bị (ADR-003): huỷ session cũ của học sinh + tombstone.
      */
     public function startSession(Request $request, User $user): void
     {
-        Auth::guard('web')->login($user, remember: false);
-        $request->session()->regenerate();
+        $previous = Auth::guard('web')->user();
+
+        if ($previous instanceof User && $previous->isNot($user)) {
+            // Trình duyệt đang giữ phiên của học sinh KHÁC: nhả phiên đó, không để nó còn là "phiên hiện hành".
+            $this->sessions->release($previous, $request->session()->getId());
+        }
+
+        // Laravel: `Guard::login()` tự `migrate(true)` — xoá payload session cũ khỏi store NGAY. Nếu chính học
+        // sinh này đang giữ phiên hợp lệ và bind() lỗi, phải khôi phục payload đó (ADR-003 bước 5: phiên cũ vẫn
+        // là phiên duy nhất, không mất phiên oan).
+        $oldId = $request->session()->getId();
+        $snapshot = ($previous instanceof User && $previous->is($user))
+            ? Session::getHandler()->read($oldId)
+            : '';
+
+        try {
+            Auth::guard('web')->login($user, remember: false);
+            $request->session()->regenerate();
+
+            if ($user->role === UserRole::Student) {
+                // Ghi cả last_login_at; lỗi ghi → đăng xuất phiên mới và ném lại (không có 2 phiên hợp lệ).
+                $this->sessions->bind($user, $request);
+
+                return;
+            }
+        } catch (Throwable $e) {
+            if ($snapshot !== '') {
+                Session::getHandler()->write($oldId, $snapshot);
+            }
+
+            throw $e;
+        }
 
         $user->forceFill(['last_login_at' => now()])->save();
     }
 
     public function logout(Request $request): void
     {
+        $user = Auth::guard('web')->user();
+
+        if ($user instanceof User) {
+            // AC3: đặt `logged_out` TRƯỚC khi huỷ session; chỉ khi phiên này còn là phiên hiện hành.
+            $this->sessions->release($user, $request->session()->getId());
+        }
+
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
