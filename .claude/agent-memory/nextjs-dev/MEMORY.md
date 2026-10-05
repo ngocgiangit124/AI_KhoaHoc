@@ -8,3 +8,4 @@
 - [TypeScript 7 vỡ eslint-config-next](typescript7_breaks_eslint.md) — kiểm peer range typescript-eslint trước khi ghim "latest".
 - [Docker container phân giải *.localhost](docker_wildcard_localhost_dns.md) — --network host + --add-host để test với backend thật.
 - [FW1 OTP + AuthProvider](fw1_otp_auth_context.md) — /auth/me dùng chung, flash chỉ verified, lệnh docker kiểm tra.
+- [FA1 admin auth](fa1_admin_auth.md) — SessionProvider /admin/auth/me, route, lệnh docker macOS.

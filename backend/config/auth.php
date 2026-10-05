@@ -136,4 +136,18 @@ return [
         'max_attempts_per_code' => (int) env('AUTH_OTP_MAX_ATTEMPTS_PER_CODE', 5),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Phiên quản trị (T28, ADR-004 §2.2)
+    |--------------------------------------------------------------------------
+    | Idle 120 phút và tối đa 12 giờ kể từ lúc đăng nhập bước mật khẩu; quá hạn → 401
+    | STAFF_IDLE_TIMEOUT (middleware `staff.idle`). Giới hạn đăng nhập sai theo api-contract §1.6.
+    */
+    'staff' => [
+        'idle_minutes' => (int) env('AUTH_STAFF_IDLE_MINUTES', 120),
+        'absolute_hours' => (int) env('AUTH_STAFF_ABSOLUTE_HOURS', 12),
+        'login_max_failures_per_account' => (int) env('AUTH_STAFF_LOGIN_MAX_FAILURES', 10),
+        'login_max_failures_per_ip' => (int) env('AUTH_STAFF_LOGIN_MAX_FAILURES_IP', 50),
+    ],
+
 ];

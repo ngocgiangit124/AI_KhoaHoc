@@ -1,0 +1,79 @@
+import { ApiError, NetworkError } from "@vitaminvui/api-client";
+
+export const UNKNOWN_ERROR_MESSAGE = "Đã có lỗi xảy ra, vui lòng thử lại sau.";
+export const LOGIN_GENERIC_ERROR = "Thông tin đăng nhập hoặc mật khẩu không đúng";
+export const WRONG_PORTAL_MESSAGE = "Vui lòng đăng nhập tại trang dành cho bạn.";
+export const ACCOUNT_LOCKED_MESSAGE = "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin.";
+export const MFA_WRONG_MESSAGE = "Mã xác nhận không đúng, vui lòng thử lại.";
+export const MFA_TOO_MANY_MESSAGE = "Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau.";
+export const IDLE_MESSAGE = "Phiên làm việc đã hết hạn do không hoạt động. Vui lòng đăng nhập lại.";
+export const EXPIRED_MESSAGE = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+
+/** Banner lỗi đăng nhập (design US-016 §3, api-contract §1.7). */
+export function loginErrorMessage(err: unknown): string {
+  if (err instanceof NetworkError) return err.message;
+  if (err instanceof ApiError) {
+    if (err.code === "WRONG_PORTAL") return WRONG_PORTAL_MESSAGE;
+    if (err.code === "ACCOUNT_LOCKED") return ACCOUNT_LOCKED_MESSAGE;
+    if (err.status === 422) return LOGIN_GENERIC_ERROR; // không lộ field nào sai
+    if (err.status === 429 || err.code === "TOO_MANY_ATTEMPTS") {
+      return err.message || "Bạn thao tác quá nhiều lần, vui lòng thử lại sau.";
+    }
+    if (err.code === "ORIGIN_NOT_ALLOWED") return "Yêu cầu bị từ chối vì nguồn truy cập không hợp lệ.";
+    return err.message || UNKNOWN_ERROR_MESSAGE;
+  }
+  return UNKNOWN_ERROR_MESSAGE;
+}
+
+/** Lỗi MFA: sai/hết hạn = 422 field `code` (thông điệp server), hết lượt = 429. */
+export function mfaErrorMessage(err: unknown): string {
+  if (err instanceof NetworkError) return err.message;
+  if (err instanceof ApiError) {
+    if (err.status === 429 || err.code === "TOO_MANY_ATTEMPTS") return MFA_TOO_MANY_MESSAGE;
+    if (err.status === 422) return err.errors?.code?.[0] ?? MFA_WRONG_MESSAGE;
+    return err.message || UNKNOWN_ERROR_MESSAGE;
+  }
+  return UNKNOWN_ERROR_MESSAGE;
+}
+
+export type PasswordFailure =
+  | { kind: "fields"; fields: Record<string, string>; banner: string | null }
+  | { kind: "banner"; message: string };
+
+const PASSWORD_FIELDS = new Set(["current_password", "password", "password_confirmation"]);
+
+/**
+ * Lỗi đổi mật khẩu: 422 → lỗi dưới đúng field; field lạ (ví dụ `device_id`) gom vào banner để không bị nuốt.
+ */
+export function classifyPasswordError(err: unknown): PasswordFailure {
+  if (err instanceof NetworkError) return { kind: "banner", message: err.message };
+  if (err instanceof ApiError) {
+    if (err.status === 422 && err.errors && Object.keys(err.errors).length > 0) {
+      const fields: Record<string, string> = {};
+      const extra: string[] = [];
+      for (const [field, messages] of Object.entries(err.errors)) {
+        const first = messages[0];
+        if (!first) continue;
+        if (PASSWORD_FIELDS.has(field)) fields[field] = first;
+        else extra.push(first);
+      }
+      return { kind: "fields", fields, banner: extra.length > 0 ? extra.join(" ") : null };
+    }
+    return { kind: "banner", message: err.message || UNKNOWN_ERROR_MESSAGE };
+  }
+  return { kind: "banner", message: UNKNOWN_ERROR_MESSAGE };
+}
+
+/** `?reason=` ở /dang-nhap → thông báo (chỉ nhận giá trị trong allowlist). */
+export function loginNotice(reason: string | null | undefined): { variant: "info" | "warning"; message: string } | null {
+  switch (reason) {
+    case "idle":
+      return { variant: "warning", message: IDLE_MESSAGE };
+    case "expired":
+      return { variant: "warning", message: EXPIRED_MESSAGE };
+    case "password_changed":
+      return { variant: "info", message: "Mật khẩu đã được đổi. Vui lòng đăng nhập lại." };
+    default:
+      return null;
+  }
+}

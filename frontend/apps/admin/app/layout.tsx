@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ToastProvider } from "@vitaminvui/ui";
+import { SessionWatcher } from "@/components/shell/SessionWatcher";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,7 +26,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-gray-50">
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          {children}
+          {/* Gắn 1 lần: idle/phiên hết hạn/khoá tài khoản (US-016 §3). */}
+          <SessionWatcher />
+        </ToastProvider>
       </body>
     </html>
   );

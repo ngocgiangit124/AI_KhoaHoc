@@ -2,7 +2,6 @@
 
 namespace App\Mail;
 
-use App\Enums\OtpPurpose;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -12,10 +11,10 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Email chứa mã OTP rõ. ShouldBeEncrypted: payload trong queue/`failed_jobs`
- * là ciphertext, không lộ mã/tên/email (S21).
+ * Cảnh báo giáo viên đăng nhập quản trị từ thiết bị mới (S15, US-016 AC10). Không chặn đăng nhập.
+ * ShouldBeEncrypted: payload queue chứa IP/User-Agent nên mã hoá (S21).
  */
-class OtpMail extends Mailable implements ShouldBeEncrypted, ShouldQueue
+class StaffNewDeviceMail extends Mailable implements ShouldBeEncrypted, ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -26,20 +25,18 @@ class OtpMail extends Mailable implements ShouldBeEncrypted, ShouldQueue
 
     public function __construct(
         public readonly string $recipientName,
-        public readonly string $code,
-        public readonly OtpPurpose $purpose,
-        public readonly int $ttlMinutes,
+        public readonly string $loggedInAt,
+        public readonly ?string $ip,
+        public readonly string $userAgent,
     ) {}
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: $this->purpose === OtpPurpose::StaffLoginMfa
-            ? 'Mã đăng nhập quản trị VitaminVui'
-            : 'Mã xác thực VitaminVui của bạn');
+        return new Envelope(subject: 'Đăng nhập quản trị VitaminVui từ thiết bị mới');
     }
 
     public function content(): Content
     {
-        return new Content(view: 'emails.otp');
+        return new Content(view: 'emails.staff-new-device');
     }
 }

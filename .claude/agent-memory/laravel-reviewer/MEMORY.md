@@ -2,3 +2,5 @@
 - [VitaminVui recurring defect pattern](feedback_vitaminvui_review_findings.md) — always `route:list --json` for package-registered routes bypassing origin checks; curl 500 without Origin header is expected Sanctum behavior
 - [T03 auth review pitfalls](feedback_t03_auth_review.md) — throttle counts successes, 1062 message parsing, fake captcha, review file location docs/review
 - [T04 OTP review pitfalls](feedback_t04_otp_review.md) — FE ở commit không phải working tree, invalidateAll rộng, me lỗi=guest
+- [T28/FA1 review notes](feedback_t28_fa1_review.md) — staff login stack verified solid; recheck e2e weakening, side-effect ordering, FE hardcoded config, Accept-less 500
+- [T27 password review](feedback_t27_review.md) — reset enumeration timing/message, limiter trước captcha, fallback device chưa test
