@@ -129,6 +129,52 @@ export async function logoutStudent(): Promise<void> {
   }
 }
 
+/** `POST /auth/otp/send` → 202 `{ resend_available_at }` (định dạng thời điểm contract chưa ghi; đọc như ISO 8601). */
+export async function sendOtp(): Promise<{ resendAvailableAt: string | null }> {
+  const raw = await authFetch<unknown>("/api/v1/auth/otp/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ channel: "email" }),
+  });
+  return { resendAvailableAt: readResendAvailableAt(raw) };
+}
+
+/** `POST /auth/otp/verify` → 200 user đã xác thực (shape coi như user phẳng, parse mềm). */
+export async function verifyOtp(code: string): Promise<AuthUser | null> {
+  const raw = await authFetch<unknown>("/api/v1/auth/otp/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  return parseAuthUser(raw);
+}
+
+export interface ContactPayload {
+  email?: string;
+  phone?: string;
+}
+
+/**
+ * `PUT /auth/contact` — contract chỉ ghi "email/phone mới" (tên field suy từ user shape),
+ * response không mô tả → chỉ đọc `resend_available_at` nếu có.
+ */
+export async function updateContact(payload: ContactPayload): Promise<{ resendAvailableAt: string | null }> {
+  const raw = await authFetch<unknown>("/api/v1/auth/contact", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return { resendAvailableAt: readResendAvailableAt(raw) };
+}
+
+function readResendAvailableAt(raw: unknown): string | null {
+  if (typeof raw === "object" && raw !== null && "resend_available_at" in raw) {
+    const v = (raw as { resend_available_at: unknown }).resend_available_at;
+    return typeof v === "string" ? v : null;
+  }
+  return null;
+}
+
 /**
  * Hỏi `GET /auth/me` để biết khách hay học sinh. Dùng `fetch` thẳng (không qua authFetch) vì
  * 401 ở đây là trạng thái KHÁCH bình thường — không được phát `login-required` (sẽ đá khách

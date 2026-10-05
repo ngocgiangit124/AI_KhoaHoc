@@ -1,23 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { fetchCurrentUser, type AuthUser } from "@/lib/auth/api";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { LogoutButton } from "./LogoutButton";
-
-type State = { status: "loading" } | { status: "guest" } | { status: "user"; user: AuthUser };
 
 /** Khối tài khoản ở đầu trang: khách → Đăng nhập/Đăng ký; học sinh → tên + Đăng xuất. */
 export function AuthNav() {
-  const [state, setState] = useState<State>({ status: "loading" });
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchCurrentUser(controller.signal).then((user) => {
-      if (!controller.signal.aborted) setState(user ? { status: "user", user } : { status: "guest" });
-    });
-    return () => controller.abort();
-  }, []);
+  const { state } = useAuth();
 
   if (state.status === "loading") {
     return <div className="h-9 w-40" aria-hidden="true" />;

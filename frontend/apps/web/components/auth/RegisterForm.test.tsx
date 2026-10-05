@@ -85,7 +85,7 @@ describe("RegisterForm", () => {
     expect(screen.getByLabelText(/Mã giới thiệu/)).toBeInTheDocument();
   });
 
-  it("thành công đủ tuổi → chuyển / và ghi cờ banner ok (không dùng query)", async () => {
+  it("thành công → chuyển / (banner do /auth/me quyết định, không dùng query/cờ)", async () => {
     registerStudent.mockResolvedValue({});
     const user = userEvent.setup();
     render(<RegisterForm {...props} />);
@@ -94,7 +94,7 @@ describe("RegisterForm", () => {
     await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
     await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
-    expect(sessionStorage.getItem("vv:register-flash")).toBe("ok");
+    expect(replace).not.toHaveBeenCalledWith(expect.stringContaining("?"));
     const payload = registerStudent.mock.calls[0]?.[0];
     expect(payload).toMatchObject({ grade_level: 9, accept_terms: true, accept_privacy: true, device_id: "dev-1" });
     expect(payload).not.toHaveProperty("captcha_token");
@@ -125,18 +125,6 @@ describe("RegisterForm", () => {
   it("có Turnstile: nút khoá tới khi có token", () => {
     render(<RegisterForm {...props} captchaSiteKey="site-key" />);
     expect(screen.getByRole("button", { name: "Tạo tài khoản" })).toBeDisabled();
-  });
-
-  it("server trả parent_consent_status=pending → cờ banner phụ huynh", async () => {
-    registerStudent.mockResolvedValue({ parent_consent_status: "pending" });
-    const user = userEvent.setup();
-    render(<RegisterForm {...props} />);
-    await fillValid(user);
-    await user.click(screen.getByLabelText(/Điều khoản sử dụng/));
-    await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
-    await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
-    await waitFor(() => expect(replace).toHaveBeenCalled());
-    expect(sessionStorage.getItem("vv:register-flash")).toBe("parent_pending");
   });
 
   it("lỗi 422 của parent_email khi client tưởng đủ tuổi → ép hiện khối phụ huynh + focus", async () => {

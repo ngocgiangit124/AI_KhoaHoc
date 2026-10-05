@@ -11,7 +11,6 @@ import { buildRegisterPayload, registerStudent } from "@/lib/auth/api";
 import { isBelowConsentAge } from "@/lib/auth/age";
 import { REGISTER_FIELD_MAP, REGISTER_FIELD_ORDER, classifyRegisterError } from "@/lib/auth/errors";
 import { createRegisterSchema, CONSENT_ERROR_MESSAGE, type RegisterFormValues } from "@/lib/auth/schemas";
-import { flashForStatus, setRegisterFlash } from "@/lib/auth/flash";
 import { ConsentCheckboxGroup } from "./ConsentCheckboxGroup";
 
 export interface RegisterFormProps {
@@ -84,7 +83,7 @@ export function RegisterForm({
     setCaptchaMessage(null);
 
     try {
-      const user = await registerStudent(
+      await registerStudent(
         buildRegisterPayload({
           values,
           captchaToken,
@@ -95,7 +94,6 @@ export function RegisterForm({
         }),
       );
       setDone(true);
-      setRegisterFlash(flashForStatus(user?.parent_consent_status));
       router.replace("/");
       router.refresh();
       return;

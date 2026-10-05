@@ -52,3 +52,6 @@ export type { SelectProps } from "./Select";
 
 export { TurnstileWidget, TURNSTILE_SCRIPT_SRC } from "./TurnstileWidget";
 export type { TurnstileWidgetProps } from "./TurnstileWidget";
+
+export { OtpInput } from "./OtpInput";
+export type { OtpInputProps } from "./OtpInput";
