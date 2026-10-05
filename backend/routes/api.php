@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\V1\Auth\CsrfController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\MeController;
 use App\Http\Controllers\Api\V1\Auth\OtpController;
+use App\Http\Controllers\Api\V1\Auth\PasswordController;
+use App\Http\Controllers\Api\V1\Auth\PasswordResetController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
@@ -61,6 +63,15 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         ->middleware('auth:sanctum')
         ->name('api.auth.logout');
 
+    // Quên/đặt lại mật khẩu (T27, US-015). `guest.student`: phiên cũ đã bị thay thế/huỷ coi như khách.
+    Route::post('/auth/password/forgot', [PasswordResetController::class, 'request'])
+        ->middleware(['guest.student', 'throttle:password-reset', 'no_store'])
+        ->name('api.auth.password.forgot');
+
+    Route::post('/auth/password/reset', [PasswordResetController::class, 'reset'])
+        ->middleware(['guest.student', 'throttle:otp-verify', 'no_store'])
+        ->name('api.auth.password.reset');
+
     // Nhóm `student` (api-contract §1.3): MỌI route khác cần đăng nhập trên host api
     // phải nằm trong nhóm này (test kiến trúc RouteMiddlewareGroupsTest bắt buộc).
     // T05, T10+ thêm route vào đây.
@@ -81,6 +92,11 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         Route::put('/auth/contact', [ContactController::class, 'update'])
             ->middleware('throttle:contact')
             ->name('api.auth.contact');
+
+        // T27 — đổi mật khẩu: huỷ phiên khác, bind lại phiên hiện tại (ADR-003).
+        Route::put('/auth/password', [PasswordController::class, 'update'])
+            ->middleware(['throttle:password-change', 'no_store'])
+            ->name('api.auth.password');
     });
 
     // Auth (T04/T05/T27), Catalog (T10), Cart/Checkout (T16/T18),

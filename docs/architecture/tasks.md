@@ -266,12 +266,12 @@ Cài ở task sau:
   - Renderer `AuthenticationException` đọc tombstone → `SESSION_REPLACED`/`SESSION_EXPIRED`/`SESSION_REVOKED`.
   - Validate `X-Device-Id`.
   - Test đủ 6 kịch bản ở ADR-003 (gồm A → B → B đăng xuất → A phải 401).
-- [ ] **T27 Quên/đổi mật khẩu** (US-015 — BA viết story; backend làm theo api-contract §2.2) (~1,5 ngày) **[SEC]** — phụ thuộc T04, T05
+- [x] **T27 Quên/đổi mật khẩu** (dev xong 2026-10-05, chờ Reviewer/QA) (US-015; backend làm theo api-contract §2.2) (~1,5 ngày) **[SEC]** — phụ thuộc T04, T05
   - OTP `reset_password` qua email, captcha.
   - Phản hồi luôn giống nhau dù tài khoản có tồn tại hay không.
   - Huỷ mọi phiên (tombstone `password_changed`); `password_changed_at`.
   - Test HTTP thật (từ T05 review R5): A và B đăng nhập, đổi/đặt lại mật khẩu qua endpoint → phiên khác nhận `SESSION_REVOKED`; đang đăng nhập mà đổi mật khẩu thì `StudentSessionService::revoke()` rồi bind lại phiên hiện tại (regenerate + bind) để người đổi không bị văng (không chỉ gọi `revoke()` trực tiếp như test T05).
-- [ ] **T28 Đăng nhập quản trị** (~2 ngày) **[SEC]** — phụ thuộc T04; **phải xong trước FE-ADMIN FA1**
+- [x] **T28 Đăng nhập quản trị** (~2 ngày) **[SEC]** — phụ thuộc T04; **phải xong trước FE-ADMIN FA1**
   - Host admin-api: login (chỉ staff/GV), `EnsureAdminOrigin`, MFA email cho admin/QLT (`staff.mfa_passed`, flag `FEATURE_STAFF_MFA`).
   - Email cảnh báo thiết bị mới cho GV.
   - `staff.idle` (120 phút / 12 giờ), `staff.password_fresh` (`must_change_password`), `PUT /admin/auth/password`.
@@ -341,8 +341,10 @@ Cài ở task sau:
   - `orderInfo` không PII; TLS verify; log không secret/PII.
   - `queryStatus` verify chữ ký phản hồi.
   - Kiểm chứng sandbox.
+  - _Dev 2026-10-05: code + 63 test xong (tests/Feature/T17), chờ Reviewer; sandbox MoMo + vector chính thức chưa kiểm (xem backlog-v2 T17-1). `queryStatus` nhận DTO `PaymentStatusQuery` thay vì model `PaymentAttempt` (model thuộc T18)._
 - [ ] **T18 Checkout** (~2 ngày) **[SEC] [DBA]** — phụ thuộc T16, T17
   - Bảng: `orders` (+ `coupon_hold_until`), `order_items`, `order_status_logs`, `payment_attempts`.
+  - **Migration thêm FK `enrollments.order_id` → `orders.id` (restrictOnDelete)** (T07 chỉ tạo cột + index vì `orders` chưa tồn tại); `down()` `dropForeign`; kèm test kiểm FK.
   - `CheckoutService` (khoá `carts → orders → coupons`, sức chứa theo `coupon_hold_until`), middleware `parent.consent` (tạm cho qua nếu `parent_consent_status` ∈ {not_required, granted}; luồng đầy đủ ở T29).
   - Test: race 2 tab; N HS cùng mã cuối (DBA checklist §5.6).
 - [ ] **T19 IPN & fulfillment** (~2 ngày) **[SEC] [DBA]** — phụ thuộc T18, T14

@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Session;
@@ -24,6 +25,8 @@ class LoginService
     public function __construct(private readonly StudentSessionService $sessions) {}
 
     private static ?string $dummyHash = null;
+
+    private static ?string $dummyHashRounds = null;
 
     private const ACCOUNT_MAX_FAILURES = 10;
 
@@ -53,7 +56,7 @@ class LoginService
             }
         }
 
-        $user = $this->findByLogin($login);
+        $user = self::findByLogin($login);
 
         // Luôn băm 1 lần dù không có tài khoản, để thời gian phản hồi không lộ tài khoản tồn tại.
         $hash = $user !== null ? $user->password : self::dummyHash();
@@ -161,7 +164,8 @@ class LoginService
         $request->session()->regenerateToken();
     }
 
-    private function findByLogin(string $login): ?User
+    /** Dùng chung với đăng nhập quản trị (T28). */
+    public static function findByLogin(string $login): ?User
     {
         $login = trim($login);
 
@@ -174,8 +178,24 @@ class LoginService
         return $phone === null ? null : User::query()->where('phone', $phone)->first();
     }
 
-    private static function dummyHash(): string
+    /** Dùng chung với đăng nhập quản trị (T28). */
+    public static function dummyHash(): string
     {
-        return self::$dummyHash ??= Hash::make('vv-dummy-password-for-timing');
+        // PHP-FPM khởi tạo lại biến static mỗi request nên PHẢI cache liên request, nếu không mỗi lần gọi tốn thêm
+        // 1 lần băm (nhánh "không tồn tại" chậm gấp đôi → lộ tài khoản). Khoá theo cost hiện hành để cùng cost hash thật.
+        if (self::$dummyHash !== null && self::$dummyHashRounds === self::currentRounds()) {
+            return self::$dummyHash;
+        }
+
+        $rounds = self::currentRounds();
+        $hash = Cache::rememberForever('auth.dummy_hash:'.$rounds, fn () => Hash::make('vv-dummy-password-for-timing'));
+        self::$dummyHashRounds = $rounds;
+
+        return self::$dummyHash = $hash;
+    }
+
+    private static function currentRounds(): string
+    {
+        return config('hashing.driver', 'bcrypt').':'.config('hashing.bcrypt.rounds').':'.config('hashing.argon.time', '');
     }
 }

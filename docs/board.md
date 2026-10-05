@@ -11,31 +11,31 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T01 | Khởi tạo backend Laravel 13 + Docker | Xong | ✅ Review, Security (PASS có điều kiện), QA (PASS) | — | 2026-09-28 |
 | T02 | Users, audit_logs, vai trò, staff:* | Xong | ✅ như T01 | — | 2026-09-28 |
 | FE0 | Khởi tạo frontend Next.js 16 | Xong | ✅ Review; 64 unit + e2e backend thật | — | 2026-09-25 |
-| T03 | Đăng ký/đăng nhập học sinh | Chờ PO duyệt commit | ✅ Review (APPROVE), Security (PASS có điều kiện, nợ v2 ở docs/security/backlog-v2.md), QA (PASS có điều kiện: 232 test; 7/21 e2e web chờ chạy lại do limiter) | — | 2026-10-05 |
-| FW1 (phần 1) | Màn đăng ký/đăng nhập (apps/web) | Chờ PO duyệt commit | ✅ Review (APPROVE), QA (PASS có điều kiện); còn R3 (/auth/me) làm cùng T04 | — | 2026-10-05 |
-| T04 | OTP + GET /auth/me | Chờ PO duyệt commit | ✅ Review (APPROVE), QA (PASS: 316 test, e2e OTP 11/11); nợ bảo mật T04-1..5 ở docs/security/backlog-v2.md | — | 2026-10-05 |
-| T05 | Một phiên học sinh | Xong | ✅ Review (APPROVE), QA (PASS: 360 test, e2e 2 thiết bị 7/7); nợ bảo mật T05-1..5 ở docs/security/backlog-v2.md | — | 2026-10-05 |
+| T03 | Đăng ký/đăng nhập học sinh | Xong | ✅ Review, QA; nợ bảo mật ở backlog-v2 | — | 2026-10-05 |
+| FW1 (phần 1 + OTP) | Đăng ký, đăng nhập, đăng xuất, OTP (apps/web) | Xong một phần | ✅ Review, QA; còn màn quên/đổi mật khẩu (API T27 đã có) | — | 2026-10-05 |
+| T04 | OTP + GET /auth/me | Xong | ✅ Review, QA (316 test, e2e OTP 11/11) | — | 2026-10-05 |
+| T05 | Một phiên học sinh | Xong | ✅ Review, QA (e2e 2 thiết bị 7/7) | — | 2026-10-05 |
+| T06 | Chuyên đề CRUD (admin-api) | Xong | ✅ Review, QA (59 test T06+T07, race thật); Minor: lỗi per_page tiếng Anh | — | 2026-10-05 |
+| T07 | Schema nội dung + ghi danh | Xong | ✅ Review (kiêm DBA), QA; FK enrollments.order_id làm ở T18 | — | 2026-10-05 |
+| T17 | Thanh toán: abstraction + MoMo | Xong (chưa kiểm sandbox) | ✅ Review, QA (141 test); PHẢI kiểm sandbox MoMo trước T20 (backlog T17-1) | — | 2026-10-05 |
+| T27 | Quên/đổi mật khẩu học sinh | Xong | ✅ Review, QA (race 8 tiến trình); đã sửa timing dummy hash (ảnh hưởng cả login T03/T28) | — | 2026-10-05 |
+| T28 | Đăng nhập quản trị | Xong | ✅ Review, QA (e2e admin thật 15 pass); Minor BUG-1 (csrf 419 sau khi phiên bị huỷ), BUG-2 (thiếu Accept JSON → 500) | — | 2026-10-05 |
+| FA1 | Layout quản trị, đăng nhập, MFA, đổi mật khẩu lần đầu | Xong | ✅ Review, QA cùng T28; Minor N1 (từ ngữ MFA sai mã) | — | 2026-10-05 |
 
 ## Việc tiếp theo (theo thứ tự)
 
-1. **T03** (`laravel-dev`) và **FW1 phần đăng ký/đăng nhập** (`nextjs-dev`) chạy song song, cả hai bám `docs/architecture/api-contract.md` §2.2.
-   - T03: làm theo tasks.md mục T03. Không làm OTP (T04), một phiên (T05), quên mật khẩu (T27), đăng nhập quản trị (T28), xác nhận phụ huynh (T29).
-   - Khi T03 thêm route `auth:sanctum` đầu tiên: đổi `expect($checked)->toBe(0)` trong `backend/tests/Feature/T02/RouteMiddlewareGroupsTest.php` theo TODO, thêm `role:hoc_sinh` cho nhóm student và test kiến trúc cho host api (ghi chú của Security ở `docs/security/review-T01-T02.md`).
-   - FW1: chỉ màn Đăng ký, Đăng nhập, đăng xuất. Được cài `react-hook-form` + `@hookform/resolvers`. Turnstile dùng script chính thức.
-2. Mỗi task đi qua quy trình: `laravel-reviewer` → sửa → `laravel-security` (task có [SEC]) → `laravel-qa` → PO duyệt commit/push.
-3. Sau đó: T04 → T05 → T27, rồi T28 (đăng nhập quản trị, phải xong trước FA1).
-
-## Ghi chú kỹ thuật còn mở (T04)
-
-- Middleware `account.verified` đã có nhưng **chưa gắn vào route nào**: AC9 (chặn checkout khi chưa xác thực) hoàn tất ở T14/T18 khi có route checkout/đăng ký học miễn phí.
-- Middleware `student.single_session` đã hiện thực ở T05 (ADR-003). Login không còn `guest` (login lại hợp lệ), register dùng `guest.student`. Test dùng `actingAs` cho route nhóm student phải gọi `vvActAsStudent()` (tests/Feature/T04/helpers.php) để gắn `current_session_id` + cookie.
+1. Lượt mới, chạy song song (đủ phụ thuộc): **T08** Quản trị khóa học (T07, T28), **T10** Danh mục công khai (T07), **T14** EnrollmentService (T07, T04), **T15** Mã giảm giá (T07, T06); frontend **FA2** Chuyên đề (T06) và **FW1 còn lại** (màn quên/đổi mật khẩu theo API T27).
+2. Sau đó: T09 (sau T08) → T11 → T12 ∥ T13; FA3 (sau T08); FW2 (sau T10); T16 (sau T14, T15) → T18 → T19 → T20.
+3. Lỗi Minor còn mở cần gom sửa: T28 BUG-1/BUG-2, FA1 N1, T06 lỗi per_page tiếng Anh.
+4. **Trước T20**: kiểm phản hồi query của sandbox MoMo (cần tài khoản sandbox từ PO).
+5. Mỗi task: dev → `laravel-reviewer` → sửa → `laravel-qa` → tự commit (không push).
 
 ## Quy tắc làm việc đã thống nhất với PO
 
 - **2026-10-05 · Tạm dừng cổng `laravel-security`** (và việc sửa lỗi bảo mật không nghiêm trọng) để đẩy tiến độ; quy trình mỗi task tạm thời là dev → `laravel-reviewer` → `laravel-qa` → PO duyệt. Lỗi bảo mật đã biết được ghi ở `docs/security/backlog-v2.md`, review lại và sửa ở v2, bắt buộc trước go-live. Lỗi Critical/High vẫn phải báo PO ngay.
 
 - Chỉ commit/push khi PO đồng ý. `main` chỉ chứa code đã qua review.
-- **2026-10-05 · PO cho phép commit tự động (không push)** sau khi task qua dev → reviewer → QA PASS, mỗi task một commit. Push vẫn do PO tự làm.
+- **2026-10-05 · PO cho phép commit tự động (không push)** sau khi task qua dev → reviewer → QA PASS, mỗi task một commit; xong task nào thì commit rồi tự chạy task kế tiếp theo thứ tự "Việc tiếp theo", không cần hỏi lại. Chỉ dừng khi gặp quyết định của PO, lỗi Critical/High, hoặc lỗi môi trường không tự xử lý được. Push vẫn do PO tự làm.
 - Dev chạy mọi thứ trong Docker ở máy local. Trên cloud, `scripts/cloud-setup.sh` cài trực tiếp (xem CLAUDE.md).
 - Không cài package ngoài danh sách đã duyệt trong tasks.md (cổng G2) mà không hỏi PO.
 - Không tự bịa field ngoài api-contract. Thấy thiếu hoặc mâu thuẫn thì dừng và hỏi Architect.
@@ -62,3 +62,4 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - 2026-10-05 · T03, FW1 · Dev + Reviewer + Security + QA · Review APPROVE; Security PASS có điều kiện (hoãn v2); QA tìm BUG-1..5, đã sửa, PASS có điều kiện; host local đổi thành api.localhost:3000 và admin-api.localhost:3001; csrf throttle 120/phút
 - 2026-10-05 · T04, FW1 (OTP) · Dev + Reviewer + QA · Review APPROVE; QA tìm BUG-1..4 (mã OTP rò vào log, Retry-After chưa expose CORS...), đã sửa, PASS
 - 2026-10-05 · T05 · Dev + Reviewer · Một phiên học sinh (ADR-003): bind/tombstone/middleware thật; login bỏ `guest`, register `guest.student`; Review APPROVE, đã sửa R1 (không destroy trước bind), R2 (register 201 không phiên khi bind lỗi), R3, R4, R6; R5 ghi vào T27; chờ QA
+- 2026-10-05 · T06, T07, T17, T27, T28, FA1 · Dev + Reviewer + QA (chạy song song) · tất cả PASS; composer ci 667 test xanh; queue worker thêm restart: unless-stopped

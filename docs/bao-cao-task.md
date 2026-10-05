@@ -1,43 +1,44 @@
 # Báo cáo task VitaminVui
 
-Cập nhật: 2026-10-05. Nguồn định nghĩa task: `docs/architecture/tasks.md`. Trạng thái chi tiết và quy tắc làm việc: `docs/board.md`.
+Cập nhật: 2026-10-05 (tối). Nguồn định nghĩa task: `docs/architecture/tasks.md`. Trạng thái chi tiết và quy tắc làm việc: `docs/board.md`.
 Ngày công là ước lượng của tài liệu, chưa tính thời gian chờ PO duyệt và sửa sau review/QA.
 
 ## Tóm tắt
 
 | Nhóm | Tổng | Đã xong | Đang làm | Chưa làm | Ngày công còn lại |
 |---|---|---|---|---|---|
-| Backend (T01–T34, không có T32) | 33 | 4 | 1 | 28 | ~48 |
-| Frontend (FE0, FW1–FW7, FA1–FA10) | 18 | 1 | 1 | 16 | ~30 |
+| Backend (T01–T34, không có T32) | 33 | 10 | 0 | 23 | ~41 |
+| Frontend (FE0, FW1–FW7, FA1–FA10) | 18 | 2 | 1 | 15 | ~30 |
 
-Ghi chú: T03 và FW1 phần 1 đã commit local (`190c08c`), chưa push. Cổng `laravel-security` tạm dừng theo quyết định PO; nợ bảo mật ở `docs/security/backlog-v2.md`.
+Ghi chú: mọi task đã xong đều đã commit local (chưa push, PO tự push). Cổng `laravel-security` tạm dừng theo quyết định PO; nợ bảo mật ở `docs/security/backlog-v2.md`.
 
 ## 1. Đã xong
 
 | Task | Tên | Ghi chú |
 |---|---|---|
-| T01 | Khởi tạo backend Laravel 13 + Docker | Review, Security (PASS có điều kiện), QA PASS |
+| T01 | Khởi tạo backend Laravel 13 + Docker | Review, Security, QA |
 | T02 | Users, audit_logs, vai trò, staff:* | Như T01 |
-| T03 | Đăng ký/đăng nhập học sinh | Review APPROVE, QA PASS có điều kiện; commit `190c08c` (chưa push) |
-| FE0 | Khởi tạo frontend Next.js 16 | Review; 64 unit + e2e backend thật |
-| FW1 (phần 1) | Màn đăng ký, đăng nhập, đăng xuất | Cùng commit `190c08c`; còn R3 xử lý cùng T04 |
+| T03 | Đăng ký/đăng nhập học sinh | Review, QA |
+| T04 | OTP + `GET /auth/me` | Review, QA |
+| T05 | Một phiên học sinh (ADR-003) | Review, QA |
+| T06 | Chuyên đề CRUD | Review, QA |
+| T07 | Schema nội dung + ghi danh | Review (kiêm DBA), QA |
+| T17 | Thanh toán: abstraction + MoMo | Review, QA; chưa kiểm sandbox MoMo (bắt buộc trước T20) |
+| T27 | Quên/đổi mật khẩu học sinh | Review, QA |
+| T28 | Đăng nhập quản trị (MFA, idle, đổi mật khẩu) | Review, QA |
+| FE0 | Khởi tạo frontend Next.js 16 | Review |
+| FA1 | Layout quản trị, đăng nhập, MFA, đổi mật khẩu lần đầu, menu theo vai trò | Review, QA cùng T28 |
 
-## 2. Đang làm (chờ PO duyệt commit)
+## 2. Đang làm
 
 | Task | Tên | Bước hiện tại | Ngày công |
 |---|---|---|---|
-| T04 | OTP + `GET /auth/me` | Review APPROVE, QA PASS (316 test, e2e OTP 11/11); chờ PO duyệt commit | 1,5 |
-| T05 | Một phiên học sinh | Review APPROVE, QA PASS (360 test, e2e 2 thiết bị 7/7); đã commit | 1 |
-| FW1 (phần OTP) | Màn `/xac-thuc-otp`, gửi lại mã, đổi liên hệ, banner xác thực, nav hiện tên | Review APPROVE, QA PASS; chờ PO duyệt commit | (trong 3 của FW1) |
+| FW1 | Đăng ký, đăng nhập, OTP đã xong; còn màn quên/đổi mật khẩu | Chờ làm phần còn lại (API T27 đã có) | còn ~0,5 |
 
 ## 3. Chưa làm — Backend
 
 | Task | Tên | Ngày công | Phụ thuộc | Cờ |
 |---|---|---|---|---|
-| T27 | Quên/đổi mật khẩu | 1,5 | T04, T05 | SEC |
-| T28 | Đăng nhập quản trị (phải xong trước FA1) | 2 | T04 | SEC |
-| T06 | Chuyên đề | 0,5 | — | |
-| T07 | Schema nội dung + ghi danh | 1 | — | DBA |
 | T08 | Quản trị khóa học | 2,5 | T07, T28 | SEC |
 | T09 | Chương/bài | 2 | T08 | SEC |
 | T10 | Danh mục công khai + chi tiết | 1,5 | T07 | |
@@ -47,7 +48,6 @@ Ghi chú: T03 và FW1 phần 1 đã commit local (`190c08c`), chưa push. Cổng
 | T14 | EnrollmentService | 1,5 | T07, T04 | SEC |
 | T15 | Mã giảm giá quản trị | 1,5 | T07, T06 | DBA |
 | T16 | Giỏ hàng | 1,5 | T15, T14 | |
-| T17 | Thanh toán: abstraction + MoMo | 2 | T01 | SEC |
 | T18 | Checkout | 2 | T16, T17 | SEC, DBA |
 | T19 | IPN & fulfillment | 2 | T18, T14 | SEC, DBA |
 | T20 | Đối soát + huỷ 12h + `/pay` + đơn của tôi | 2 | T19 | SEC, DBA |
@@ -63,7 +63,7 @@ Ghi chú: T03 và FW1 phần 1 đã commit local (`190c08c`), chưa push. Cổng
 | T26 | Vận hành queue/scheduler | 1 | — | |
 | T31 | Checklist production & DNS | 1 | — | SEC |
 
-Tổng backend chưa làm (kể cả T04): ~50,5 ngày công. T32 (nâng cấp sau go-live) nằm ngoài MVP.
+Tổng backend chưa làm: ~41 ngày công. T32 (nâng cấp sau go-live) nằm ngoài MVP.
 
 ## 4. Chưa làm — Frontend
 
@@ -76,7 +76,6 @@ Tổng backend chưa làm (kể cả T04): ~50,5 ngày công. T32 (nâng cấp s
 | FW5 | Quiz (KaTeX, đồng hồ, autosave) | 2,5 | T22 |
 | FW6 | Khóa học của tôi, tiến độ | 1,5 | T23 |
 | FW7 | Xác nhận phụ huynh, quyền dữ liệu cá nhân | 1,5 | T29, T34 |
-| FA1 | Layout quản trị, đăng nhập + MFA, đổi mật khẩu lần đầu, menu theo vai trò | 1,5 | T28 |
 | FA2 | Chuyên đề | 0,5 | T06 |
 | FA3 | Khóa học | 2 | T08 |
 | FA4 | Cây chương/bài, upload TUS, trạng thái video | 3 | T09, T11, T12 |

@@ -6,10 +6,15 @@ use App\Models\User;
 use App\Services\Auth\Captcha\CaptchaVerifier;
 use App\Services\Auth\Captcha\FakeCaptchaVerifier;
 use App\Services\Auth\Captcha\TurnstileVerifier;
+use App\Services\Auth\LoginService;
 use App\Services\Auth\Otp\LogSmsOtpSender;
 use App\Services\Auth\Otp\OtpDispatcher;
 use App\Services\Auth\Otp\OtpSender;
 use App\Services\Auth\Otp\SmsOtpSender;
+use App\Services\Auth\PasswordService;
+use App\Services\Payments\Contracts\PaymentGateway;
+use App\Services\Payments\Gateways\Fake\FakeGateway;
+use App\Services\Payments\PaymentGatewayManager;
 use App\Support\ProductionConfigGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -42,6 +47,19 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->environment('local', 'testing')) {
             $this->app->bind(SmsOtpSender::class, LogSmsOtpSender::class);
         }
+
+        // T17 (ADR-001): cổng thanh toán resolve qua manager (allowlist enabled_gateways). FakeGateway
+        // CHỈ được đăng ký ở local/testing (S4); production không có driver `fake`.
+        $this->app->singleton(PaymentGatewayManager::class, function ($app) {
+            $manager = new PaymentGatewayManager($app);
+
+            if ($app->environment('local', 'testing')) {
+                $manager->extend('fake', fn () => new FakeGateway);
+            }
+
+            return $manager;
+        });
+        $this->app->bind(PaymentGateway::class, fn ($app) => $app->make(PaymentGatewayManager::class)->driver());
     }
 
     /**
@@ -100,14 +118,21 @@ class AppServiceProvider extends ServiceProvider
     {
         // `login`: CHỈ là lớp chống flood thô theo IP (đếm mọi request). Giới hạn "sai 10 lần/giờ/tài
         // khoản" + "50 lần sai/giờ/IP" (contract §1.6) đếm lượt SAI trong LoginService (R1).
-        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(120)->by('login-flood:'.$request->ip()));
+        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(120)->by('login-flood:'.$request->getHost().':'.$request->ip()));
 
         RateLimiter::for('register', fn (Request $request) => Limit::perHour(30)->by($request->ip()));
 
-        RateLimiter::for('password-reset', function (Request $request) {
+        // Quên mật khẩu (T27): route chỉ chặn theo IP. Hạn mức THEO TÀI KHOẢN (cooldown 60s, 5/giờ) tính SAU captcha
+        // trong `PasswordService::enforceForgotLimits()` để request không captcha không tiêu hao hạn mức của nạn nhân.
+        RateLimiter::for('password-reset', fn (Request $request) => Limit::perHour(30)->by('password-reset-ip:'.$request->ip()));
+
+        // Đổi mật khẩu khi đang đăng nhập: chống dò mật khẩu hiện tại bằng phiên bị chiếm.
+        RateLimiter::for('password-change', function (Request $request) {
+            $identity = $this->identity($request);
+
             return [
-                Limit::perHour(5)->by('password-reset:'.mb_strtolower((string) $request->input('login'))),
-                Limit::perHour(30)->by($request->ip()),
+                Limit::perMinute(5)->by('password-change:'.$identity),
+                Limit::perHour(20)->by('password-change-hour:'.$identity),
             ];
         });
 
@@ -123,7 +148,11 @@ class AppServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('otp-verify', function (Request $request) {
-            $identity = $this->identity($request);
+            // Route đặt lại mật khẩu là guest: khoá theo tài khoản (login chuẩn hoá) thay vì chỉ theo IP,
+            // để đổi IP không né được 5 lần/phút, 20 lần/ngày (US-015 BR7).
+            $identity = $request->user() === null && is_string($request->input('login')) && $request->input('login') !== ''
+                ? $this->resetIdentity($request)
+                : $this->identity($request);
 
             return [
                 Limit::perMinute((int) config('auth.otp.max_verify_per_minute'))->by('otp-verify:'.$identity),
@@ -138,6 +167,16 @@ class AppServiceProvider extends ServiceProvider
             return [
                 Limit::perHour(10)->by('contact:'.$this->identity($request)),
                 Limit::perHour(30)->by('contact-ip:'.$request->ip()),
+            ];
+        });
+
+        // Đổi mật khẩu quản trị (T28): chống dò mật khẩu hiện tại bằng phiên bị đánh cắp.
+        RateLimiter::for('admin-password', function (Request $request) {
+            $identity = $this->identity($request);
+
+            return [
+                Limit::perMinute(5)->by('admin-password:'.$identity),
+                Limit::perHour(20)->by('admin-password-hour:'.$identity),
             ];
         });
 
@@ -178,6 +217,18 @@ class AppServiceProvider extends ServiceProvider
         // client ngoài trình duyệt chỉ cần đặt Origin là tạo được 1 phiên Redis
         // mới (7 ngày) mỗi request, không giới hạn.
         RateLimiter::for('csrf', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
+    }
+
+    /**
+     * Danh tính cho limiter quên/đặt lại mật khẩu (guest): tài khoản có thật → theo id (email và SĐT của cùng
+     * 1 người dùng chung hạn mức); không có → khoá chuẩn hoá `LoginService::accountKey`. Cả hai nhánh đều bị
+     * giới hạn y hệt nhau nên 429 không lộ tài khoản tồn tại.
+     */
+    private function resetIdentity(Request $request): string
+    {
+        $login = $request->input('login');
+
+        return PasswordService::throttleIdentity(is_string($login) ? $login : '');
     }
 
     private function identity(Request $request): string

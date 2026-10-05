@@ -75,7 +75,7 @@ class StudentSessionService
      * Gọi NGAY SAU `Auth::login()` + `session()->regenerate()`. Lỗi ghi DB → đăng xuất phiên mới
      * và ném lại lỗi (phiên cũ vẫn là phiên duy nhất — không bao giờ có 2 phiên hợp lệ).
      */
-    public function bind(User $user, Request $request): void
+    public function bind(User $user, Request $request, ?string $fallbackDeviceId = null): void
     {
         if ($user->role !== UserRole::Student) {
             return;
@@ -83,7 +83,8 @@ class StudentSessionService
 
         $newId = $request->session()->getId();
         // Body `device_id` chỉ có ý nghĩa ở login/register (nơi gọi bind()).
-        $deviceId = self::deviceIdFromRequest($request, allowBody: true);
+        // `$fallbackDeviceId`: bind lại phiên hiện tại sau đổi mật khẩu (T27) — giữ device cũ nếu request không gửi.
+        $deviceId = self::deviceIdFromRequest($request, allowBody: true) ?? $fallbackDeviceId;
         $now = now();
 
         try {

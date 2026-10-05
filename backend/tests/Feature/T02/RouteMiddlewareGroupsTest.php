@@ -12,8 +12,8 @@ use Illuminate\Support\Facades\Route;
  */
 const VV_ADMIN_PUBLIC_ROUTE_NAMES = [
     'admin.csrf-token',
-    // T28 sẽ thêm: 'admin.auth.login', 'admin.auth.mfa.verify' (đăng nhập trước
-    // khi có session hợp lệ, không thể tự đòi auth:sanctum).
+    // T28: đăng nhập trước khi có session hợp lệ, không thể tự đòi auth:sanctum.
+    'admin.auth.login',
 ];
 
 /**
@@ -23,7 +23,11 @@ const VV_ADMIN_PUBLIC_ROUTE_NAMES = [
  * @var list<string>
  */
 const VV_ADMIN_MFA_OR_PASSWORD_ROUTE_NAMES = [
-    // T28 sẽ thêm: 'admin.auth.mfa.verify', 'admin.auth.password.update'.
+    // T28: MFA (verify/resend) không thể đòi đã qua MFA; đổi mật khẩu không thể đòi đã đổi mật khẩu.
+    // (Route đổi mật khẩu vẫn gắn `staff.mfa_passed` — chặt hơn mức tối thiểu.)
+    'admin.auth.mfa.verify',
+    'admin.auth.mfa.resend',
+    'admin.auth.password.update',
 ];
 
 function vvHasAuthSanctum(array $middleware): bool
@@ -224,7 +228,9 @@ test('route storage.local va storage.local.upload khong con duoc dang ky (L1)', 
 const VV_API_GUEST_WRITE_ROUTE_NAMES = [
     'api.auth.register',
     'api.auth.login',
-    // T27 sẽ thêm: 'api.auth.password.forgot', 'api.auth.password.reset'; T19: webhook.
+    'api.auth.password.forgot',
+    'api.auth.password.reset',
+    // T19 sẽ thêm: webhook.
 ];
 
 /**
@@ -301,4 +307,12 @@ test('logic kiem tra host api bat duoc route cong khai thieu throttle (M1)', fun
         ->get('/__test/no-throttle', fn () => response()->json(['ok' => true]));
 
     expect(collect(vvApiRouteViolations())->contains(fn ($v) => str_contains($v, 'no-throttle')))->toBeTrue();
+});
+
+test('PUT admin/auth/password bat buoc staff.mfa_passed (R5)', function () {
+    $route = Route::getRoutes()->getByName('admin.auth.password.update');
+
+    expect($route)->not->toBeNull();
+    expect($route->gatherMiddleware())->toContain('staff.mfa_passed', 'staff.idle', 'auth:sanctum')
+        ->and($route->gatherMiddleware())->not->toContain('staff.password_fresh');
 });

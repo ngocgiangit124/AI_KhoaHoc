@@ -16,6 +16,7 @@ use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\StaffIdleTimeout;
 use App\Http\Middleware\TrustHosts;
 use App\Support\ApiExceptionRenderer;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -103,6 +104,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 status: 403,
             );
         });
+
+        // T28 — `admin.origin` PHẢI chạy trước `auth:sanctum`: Laravel sắp middleware có trong danh sách ưu
+        // tiên (Authenticate...) lên trước middleware khác, nên không có dòng này thì request tới admin-api
+        // từ origin lạ chưa đăng nhập nhận 401 thay vì 403 ORIGIN_NOT_ALLOWED.
+        $middleware->prependToPriorityList(before: AuthenticatesRequests::class, prepend: EnsureAdminOrigin::class);
 
         $middleware->alias([
             'no_store' => NoStoreForAuthenticated::class,

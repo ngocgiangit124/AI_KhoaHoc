@@ -77,6 +77,7 @@ Ngoại lệ duy nhất: `POST /auth/logout` và `POST /admin/auth/logout` chỉ
 | `csrf` | — | 120/phút (PO chốt 2026-10-05, lớp học dùng chung NAT) |
 | `webhook` | — | 120/phút |
 | `export` | 10 lần tạo/ngày/user | — |
+| `admin-password` (T28) | 5/phút, 20/giờ/user | — |
 
 IP thật lấy qua `TrustProxies` với danh sách IP cụ thể (không `*`).
 
@@ -106,6 +107,7 @@ Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $statu
 | 409 | `CHECKOUT_CHANGED` | Giỏ/giá/mã thay đổi — kèm `preview` mới |
 | 409 | `COUPON_EXHAUSTED` | Hết chỗ mã khi tạo đơn/tạo link mới (ADR-001 §6) |
 | 409 | `ALREADY_IN_CART`, `ALREADY_OWNED`, `ENROLLMENT_PENDING`, `ALREADY_PROCESSED` | |
+| 409 | `SUBJECT_IN_USE` | Xoá chuyên đề đang gán khóa học (T06) |
 | 413 | `PAYLOAD_TOO_LARGE` | |
 | 422 | `VALIDATION_ERROR`, `CAPTCHA_FAILED` | |
 | 422 | `COUPON_INVALID` (**gộp**: không tồn tại / chưa bắt đầu / đã vô hiệu — S18), `COUPON_EXPIRED`, `COUPON_ALREADY_USED`, `COUPON_NOT_APPLICABLE` | |
@@ -153,9 +155,9 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 | POST | /auth/otp/send | `Auth\OtpController@send` | student, throttle:otp-send | `SendOtpRequest`: channel ∈ `config('auth.otp.channels')` (production MVP: chỉ `email`) | 202 `{ resend_available_at }` (ISO 8601 có offset). Mã chỉ gửi tới email/SĐT **hiện tại** của tài khoản, chưa xác thực; đã xác thực → 422 field `channel` |
 | POST | /auth/otp/verify | `Auth\OtpController@verify` | student, throttle:otp-verify | `VerifyOtpRequest`: code (6 số) | 200 user phẳng (`is_verified=true`). Tăng `attempts` nguyên tử trước khi so (data-model §3.1). Sai → 422 `VALIDATION_ERROR` field `code`; hết hạn/không có mã → 422 field `code` (thông điệp hết hạn); hết 5 lượt của mã → 429 `TOO_MANY_ATTEMPTS` (phải gửi mã mới); vượt throttle → 429 + `Retry-After` |
 | PUT | /auth/contact | `Auth\ContactController@update` | student | email/phone mới | 200 `{ resend_available_at: string\|null }`. Huỷ MỌI OTP cũ, reset `*_verified_at` tương ứng, gửi OTP mới (S9). Request: `email` và/hoặc `phone` (≥ 1; unique; chuẩn hoá như đăng ký). Không đổi gì → 200 `null`; chỉ đổi SĐT khi kênh `sms` tắt (production) → reset `phone_verified_at`, không gửi mã, `null`. Không áp cooldown 60s (sửa nhầm email sau đăng ký) nhưng vẫn áp trần 5/giờ, 10/ngày (vượt → 429 và không đổi gì); limiter `contact` 10/giờ/user |
-| POST | /auth/password/forgot | `Auth\PasswordResetController@request` | guest, throttle:password-reset | login, captcha_token | 202 **luôn cùng thông điệp** dù tài khoản có tồn tại hay không. **US-015 — chờ BA viết story** |
-| POST | /auth/password/reset | `Auth\PasswordResetController@reset` | guest, throttle:otp-verify | login, code, password (confirmed) | 200; huỷ mọi phiên (tombstone `password_changed`) |
-| PUT | /auth/password | `Auth\PasswordController@update` | student | current_password, password (confirmed) | 200; huỷ phiên khác, bind lại phiên hiện tại (ADR-003) |
+| POST | /auth/password/forgot | `Auth\PasswordResetController@request` | guest.student, throttle:password-reset | `ForgotPasswordRequest`: login, captcha_token | 202 `{ message, resend_available_at }` **luôn giống nhau** dù tài khoản có tồn tại/bị khoá hay không (US-015). Chi tiết ở khối T27 |
+| POST | /auth/password/reset | `Auth\PasswordResetController@reset` | guest.student, throttle:otp-verify | `ResetPasswordRequest`: login, code (6 số), password, password_confirmation | 200 `{ message }`; huỷ mọi phiên (tombstone `password_changed`). Không tự đăng nhập: FE chuyển sang `/dang-nhap` |
+| PUT | /auth/password | `Auth\PasswordController@update` | student, throttle:password-change | `ChangePasswordRequest`: current_password, password, password_confirmation | 200 `{ message, session_kept }`; huỷ phiên khác, bind lại phiên hiện tại (ADR-003) |
 
 **Bổ sung từ T03 (2026-10-05):**
 - `user` trong response register/login (phẳng): `id, name, email, phone, role, grade_level, is_verified (= email_verified_at != null), parent_consent_status`. Không có `parent_*` (chỉ `/auth/me` trả bản đã che).
@@ -166,6 +168,12 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 - Response register/login có `Cache-Control: no-store, private`.
 
 **Bổ sung từ T05 (2026-10-05):** `POST /auth/register` tạo tài khoản xong mới bind phiên; nếu bind lỗi (DB) thì vẫn trả **201** nhưng **không có phiên** (không Set-Cookie phiên đăng nhập). FE: sau 201, gọi `/auth/me`; nhận 401 thì chuyển sang `/dang-nhap` (không đăng ký lại vì sẽ trùng email/SĐT). `device_id` ở register/login chỉ nhận chuỗi (mảng → 422), chuỗi sai định dạng/quá dài bị bỏ qua.
+
+**Bổ sung từ T27 (2026-10-05) — quên/đặt lại/đổi mật khẩu (US-015):**
+- `forgot`: captcha kiểm trước mọi rule (`CAPTCHA_FAILED` 422; thiếu Origin → 400 `ORIGIN_NOT_ALLOWED`). Luôn 202 `{ message: "Nếu thông tin tồn tại, chúng tôi đã gửi mã xác nhận đến email của bạn.", resend_available_at }`; `resend_available_at` luôn = now + 60s (không lộ gì). OTP `reset_password` gửi qua email SAU khi trả response (`defer`), chỉ cho học sinh `active`, chưa ẩn danh hoá, kể cả email chưa xác thực. Locked/GV/không tồn tại → vẫn 202, không gửi. Lỗi gửi/trần OTP của tài khoản bị nuốt (không lộ). Giới hạn: cooldown 1/phút, 5/giờ theo tài khoản (email và SĐT của cùng 1 người dùng chung hạn mức; tài khoản không tồn tại theo `LoginService::accountKey`), 30/giờ/IP → 429 `TOO_MANY_ATTEMPTS`-style + `Retry-After` (giống nhau cho tồn tại/không tồn tại). Học sinh đang đăng nhập hợp lệ gọi → 403 `FORBIDDEN`.
+- `reset`: `password` min 8 max 128, lỗi xác nhận ở `password_confirmation` (quy ước T03). Sai mã → 422 field `code` ("Mã OTP không đúng…"), hết hạn/không có mã/tài khoản không tồn tại/bị khoá → 422 field `code` ("Mã OTP đã hết hạn…", cùng thông điệp để không lộ tồn tại), hết 5 lượt của mã → 429 `TOO_MANY_ATTEMPTS`. Mã gắn với email lúc gửi (đổi email sau đó → mã vô hiệu). Throttle `otp-verify` theo tài khoản (5/phút, 20/ngày) + 60/giờ/IP. Thành công: đổi mật khẩu + `password_changed_at` + huỷ phiên hiện hành (tombstone `password_changed` → phiên cũ nhận 401 `SESSION_REVOKED`) trong cùng transaction với việc tiêu thụ mã; audit `account.password_reset`.
+- `PUT /auth/password`: sai mật khẩu hiện tại → 422 field `current_password` ("Mật khẩu hiện tại không đúng."); mật khẩu mới trùng hiện tại → 422 field `password` (chốt: từ chối; chưa kiểm N mật khẩu gần nhất). Thành công: huỷ phiên khác, `session_regenerate` + bind lại phiên hiện tại (cookie phiên MỚI trong Set-Cookie; giữ `current_device_id`), 200 `session_kept: true`. Nếu bind lại lỗi (DB) vẫn 200 nhưng `session_kept: false` và không còn phiên: FE gọi `/auth/me`, 401 → `/dang-nhap`. Throttle `password-change` 5/phút, 20/giờ/user. Audit `account.password_changed` / `account.password_change_failed`.
+- Chưa làm (ghi `docs/security/backlog-v2.md`): email cảnh báo "mật khẩu vừa đổi" (câu hỏi mở US-015).
 
 **Bổ sung từ T04 (2026-10-06):**
 - `is_verified` = đã xác thực OTP ít nhất một kênh liên hệ (`email_verified_at` HOẶC `phone_verified_at`; production MVP chỉ có email nên thực tế = email). Đổi email/SĐT reset cột tương ứng. Middleware `account.verified` dùng cùng định nghĩa (`User::isVerified()`), lỗi 403 `ACCOUNT_NOT_VERIFIED`.
@@ -229,13 +237,28 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 | POST | /admin/auth/logout | | auth:sanctum | |
 | GET | /admin/auth/me | | staff | user + role + quyền UI |
 
+**Bổ sung từ T28 (2026-10-07) — chốt cho FE-ADMIN FA1:**
+- Thứ tự middleware thật: `admin.origin` (chạy trước `auth:sanctum` nên Origin lạ luôn 403 `ORIGIN_NOT_ALLOWED`), `auth:sanctum`, `role:admin,quan_ly_trang,giao_vien`, Sanctum `AuthenticateSession`, `account.active`, `staff.idle`, `staff.mfa_passed`, `staff.password_fresh`, `no_store`.
+- `POST /admin/auth/login` body `{login, password, device_id?}`. UI chỉ nhập/hiển thị Email; backend dùng chung `LoginService::findByLogin` nên `login` là SĐT cũng được chấp nhận cho staff (không đổi API). **Không có `guest`** (đăng nhập lại khi cookie cũ còn sống là hợp lệ, như T05). Đếm sai: 10/giờ/tài khoản + 50/giờ/IP (khoá riêng với host api) → 429 `TOO_MANY_ATTEMPTS` + `Retry-After`.
+  - Admin/QLT (khi `FEATURE_STAFF_MFA`): 200 `{ "mfa_required": true, "resend_available_at": ISO8601 }` (không có `user`). Đã có phiên "chờ MFA".
+  - Giáo viên (hoặc MFA tắt): 200 `{ "mfa_required": false, "user": StaffUser }`.
+  - Sai thông tin: 422 `VALIDATION_ERROR` field `login`. Học sinh (mật khẩu đúng): 403 `WRONG_PORTAL`. Khoá (mật khẩu đúng): 403 `ACCOUNT_LOCKED`. Gửi OTP lỗi: 503 `OTP_DELIVERY_FAILED` (không cấp phiên).
+- `StaffUser` = `{ id, name, email, role, must_change_password, permissions: {manage_system, manage_subjects, manage_all_courses, manage_coupons, view_orders, export_orders, export_orders_with_contact}, session: {idle_timeout_minutes, expires_at} }` (`permissions` chỉ để ẩn/hiện UI).
+- `POST /admin/auth/mfa/verify` body `{code}` (6 số): 200 `{ "mfa_required": false, "user": StaffUser }`; sai/hết hạn 422 field `code`; hết 5 lượt của mã 429 `TOO_MANY_ATTEMPTS`; throttle 5/phút, 20/ngày/user. Gọi lại khi đã qua MFA vẫn 200. **Cookie phiên đổi giá trị** sau verify (trình duyệt tự cập nhật).
+- `POST /admin/auth/mfa/resend` (mới, không body): 202 `{ resend_available_at }`; cooldown 60s, 5/giờ, 10/ngày → 429 + `Retry-After`; đã qua MFA → 409 `ALREADY_PROCESSED`.
+- `PUT /admin/auth/password` (bắt buộc `current_password`, kể cả màn đổi mật khẩu lần đầu) body `{current_password, password, password_confirmation}` (min 8, max 128, phải khác mật khẩu cũ; lỗi khớp ở `password_confirmation`): 200 `{ "user": StaffUser }` (cookie đổi id), huỷ mọi phiên khác (chúng nhận 401 `UNAUTHENTICATED`). Sai mật khẩu hiện tại 422 field `current_password`. Throttle 5/phút, 20/giờ/user. Yêu cầu đã qua MFA (chặt hơn bản đầu), không yêu cầu `password_fresh`.
+- `POST /admin/auth/logout` → 204. Route cố ý không có `staff.idle`/`AuthenticateSession`: phiên hết hạn idle/đổi mật khẩu/chờ MFA/phải đổi mật khẩu vẫn đăng xuất được (204); chỉ khi hoàn toàn không có phiên đăng nhập mới 401.
+- `GET /admin/auth/me` → StaffUser phẳng. Trạng thái phiên FE dò theo mã lỗi: `MFA_REQUIRED` (403) → màn OTP; `PASSWORD_CHANGE_REQUIRED` (403) → màn đổi mật khẩu; `STAFF_IDLE_TIMEOUT` (401, lần đầu) rồi `UNAUTHENTICATED` → màn đăng nhập; `ACCOUNT_LOCKED` (403).
+- Giáo viên đăng nhập từ thiết bị mới (khoá bởi `X-Device-Id`/`device_id`, thiếu thì User-Agent) → email cảnh báo (không chặn).
+- Audit: `staff.login` (hoàn tất, `changes.mfa`), `staff.login_mfa_sent`, `staff.login_failed` (`reason`: bad_credentials|wrong_portal|locked), `staff.mfa_failed` (`reason`), `staff.logout`, `staff.password_changed`, `staff.password_change_failed`.
+
 **Nội dung & danh mục:**
 
 | Method | URI | Controller@action | Policy | Request / ghi chú |
 |---|---|---|---|---|
-| GET | /admin/subjects | `Admin\SubjectController@index` | `SubjectPolicy@viewAny` | GV chỉ nhận `active` |
-| POST/PUT/DELETE | /admin/subjects[/{subject}] | | staff | `SubjectRequest`: name (trim, 1–100, văn bản thuần). Xoá khi đang gán → 409 |
-| PATCH | /admin/subjects/{subject}/status | | staff | |
+| GET | /admin/subjects | `Admin\SubjectController@index` | `SubjectPolicy@viewAny` | GV chỉ nhận `active` (bỏ qua `status`). Query: `q` (≤100, escape LIKE), `status`, `per_page` (25\|50), `all=1` (không phân trang → `{data}` không có meta/links, dùng cho ô chọn chuyên đề). Mặc định `paginate(25)` sắp `name asc, id asc`. Item: `{id, name, slug, status, courses_count (chỉ staff), created_at, updated_at}` |
+| POST/PUT/DELETE | /admin/subjects[/{subject}] | | staff | `SubjectRequest`: name (trim + gộp khoảng trắng, 1–100, văn bản thuần: có `<`/`>`/thẻ HTML/ký tự điều khiển → 422). Trùng tên (không phân biệt hoa/thường/dấu) → 422 `errors.name` "Chuyên đề đã tồn tại." POST → 201 (status `active`, slug sinh từ tên, thêm `-2`, `-3` khi trùng). PUT đổi tên **không đổi slug**. DELETE → 204; đang gán khóa học (kể cả khóa đã xoá mềm) → 409 `SUBJECT_IN_USE` (gợi ý chuyển Ẩn). Quyền kiểm trước validate (GV → 403 `FORBIDDEN`). Audit: `subject.create`, `subject.delete` (+ `subject.update`, `subject.status`) |
+| PATCH | /admin/subjects/{subject}/status | | staff | body `{status: active\|hidden}` → 200 Subject |
 | GET | /admin/teachers | `Admin\TeacherController@index` | staff | Chỉ `id`, `name` (không email/SĐT) |
 | GET | /admin/courses | `Admin\CourseController@index` | `CoursePolicy@viewAny` | Scope `visibleTo`; q escape LIKE |
 | POST | /admin/courses | `store` | `CoursePolicy@create` | `StoreCourseRequest`: title, grade_level, subject_ids[] (exists active), short_description, description (HTML → Purifier §4), price (int 0..50.000.000), thumbnail (§4 quy tắc ảnh), teacher_ids[] (**chỉ staff**; GV gửi thì bị bỏ qua, tự thêm chính mình) |

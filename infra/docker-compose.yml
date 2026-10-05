@@ -105,6 +105,8 @@ services:
     environment:
       HOME: /tmp
     command: ["php", "artisan", "queue:work", "--queue=default,exports", "--tries=3", "--sleep=1"]
+    # Worker tự thoát khi một job quá thời gian ("Job timed out") — cần tự khởi động lại.
+    restart: unless-stopped
     volumes:
       - ../backend:/var/www/backend
     env_file:

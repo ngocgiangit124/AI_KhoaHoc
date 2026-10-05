@@ -42,3 +42,35 @@ Chưa có dòng code nào của M1–M3, L1–L5 được viết (đã xác nh�
 | T05-3 | Low | `device_id` chỉ so sánh để chọn thông điệp (đúng ADR); kẻ biết UUID thiết bị chủ có thể ép thông báo `SESSION_EXPIRED` thay `SESSION_REPLACED` (không cấp quyền) | Chấp nhận |
 | T05-4 | Info | `StudentSessionService::revoke()` đã sẵn cho T27 (đổi/đặt lại mật khẩu) và luồng khoá học sinh; hiện chưa có lệnh/endpoint khoá học sinh nào gọi nó (`staff:lock` chỉ cho staff/GV). Khi có chức năng khoá học sinh (quản trị) phải gọi `revoke($user, 'locked')`; đổi mật khẩu khi đang đăng nhập phải bind lại phiên hiện tại (ADR-003) | Theo dõi ở T27 |
 | T05-5 | Info | Chưa có test song song thật (2 process login cùng lúc) cho `lockForUpdate` của `bind()` | QA bổ sung nếu cần |
+
+## T28 (đăng nhập quản trị) — điểm nghi ngờ ghi nhận, không có Critical/High (2026-10-07)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T28-1 | Low | Throttle đăng nhập sai quản trị cũng khoá được tài khoản staff từ người ngoài (10 lần/giờ), như M1 của T03; chưa có captcha/cảnh báo khi chạm ngưỡng; request bị 429 chưa ghi audit | Hoãn v2 |
+| T28-2 | Low | MFA dùng chung trần OTP 5/giờ, 10/ngày với mọi purpose: admin đăng nhập nhiều lần/ngày có thể tự khoá MFA; chưa có "khoá xác thực 24h" có audit | Hoãn v2 |
+| T28-3 | Low | Session cũ sau đổi mật khẩu/regenerate (`regenerate(false)`) còn nằm ở store đến hết TTL (bị AuthenticateSession huỷ khi dùng lại); không có tombstone để báo `SESSION_REVOKED` cho staff | Hoãn v2 |
+| T28-4 | Low | Nhận diện thiết bị mới của giáo viên dựa vào `X-Device-Id` do client tự khai (kẻ có mật khẩu có thể tái dùng UUID đã biết để tránh email cảnh báo; cookie thiết bị ký phía server sẽ tốt hơn) | Hoãn v2 |
+| T28-5 | Info | Staff không bị một-phiên: nhiều phiên song song được phép; thông điệp WRONG_PORTAL của host api học sinh (T03) còn nêu "trang học sinh" | Theo dõi |
+| T28-6 | Low | Request không có `Accept: application/json` tới route cần đăng nhập trả 500 "Route [login] not defined" (có từ trước T28, review R6). Đề xuất `shouldRenderJsonWhen` cho `api/*` hoặc `redirectGuestsTo(fn () => null)` + test 401 | Hoãn v2 |
+
+## T17 (cổng thanh toán MoMo) — điểm nghi ngờ ghi nhận, không có Critical/High (2026-10-05)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T17-1 | Medium | Danh sách trường ký của **phản hồi query** (`MoMoSigner::QUERY_RESPONSE_FIELDS`, đang = danh sách IPN) và vector chữ ký **chưa đối chiếu tài liệu/sandbox MoMo** (không truy cập được offline). Sai danh sách → verify fail-closed (không bao giờ nhầm thành công) nhưng đối soát sẽ không chạy được | **Phải kiểm phản hồi query với sandbox MoMo thật trước khi làm T20** (nếu MoMo không ký phản hồi query: cần PO/Security đổi ADR §7b); đối chiếu cả vector chính thức. PO quyết định |
+| T17-2 | Low | Đã xử lý (R3): mặc định `MOMO_PAY_URL_HOSTS` chỉ `payment.momo.vn`; sandbox đặt rõ trong `.env.example` local. Guard production chưa ép giá trị này | Chấp nhận |
+| T17-3 | Low | Chưa dùng tham số hạn link MoMo (`orderExpireTime`) và chưa xác nhận mã resultCode "giao dịch không tồn tại/hết hạn" (đã tách `EXPIRED_CODES` [1005, 42] và `FAILED_CODES`; mã 8000/10/11/99/1005/42/1001-1007 CHƯA đối chiếu tài liệu; query gặp mã lạ → Pending; IPN mã lạ → Failed theo ADR); hạn mức 1.000–50.000.000đ lấy từ config, cần xác nhận | Kiểm ở sandbox |
+| T17-4 | Info | Chưa có `MOMO_IP_ALLOWLIST` (tuỳ chọn, phụ thuộc IP thật qua proxy, S10) và chưa giới hạn tần suất gọi query (thuộc T20) | Theo dõi |
+
+## T27 (quên/đổi mật khẩu học sinh) — điểm nghi ngờ ghi nhận, không có Critical/High (2026-10-05)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T27-1 | Low | Throttle `otp-verify` cho `reset` theo tài khoản (5/phút, 20/ngày) cho phép kẻ ngoài cố tình khoá việc đặt lại mật khẩu của nạn nhân (DoS nhẹ); chặn dò mã vẫn do giới hạn 5 lần/mã. Chưa có cảnh báo khi chạm ngưỡng | Hoãn v2 |
+| T27-2 | Low | Chưa gửi email cảnh báo "mật khẩu vừa được thay đổi" sau reset/đổi (câu hỏi mở US-015); chưa kiểm N mật khẩu gần nhất (chỉ chặn trùng mật khẩu hiện tại khi đổi) | Hoãn v2 |
+| T27-3 | Low | `forgot` gửi OTP sau response (`defer`) nên timing đồng đều, nhưng queue mail và lỗi gửi bị nuốt (chỉ log): người dùng không biết mã không tới. Cần giám sát tỉ lệ lỗi gửi OTP ở vận hành | Theo dõi |
+| T27-4 | Low | Reset thành công không xoá bộ đếm đăng nhập sai (`login-fail:*`) của tài khoản | Hoãn v2 |
+| T27-5 | Medium | `reset` (không captcha) còn lộ tài khoản tồn tại qua THÔNG ĐIỆP: tài khoản có mã hiệu lực + mã sai → "Mã OTP không đúng", không tồn tại → "đã hết hạn" (kẻ ngoài gọi `forgot` rồi `reset` mã bậy). Phần TIMING đã sửa (QA BUG-1: `dummyHash()` cache liên request qua `Cache::rememberForever` theo cost, mỗi nhánh đúng 1 lần `Hash::check`, có test đếm băm); còn lại phần thông điệp. Giữ AC3 theo quyết định PO; v2 cân nhắc thông điệp chung hoặc captcha ở reset | Hoãn v2 (PO) |
+| T27-6 | Low | R4 review: `StudentSessionService::killSession` (tombstone + destroy) chạy trong transaction của reset/change; commit lỗi sau đó → văng phiên oan. Đề xuất `DB::afterCommit` trong `revoke()` (đụng code T05, chạy lại test T05) | Hoãn v2 |
+| T27-7 | Low | R6 review: cooldown OTP 60s dùng chung mọi purpose nên quên mật khẩu ngay sau đăng ký (<60s) không nhận mã dù vẫn 202; mã `reset_password` còn hiệu lực chưa bị vô hiệu khi `change()` | Hoãn v2 |
