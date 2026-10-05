@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Builders\ImmutableAuditLogBuilder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Query\Builder;
 use LogicException;
 
@@ -66,6 +67,14 @@ class AuditLog extends Model
         static::deleting(function (): void {
             throw new LogicException('AuditLog là bất biến — không được phép xoá (delete()).');
         });
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function actor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'actor_id');
     }
 
     protected function casts(): array

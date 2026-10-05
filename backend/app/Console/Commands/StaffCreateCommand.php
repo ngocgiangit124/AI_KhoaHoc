@@ -3,13 +3,13 @@
 namespace App\Console\Commands;
 
 use App\Enums\UserRole;
-use App\Enums\UserStatus;
+use App\Http\Requests\Admin\Staff\StaffStoreRequest;
 use App\Models\User;
-use App\Services\Audit\AuditLogger;
+use App\Services\Staff\StaffAccountService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Tạo tài khoản staff (admin/quản lý trang/giáo viên) — chỉ chạy trên server
@@ -22,7 +22,7 @@ class StaffCreateCommand extends Command
 
     protected $description = 'Tạo tài khoản staff với mật khẩu ngẫu nhiên (in ra một lần), buộc đổi mật khẩu ở lần đăng nhập đầu';
 
-    public function handle(AuditLogger $auditLogger): int
+    public function handle(StaffAccountService $service): int
     {
         $email = mb_strtolower(trim((string) $this->argument('email')));
         $roleOption = (string) $this->option('role');
@@ -46,31 +46,32 @@ class StaffCreateCommand extends Command
             return self::FAILURE;
         }
 
-        $password = Str::password(20, symbols: true);
+        $name = (string) ($this->option('name') ?: Str::before($email, '@'));
+        $request = new StaffStoreRequest;
+        $validator = Validator::make(
+            ['name' => $name, 'email' => $email, 'role' => $role->value],
+            $request->rules(),
+            $request->messages(),
+        );
 
-        // L4 (review bảo mật T01/T02) — ghi audit TRONG CÙNG transaction với
-        // tạo user: nếu ghi audit lỗi (vd DB tạm gián đoạn), toàn bộ rollback,
-        // không để lọt tài khoản staff được tạo mà thiếu audit tương ứng (S15).
-        $user = DB::transaction(function () use ($email, $role, $password, $auditLogger) {
-            // forceCreate (không phải create()) — cố ý ghi ngoài $fillable (S17):
-            // command CLI là "Service chuyên trách" duy nhất được phép đổi
-            // role/status trực tiếp khi tạo tài khoản staff.
-            $user = User::query()->forceCreate([
-                'name' => (string) ($this->option('name') ?: Str::before($email, '@')),
-                'email' => $email,
-                'role' => $role,
-                'status' => UserStatus::Active,
-                'password' => Hash::make($password),
-                'must_change_password' => true,
-                'email_verified_at' => now(),
-            ]);
+        if ($validator->fails()) {
+            $this->components->error($validator->errors()->all()[0]);
 
-            $auditLogger->log('staff.create', $user, [
-                'role' => $role->value,
-            ]);
+            return self::FAILURE;
+        }
 
-            return $user;
-        });
+        try {
+            ['user' => $user, 'password' => $password] = $service->create(
+                null,
+                $name,
+                $email,
+                $role,
+            );
+        } catch (ValidationException $e) {
+            $this->components->error(collect($e->errors())->flatten()->implode(' '));
+
+            return self::FAILURE;
+        }
 
         $this->components->info('Tạo tài khoản staff thành công.');
         $this->line("Email: {$user->email}");

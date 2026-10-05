@@ -20,7 +20,10 @@ final class StaffSession
     /** Đã nhập đúng OTP MFA (hoặc không cần MFA) trong phiên này. */
     public const MFA_PASSED = 'staff_mfa_passed';
 
-    public static function start(Session $session, bool $mfaPassed): void
+    /** Phiên bản huỷ phiên của tài khoản lúc đăng nhập (T33, `StaffSessionRevoker`). */
+    public const REVOKE_VERSION = 'staff_revoke_version';
+
+    public static function start(Session $session, bool $mfaPassed, int|string $userId): void
     {
         $now = now()->getTimestamp();
 
@@ -28,6 +31,7 @@ final class StaffSession
             self::LOGIN_AT => $now,
             self::LAST_ACTIVITY => $now,
             self::MFA_PASSED => $mfaPassed,
+            self::REVOKE_VERSION => StaffSessionRevoker::version($userId),
         ]);
     }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\Auth\LoginController as StaffLoginController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MeController as StaffMeController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MfaController as StaffMfaController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Api\V1\Admin\LessonController;
 use App\Http\Controllers\Api\V1\Admin\LessonVideoUploadController;
 use App\Http\Controllers\Api\V1\Admin\QuizController;
 use App\Http\Controllers\Api\V1\Admin\QuizQuestionController;
+use App\Http\Controllers\Api\V1\Admin\StaffAccountController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Admin\TeacherController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
@@ -161,5 +163,15 @@ Route::domain(config('app.admin_api_host'))
             Route::post('/admin/coupons/{coupon}/deactivate', [CouponController::class, 'deactivate'])->name('admin.coupons.deactivate');
             Route::post('/admin/coupons/{coupon}/activate', [CouponController::class, 'activate'])->name('admin.coupons.activate');
             Route::delete('/admin/coupons/{coupon}', [CouponController::class, 'destroy'])->name('admin.coupons.destroy');
+
+            // T33 — Tài khoản staff + nhật ký thao tác (US-016). Chỉ admin (Gate `manage-system`, kiểm trước validate).
+            Route::get('/admin/staff', [StaffAccountController::class, 'index'])->name('admin.staff.index');
+            Route::post('/admin/staff', [StaffAccountController::class, 'store'])->middleware('throttle:30,1')->name('admin.staff.store');
+            Route::get('/admin/staff/{staff}', [StaffAccountController::class, 'show'])->name('admin.staff.show');
+            Route::post('/admin/staff/{staff}/lock', [StaffAccountController::class, 'lock'])->middleware('throttle:30,1')->name('admin.staff.lock');
+            Route::post('/admin/staff/{staff}/unlock', [StaffAccountController::class, 'unlock'])->middleware('throttle:30,1')->name('admin.staff.unlock');
+            Route::patch('/admin/staff/{staff}/role', [StaffAccountController::class, 'updateRole'])->middleware('throttle:30,1')->name('admin.staff.role');
+            Route::post('/admin/staff/{staff}/reset-password', [StaffAccountController::class, 'resetPassword'])->middleware('throttle:30,1')->name('admin.staff.reset-password');
+            Route::get('/admin/audit-logs', [AuditLogController::class, 'index'])->name('admin.audit-logs.index');
         });
     });

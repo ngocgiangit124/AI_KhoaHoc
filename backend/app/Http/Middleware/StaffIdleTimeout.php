@@ -4,7 +4,9 @@ namespace App\Http\Middleware;
 
 use App\Exceptions\DomainException;
 use App\Services\Auth\Staff\StaffSession;
+use App\Services\Auth\Staff\StaffSessionRevoker;
 use Closure;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
@@ -47,6 +49,14 @@ class StaffIdleTimeout
                     : 'Phiên làm việc đã quá thời hạn tối đa, vui lòng đăng nhập lại.',
                 status: 401,
             );
+        }
+
+        // T33: tài khoản bị khoá/đổi vai trò/đặt lại mật khẩu sau khi phiên này được cấp → huỷ phiên.
+        if ((int) $session->get(StaffSession::REVOKE_VERSION, 0) !== StaffSessionRevoker::version($request->user()->getAuthIdentifier())) {
+            Auth::guard('web')->logout();
+            $session->invalidate();
+
+            throw new AuthenticationException;
         }
 
         $session->put(StaffSession::LAST_ACTIVITY, $now);

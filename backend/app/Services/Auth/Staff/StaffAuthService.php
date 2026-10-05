@@ -110,7 +110,7 @@ class StaffAuthService
         // trên cùng trình duyệt (nếu có) bị thay thế. Chưa có `staff_mfa_passed` thì phiên chỉ dùng được
         // cho /admin/auth/mfa/*, /admin/auth/logout (middleware `staff.mfa_passed`).
         Auth::guard('web')->login($user, remember: false);
-        StaffSession::start($request->session(), mfaPassed: ! $mfaRequired);
+        StaffSession::start($request->session(), mfaPassed: ! $mfaRequired, userId: $user->getKey());
 
         if ($mfaRequired) {
             $this->audit->log('staff.login_mfa_sent', $user);

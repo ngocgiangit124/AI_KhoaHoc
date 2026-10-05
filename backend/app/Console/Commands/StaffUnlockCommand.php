@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\UserStatus;
+use App\Exceptions\DomainException;
 use App\Models\User;
-use App\Services\Audit\AuditLogger;
+use App\Services\Staff\StaffAccountService;
 use Illuminate\Console\Command;
 
 class StaffUnlockCommand extends Command
@@ -13,7 +13,7 @@ class StaffUnlockCommand extends Command
 
     protected $description = 'Mở khoá một tài khoản staff/giáo viên (ghi audit)';
 
-    public function handle(AuditLogger $auditLogger): int
+    public function handle(StaffAccountService $service): int
     {
         $email = mb_strtolower(trim((string) $this->argument('email')));
 
@@ -25,14 +25,13 @@ class StaffUnlockCommand extends Command
             return self::FAILURE;
         }
 
-        $from = $user->status;
+        try {
+            $service->unlock($user);
+        } catch (DomainException $e) {
+            $this->components->error($e->getMessage());
 
-        $user->forceFill(['status' => UserStatus::Active])->save();
-
-        // L4 (review bảo mật T01/T02) — ghi rõ giá trị trước/sau thay vì `changes` rỗng.
-        $auditLogger->log('user.unlock', $user, [
-            'status' => ['from' => $from->value, 'to' => UserStatus::Active->value],
-        ]);
+            return self::FAILURE;
+        }
 
         $this->components->info("Đã mở khoá tài khoản: {$email}");
 
