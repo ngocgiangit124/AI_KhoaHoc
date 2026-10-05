@@ -6,14 +6,17 @@ export class ApiError extends Error {
   readonly code: string | undefined;
   readonly errors: Record<string, string[]> | undefined;
   readonly requestId: string | undefined;
+  /** Giây chờ theo header `Retry-After` (429), nếu server gửi dạng số giây. */
+  readonly retryAfterSeconds: number | undefined;
 
-  constructor(status: number, body: ApiErrorBody) {
+  constructor(status: number, body: ApiErrorBody, retryAfterSeconds?: number) {
     super(body.message || "Đã có lỗi xảy ra, vui lòng thử lại sau.");
     this.name = "ApiError";
     this.status = status;
     this.code = body.code;
     this.errors = body.errors;
     this.requestId = body.request_id;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 

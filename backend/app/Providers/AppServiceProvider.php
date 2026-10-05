@@ -6,6 +6,10 @@ use App\Models\User;
 use App\Services\Auth\Captcha\CaptchaVerifier;
 use App\Services\Auth\Captcha\FakeCaptchaVerifier;
 use App\Services\Auth\Captcha\TurnstileVerifier;
+use App\Services\Auth\Otp\LogSmsOtpSender;
+use App\Services\Auth\Otp\OtpDispatcher;
+use App\Services\Auth\Otp\OtpSender;
+use App\Services\Auth\Otp\SmsOtpSender;
 use App\Support\ProductionConfigGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -30,6 +34,14 @@ class AppServiceProvider extends ServiceProvider
             'fake' => new FakeCaptchaVerifier,
             default => throw new RuntimeException('CAPTCHA_DRIVER không hợp lệ (turnstile|fake).'),
         });
+
+        $this->app->bind(OtpSender::class, OtpDispatcher::class);
+
+        // S9: nhà cung cấp SMS giả lập CHỈ tồn tại ở local/testing. Production không bind gì
+        // (kênh `sms` bị chặn ở validation và ProductionConfigGuard).
+        if ($this->app->environment('local', 'testing')) {
+            $this->app->bind(SmsOtpSender::class, LogSmsOtpSender::class);
+        }
     }
 
     /**
@@ -117,6 +129,15 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute((int) config('auth.otp.max_verify_per_minute'))->by('otp-verify:'.$identity),
                 Limit::perDay((int) config('auth.otp.max_verify_per_day'))->by('otp-verify-day:'.$identity),
                 Limit::perHour(60)->by('otp-verify-ip:'.$request->ip()),
+            ];
+        });
+
+        // Đổi email/SĐT: chống flood (trần mã OTP nằm ở OtpService). Không cooldown 60s vì sửa nhầm
+        // email ngay sau đăng ký là luồng chính.
+        RateLimiter::for('contact', function (Request $request) {
+            return [
+                Limit::perHour(10)->by('contact:'.$this->identity($request)),
+                Limit::perHour(30)->by('contact-ip:'.$request->ip()),
             ];
         });
 

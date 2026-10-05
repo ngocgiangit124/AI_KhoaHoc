@@ -21,3 +21,24 @@ export function consumeAccountFlash(): AccountFlash | null {
     return null;
   }
 }
+
+const OTP_SENT_KEY = "vv:otp-sent-at";
+
+/** Ghi mốc server vừa gửi OTP (sau đăng ký) để trang OTP khởi tạo cooldown "Gửi lại mã". */
+export function markOtpSent(now: number = Date.now()): void {
+  try {
+    sessionStorage.setItem(OTP_SENT_KEY, String(now));
+  } catch {
+    // bỏ qua: chỉ mất cooldown ban đầu, server vẫn chặn gửi quá sớm.
+  }
+}
+
+export function readOtpSentAt(): number | null {
+  try {
+    const raw = sessionStorage.getItem(OTP_SENT_KEY);
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}

@@ -92,6 +92,15 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * `is_verified` (api-contract §2.2, US-001 AC8): đã xác thực OTP ít nhất một kênh liên hệ
+     * (email hoặc SĐT). Đổi email/SĐT sẽ reset cột tương ứng (S9). Production MVP chỉ có kênh email.
+     */
+    public function isVerified(): bool
+    {
+        return $this->email_verified_at !== null || $this->phone_verified_at !== null;
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;

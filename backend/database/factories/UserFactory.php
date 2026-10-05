@@ -39,6 +39,7 @@ class UserFactory extends Factory
             'date_of_birth' => fake()->dateTimeBetween('-19 years', '-18 years')->format('Y-m-d'),
             'email_verified_at' => null,
             'phone_verified_at' => null,
+            'parent_consent_status' => ParentConsentStatus::NotRequired,
             'remember_token' => Str::random(10),
         ];
     }

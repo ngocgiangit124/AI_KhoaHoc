@@ -1,13 +1,21 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { fetchCurrentUser, type AuthUser } from "./api";
+import { fetchCurrentUser, type AuthUser, type MeResult } from "./api";
 
-export type AuthState = { status: "loading" } | { status: "guest" } | { status: "user"; user: AuthUser };
+function toState(result: MeResult): AuthState {
+  if (result.kind === "user") return { status: "user", user: result.user };
+  return { status: result.kind };
+}
+
+export type AuthState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "guest" } | { status: "user"; user: AuthUser };
 
 interface AuthContextValue {
   state: AuthState;
-  /** Hỏi lại `/auth/me` (sau xác thực OTP, đổi liên hệ). */
+  /** Hỏi lại `/auth/me` (sau đổi liên hệ, hoặc nút "Thử lại" khi lỗi tạm thời). */
   refresh: () => Promise<AuthState>;
 }
 
@@ -18,16 +26,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: "loading" });
 
   const refresh = useCallback(async (): Promise<AuthState> => {
-    const user = await fetchCurrentUser();
-    const next: AuthState = user ? { status: "user", user } : { status: "guest" };
+    setState((prev) => (prev.status === "error" ? { status: "loading" } : prev));
+    const next = toState(await fetchCurrentUser());
     setState(next);
     return next;
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchCurrentUser(controller.signal).then((user) => {
-      if (!controller.signal.aborted) setState(user ? { status: "user", user } : { status: "guest" });
+    fetchCurrentUser(controller.signal).then((result) => {
+      if (!controller.signal.aborted) setState(toState(result));
     });
     return () => controller.abort();
   }, []);

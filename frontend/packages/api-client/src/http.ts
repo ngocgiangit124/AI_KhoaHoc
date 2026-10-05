@@ -11,6 +11,12 @@ export async function doFetch(url: string, init: RequestInit): Promise<Response>
 }
 
 /** Đọc body JSON theo envelope api-contract, ném `ApiError` khi response không `ok`. */
+function readRetryAfter(res: Response): number | undefined {
+  const raw = res.headers.get("Retry-After");
+  if (!raw || !/^\d+$/.test(raw.trim())) return undefined;
+  return Number(raw.trim());
+}
+
 export async function parseJsonResponse<T>(res: Response): Promise<T> {
   if (res.status === 204) {
     return undefined as T;
@@ -25,14 +31,12 @@ export async function parseJsonResponse<T>(res: Response): Promise<T> {
       if (res.ok) {
         return undefined as T;
       }
-      throw new ApiError(res.status, {
-        message: "Đã có lỗi xảy ra, vui lòng thử lại sau.",
-      });
+      throw new ApiError(res.status, { message: "Đã có lỗi xảy ra, vui lòng thử lại sau." }, readRetryAfter(res));
     }
   }
 
   if (!res.ok) {
-    throw new ApiError(res.status, (body ?? {}) as ApiErrorBody);
+    throw new ApiError(res.status, (body ?? {}) as ApiErrorBody, readRetryAfter(res));
   }
 
   return body as T;

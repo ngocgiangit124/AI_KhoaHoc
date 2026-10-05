@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ApiError, clearCsrfToken, getDeviceId } from "@vitaminvui/api-client";
+import { ApiError, clearCsrfToken, dispatchAuthEventIfNeeded, getDeviceId } from "@vitaminvui/api-client";
 import { authFetch } from "@/lib/api";
 import { env } from "@/env";
 import { isBelowConsentAge } from "./age";
@@ -129,7 +129,7 @@ export async function logoutStudent(): Promise<void> {
   }
 }
 
-/** `POST /auth/otp/send` → 202 `{ resend_available_at }` (định dạng thời điểm contract chưa ghi; đọc như ISO 8601). */
+/** `POST /auth/otp/send` → 202 `{ resend_available_at }` (ISO 8601). */
 export async function sendOtp(): Promise<{ resendAvailableAt: string | null }> {
   const raw = await authFetch<unknown>("/api/v1/auth/otp/send", {
     method: "POST",
@@ -139,7 +139,7 @@ export async function sendOtp(): Promise<{ resendAvailableAt: string | null }> {
   return { resendAvailableAt: readResendAvailableAt(raw) };
 }
 
-/** `POST /auth/otp/verify` → 200 user đã xác thực (shape coi như user phẳng, parse mềm). */
+/** `POST /auth/otp/verify` → 200 user phẳng đã xác thực (parse mềm). */
 export async function verifyOtp(code: string): Promise<AuthUser | null> {
   const raw = await authFetch<unknown>("/api/v1/auth/otp/verify", {
     method: "POST",
@@ -155,8 +155,8 @@ export interface ContactPayload {
 }
 
 /**
- * `PUT /auth/contact` — contract chỉ ghi "email/phone mới" (tên field suy từ user shape),
- * response không mô tả → chỉ đọc `resend_available_at` nếu có.
+ * `PUT /auth/contact` — body `{email?, phone?}` (≥ 1 field) → 200 `{ resend_available_at }`;
+ * `null` nghĩa là server KHÔNG gửi mã mới (ví dụ chỉ đổi SĐT, hoặc giá trị không đổi).
  */
 export async function updateContact(payload: ContactPayload): Promise<{ resendAvailableAt: string | null }> {
   const raw = await authFetch<unknown>("/api/v1/auth/contact", {
@@ -175,12 +175,16 @@ function readResendAvailableAt(raw: unknown): string | null {
   return null;
 }
 
+/** Kết quả hỏi `/auth/me`: chỉ 401 mới là khách; lỗi mạng/5xx/429 là `error` (không được coi là khách). */
+export type MeResult = { kind: "user"; user: AuthUser } | { kind: "guest" } | { kind: "error" };
+
 /**
- * Hỏi `GET /auth/me` để biết khách hay học sinh. Dùng `fetch` thẳng (không qua authFetch) vì
- * 401 ở đây là trạng thái KHÁCH bình thường — không được phát `login-required` (sẽ đá khách
- * khỏi trang công khai). Lỗi mạng/5xx → `null` (hiển thị như khách, không chặn trang).
+ * Hỏi `GET /auth/me`. Dùng `fetch` thẳng (không qua authFetch) vì 401 `UNAUTHENTICATED` ở đây là
+ * trạng thái KHÁCH bình thường — không được phát `login-required` (sẽ đá khách khỏi trang công
+ * khai). Riêng 401 `SESSION_REPLACED` (ADR-003) thì phát sự kiện `forced-logout` để overlay phiên
+ * ở layout gốc chặn màn hình. Response 200 sai shape → `error`.
  */
-export async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> {
+export async function fetchCurrentUser(signal?: AbortSignal): Promise<MeResult> {
   try {
     const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/api/v1/auth/me`, {
       credentials: "include",
@@ -188,9 +192,16 @@ export async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser |
       headers: { Accept: "application/json", "X-Device-Id": getDeviceId() },
       signal,
     });
-    if (!res.ok) return null;
-    return parseAuthUser(await res.json());
+    if (res.status === 401) {
+      const body: unknown = await res.json().catch(() => null);
+      const code = typeof body === "object" && body !== null && "code" in body ? (body as { code: unknown }).code : null;
+      if (code === "SESSION_REPLACED") dispatchAuthEventIfNeeded("SESSION_REPLACED");
+      return { kind: "guest" };
+    }
+    if (!res.ok) return { kind: "error" };
+    const user = parseAuthUser(await res.json());
+    return user ? { kind: "user", user } : { kind: "error" };
   } catch {
-    return null;
+    return { kind: "error" };
   }
 }

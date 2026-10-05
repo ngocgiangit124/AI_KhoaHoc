@@ -111,6 +111,7 @@ Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $statu
 | 422 | `COUPON_INVALID` (**gộp**: không tồn tại / chưa bắt đầu / đã vô hiệu — S18), `COUPON_EXPIRED`, `COUPON_ALREADY_USED`, `COUPON_NOT_APPLICABLE` | |
 | 422 | `AMOUNT_BELOW_GATEWAY_MIN` | Tổng sau giảm 1–999đ (chờ PO) |
 | 429 | `TOO_MANY_ATTEMPTS` | |
+| 503 | `OTP_DELIVERY_FAILED` | Không gửi được mã OTP (mail/queue/SMS lỗi). Mã vừa tạo bị xoá, không tính vào cooldown/trần giờ/ngày; gửi lại được ngay |
 | 502 | `PAYMENT_GATEWAY_UNAVAILABLE` | Không tạo/không tra được giao dịch MoMo |
 
 ## 2. Route
@@ -148,10 +149,10 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 | POST | /auth/register | `Auth\RegisterController` | guest, throttle:register | `RegisterRequest`: name (≤150), date_of_birth, email, phone (VN), grade_level (6–12), password (min 8, confirmed), parent_phone/parent_email (≥1 khi dưới `privacy.parent_consent_age`), referral_code (chỉ khi flag bật), **accept_terms (accepted)**, **accept_privacy (accepted)**, **captcha_token**, device_id. `role`/`status`/`*_verified_at` **không nằm trong validated()** (S17) | 201 user; tự đăng nhập + bind phiên; tạo `consents` (self); gửi OTP; nếu dưới ngưỡng tuổi → `parent_consent_status=pending` + gửi email xác nhận cho phụ huynh (US-017) |
 | POST | /auth/login | `Auth\LoginController@store` | guest, throttle:login | `LoginRequest`: login (email hoặc SĐT), password, device_id | 200 user. Sai → 422 thông điệp chung. Khoá → 403 `ACCOUNT_LOCKED` **chỉ khi mật khẩu đúng**. Vai trò không phải `hoc_sinh` → 403 `WRONG_PORTAL` (sau khi mật khẩu đúng) |
 | POST | /auth/logout | `Auth\LoginController@destroy` | auth:sanctum | — | 204 |
-| GET | /auth/me | `Auth\MeController` | student | — | user + `is_verified` + `parent_consent_status` + `cart_count` + thông tin phụ huynh **đã che** |
-| POST | /auth/otp/send | `Auth\OtpController@send` | student, throttle:otp-send | `SendOtpRequest`: channel ∈ `config('auth.otp.channels')` (production MVP: chỉ `email`) | 202 + `resend_available_at` |
-| POST | /auth/otp/verify | `Auth\OtpController@verify` | student, throttle:otp-verify | `VerifyOtpRequest`: code (6 số) | 200 user đã xác thực. Tăng `attempts` nguyên tử trước khi so (data-model §3.1) |
-| PUT | /auth/contact | `Auth\ContactController@update` | student | email/phone mới | Huỷ OTP cũ, reset `*_verified_at` tương ứng, gửi OTP mới (S9) |
+| GET | /auth/me | `Auth\MeController` | student | — | **T04:** đúng shape `user` ở khối "Bổ sung từ T03" (phẳng, không `parent_*`). `cart_count` thêm ở T16, thông tin phụ huynh **đã che** thêm ở T29 (thêm field = tương thích) |
+| POST | /auth/otp/send | `Auth\OtpController@send` | student, throttle:otp-send | `SendOtpRequest`: channel ∈ `config('auth.otp.channels')` (production MVP: chỉ `email`) | 202 `{ resend_available_at }` (ISO 8601 có offset). Mã chỉ gửi tới email/SĐT **hiện tại** của tài khoản, chưa xác thực; đã xác thực → 422 field `channel` |
+| POST | /auth/otp/verify | `Auth\OtpController@verify` | student, throttle:otp-verify | `VerifyOtpRequest`: code (6 số) | 200 user phẳng (`is_verified=true`). Tăng `attempts` nguyên tử trước khi so (data-model §3.1). Sai → 422 `VALIDATION_ERROR` field `code`; hết hạn/không có mã → 422 field `code` (thông điệp hết hạn); hết 5 lượt của mã → 429 `TOO_MANY_ATTEMPTS` (phải gửi mã mới); vượt throttle → 429 + `Retry-After` |
+| PUT | /auth/contact | `Auth\ContactController@update` | student | email/phone mới | 200 `{ resend_available_at: string\|null }`. Huỷ MỌI OTP cũ, reset `*_verified_at` tương ứng, gửi OTP mới (S9). Request: `email` và/hoặc `phone` (≥ 1; unique; chuẩn hoá như đăng ký). Không đổi gì → 200 `null`; chỉ đổi SĐT khi kênh `sms` tắt (production) → reset `phone_verified_at`, không gửi mã, `null`. Không áp cooldown 60s (sửa nhầm email sau đăng ký) nhưng vẫn áp trần 5/giờ, 10/ngày (vượt → 429 và không đổi gì); limiter `contact` 10/giờ/user |
 | POST | /auth/password/forgot | `Auth\PasswordResetController@request` | guest, throttle:password-reset | login, captcha_token | 202 **luôn cùng thông điệp** dù tài khoản có tồn tại hay không. **US-015 — chờ BA viết story** |
 | POST | /auth/password/reset | `Auth\PasswordResetController@reset` | guest, throttle:otp-verify | login, code, password (confirmed) | 200; huỷ mọi phiên (tombstone `password_changed`) |
 | PUT | /auth/password | `Auth\PasswordController@update` | student | current_password, password (confirmed) | 200; huỷ phiên khác, bind lại phiên hiện tại (ADR-003) |
@@ -163,6 +164,14 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 - Captcha kiểm **trước** mọi rule khác (kể cả unique); thiếu Origin hợp lệ → 400 `ORIGIN_NOT_ALLOWED` trước khi gọi captcha. Token Turnstile dùng 1 lần nên frontend phải reset widget sau mọi lỗi 422/`CAPTCHA_FAILED`.
 - Login: bộ đếm "sai 10/giờ/`login` + 50/giờ/IP" chỉ tăng ở lượt SAI, xoá bộ đếm tài khoản khi đúng; `throttle:login` ở route chỉ là chống flood (120/phút/IP). Vượt → 429 `TOO_MANY_ATTEMPTS` + `Retry-After`.
 - Response register/login có `Cache-Control: no-store, private`.
+
+**Bổ sung từ T04 (2026-10-06):**
+- `is_verified` = đã xác thực OTP ít nhất một kênh liên hệ (`email_verified_at` HOẶC `phone_verified_at`; production MVP chỉ có email nên thực tế = email). Đổi email/SĐT reset cột tương ứng. Middleware `account.verified` dùng cùng định nghĩa (`User::isVerified()`), lỗi 403 `ACCOUNT_NOT_VERIFIED`.
+- Đăng ký (201) tự gửi OTP email; lỗi gửi không làm hỏng đăng ký (học sinh bấm gửi lại).
+- Trần OTP (nguồn sự thật là bảng `otp_codes`, không phụ thuộc cache): gửi mã cooldown 60s, ≤ 5/giờ, ≤ 10/ngày/user (mọi purpose); vượt → 429 `TOO_MANY_ATTEMPTS` + `Retry-After`, trần ngày ghi audit `otp.send_limit_reached`. Mỗi mã tối đa 5 lần so (`auth.otp.max_attempts_per_code`); verify throttle 5/phút, 20/ngày/user, 60/giờ/IP. Mã hiệu lực 10 phút. Gửi mã mới huỷ mã cũ cùng purpose.
+- `channel` mặc định `email` nếu không gửi. `sms` chỉ hợp lệ khi có trong `AUTH_OTP_CHANNELS` (local/testing, nhà cung cấp giả lập); production → 422 field `channel`, và app không boot nếu cấu hình bật `sms` ở production.
+- Đổi liên hệ chỉ huỷ mã của kênh có đích bị đổi (đổi email → mã email; đổi SĐT → mã sms); production đổi chỉ SĐT không huỷ mã email đang chờ. Verify (so đúng + consume + ghi `*_verified_at`) chạy trong một transaction có khoá hàng user và kiểm lại đích mã.
+- Không có mã lỗi OTP riêng cho sai/hết hạn: sai/hết hạn là 422 `VALIDATION_ERROR` field `code`; hết lượt là 429 `TOO_MANY_ATTEMPTS`.
 
 ### 2.3 Học sinh — giỏ hàng, checkout, đơn (host api, nhóm `student` + `role:hoc_sinh`)
 

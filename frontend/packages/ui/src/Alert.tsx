@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 export type AlertVariant = "success" | "danger" | "warning" | "info";
 
 export interface AlertProps {
+  id?: string;
   variant?: AlertVariant;
   title?: string;
   children: ReactNode;
@@ -20,12 +21,13 @@ const VARIANT_CLASSES: Record<AlertVariant, string> = {
 };
 
 /** Thông báo banner (design-system.md §6). */
-export function Alert({ variant = "info", title, children, dismissible = false, className = "" }: AlertProps) {
+export function Alert({ id, variant = "info", title, children, dismissible = false, className = "" }: AlertProps) {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
 
   return (
     <div
+      id={id}
       role="alert"
       className={`flex items-start gap-3 rounded-lg border p-4 text-sm ${VARIANT_CLASSES[variant]} ${className}`}
     >

@@ -1,7 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Auth\ContactController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
+use App\Http\Controllers\Api\V1\Auth\MeController;
+use App\Http\Controllers\Api\V1\Auth\OtpController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
@@ -57,11 +60,24 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
 
     // Nhóm `student` (api-contract §1.3): MỌI route khác cần đăng nhập trên host api
     // phải nằm trong nhóm này (test kiến trúc RouteMiddlewareGroupsTest bắt buộc).
-    // T04 (OTP/me/contact), T05, T10+ thêm route vào đây.
+    // T05, T10+ thêm route vào đây.
     Route::middleware([
         'auth:sanctum', 'account.active', 'student.single_session', 'no_store', 'role:hoc_sinh',
     ])->group(function (): void {
-        //
+        Route::get('/auth/me', MeController::class)->name('api.auth.me');
+
+        // T04 — OTP (S9): trần gửi/verify do OtpService + throttle (contract §1.6).
+        Route::post('/auth/otp/send', [OtpController::class, 'send'])
+            ->middleware('throttle:otp-send')
+            ->name('api.auth.otp.send');
+
+        Route::post('/auth/otp/verify', [OtpController::class, 'verify'])
+            ->middleware('throttle:otp-verify')
+            ->name('api.auth.otp.verify');
+
+        Route::put('/auth/contact', [ContactController::class, 'update'])
+            ->middleware('throttle:contact')
+            ->name('api.auth.contact');
     });
 
     // Auth (T04/T05/T27), Catalog (T10), Cart/Checkout (T16/T18),

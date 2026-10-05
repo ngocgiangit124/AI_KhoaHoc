@@ -6,23 +6,26 @@ use App\Enums\ParentConsentStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Services\Auth\Otp\OtpService;
 use App\Services\Privacy\ConsentService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Đăng ký học sinh (US-001). Chỉ tạo tài khoản + bằng chứng đồng ý + (nếu cần)
- * đánh dấu chờ phụ huynh. Gửi OTP (T04), bind phiên (T05) và email phụ huynh
- * (T29) KHÔNG nằm ở đây.
+ * đánh dấu chờ phụ huynh, rồi gửi OTP xác thực (T04). Bind phiên (T05) và email
+ * phụ huynh (T29) KHÔNG nằm ở đây.
  */
 class RegistrationService
 {
     public function __construct(
         private readonly ConsentService $consents,
         private readonly LoginService $login,
+        private readonly OtpService $otp,
     ) {}
 
     /**
@@ -77,15 +80,23 @@ class RegistrationService
             });
         } catch (UniqueConstraintViolationException $e) {
             // Race: 2 request cùng email/SĐT cùng vượt qua rule unique.
-            throw $this->duplicateToValidation($e);
+            throw self::duplicateToValidation($e);
         }
 
         $this->login->startSession($request, $user);
 
+        // AC1: gửi OTP xác thực qua email. Sự cố gửi (queue/mail) KHÔNG làm hỏng đăng ký — tài khoản
+        // đã tạo, học sinh bấm "Gửi lại mã" được. Không log nội dung có mã (chỉ báo lỗi hệ thống).
+        try {
+            $this->otp->sendVerification($user, 'email');
+        } catch (Throwable $e) {
+            report($e);
+        }
+
         return $user;
     }
 
-    private function duplicateToValidation(UniqueConstraintViolationException $e): ValidationException
+    public static function duplicateToValidation(UniqueConstraintViolationException $e): ValidationException
     {
         // Chỉ xét tên index sau "for key" — KHÔNG xét giá trị trùng (do người dùng kiểm soát).
         $key = preg_match("/for key '([^']+)'/", $e->getMessage(), $m) === 1 ? $m[1] : '';

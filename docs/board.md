@@ -4,7 +4,7 @@ Cập nhật: 2026-10-05. Phiên tiếp theo (kể cả Claude Code on the web) 
 
 ## Trạng thái task
 
-Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tasks.md`.
+Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tasks.md`. Báo cáo tổng hợp đã xong / đang làm / chưa làm: `docs/bao-cao-task.md`.
 
 | Task | Tên | Bước hiện tại | Trạng thái | Chặn bởi | Cập nhật |
 |---|---|---|---|---|---|
@@ -13,7 +13,7 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | FE0 | Khởi tạo frontend Next.js 16 | Xong | ✅ Review; 64 unit + e2e backend thật | — | 2026-09-25 |
 | T03 | Đăng ký/đăng nhập học sinh | Chờ PO duyệt commit | ✅ Review (APPROVE), Security (PASS có điều kiện, nợ v2 ở docs/security/backlog-v2.md), QA (PASS có điều kiện: 232 test; 7/21 e2e web chờ chạy lại do limiter) | — | 2026-10-05 |
 | FW1 (phần 1) | Màn đăng ký/đăng nhập (apps/web) | Chờ PO duyệt commit | ✅ Review (APPROVE), QA (PASS có điều kiện); còn R3 (/auth/me) làm cùng T04 | — | 2026-10-05 |
-| T04 | OTP | Chưa làm | — | T03 | — |
+| T04 | OTP + GET /auth/me | Chờ PO duyệt commit | ✅ Review (APPROVE), QA (PASS: 316 test, e2e OTP 11/11); nợ bảo mật T04-1..5 ở docs/security/backlog-v2.md | — | 2026-10-05 |
 | T05 | Một phiên học sinh | Chưa làm | — | T03 | — |
 
 ## Việc tiếp theo (theo thứ tự)
@@ -24,6 +24,11 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
    - FW1: chỉ màn Đăng ký, Đăng nhập, đăng xuất. Được cài `react-hook-form` + `@hookform/resolvers`. Turnstile dùng script chính thức.
 2. Mỗi task đi qua quy trình: `laravel-reviewer` → sửa → `laravel-security` (task có [SEC]) → `laravel-qa` → PO duyệt commit/push.
 3. Sau đó: T04 → T05 → T27, rồi T28 (đăng nhập quản trị, phải xong trước FA1).
+
+## Ghi chú kỹ thuật còn mở (T04)
+
+- Middleware `account.verified` đã có nhưng **chưa gắn vào route nào**: AC9 (chặn checkout khi chưa xác thực) hoàn tất ở T14/T18 khi có route checkout/đăng ký học miễn phí.
+- Middleware `student.single_session` vẫn **pass-through** cho tới T05 (ADR-003).
 
 ## Quy tắc làm việc đã thống nhất với PO
 
@@ -54,3 +59,4 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - 2026-09-28 · T01, T02 · Security + QA · Security FAIL (H1) → sửa → PASS có điều kiện; QA PASS; 114 test; commit 58fa34d
 - 2026-09-28 · T03, FW1 · Dev · Tạm dừng trước khi code, bàn giao cho Claude Code on the web
 - 2026-10-05 · T03, FW1 · Dev + Reviewer + Security + QA · Review APPROVE; Security PASS có điều kiện (hoãn v2); QA tìm BUG-1..5, đã sửa, PASS có điều kiện; host local đổi thành api.localhost:3000 và admin-api.localhost:3001; csrf throttle 120/phút
+- 2026-10-05 · T04, FW1 (OTP) · Dev + Reviewer + QA · Review APPROVE; QA tìm BUG-1..4 (mã OTP rò vào log, Retry-After chưa expose CORS...), đã sửa, PASS

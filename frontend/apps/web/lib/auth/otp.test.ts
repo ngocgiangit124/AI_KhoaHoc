@@ -35,6 +35,7 @@ describe("otp helpers", () => {
     expect(buildContactPayload(cur, { email: " a@x.vn ", phone: "0912345678" })).toEqual({});
     expect(buildContactPayload(cur, { email: "b@x.vn", phone: "0912345678" })).toEqual({ email: "b@x.vn" });
     expect(buildContactPayload(cur, { email: "a@x.vn", phone: "0987654321" })).toEqual({ phone: "0987654321" });
+    expect(buildContactPayload(cur, { email: "A@X.vn", phone: "+84 912 345 678" })).toEqual({});
   });
 
   it("otpErrorMessage", () => {

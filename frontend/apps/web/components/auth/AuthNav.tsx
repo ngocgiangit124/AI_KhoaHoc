@@ -6,10 +6,22 @@ import { LogoutButton } from "./LogoutButton";
 
 /** Khối tài khoản ở đầu trang: khách → Đăng nhập/Đăng ký; học sinh → tên + Đăng xuất. */
 export function AuthNav() {
-  const { state } = useAuth();
+  const { state, refresh } = useAuth();
 
   if (state.status === "loading") {
     return <div className="h-9 w-40" aria-hidden="true" />;
+  }
+
+  if (state.status === "error") {
+    return (
+      <button
+        type="button"
+        onClick={() => void refresh()}
+        className="inline-flex min-h-11 items-center px-2 text-sm font-medium text-indigo-700 hover:underline"
+      >
+        Không tải được tài khoản. Thử lại
+      </button>
+    );
   }
 
   if (state.status === "user") {

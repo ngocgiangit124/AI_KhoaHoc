@@ -26,7 +26,7 @@ class UserResource extends JsonResource
             'phone' => $this->phone,
             'role' => $this->role->value,
             'grade_level' => $this->grade_level,
-            'is_verified' => $this->email_verified_at !== null,
+            'is_verified' => $this->isVerified(),
             'parent_consent_status' => $this->parent_consent_status->value,
         ];
     }

@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { ApiError } from "@vitaminvui/api-client";
 import { Alert, Button, OtpInput } from "@vitaminvui/ui";
 import { sendOtp, verifyOtp } from "@/lib/auth/api";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { setAccountFlash } from "@/lib/auth/flash";
+import { readOtpSentAt, setAccountFlash } from "@/lib/auth/flash";
 import { formatCountdown, maskEmail, OTP_LENGTH, otpErrorMessage, secondsUntil } from "@/lib/auth/otp";
 import { ChangeContactForm } from "./ChangeContactForm";
 
@@ -27,8 +28,15 @@ export function OtpVerifyForm({ ttlMinutes, resendCooldownSeconds }: OtpVerifyFo
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
-  const [resendEndAt, setResendEndAt] = useState<number | null>(null);
+  // Vừa đăng ký xong thì server đã gửi mã: cooldown chạy từ mốc đó (nếu còn).
+  const [resendEndAt, setResendEndAt] = useState<number | null>(() => {
+    const sentAt = readOtpSentAt();
+    if (sentAt === null) return null;
+    const end = sentAt + resendCooldownSeconds * 1000;
+    return end > Date.now() ? end : null;
+  });
   const [remaining, setRemaining] = useState(0);
+  const [focusSignal, setFocusSignal] = useState(0);
   const [changing, setChanging] = useState(false);
 
   // Khách → đăng nhập rồi quay lại; đã xác thực → về trang chủ.
@@ -50,13 +58,17 @@ export function OtpVerifyForm({ ttlMinutes, resendCooldownSeconds }: OtpVerifyFo
     return () => clearInterval(id);
   }, [resendEndAt]);
 
+  const startCooldownSeconds = useCallback((seconds: number) => {
+    setResendEndAt(seconds > 0 ? Date.now() + seconds * 1000 : null);
+  }, []);
+
   const startCooldown = useCallback(
     (resendAvailableAt: string | null) => {
       const parsed = resendAvailableAt ? Date.parse(resendAvailableAt) : NaN;
       const seconds = Number.isNaN(parsed) ? resendCooldownSeconds : secondsUntil(resendAvailableAt);
-      setResendEndAt(seconds > 0 ? Date.now() + seconds * 1000 : null);
+      startCooldownSeconds(seconds);
     },
-    [resendCooldownSeconds],
+    [resendCooldownSeconds, startCooldownSeconds],
   );
 
   async function submit(value: string) {
@@ -74,9 +86,12 @@ export function OtpVerifyForm({ ttlMinutes, resendCooldownSeconds }: OtpVerifyFo
       router.replace("/");
       router.refresh();
     } catch (err) {
-      setError(otpErrorMessage(err));
+      const hint =
+        err instanceof ApiError && err.code === "TOO_MANY_ATTEMPTS" ? ' Bấm "Gửi lại mã" để nhận mã mới.' : "";
+      setError(otpErrorMessage(err) + hint);
       setCode("");
       setPending(false);
+      setFocusSignal((n) => n + 1);
     }
   }
 
@@ -95,10 +110,24 @@ export function OtpVerifyForm({ ttlMinutes, resendCooldownSeconds }: OtpVerifyFo
       setCode("");
       setNotice("Đã gửi mã mới. Mã cũ không còn hiệu lực.");
     } catch (err) {
+      if (err instanceof ApiError && err.status === 429 && err.retryAfterSeconds) {
+        startCooldownSeconds(err.retryAfterSeconds);
+      }
       setError(otpErrorMessage(err));
     } finally {
       setResending(false);
     }
+  }
+
+  if (state.status === "error") {
+    return (
+      <div className="space-y-4">
+        <Alert variant="danger">Không tải được thông tin tài khoản. Vui lòng kiểm tra kết nối và thử lại.</Alert>
+        <Button type="button" onClick={() => void refresh()}>
+          Thử lại
+        </Button>
+      </div>
+    );
   }
 
   if (state.status !== "user" || state.user.is_verified) {
@@ -116,10 +145,15 @@ export function OtpVerifyForm({ ttlMinutes, resendCooldownSeconds }: OtpVerifyFo
         onCancel={() => setChanging(false)}
         onDone={async (resendAvailableAt) => {
           await refresh();
-          startCooldown(resendAvailableAt);
-          setCode("");
           setError(null);
-          setNotice("Đã cập nhật thông tin liên hệ và gửi mã xác thực mới.");
+          if (resendAvailableAt === null) {
+            // Server không gửi mã mới (ví dụ chỉ đổi SĐT): giữ nguyên mã email đang chờ và cooldown hiện có.
+            setNotice("Đã cập nhật thông tin liên hệ.");
+          } else {
+            startCooldown(resendAvailableAt);
+            setCode("");
+            setNotice("Đã cập nhật thông tin liên hệ và gửi mã xác thực mới.");
+          }
           setChanging(false);
         }}
       />
@@ -133,7 +167,11 @@ export function OtpVerifyForm({ ttlMinutes, resendCooldownSeconds }: OtpVerifyFo
         Mã có hiệu lực trong {ttlMinutes} phút.
       </p>
 
-      {error ? <Alert variant="danger">{error}</Alert> : null}
+      {error ? (
+        <Alert id={errorId} variant="danger">
+          {error}
+        </Alert>
+      ) : null}
       {notice ? <Alert variant="success">{notice}</Alert> : null}
 
       <OtpInput
@@ -143,7 +181,8 @@ export function OtpVerifyForm({ ttlMinutes, resendCooldownSeconds }: OtpVerifyFo
           if (error) setError(null);
         }}
         onComplete={(v) => void submit(v)}
-        disabled={pending}
+        busy={pending}
+        focusSignal={focusSignal}
         invalid={error !== null}
         describedBy={error ? errorId : undefined}
         autoFocus

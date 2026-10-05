@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, type ClipboardEvent, type KeyboardEvent } from "react";
 
 export interface OtpInputProps {
   /** Giá trị hiện tại: chuỗi chỉ gồm chữ số, dài ≤ `length`. */
@@ -8,6 +8,8 @@ export interface OtpInputProps {
   onChange: (value: string) => void;
   length?: number;
   disabled?: boolean;
+  /** Đang xử lý: ô chuyển `readOnly` + `aria-busy` (không `disabled` để giữ focus). */
+  busy?: boolean;
   invalid?: boolean;
   /** Nhãn đọc cho cả nhóm (screen reader). */
   label?: string;
@@ -16,6 +18,8 @@ export interface OtpInputProps {
   autoFocus?: boolean;
   /** Gọi khi nhập đủ `length` chữ số. */
   onComplete?: (value: string) => void;
+  /** Mỗi lần giá trị này đổi (và > 0), focus về ô đầu — dùng sau khi báo lỗi/xoá mã. */
+  focusSignal?: number;
 }
 
 const onlyDigits = (s: string) => s.replace(/\D/g, "");
@@ -29,13 +33,19 @@ export function OtpInput({
   onChange,
   length = 6,
   disabled = false,
+  busy = false,
   invalid = false,
   label = "Mã xác thực",
   describedBy,
   autoFocus = false,
   onComplete,
+  focusSignal = 0,
 }: OtpInputProps) {
   const refs = useRef<Array<HTMLInputElement | null>>([]);
+
+  useEffect(() => {
+    if (focusSignal > 0) refs.current[0]?.focus();
+  }, [focusSignal]);
   const digits = Array.from({ length }, (_, i) => value[i] ?? "");
 
   function commit(next: string) {
@@ -52,9 +62,11 @@ export function OtpInput({
     const entered = onlyDigits(raw);
     if (!entered) return;
     // Nhiều ký tự một lúc (autofill/IME): đổ từ ô i trở đi.
-    const next = (value.slice(0, i) + entered + value.slice(i + 1)).slice(0, length);
+    // Bấm ô phía sau chỗ đã nhập: ghi nối tiếp vào vị trí trống đầu tiên, không để hổng.
+    const at = Math.min(i, value.length);
+    const next = (value.slice(0, at) + entered + value.slice(at + 1)).slice(0, length);
     commit(next);
-    focusAt(Math.min(i + entered.length, length - 1));
+    focusAt(Math.min(at + entered.length, length - 1));
   }
 
   function onKeyDown(i: number, e: KeyboardEvent<HTMLInputElement>) {
@@ -98,11 +110,15 @@ export function OtpInput({
           maxLength={length}
           value={digit}
           disabled={disabled}
+          readOnly={busy}
+          aria-busy={busy ? true : undefined}
           autoFocus={autoFocus && i === 0}
           aria-label={`${label}, chữ số ${i + 1} trên ${length}`}
           aria-invalid={invalid ? true : undefined}
           aria-describedby={describedBy}
-          onChange={(e) => onInput(i, e.target.value)}
+          onChange={(e) => {
+            if (!busy) onInput(i, e.target.value);
+          }}
           onKeyDown={(e) => onKeyDown(i, e)}
           onPaste={onPaste}
           onFocus={(e) => e.target.select()}

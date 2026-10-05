@@ -18,7 +18,7 @@ use Illuminate\Validation\Rules\Password;
 class RegisterRequest extends FormRequest
 {
     /** Chặn khoảng trắng/tab, comment RFC `(c)`, dấu phân tách lạ mà `email:rfc` vẫn nhận (BUG-1). */
-    private const EMAIL_SAFE_PATTERN = '/^[^\s()<>,;:"\\\\\\[\\]@]+@[^\s()<>,;:"\\\\\\[\\]@]+$/';
+    public const EMAIL_SAFE_PATTERN = '/^[^\s()<>,;:"\\\\\\[\\]@]+@[^\s()<>,;:"\\\\\\[\\]@]+$/';
 
     public function authorize(): bool
     {

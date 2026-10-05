@@ -36,6 +36,7 @@ class ProductionConfigGuard
         );
 
         $this->guardCaptcha();
+        $this->guardOtpChannels();
         $this->guardStatefulDomains();
         $this->guardTrustedProxies();
         $this->guardPayments();
@@ -49,6 +50,23 @@ class ProductionConfigGuard
             $driver === 'fake',
             RuntimeException::class,
             'CAPTCHA_DRIVER=fake bị cấm ở production (M4).'
+        );
+    }
+
+    /**
+     * S9 — production chưa có nhà cung cấp SMS thật: cấm bật kênh `sms` (mã sẽ không tới người dùng).
+     */
+    private function guardOtpChannels(): void
+    {
+        $channels = array_map(
+            static fn ($channel) => mb_strtolower((string) $channel),
+            (array) config('auth.otp.channels', [])
+        );
+
+        throw_if(
+            in_array('sms', $channels, true),
+            RuntimeException::class,
+            'AUTH_OTP_CHANNELS không được chứa sms ở production (chưa có nhà cung cấp SMS — S9).'
         );
     }
 

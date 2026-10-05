@@ -6,13 +6,13 @@ import { Alert, Button, FormField, TextInput } from "@vitaminvui/ui";
 import { updateContact, type ContactPayload } from "@/lib/auth/api";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 import { VN_PHONE_RE } from "@/lib/auth/schemas";
-import { buildContactPayload } from "@/lib/auth/otp";
+import { buildContactPayload, normalizePhone } from "@/lib/auth/otp";
 
 export interface ChangeContactFormProps {
   email: string;
   phone: string;
   onCancel: () => void;
-  /** Gọi sau khi `PUT /auth/contact` thành công (server đã huỷ OTP cũ và gửi mã mới). */
+  /** Sau khi `PUT /auth/contact` thành công. `null` = server KHÔNG gửi mã mới (ví dụ chỉ đổi SĐT). */
   onDone: (resendAvailableAt: string | null) => void | Promise<void>;
 }
 
@@ -32,7 +32,7 @@ export function ChangeContactForm({ email, phone, onCancel, onDone }: ChangeCont
     const payload: ContactPayload = buildContactPayload({ email, phone }, values);
     const next: typeof errors = {};
     if (payload.email !== undefined && !EMAIL_RE.test(payload.email)) next.email = "Email không hợp lệ";
-    if (payload.phone !== undefined && !VN_PHONE_RE.test(payload.phone.replace(/[\s.\-()]/g, ""))) {
+    if (payload.phone !== undefined && !VN_PHONE_RE.test(normalizePhone(payload.phone))) {
       next.phone = "Số điện thoại không hợp lệ";
     }
     if (Object.keys(payload).length === 0) {
@@ -60,10 +60,10 @@ export function ChangeContactForm({ email, phone, onCancel, onDone }: ChangeCont
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
       <p className="text-sm text-gray-700">
-        Nhập thông tin liên hệ mới. Mã xác thực cũ sẽ bị huỷ và chúng tôi gửi mã mới.
+        Nhập thông tin liên hệ mới. Khi đổi email, mã xác thực cũ sẽ bị huỷ và chúng tôi gửi mã mới tới email mới.
       </p>
       {banner ? <Alert variant="danger">{banner}</Alert> : null}
-      <FormField label="Email" required error={errors.email}>
+      <FormField label="Email" error={errors.email}>
         <TextInput
           type="email"
           autoComplete="email"
@@ -72,7 +72,7 @@ export function ChangeContactForm({ email, phone, onCancel, onDone }: ChangeCont
           onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
         />
       </FormField>
-      <FormField label="Số điện thoại" required error={errors.phone}>
+      <FormField label="Số điện thoại" error={errors.phone}>
         <TextInput
           type="tel"
           autoComplete="tel"

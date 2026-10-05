@@ -22,3 +22,13 @@ Test QA gợi ý khi làm v2: 11 lượt sai bằng 11 cách viết có dấu c�
 
 ## Ghi chú tiến trình
 Chưa có dòng code nào của M1–M3, L1–L5 được viết (đã xác nhận 2026-10-05). Code T03 hiện chỉ gồm R1–R5 của review (limiter chỉ đếm lượt sai, regex index cho race unique, captcha fake yêu cầu token, no-store). `composer ci` xanh: 194 test.
+
+## T04 (OTP) — điểm nghi ngờ ghi nhận, không chặn (2026-10-06)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T04-1 | Medium | `PUT /auth/contact` không yêu cầu mật khẩu hiện tại: kẻ có phiên bị đánh cắp đổi được email/SĐT (và về sau là email nhận mã đặt lại mật khẩu T27). Đề xuất: bắt `current_password` hoặc OTP tới liên hệ cũ khi tài khoản đã xác thực | Hoãn v2 (trước T27) |
+| T04-2 | Low | Mã OTP lưu bcrypt (`Hash::make`) theo data-model: không gian 10^6 nên lộ DB là dò ra mã trong giây lát (chỉ có giá trị trong 10 phút). Đề xuất HMAC-SHA256 với khoá riêng nếu muốn cứng hơn | Hoãn v2 |
+| T04-3 | Low | Đếm verify 5/phút và 20/ngày theo throttle middleware (cache): đếm cả request sai định dạng, khoá hết ngày thay vì "khoá xác thực 24h" có audit như data-model §3.1; trần ngày chưa ghi audit cho verify | Hoãn v2 |
+| T04-4 | Low | `otp-send` throttle đếm cả request 422 (vd. kênh sai) vào cooldown 1/phút | Hoãn v2 |
+| T04-5 | Info | Cảnh báo/khoá xác thực 24h theo IP + user khi bị dò hàng loạt; chưa có metric/cảnh báo | Hoãn v2 |

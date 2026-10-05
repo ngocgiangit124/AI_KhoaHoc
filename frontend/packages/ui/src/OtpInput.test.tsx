@@ -42,3 +42,28 @@ describe("OtpInput", () => {
     expect(cells.map((c) => c.value).join("")).toBe("123456");
   });
 });
+
+describe("OtpInput (R7, busy)", () => {
+  it("bấm ô phía sau khi đang trống: chữ số vào ô đầu, không để hổng", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const cells = screen.getAllByRole("textbox") as HTMLInputElement[];
+    await user.click(cells[4]!);
+    await user.keyboard("7");
+    expect(cells[0]!.value).toBe("7");
+    expect(cells[4]!.value).toBe("");
+    expect(document.activeElement).toBe(cells[1]);
+  });
+
+  it("busy: readOnly + aria-busy, không nhận thêm số", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<OtpInput value="" onChange={onChange} busy />);
+    const cell = screen.getAllByRole("textbox")[0]!;
+    expect(cell).toHaveAttribute("readonly");
+    expect(cell).toHaveAttribute("aria-busy", "true");
+    await user.click(cell);
+    await user.keyboard("1");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});

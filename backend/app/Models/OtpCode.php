@@ -7,6 +7,7 @@ use Database\Factories\OtpCodeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Mã OTP (data-model §3.1). Cột trạng thái (`attempts`, `consumed_at`,
@@ -14,6 +15,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * không nằm trong $fillable.
  *
  * @property OtpPurpose $purpose
+ * @property Carbon $expires_at
+ * @property Carbon|null $consumed_at
+ * @property Carbon|null $invalidated_at
+ * @property int $attempts
+ * @property string $code_hash
  */
 class OtpCode extends Model
 {

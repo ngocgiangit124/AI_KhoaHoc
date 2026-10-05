@@ -5,6 +5,7 @@ use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\ConfigureHostContext;
 use App\Http\Middleware\EnforceSingleStudentSession;
 use App\Http\Middleware\EnsureAccountActive;
+use App\Http\Middleware\EnsureAccountVerified;
 use App\Http\Middleware\EnsureAdminOrigin;
 use App\Http\Middleware\EnsurePasswordFresh;
 use App\Http\Middleware\EnsureRole;
@@ -105,6 +106,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.origin' => EnsureAdminOrigin::class,
             'role' => EnsureRole::class,
             'account.active' => EnsureAccountActive::class,
+            'account.verified' => EnsureAccountVerified::class,
             // Khung cho T05/T28 (api-contract §1.3) — pass-through tới khi hiện thực.
             'staff.idle' => StaffIdleTimeout::class,
             'staff.mfa_passed' => EnsureStaffMfaPassed::class,
@@ -113,6 +115,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Lỗi nghiệp vụ (4xx/503 do ta chủ động ném) là phản hồi bình thường, không report kèm stack trace:
+        // trace có đối số hàm (mã OTP người dùng gõ) — S21.
+        $exceptions->dontReport([DomainException::class]);
+
         $exceptions->dontFlash([
             'password',
             'password_confirmation',

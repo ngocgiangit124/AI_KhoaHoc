@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { getDeviceId } from "@vitaminvui/api-client";
 import { Alert, Button, FormField, PasswordInput, Select, TextInput, TurnstileWidget } from "@vitaminvui/ui";
 import { buildRegisterPayload, registerStudent } from "@/lib/auth/api";
+import { markOtpSent } from "@/lib/auth/flash";
 import { isBelowConsentAge } from "@/lib/auth/age";
 import { REGISTER_FIELD_MAP, REGISTER_FIELD_ORDER, classifyRegisterError } from "@/lib/auth/errors";
 import { createRegisterSchema, CONSENT_ERROR_MESSAGE, type RegisterFormValues } from "@/lib/auth/schemas";
@@ -93,6 +94,7 @@ export function RegisterForm({
           forceParent,
         }),
       );
+      markOtpSent();
       setDone(true);
       router.replace("/");
       router.refresh();

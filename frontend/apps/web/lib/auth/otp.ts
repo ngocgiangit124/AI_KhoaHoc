@@ -34,9 +34,9 @@ export function formatCountdown(seconds: number): string {
 }
 
 /**
- * Thông điệp lỗi cho các thao tác OTP/đổi liên hệ. Contract chưa liệt kê mã lỗi OTP riêng
- * (sai/hết hạn/khoá 24h) nên: 422 → thông điệp field `code` của server nếu có, rơi về
- * `OTP_WRONG_MESSAGE`; còn lại hiển thị thông điệp tiếng Việt server trả (api-contract §1.7).
+ * Thông điệp lỗi cho các thao tác OTP/đổi liên hệ: 422 → thông điệp field `code` của server
+ * nếu có, rơi về `OTP_WRONG_MESSAGE`; còn lại hiển thị thông điệp tiếng Việt server trả
+ * (api-contract §1.7).
  */
 export function otpErrorMessage(err: unknown): string {
   if (err instanceof NetworkError) return err.message;
@@ -47,7 +47,15 @@ export function otpErrorMessage(err: unknown): string {
   return UNKNOWN_ERROR_MESSAGE;
 }
 
-/** Chỉ gửi field đã đổi (so với giá trị hiện tại, bỏ khoảng trắng đầu/cuối). */
+/** Chuẩn hoá SĐT VN như backend (`+84`/`84` → `0`, bỏ khoảng trắng/dấu) để so sánh "có đổi không". */
+export function normalizePhone(phone: string): string {
+  const compact = phone.replace(/[\s.\-()]/g, "");
+  if (compact.startsWith("+84")) return `0${compact.slice(3)}`;
+  if (/^84\d{9}$/.test(compact)) return `0${compact.slice(2)}`;
+  return compact;
+}
+
+/** Chỉ gửi field thực sự đổi sau chuẩn hoá (email không phân biệt hoa/thường, SĐT theo dạng 0xxxxxxxxx). */
 export function buildContactPayload(
   current: { email: string; phone: string },
   next: { email: string; phone: string },
@@ -55,7 +63,7 @@ export function buildContactPayload(
   const payload: { email?: string; phone?: string } = {};
   const email = next.email.trim();
   const phone = next.phone.trim();
-  if (email !== current.email.trim()) payload.email = email;
-  if (phone !== current.phone.trim()) payload.phone = phone;
+  if (email.toLowerCase() !== current.email.trim().toLowerCase()) payload.email = email;
+  if (normalizePhone(phone) !== normalizePhone(current.phone)) payload.phone = phone;
   return payload;
 }
