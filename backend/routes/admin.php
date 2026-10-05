@@ -4,7 +4,12 @@ use App\Http\Controllers\Api\V1\Admin\Auth\LoginController as StaffLoginControll
 use App\Http\Controllers\Api\V1\Admin\Auth\MeController as StaffMeController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MfaController as StaffMfaController;
 use App\Http\Controllers\Api\V1\Admin\Auth\PasswordController as StaffPasswordController;
+use App\Http\Controllers\Api\V1\Admin\CourseController;
+use App\Http\Controllers\Api\V1\Admin\CoursePublicationController;
+use App\Http\Controllers\Api\V1\Admin\CourseTeacherController;
+use App\Http\Controllers\Api\V1\Admin\EnrollmentRequestController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
+use App\Http\Controllers\Api\V1\Admin\TeacherController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\AuthenticateSession as SanctumAuthenticateSession;
@@ -84,5 +89,23 @@ Route::domain(config('app.admin_api_host'))
             Route::put('/admin/subjects/{subject}', [SubjectController::class, 'update'])->name('admin.subjects.update');
             Route::patch('/admin/subjects/{subject}/status', [SubjectController::class, 'updateStatus'])->name('admin.subjects.status');
             Route::delete('/admin/subjects/{subject}', [SubjectController::class, 'destroy'])->name('admin.subjects.destroy');
+
+            // T08 — Khóa học (US-009). Quyền theo CoursePolicy: staff toàn quyền, giáo viên chỉ khóa được gán.
+            Route::get('/admin/teachers', [TeacherController::class, 'index'])->name('admin.teachers.index');
+            Route::get('/admin/courses', [CourseController::class, 'index'])->name('admin.courses.index');
+            Route::post('/admin/courses', [CourseController::class, 'store'])->name('admin.courses.store');
+            Route::get('/admin/courses/{course}', [CourseController::class, 'show'])->name('admin.courses.show');
+            Route::put('/admin/courses/{course}', [CourseController::class, 'update'])->name('admin.courses.update');
+            Route::delete('/admin/courses/{course}', [CourseController::class, 'destroy'])->name('admin.courses.destroy');
+            Route::post('/admin/courses/{course}/publish', [CoursePublicationController::class, 'publish'])->name('admin.courses.publish');
+            Route::post('/admin/courses/{course}/unpublish', [CoursePublicationController::class, 'unpublish'])->name('admin.courses.unpublish');
+            Route::patch('/admin/courses/{course}/manual-order', [CourseController::class, 'updateManualOrder'])->name('admin.courses.manual-order');
+            Route::put('/admin/courses/{course}/teachers', [CourseTeacherController::class, 'update'])->name('admin.courses.teachers');
+
+            // T14 — Duyệt đăng ký khóa miễn phí (US-012). Quyền theo EnrollmentPolicy: staff mọi khóa,
+            // giáo viên chỉ khóa mình phụ trách.
+            Route::get('/admin/enrollment-requests', [EnrollmentRequestController::class, 'index'])->name('admin.enrollment-requests.index');
+            Route::post('/admin/enrollment-requests/{enrollment}/approve', [EnrollmentRequestController::class, 'approve'])->name('admin.enrollment-requests.approve');
+            Route::post('/admin/enrollment-requests/{enrollment}/reject', [EnrollmentRequestController::class, 'reject'])->name('admin.enrollment-requests.reject');
         });
     });

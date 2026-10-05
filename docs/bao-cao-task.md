@@ -7,7 +7,7 @@ Ngày công là ước lượng của tài liệu, chưa tính thời gian chờ
 
 | Nhóm | Tổng | Đã xong | Đang làm | Chưa làm | Ngày công còn lại |
 |---|---|---|---|---|---|
-| Backend (T01–T34, không có T32) | 33 | 10 | 0 | 23 | ~41 |
+| Backend (T01–T34, không có T32) | 33 | 13 | 0 | 20 | ~35,5 |
 | Frontend (FE0, FW1–FW7, FA1–FA10) | 18 | 2 | 1 | 15 | ~30 |
 
 Ghi chú: mọi task đã xong đều đã commit local (chưa push, PO tự push). Cổng `laravel-security` tạm dừng theo quyết định PO; nợ bảo mật ở `docs/security/backlog-v2.md`.
@@ -26,6 +26,9 @@ Ghi chú: mọi task đã xong đều đã commit local (chưa push, PO tự pus
 | T17 | Thanh toán: abstraction + MoMo | Review, QA; chưa kiểm sandbox MoMo (bắt buộc trước T20) |
 | T27 | Quên/đổi mật khẩu học sinh | Review, QA |
 | T28 | Đăng nhập quản trị (MFA, idle, đổi mật khẩu) | Review, QA |
+| T08 | Quản trị khóa học | Review, QA |
+| T10 | Danh mục công khai + chi tiết | Review, QA |
+| T14 | EnrollmentService | Review, QA |
 | FE0 | Khởi tạo frontend Next.js 16 | Review |
 | FA1 | Layout quản trị, đăng nhập, MFA, đổi mật khẩu lần đầu, menu theo vai trò | Review, QA cùng T28 |
 
@@ -39,13 +42,10 @@ Ghi chú: mọi task đã xong đều đã commit local (chưa push, PO tự pus
 
 | Task | Tên | Ngày công | Phụ thuộc | Cờ |
 |---|---|---|---|---|
-| T08 | Quản trị khóa học | 2,5 | T07, T28 | SEC |
 | T09 | Chương/bài | 2 | T08 | SEC |
-| T10 | Danh mục công khai + chi tiết | 1,5 | T07 | |
 | T11 | Contract video | 1,5 | T09 | SEC |
 | T12 | Module VideoLab (task dài và rủi ro nhất) | 4 | T11 | SEC |
 | T13 | Học & tiến độ | 2 | T11, T05 | DBA, SEC |
-| T14 | EnrollmentService | 1,5 | T07, T04 | SEC |
 | T15 | Mã giảm giá quản trị | 1,5 | T07, T06 | DBA |
 | T16 | Giỏ hàng | 1,5 | T15, T14 | |
 | T18 | Checkout | 2 | T16, T17 | SEC, DBA |

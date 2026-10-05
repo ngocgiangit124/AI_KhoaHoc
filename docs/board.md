@@ -21,14 +21,26 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T27 | Quên/đổi mật khẩu học sinh | Xong | ✅ Review, QA (race 8 tiến trình); đã sửa timing dummy hash (ảnh hưởng cả login T03/T28) | — | 2026-10-05 |
 | T28 | Đăng nhập quản trị | Xong | ✅ Review, QA (e2e admin thật 15 pass); Minor BUG-1 (csrf 419 sau khi phiên bị huỷ), BUG-2 (thiếu Accept JSON → 500) | — | 2026-10-05 |
 | FA1 | Layout quản trị, đăng nhập, MFA, đổi mật khẩu lần đầu | Xong | ✅ Review, QA cùng T28; Minor N1 (từ ngữ MFA sai mã) | — | 2026-10-05 |
+| T08 | Quản trị khóa học | Xong | ✅ Review, QA (upload: không lỗ thực thi/XSS); Minor: lỗi validate tiếng Anh (chung toàn dự án) | — | 2026-10-05 |
+| T10 | Danh mục công khai + chi tiết | Xong | ✅ Review, QA (320 khóa thật, 0,05–0,09 s) | — | 2026-10-05 |
+| T14 | EnrollmentService (xin học, duyệt, grantPurchase) | Xong | ✅ Review, QA (race xoá khóa ↔ xin học đã sửa); chưa có email báo duyệt/từ chối (AC2/AC3) | — | 2026-10-05 |
+| FA2 | Màn chuyên đề admin | QA | Review APPROVE, đã sửa; đang QA | — | 2026-10-05 |
 
 ## Việc tiếp theo (theo thứ tự)
 
-1. Lượt mới, chạy song song (đủ phụ thuộc): **T08** Quản trị khóa học (T07, T28), **T10** Danh mục công khai (T07), **T14** EnrollmentService (T07, T04), **T15** Mã giảm giá (T07, T06); frontend **FA2** Chuyên đề (T06) và **FW1 còn lại** (màn quên/đổi mật khẩu theo API T27).
-2. Sau đó: T09 (sau T08) → T11 → T12 ∥ T13; FA3 (sau T08); FW2 (sau T10); T16 (sau T14, T15) → T18 → T19 → T20.
-3. Lỗi Minor còn mở cần gom sửa: T28 BUG-1/BUG-2, FA1 N1, T06 lỗi per_page tiếng Anh.
-4. **Trước T20**: kiểm phản hồi query của sandbox MoMo (cần tài khoản sandbox từ PO).
-5. Mỗi task: dev → `laravel-reviewer` → sửa → `laravel-qa` → tự commit (không push).
+1. Commit FA2 khi QA xong.
+2. Lượt mới: **T09** Chương/bài (sau T08), **T15** Mã giảm giá (T07, T06), **FA3** Khóa học admin (T08; lưu ý lỗi 413 HTML của Nginx, errors.teacher_ids), **FW1 còn lại** (quên/đổi mật khẩu theo API T27), **FW2** Danh mục (T10).
+3. Gom sửa lỗi nhỏ (một task riêng): file `lang/vi/validation.php` cho toàn dự án; T28 BUG-1 (csrf 419 sau khi phiên bị huỷ) và BUG-2 (thiếu Accept JSON → 500); mã lỗi OTP riêng `OTP_INVALID`/`OTP_EXPIRED`; nới hạn mức OTP cho môi trường e2e; email báo duyệt/từ chối đăng ký (US-012 AC2/AC3).
+4. Sau đó: T11 → T12 ∥ T13; T16 (sau T14, T15) → T18 → T19 → T20; FA6 (duyệt đăng ký).
+5. **Trước T20**: kiểm phản hồi query của sandbox MoMo (cần tài khoản sandbox từ PO).
+6. Mỗi task: dev → `laravel-reviewer` → sửa → `laravel-qa` → tự commit (không push).
+
+## Chờ PO xác nhận (đã chọn mặc định để không chặn)
+
+- T14 R3: duyệt yêu cầu miễn phí khi khóa đã đổi sang có phí → 422 COURSE_NOT_FREE (mặc định).
+- T08: xoá khóa bị chặn khi có đăng ký ở mọi trạng thái (kể cả bị từ chối); giáo viên không đổi được giá.
+- T27: thông điệp khi thua race dùng mã reset; reset bằng đúng mật khẩu cũ có được không.
+- FA2: giáo viên xem chuyên đề ở chế độ chỉ đọc (design ghi 403); bỏ xem trước slug trong form.
 
 ## Quy tắc làm việc đã thống nhất với PO
 
@@ -63,3 +75,4 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - 2026-10-05 · T04, FW1 (OTP) · Dev + Reviewer + QA · Review APPROVE; QA tìm BUG-1..4 (mã OTP rò vào log, Retry-After chưa expose CORS...), đã sửa, PASS
 - 2026-10-05 · T05 · Dev + Reviewer · Một phiên học sinh (ADR-003): bind/tombstone/middleware thật; login bỏ `guest`, register `guest.student`; Review APPROVE, đã sửa R1 (không destroy trước bind), R2 (register 201 không phiên khi bind lỗi), R3, R4, R6; R5 ghi vào T27; chờ QA
 - 2026-10-05 · T06, T07, T17, T27, T28, FA1 · Dev + Reviewer + QA (chạy song song) · tất cả PASS; composer ci 667 test xanh; queue worker thêm restart: unless-stopped
+- 2026-10-05 · T08, T10, T14 · Dev + Reviewer + QA · PASS; sửa race xoá khóa ↔ đăng ký; composer ci 828 test xanh

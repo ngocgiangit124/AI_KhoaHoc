@@ -4,3 +4,4 @@
 - [T04 OTP review pitfalls](feedback_t04_otp_review.md) — FE ở commit không phải working tree, invalidateAll rộng, me lỗi=guest
 - [T28/FA1 review notes](feedback_t28_fa1_review.md) — staff login stack verified solid; recheck e2e weakening, side-effect ordering, FE hardcoded config, Accept-less 500
 - [T27 password review](feedback_t27_review.md) — reset enumeration timing/message, limiter trước captcha, fallback device chưa test
+- [T08 course admin review](feedback_t08_review.md) — approve; T14 không khoá courses khi tạo enrollment (race với delete); NBSP nit; pest DB dùng chung có thể lỗi tạm

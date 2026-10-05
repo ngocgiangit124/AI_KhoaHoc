@@ -8,8 +8,12 @@ use App\Http\Controllers\Api\V1\Auth\OtpController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\PasswordResetController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
+use App\Http\Controllers\Api\V1\Catalog\CourseController as CatalogCourseController;
+use App\Http\Controllers\Api\V1\Catalog\SubjectController as CatalogSubjectController;
+use App\Http\Controllers\Api\V1\Enrollment\FreeEnrollmentController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
+use App\Http\Middleware\VaryOnOrigin;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
@@ -34,6 +38,18 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         ->group(function (): void {
             Route::get('/config/public', [PublicConfigController::class, 'show']);
             Route::get('/health', HealthController::class);
+        });
+
+    // T10 — danh mục công khai (US-002/003): cache được (`public, max-age=60` + ETag), không session/cookie
+    // (S16). Dữ liệu theo người xem nằm ở /courses/{slug}/viewer-state (nhóm student bên dưới).
+    Route::middleware(['throttle:catalog', VaryOnOrigin::class, 'cache.headers:public;max_age=60;etag'])
+        ->withoutMiddleware(EnsureFrontendRequestsAreStateful::class)
+        ->group(function (): void {
+            Route::get('/subjects', [CatalogSubjectController::class, 'index'])->name('api.catalog.subjects');
+            Route::get('/courses', [CatalogCourseController::class, 'index'])->name('api.catalog.courses');
+            Route::get('/courses/{slug}', [CatalogCourseController::class, 'show'])
+                ->where('slug', '[a-z0-9-]+')
+                ->name('api.catalog.courses.show');
         });
 
     // csrf-token CẦN session (mục đích chính là phát hành token CSRF) nên giữ
@@ -80,6 +96,11 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
     ])->group(function (): void {
         Route::get('/auth/me', MeController::class)->name('api.auth.me');
 
+        // T10 — trạng thái nút hành động của người xem (không cache chung được, S16).
+        Route::get('/courses/{slug}/viewer-state', [CatalogCourseController::class, 'viewerState'])
+            ->where('slug', '[a-z0-9-]+')
+            ->name('api.catalog.courses.viewer-state');
+
         // T04 — OTP (S9): trần gửi/verify do OtpService + throttle (contract §1.6).
         Route::post('/auth/otp/send', [OtpController::class, 'send'])
             ->middleware('throttle:otp-send')
@@ -97,6 +118,12 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         Route::put('/auth/password', [PasswordController::class, 'update'])
             ->middleware(['throttle:password-change', 'no_store'])
             ->name('api.auth.password');
+
+        // T14 — xin học khóa miễn phí (US-012). `account.verified` chỉ gắn ở route này (US-001 AC9: chặn
+        // đăng ký miễn phí/checkout, KHÔNG chặn xem/học). `parent.consent` chưa có (US-017 chờ pháp chế).
+        Route::post('/courses/{course}/free-enrollments', [FreeEnrollmentController::class, 'store'])
+            ->middleware('account.verified')
+            ->name('api.courses.free-enrollments.store');
     });
 
     // Auth (T04/T05/T27), Catalog (T10), Cart/Checkout (T16/T18),

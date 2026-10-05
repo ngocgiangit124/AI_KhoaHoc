@@ -347,9 +347,14 @@ Cài ở task sau:
   - **Migration thêm FK `enrollments.order_id` → `orders.id` (restrictOnDelete)** (T07 chỉ tạo cột + index vì `orders` chưa tồn tại); `down()` `dropForeign`; kèm test kiểm FK.
   - `CheckoutService` (khoá `carts → orders → coupons`, sức chứa theo `coupon_hold_until`), middleware `parent.consent` (tạm cho qua nếu `parent_consent_status` ∈ {not_required, granted}; luồng đầy đủ ở T29).
   - Test: race 2 tab; N HS cùng mã cuối (DBA checklist §5.6).
+  - **Khi có bảng `order_items`/`orders`: sửa `CourseService::delete` (T08)** kiểm thêm khóa còn nằm trong đơn đang chờ thanh toán (`pending`, chưa hết hạn) → 409 `COURSE_HAS_ENROLLMENTS` (hoặc mã riêng); xoá mềm khóa đang có đơn chờ làm IPN về sau không cấp được quyền học. Kèm test. (Review T08 R1.)
+  - Khi thêm FK `enrollments.order_id`: sửa `tests/Feature/T14/ConcurrentEnrollmentTest.php` (worker `grant` dùng `order_id=42` không có FK; test nhóm `race`).
 - [ ] **T19 IPN & fulfillment** (~2 ngày) **[SEC] [DBA]** — phụ thuộc T18, T14
   - `payment_webhook_events` (IX `received_at`, payload chỉ trường đã biết, `source`).
   - `PaymentWebhookService::apply`, `markPaid` theo thứ tự khoá chuẩn (DBA #2).
+  - Rà lại `CourseService::delete` (T08) đã chặn khóa có đơn chờ thanh toán (xem T18).
+  - Gọi `EnrollmentService::grantPurchase` (T14): so `order_id` của dòng trả về với đơn đang xử lý (không dựa vào `wasRecentlyCreated`); retry deadlock của grantPurchase chỉ có tác dụng ở transaction ngoài cùng nên `markPaid` phải tự bọc retry deadlock ở mức ngoài.
+  - `grantPurchase` ném `DomainException` `COURSE_UNAVAILABLE` (409) khi khóa đã xoá mềm (khóa chỉ unpublished vẫn cấp quyền): `markPaid` phải bắt mã này để chuyển đơn sang `needs_review`/hoàn tiền, không nuốt lỗi và không để IPN trả 5xx lặp.
   - Giới hạn body 16 KB + 120/phút/IP.
   - `needs_review` khi `used_count > max_uses`.
   - `OrderPaidMail` ShouldBeEncrypted.
@@ -386,11 +391,13 @@ Cài ở task sau:
   - `payments:purge-webhook-events` (> 24 tháng, lô 5.000, nghỉ 200ms).
   - `audit:purge`, `otp:prune`, `users:purge-unverified` (> 7 ngày, chỉ tài khoản không có đơn/enrollment).
   - `queue:prune-failed --hours=168`; lịch trong `routes/console.php`.
+  - Lên lịch `counters:recount` (T14, hiện chỉ chạy tay; thêm `coupons.used_count` ở T15).
 - [ ] **T34 Quyền dữ liệu cá nhân** (US-018 — BA viết story) (~2 ngày) **[SEC]** — phụ thuộc T29
   - `/me/data-export`, xoá tài khoản bằng OTP → `AccountAnonymizer` (giữ đơn hàng), audit.
 - [ ] **T33 Quản lý tài khoản staff** (US-016 — BA viết story) (~1,5 ngày) **[SEC]** — phụ thuộc T28
   - API admin: tạo/khoá/mở khoá/đặt lại mật khẩu staff (`manage-system` chỉ admin); xem audit log (chỉ đọc).
 - [ ] **T26 Vận hành queue/scheduler** (~1 ngày)
+  - Lưu ý `counters:recount` (T14) chưa được lên lịch.
   - Đăng ký toàn bộ lịch (README §4) với `withoutOverlapping()->onOneServer()`; Supervisor mẫu; cảnh báo `failed_jobs`; tài liệu tunnel IPN.
 - [ ] **T31 Checklist production & DNS** (~1 ngày) **[SEC]**
   - ADR-004 §6 (S22): Nginx 4 host + tên miền tĩnh; header; Redis; secret; staging domain riêng; rà DNS chống subdomain takeover (S6).

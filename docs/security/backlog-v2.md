@@ -74,3 +74,26 @@ Chưa có dòng code nào của M1–M3, L1–L5 được viết (đã xác nh�
 | T27-5 | Medium | `reset` (không captcha) còn lộ tài khoản tồn tại qua THÔNG ĐIỆP: tài khoản có mã hiệu lực + mã sai → "Mã OTP không đúng", không tồn tại → "đã hết hạn" (kẻ ngoài gọi `forgot` rồi `reset` mã bậy). Phần TIMING đã sửa (QA BUG-1: `dummyHash()` cache liên request qua `Cache::rememberForever` theo cost, mỗi nhánh đúng 1 lần `Hash::check`, có test đếm băm); còn lại phần thông điệp. Giữ AC3 theo quyết định PO; v2 cân nhắc thông điệp chung hoặc captcha ở reset | Hoãn v2 (PO) |
 | T27-6 | Low | R4 review: `StudentSessionService::killSession` (tombstone + destroy) chạy trong transaction của reset/change; commit lỗi sau đó → văng phiên oan. Đề xuất `DB::afterCommit` trong `revoke()` (đụng code T05, chạy lại test T05) | Hoãn v2 |
 | T27-7 | Low | R6 review: cooldown OTP 60s dùng chung mọi purpose nên quên mật khẩu ngay sau đăng ký (<60s) không nhận mã dù vẫn 202; mã `reset_password` còn hiệu lực chưa bị vô hiệu khi `change()` | Hoãn v2 |
+
+## T10 (danh mục công khai + chi tiết khóa) — ghi nhận (2026-10-05)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T10-1 | Low | `CourseDetailResource` trả `description` như đã lưu; api-contract §4 yêu cầu sanitize cả khi trả ra. `HtmlSanitizer` (Purifier) thuộc T08: khi T08 xong, bọc `description` bằng sanitizer ở resource (1 dòng) | Đã đóng: resource lọc bằng HtmlSanitizer khi đọc (review R1) |
+| T10-2 | Info | `/courses` + `/subjects` + chi tiết chỉ giới hạn `throttle:catalog` 120/phút/IP; không có cache phía Laravel (chỉ HTTP + Data Cache Next). Cân nhắc micro-cache Nginx khi load test FW2 | Theo dõi |
+| T10-3 | Info | `avatar_url`/`bio` giáo viên là dữ liệu công khai của khóa; `bio` là văn bản thuần, FE phải render dạng text (không HTML) | Ghi nhận |
+
+## T14 (EnrollmentService, duyệt đăng ký) — ghi nhận từ review (2026-10-05)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T14-1 | Low | R5: giáo viên không phụ trách gọi approve/reject với id bất kỳ: id có thật → 403, không có → 404 (dò được "id enrollment tồn tại"). Đồng nhất bằng 404 cho GV không phụ trách nếu cần | Hoãn v2 |
+| T14-2 | Low | R9: route `POST /courses/{course}/free-enrollments` chưa có throttle; vòng "xin → bị từ chối → xin lại" tạo dòng lịch sử không giới hạn. Đề xuất throttle ~10/phút/user | Hoãn v2 |
+
+## T08 (quản trị khóa học) — điểm ghi nhận (2026-10-05)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T08-1 | Low | Upload ảnh chưa có throttle riêng (chỉ staff/GV đã đăng nhập, 2 MB, ≤ 4000x4000 → GD giải mã ~64 MB RAM); chưa có quota số ảnh/giờ và job dọn ảnh mồ côi khi process chết giữa lưu file và commit | Hoãn v2 |
+| T08-2 | Low | Nginx/STATIC_URL phục vụ disk `uploads` (header CSP sandbox, nosniff, tên miền không cookie) thuộc T31; local chưa có vhost tĩnh | Theo dõi T31 |
+| T08-3 | Info | Giáo viên đã gán vẫn sửa được `description`/`title` khóa đang bán (chỉ staff mới publish): thay đổi nội dung công khai không qua duyệt lại; ghi audit `course.update` nhưng không lưu nội dung cũ | Chấp nhận MVP |
