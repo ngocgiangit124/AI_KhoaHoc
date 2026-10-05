@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\Admin\StaffAccountController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Admin\TeacherController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
+use App\Http\Controllers\Api\V1\Learn\PlaybackController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\AuthenticateSession as SanctumAuthenticateSession;
 
@@ -132,6 +133,10 @@ Route::domain(config('app.admin_api_host'))
                     ->name('admin.lessons.video-uploads.store');
                 Route::get('/admin/courses/{course}/lessons/{lesson}/video', [LessonVideoUploadController::class, 'show'])
                     ->name('admin.lessons.video.show');
+                // T13 — xem thử bài (staff/giáo viên được gán): link không ràng IP, không ghi tiến độ.
+                Route::get('/admin/courses/{course}/lessons/{lesson}/playback', [PlaybackController::class, 'admin'])
+                    ->middleware('throttle:playback')
+                    ->name('admin.lessons.playback');
             });
 
             // T21 — Soạn quiz (US-007/US-009). scopeBindings: quiz phải thuộc khóa, câu hỏi phải thuộc quiz (sai/đã xoá →

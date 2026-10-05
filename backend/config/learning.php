@@ -1,0 +1,33 @@
+<?php
+
+/*
+|--------------------------------------------------------------------------
+| Học & tiến độ (T13, ADR-002 §5)
+|--------------------------------------------------------------------------
+*/
+
+return [
+
+    // Xem đạt tỷ lệ này của thời lượng thì bài tự hoàn thành (US-006 BR2).
+    'complete_ratio' => 0.9,
+
+    // Heartbeat: khoảng cách mặc định của lần đầu (giây), tốc độ phát tối đa tính được (2x), phần bù trễ mạng.
+    'heartbeat' => [
+        'first_interval_seconds' => 20,
+        'max_speed' => 2,
+        'slack_seconds' => 5,
+        // Heartbeat đến sớm hơn mức này (giây) so với lần trước: không được cộng phần bù; cùng vị trí = gửi lại.
+        'min_interval_seconds' => 5,
+        'replay_window_seconds' => 3,
+        // `enrollments.last_accessed_at` chỉ ghi tối đa 1 lần/khoảng này (phút).
+        'enrollment_touch_minutes' => 5,
+    ],
+
+    // Cảnh báo cấp link bất thường (ADR-002 §4): quá ngưỡng trong 1 giờ thì ghi log warning.
+    'playback_anomaly' => [
+        'window_minutes' => 60,
+        'max_ips' => 3,
+        'max_lessons' => 60,
+    ],
+
+];

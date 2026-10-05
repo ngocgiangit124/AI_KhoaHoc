@@ -15,6 +15,10 @@ use App\Http\Controllers\Api\V1\Catalog\CourseController as CatalogCourseControl
 use App\Http\Controllers\Api\V1\Catalog\SubjectController as CatalogSubjectController;
 use App\Http\Controllers\Api\V1\Enrollment\FreeEnrollmentController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\Learn\LearnCourseController;
+use App\Http\Controllers\Api\V1\Learn\LessonController as LearnLessonController;
+use App\Http\Controllers\Api\V1\Learn\PlaybackController;
+use App\Http\Controllers\Api\V1\Learn\ProgressController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
 use App\Http\Controllers\Api\V1\Webhook\VideoWebhookController;
 use App\Http\Middleware\VaryOnOrigin;
@@ -55,6 +59,14 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
                 ->where('slug', '[a-z0-9-]+')
                 ->name('api.catalog.courses.show');
         });
+
+    // T13 — playback bài preview công khai (US-003/006): không đăng nhập, không session/cookie, throttle theo IP.
+    // Chỉ bài is_preview chưa xoá của khóa published; mọi lý do khác 404. Link không ràng IP.
+    Route::get('/preview/lessons/{lesson}/playback', [PlaybackController::class, 'preview'])
+        ->whereNumber('lesson')
+        ->withoutMiddleware(EnsureFrontendRequestsAreStateful::class)
+        ->middleware(['throttle:playback', VaryOnOrigin::class])
+        ->name('api.preview.playback');
 
     // csrf-token CẦN session (mục đích chính là phát hành token CSRF) nên giữ
     // nguyên EnsureFrontendRequestsAreStateful; limiter `csrf` riêng (M3) chống
@@ -140,6 +152,23 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             ->middleware('throttle:coupon')
             ->name('api.cart.coupon.update');
         Route::delete('/cart/coupon', [CartCouponController::class, 'destroy'])->name('api.cart.coupon.destroy');
+
+        // T13 — học & tiến độ (US-006). Quyền kiểm trong LessonAccessService (mã COURSE_NOT_OWNED, khóa nháp 404).
+        // `account.verified` KHÔNG gắn: chưa xác thực OTP vẫn học được (US-001 AC9). Heartbeat: 6/phút/user/bài.
+        Route::get('/learn/courses/{course}', [LearnCourseController::class, 'show'])
+            ->whereNumber('course')
+            ->name('api.learn.courses.show');
+        Route::get('/learn/lessons/{lesson}', [LearnLessonController::class, 'show'])
+            ->whereNumber('lesson')
+            ->name('api.learn.lessons.show');
+        Route::get('/learn/lessons/{lesson}/playback', [PlaybackController::class, 'show'])
+            ->whereNumber('lesson')
+            ->middleware('throttle:playback')
+            ->name('api.learn.lessons.playback');
+        Route::post('/learn/lessons/{lesson}/heartbeat', [ProgressController::class, 'heartbeat'])
+            ->whereNumber('lesson')
+            ->middleware('throttle:heartbeat')
+            ->name('api.learn.lessons.heartbeat');
     });
 
     // T11 — webhook video (ADR-002 §2): payload không được tin, service gọi lại getVideo(). Tên provider chỉ
