@@ -4,10 +4,14 @@ use App\Http\Controllers\Api\V1\Admin\Auth\LoginController as StaffLoginControll
 use App\Http\Controllers\Api\V1\Admin\Auth\MeController as StaffMeController;
 use App\Http\Controllers\Api\V1\Admin\Auth\MfaController as StaffMfaController;
 use App\Http\Controllers\Api\V1\Admin\Auth\PasswordController as StaffPasswordController;
+use App\Http\Controllers\Api\V1\Admin\ChapterController;
+use App\Http\Controllers\Api\V1\Admin\CouponController;
 use App\Http\Controllers\Api\V1\Admin\CourseController;
 use App\Http\Controllers\Api\V1\Admin\CoursePublicationController;
 use App\Http\Controllers\Api\V1\Admin\CourseTeacherController;
+use App\Http\Controllers\Api\V1\Admin\CurriculumOrderController;
 use App\Http\Controllers\Api\V1\Admin\EnrollmentRequestController;
+use App\Http\Controllers\Api\V1\Admin\LessonController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Admin\TeacherController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
@@ -102,10 +106,32 @@ Route::domain(config('app.admin_api_host'))
             Route::patch('/admin/courses/{course}/manual-order', [CourseController::class, 'updateManualOrder'])->name('admin.courses.manual-order');
             Route::put('/admin/courses/{course}/teachers', [CourseTeacherController::class, 'update'])->name('admin.courses.teachers');
 
+            // T09 — Chương/bài (US-009 AC8, AC11). scopeBindings: chương phải thuộc khóa, bài phải thuộc chương
+            // (sai → 404); quyền `manageContent` theo khóa (giáo viên chỉ khóa được gán).
+            Route::scopeBindings()->group(function (): void {
+                Route::get('/admin/courses/{course}/chapters', [ChapterController::class, 'index'])->name('admin.chapters.index');
+                Route::post('/admin/courses/{course}/chapters', [ChapterController::class, 'store'])->name('admin.chapters.store');
+                Route::put('/admin/courses/{course}/chapters/{chapter}', [ChapterController::class, 'update'])->name('admin.chapters.update');
+                Route::delete('/admin/courses/{course}/chapters/{chapter}', [ChapterController::class, 'destroy'])->name('admin.chapters.destroy');
+                Route::put('/admin/courses/{course}/curriculum/order', [CurriculumOrderController::class, 'update'])->name('admin.curriculum.order');
+                Route::post('/admin/courses/{course}/chapters/{chapter}/lessons', [LessonController::class, 'store'])->name('admin.lessons.store');
+                Route::put('/admin/courses/{course}/chapters/{chapter}/lessons/{lesson}', [LessonController::class, 'update'])->name('admin.lessons.update');
+                Route::delete('/admin/courses/{course}/chapters/{chapter}/lessons/{lesson}', [LessonController::class, 'destroy'])->name('admin.lessons.destroy');
+            });
+
             // T14 — Duyệt đăng ký khóa miễn phí (US-012). Quyền theo EnrollmentPolicy: staff mọi khóa,
             // giáo viên chỉ khóa mình phụ trách.
             Route::get('/admin/enrollment-requests', [EnrollmentRequestController::class, 'index'])->name('admin.enrollment-requests.index');
             Route::post('/admin/enrollment-requests/{enrollment}/approve', [EnrollmentRequestController::class, 'approve'])->name('admin.enrollment-requests.approve');
             Route::post('/admin/enrollment-requests/{enrollment}/reject', [EnrollmentRequestController::class, 'reject'])->name('admin.enrollment-requests.reject');
+
+            // T15 — Mã giảm giá (US-013). Quyền theo CouponPolicy: chỉ staff (admin, quản lý trang).
+            Route::get('/admin/coupons', [CouponController::class, 'index'])->name('admin.coupons.index');
+            Route::post('/admin/coupons', [CouponController::class, 'store'])->name('admin.coupons.store');
+            Route::get('/admin/coupons/{coupon}', [CouponController::class, 'show'])->name('admin.coupons.show');
+            Route::put('/admin/coupons/{coupon}', [CouponController::class, 'update'])->name('admin.coupons.update');
+            Route::post('/admin/coupons/{coupon}/deactivate', [CouponController::class, 'deactivate'])->name('admin.coupons.deactivate');
+            Route::post('/admin/coupons/{coupon}/activate', [CouponController::class, 'activate'])->name('admin.coupons.activate');
+            Route::delete('/admin/coupons/{coupon}', [CouponController::class, 'destroy'])->name('admin.coupons.destroy');
         });
     });

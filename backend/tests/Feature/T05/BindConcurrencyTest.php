@@ -15,7 +15,7 @@ use Illuminate\Support\Str;
 
 function vvBindAssertTestingDatabase(): void
 {
-    expect(DB::connection()->getDatabaseName())->toBe('vitaminvui_testing');
+    expect(DB::connection()->getDatabaseName())->toStartWith('vitaminvui_testing');
 }
 
 function vvBindWipe(): void

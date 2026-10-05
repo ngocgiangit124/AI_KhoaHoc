@@ -12,7 +12,7 @@ function vvWorker(array $args): Process
         'APP_ENV' => 'testing',
         'DB_CONNECTION' => 'mysql',
         'DB_HOST' => 'mysql',
-        'DB_DATABASE' => 'vitaminvui_testing',
+        'DB_DATABASE' => (string) config('database.connections.mysql.database'),
         'DB_URL' => '',
         'CACHE_STORE' => 'array',
         'QUEUE_CONNECTION' => 'sync',

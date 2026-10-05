@@ -19,7 +19,7 @@ $app = require __DIR__.'/../../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
 $db = (string) DB::connection()->getDatabaseName();
-if (! str_ends_with($db, '_testing')) {
+if (! preg_match('/_testing(_[a-z])?$/', $db)) {
     fwrite(STDERR, "REFUSE: DB '$db' khong phai DB test\n");
     exit(9);
 }

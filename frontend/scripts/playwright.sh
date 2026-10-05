@@ -9,6 +9,9 @@
 #   frontend/scripts/playwright.sh admin           # chạy e2e apps/admin, mock API nội bộ
 #   frontend/scripts/playwright.sh web --real-backend    # dùng backend Laravel thật
 #   frontend/scripts/playwright.sh admin --real-backend
+#   frontend/scripts/playwright.sh web --real-backend --retries=0 e2e/otp.spec.ts
+#     (từ tham số thứ 3 trở đi chuyển thẳng cho `playwright test`; muốn truyền tham số
+#     ở chế độ mock thì đặt tham số thứ 2 là `--mock`)
 #
 # `--real-backend`: bỏ qua e2e/mock-api-server.mjs, gọi thẳng backend thật đang chạy ở
 # api.localhost:8000 / admin-api.localhost:8000 (infra/docker-compose.yml của laravel-dev,
@@ -27,13 +30,22 @@ MODE="${2:-}"
 mkdir -p "$FRONTEND_DIR/.pnpm-store"
 
 NETWORK_ARGS=()
+FORWARD_8000=0
 ENV_ARGS=(-e CI=1)
 if [ "$MODE" = "--real-backend" ]; then
   NETWORK_ARGS=(
-    --network host
     --add-host api.localhost:127.0.0.1
     --add-host admin-api.localhost:127.0.0.1
   )
+  if [ "$(uname -s)" = "Darwin" ]; then
+    # Docker Desktop (macOS): --network host không đưa container vào mạng của máy host.
+    # Chromium luôn trỏ *.localhost về loopback của container, nên mở một bộ chuyển tiếp
+    # 127.0.0.1:8000 -> host.docker.internal:8000 ngay trong container (Docker Desktop tới
+    # được nginx dù nginx chỉ bind 127.0.0.1:8000 trên host).
+    FORWARD_8000=1
+  else
+    NETWORK_ARGS+=(--network host)
+  fi
   ENV_ARGS+=(-e E2E_REAL_BACKEND=1)
 fi
 
@@ -42,10 +54,17 @@ fi
 # binary local, không cần pnpm/corepack trong container này.
 docker run --rm \
   --user "$(id -u):$(id -g)" \
-  -e HOME=/home/pwuser \
+  -e HOME=/tmp \
   "${ENV_ARGS[@]}" \
-  "${NETWORK_ARGS[@]}" \
+  ${NETWORK_ARGS[@]+"${NETWORK_ARGS[@]}"} \
   -v "$FRONTEND_DIR:/workspace" \
   -w "/workspace/apps/$APP" \
+  -e FORWARD_8000="$FORWARD_8000" \
   "$IMAGE" \
-  ./node_modules/.bin/playwright test
+  bash -c '
+    if [ "$FORWARD_8000" = 1 ]; then
+      node -e "require(\"net\").createServer(c => { const u = require(\"net\").connect(8000, \"host.docker.internal\"); c.pipe(u).pipe(c); u.on(\"error\", () => c.destroy()); c.on(\"error\", () => u.destroy()); }).listen(8000, \"127.0.0.1\")" &
+      sleep 1
+    fi
+    exec ./node_modules/.bin/playwright test "$@"
+  ' playwright "${@:3}"

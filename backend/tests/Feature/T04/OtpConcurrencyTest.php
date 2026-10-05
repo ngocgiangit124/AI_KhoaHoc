@@ -15,7 +15,7 @@ require_once __DIR__.'/helpers.php';
 /** R9: chỉ được ghi/xoá thật khi đang ở đúng DB test. */
 function vvAssertTestingDatabase(): void
 {
-    expect(DB::connection()->getDatabaseName())->toBe('vitaminvui_testing');
+    expect(DB::connection()->getDatabaseName())->toStartWith('vitaminvui_testing');
 }
 
 function vvWipeCommittedData(): void

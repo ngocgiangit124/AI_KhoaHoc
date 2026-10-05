@@ -25,18 +25,22 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T10 | Danh mục công khai + chi tiết | Xong | ✅ Review, QA (320 khóa thật, 0,05–0,09 s) | — | 2026-10-05 |
 | T14 | EnrollmentService (xin học, duyệt, grantPurchase) | Xong | ✅ Review, QA (race xoá khóa ↔ xin học đã sửa); chưa có email báo duyệt/từ chối (AC2/AC3) | — | 2026-10-05 |
 | FA2 | Màn chuyên đề admin | Xong | ✅ Review, QA (khoá giữa phiên thật, hai tab, 31 chuyên đề); Minor: ẩn/hiện gặp 404 không tải lại, overlay khoá còn lộ khung phía sau | — | 2026-10-05 |
+| T09 | Chương/bài (CRUD, sắp xếp, link ngoài) | Xong | ✅ Review (M1 khóa published không xoá được bài cuối), QA (69 test, có race) | — | 2026-10-05 |
+| T15 | Mã giảm giá quản trị | Xong | ✅ Review (thêm CHECK DB), QA (48 test, race tạo trùng mã). T16/T18 dùng `Coupon::state()`, `normalizeCode()`; `coupon_usages` do T18 tạo | — | 2026-10-05 |
 
 ## Việc tiếp theo (theo thứ tự)
 
-1. FA3 (kèm 2 Minor của FA2).
-2. Lượt mới: **T09** Chương/bài (sau T08), **T15** Mã giảm giá (T07, T06), **FA3** Khóa học admin (T08; lưu ý lỗi 413 HTML của Nginx, errors.teacher_ids), **FW1 còn lại** (quên/đổi mật khẩu theo API T27), **FW2** Danh mục (T10).
+1. Đang chạy: **FA3** Khóa học admin (kèm 2 Minor của FA2), **FW2** Danh mục web.
+2. Backend chạy song song với frontend (PO 2026-10-05): **T11** Contract video, **T16** Giỏ hàng, **gom sửa lỗi nhỏ** (mục 3). Mỗi dev backend dùng DB test riêng `backend/phpunit.local-a|b|c.xml`.
 3. Gom sửa lỗi nhỏ (một task riêng): file `lang/vi/validation.php` cho toàn dự án; T28 BUG-1 (csrf 419 sau khi phiên bị huỷ) và BUG-2 (thiếu Accept JSON → 500); mã lỗi OTP riêng `OTP_INVALID`/`OTP_EXPIRED`; nới hạn mức OTP cho môi trường e2e; email báo duyệt/từ chối đăng ký (US-012 AC2/AC3).
-4. Sau đó: T11 → T12 ∥ T13; T16 (sau T14, T15) → T18 → T19 → T20; FA6 (duyệt đăng ký).
+4. Sau đó: T12 ∥ T13 (sau T11); T18 → T19 → T20 (sau T16); T21; FW1 còn lại; FA4, FA6, FA7.
 5. **Trước T20**: kiểm phản hồi query của sandbox MoMo (cần tài khoản sandbox từ PO).
 6. Mỗi task: dev → `laravel-reviewer` → sửa → `laravel-qa` → tự commit (không push).
 
 ## Chờ PO xác nhận (đã chọn mặc định để không chặn)
 
+- T09: xoá chương/bài chỉ bị chặn khi đã có tiến độ học (lesson_progress), không xét học sinh đã ghi danh; xoá bài/chương cuối của khóa đang xuất bản → 409 COURSE_LAST_LESSON. Link ngoài chỉ cho bài học thử, chỉ Vimeo công khai.
+- T15: thêm thao tác bật lại mã; trần mã giảm tiền 100.000.000đ; phạm vi mã = khóa chọn ∪ khóa thuộc chuyên đề chọn; xoá chuyên đề thì mã tự thu hẹp; "giá khóa rẻ nhất" (ràng buộc mã 100%) tính trên mọi khóa đang bán.
 - T14 R3: duyệt yêu cầu miễn phí khi khóa đã đổi sang có phí → 422 COURSE_NOT_FREE (mặc định).
 - T08: xoá khóa bị chặn khi có đăng ký ở mọi trạng thái (kể cả bị từ chối); giáo viên không đổi được giá.
 - T27: thông điệp khi thua race dùng mã reset; reset bằng đúng mật khẩu cũ có được không.
@@ -53,6 +57,8 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - Không tự bịa field ngoài api-contract. Thấy thiếu hoặc mâu thuẫn thì dừng và hỏi Architect.
 
 ## Việc đã hoãn (có người phụ trách)
+
+- V2 (PO quyết định 2026-10-05): cách khoá đăng nhập chống khoá tài khoản người khác (M1 backlog), ngưỡng AC6; ý nghĩa đổi SĐT qua `/auth/contact`; trang `/dieu-khoan`, `/chinh-sach-du-lieu`; pháp chế (thời hạn lưu IP/UA trong `consents`, quy tắc tuổi/phụ huynh của T29).
 
 - Quyền MySQL/trigger chặn sửa `audit_logs` (DBA, trước staging).
 - Header bảo mật cho response do Nginx tự trả (N2), cấu hình log production (L5), giới hạn IP cho `/up`: T31.
@@ -74,5 +80,7 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - 2026-10-05 · T03, FW1 · Dev + Reviewer + Security + QA · Review APPROVE; Security PASS có điều kiện (hoãn v2); QA tìm BUG-1..5, đã sửa, PASS có điều kiện; host local đổi thành api.localhost:3000 và admin-api.localhost:3001; csrf throttle 120/phút
 - 2026-10-05 · T04, FW1 (OTP) · Dev + Reviewer + QA · Review APPROVE; QA tìm BUG-1..4 (mã OTP rò vào log, Retry-After chưa expose CORS...), đã sửa, PASS
 - 2026-10-05 · T05 · Dev + Reviewer · Một phiên học sinh (ADR-003): bind/tombstone/middleware thật; login bỏ `guest`, register `guest.student`; Review APPROVE, đã sửa R1 (không destroy trước bind), R2 (register 201 không phiên khi bind lỗi), R3, R4, R6; R5 ghi vào T27; chờ QA
+- 2026-10-05 · T09, T15 · Dev + Reviewer + QA · PASS; composer ci 945 test xanh; thêm DB test riêng cho từng dev (vitaminvui_testing_a|b|c)
+- 2026-10-05 · Hạ tầng · Orchestrator · Push origin/main đến 0367da2; sửa frontend/scripts/pnpm.sh và playwright.sh chạy được trên macOS
 - 2026-10-05 · T06, T07, T17, T27, T28, FA1 · Dev + Reviewer + QA (chạy song song) · tất cả PASS; composer ci 667 test xanh; queue worker thêm restart: unless-stopped
 - 2026-10-05 · T08, T10, T14 · Dev + Reviewer + QA · PASS; sửa race xoá khóa ↔ đăng ký; composer ci 828 test xanh

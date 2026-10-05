@@ -97,3 +97,19 @@ Chưa có dòng code nào của M1–M3, L1–L5 được viết (đã xác nh�
 | T08-1 | Low | Upload ảnh chưa có throttle riêng (chỉ staff/GV đã đăng nhập, 2 MB, ≤ 4000x4000 → GD giải mã ~64 MB RAM); chưa có quota số ảnh/giờ và job dọn ảnh mồ côi khi process chết giữa lưu file và commit | Hoãn v2 |
 | T08-2 | Low | Nginx/STATIC_URL phục vụ disk `uploads` (header CSP sandbox, nosniff, tên miền không cookie) thuộc T31; local chưa có vhost tĩnh | Theo dõi T31 |
 | T08-3 | Info | Giáo viên đã gán vẫn sửa được `description`/`title` khóa đang bán (chỉ staff mới publish): thay đổi nội dung công khai không qua duyệt lại; ghi audit `course.update` nhưng không lưu nội dung cũ | Chấp nhận MVP |
+
+## T09 (chương/bài) — điểm ghi nhận (2026-10-05)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T09-1 | Low | Chưa có throttle riêng cho ghi chương/bài/reorder (chỉ staff/GV đã đăng nhập); reorder cho tối đa 1.000 bài/chương và khoá dòng khóa học trong lúc ghi | Review v2 |
+| T09-2 | Low | Xoá bài/chương chỉ chặn khi đã có `lesson_progress`; T13 phải bỏ qua bài đã xoá mềm khi ghi tiến độ (race xoá bài ↔ heartbeat đầu tiên không khoá được từ phía T09) | Theo dõi ở T13 |
+| T09-3 | Info | Link ngoài: whitelist host + ID regex, nhưng chưa kiểm video có thật/ở chế độ riêng tư; không HEAD ra ngoài (tránh SSRF) | Chấp nhận |
+| T09-4 | Info | Review m1: link Vimeo không công khai (có hash) bị từ chối; chỉ hỗ trợ video công khai | Chấp nhận |
+| T09-5 | Low | Review m2: trần payload reorder (đã thêm 500 chương, 1.000 bài/chương); còn thiếu trần tổng số chương/bài mỗi khóa khi tạo (Nit) | Review v2 |
+| T09-6 | Info | Review m3: asset mồ côi khi bài đổi khỏi `upload`; dọn ở T11 | Theo dõi T11 |
+
+## T15 (mã giảm giá quản trị) — ghi nhận từ review (2026-10-05)
+- R2: S18 cho mã fixed phụ thuộc giá khóa hiện tại; chưa có khóa trả phí thì mã fixed lớn không bị ép giới hạn, và hạ giá/xuất bản khóa rẻ sau đó không kiểm lại mã cũ. T16 (`CouponEvaluator`) chặn mã fixed lớn hơn giá trị đơn/khóa áp dụng.
+- R3: `is_restricted=true` nhưng `coupon_course`/`coupon_subject` rỗng (sau cascade) không audit; T16 phải trả `COUPON_NOT_APPLICABLE`, không coi là áp toàn bộ. UI nên cảnh báo khi `courses_count + subjects_count = 0`.
+- Thời gian: so sánh bind Carbon theo `config('app.timezone')` (`now()`), không dùng `NOW()` của MySQL; không truyền Carbon UTC khi app timezone khác UTC (QA T15).

@@ -306,6 +306,7 @@ Cài ở task sau:
 ## Giai đoạn 3 — Video (US-006, US-009 BR10) — ADR-002
 - [ ] **T11 Contract video** (~1,5 ngày) **[SEC]** — phụ thuộc T09
   - `VideoProvider`, `VideoProviderManager`, `FakeVideoProvider` (chỉ local/testing).
+  - Phải dọn `video_asset` mồ côi: T09 gỡ `lessons.video_asset_id` khi bài đổi khỏi `upload` (kể cả asset đang `processing`) — job/lệnh dọn asset không còn bài trỏ tới (review T09 m3).
   - Tạo phiên upload (kiểm size ≤ 2 GB, hạn mức 20 GB/ngày); webhook `whereIn(provider)` + pull-verify; `videos:check-stuck`.
 - [ ] **T12 Module VideoLab** (~4 ngày) **[SEC]** — song song T13 sau T11
   - Toàn bộ ADR-002 §3a: magic bytes; ffprobe/ffmpeg với `-protocol_whitelist file` + `-format_whitelist` qua `Process` mảng tham số.
@@ -331,9 +332,11 @@ Cài ở task sau:
   - Rule app: mã fixed ≥ giá khóa rẻ nhất phải có `max_uses` + `valid_until`.
   - `course_ids`/`subject_ids` exists; audit.
   - `counters:recount` thêm `coupons.used_count` (DBA #5).
+  - _Dev 2026-10-05: xong (migration `coupons`/`coupon_course`/`coupon_subject`, CRUD + activate/deactivate trên admin-api, `counters:recount` có `coupons.used_count`), 32 test ở tests/Feature/T15, chờ Reviewer. `coupon_usages`/`orders` do T18 tạo: `CouponService::isUsed` và recount tự tính khi bảng xuất hiện. `PricingCalculator`/`CouponEvaluator` thuộc T16 (T15 chỉ cấp model + `Coupon::state()`, `normalizeCode()`)._
 - [ ] **T16 Giỏ hàng** (~1,5 ngày) — phụ thuộc T15, T14
   - `PricingCalculator`, `CouponEvaluator`.
   - Mã không tồn tại/chưa bắt đầu/vô hiệu → cùng `COUPON_INVALID`; limiter 30 lần sai/ngày (S18).
+  - _Từ review T15:_ (a) chặn thêm mã `fixed` lớn hơn giá trị đơn/khóa áp dụng (S18 ở T15 chỉ kiểm theo giá hiện tại, không kiểm lại khi hạ giá); (b) `is_restricted=true` mà pivot rỗng (sau cascade xoá chuyên đề/khóa) → `COUPON_NOT_APPLICABLE`, KHÔNG coi là áp toàn bộ; (c) so sánh thời gian phải bind Carbon theo `config('app.timezone')` (dùng `now()`; local/production là `Asia/Ho_Chi_Minh`, cột DATETIME lưu giờ theo múi giờ app), không dùng `NOW()` của MySQL và không truyền Carbon UTC vào `Coupon::scopeInState`/`state()` (QA T15).
 - [ ] **T17 Thanh toán: abstraction + MoMo** (~2 ngày) **[SEC]** — song song T15/T16
   - `enabled_gateways` + boot guard + Fake chỉ local/testing (S4).
   - `MoMoSigner` (unit test vector mẫu).
@@ -343,6 +346,7 @@ Cài ở task sau:
   - Kiểm chứng sandbox.
   - _Dev 2026-10-05: code + 63 test xong (tests/Feature/T17), chờ Reviewer; sandbox MoMo + vector chính thức chưa kiểm (xem backlog-v2 T17-1). `queryStatus` nhận DTO `PaymentStatusQuery` thay vì model `PaymentAttempt` (model thuộc T18)._
 - [ ] **T18 Checkout** (~2 ngày) **[SEC] [DBA]** — phụ thuộc T16, T17
+  - _Từ review T15:_ thêm test tích hợp `CouponService::isUsed()` (COUPON_LOCKED/COUPON_IN_USE) với bảng `coupon_usages`/`orders` thật (T15 chỉ test bằng `used_count`).
   - Bảng: `orders` (+ `coupon_hold_until`), `order_items`, `order_status_logs`, `payment_attempts`.
   - **Migration thêm FK `enrollments.order_id` → `orders.id` (restrictOnDelete)** (T07 chỉ tạo cột + index vì `orders` chưa tồn tại); `down()` `dropForeign`; kèm test kiểm FK.
   - `CheckoutService` (khoá `carts → orders → coupons`, sức chứa theo `coupon_hold_until`), middleware `parent.consent` (tạm cho qua nếu `parent_consent_status` ∈ {not_required, granted}; luồng đầy đủ ở T29).

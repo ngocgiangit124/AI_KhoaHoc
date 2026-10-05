@@ -2,3 +2,10 @@
 CREATE DATABASE IF NOT EXISTS vitaminvui_testing;
 GRANT ALL PRIVILEGES ON vitaminvui_testing.* TO 'vitaminvui'@'%';
 FLUSH PRIVILEGES;
+
+-- DB test riêng cho từng dev chạy song song (backend/phpunit.local-a|b|c.xml).
+CREATE DATABASE IF NOT EXISTS vitaminvui_testing_a;
+CREATE DATABASE IF NOT EXISTS vitaminvui_testing_b;
+CREATE DATABASE IF NOT EXISTS vitaminvui_testing_c;
+GRANT ALL PRIVILEGES ON `vitaminvui_testing\_%`.* TO 'vitaminvui'@'%';
+FLUSH PRIVILEGES;

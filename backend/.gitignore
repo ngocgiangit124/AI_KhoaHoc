@@ -25,3 +25,6 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Cấu hình phpunit riêng cho từng dev chạy song song (DB test riêng)
+/phpunit.local-*.xml
