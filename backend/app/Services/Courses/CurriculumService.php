@@ -8,6 +8,7 @@ use App\Exceptions\DomainException;
 use App\Models\Chapter;
 use App\Models\Course;
 use App\Models\Lesson;
+use App\Models\Quiz;
 use App\Services\Audit\AuditLogger;
 use App\Services\Content\ExternalVideoLink;
 use Illuminate\Database\Eloquent\Collection;
@@ -91,6 +92,10 @@ class CurriculumService
                 );
             }
 
+            // Quiz gắn với chương/các bài của chương bị xoá mềm theo (T21; câu hỏi giữ nguyên cho lượt làm cũ).
+            Quiz::query()->where('course_id', $course->getKey())
+                ->where(fn ($q) => $q->where('chapter_id', $locked->getKey())->orWhereIn('lesson_id', $lessonIds))
+                ->delete();
             $locked->lessons()->delete();
             $locked->delete();
 
@@ -192,6 +197,7 @@ class CurriculumService
                 );
             }
 
+            Quiz::query()->where('course_id', $course->getKey())->where('lesson_id', $locked->getKey())->delete();
             $locked->delete();
 
             $this->audit->log('lesson.delete', $locked, [

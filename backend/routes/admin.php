@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\V1\Admin\CurriculumOrderController;
 use App\Http\Controllers\Api\V1\Admin\EnrollmentRequestController;
 use App\Http\Controllers\Api\V1\Admin\LessonController;
 use App\Http\Controllers\Api\V1\Admin\LessonVideoUploadController;
+use App\Http\Controllers\Api\V1\Admin\QuizController;
+use App\Http\Controllers\Api\V1\Admin\QuizQuestionController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Admin\TeacherController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
@@ -128,6 +130,21 @@ Route::domain(config('app.admin_api_host'))
                     ->name('admin.lessons.video-uploads.store');
                 Route::get('/admin/courses/{course}/lessons/{lesson}/video', [LessonVideoUploadController::class, 'show'])
                     ->name('admin.lessons.video.show');
+            });
+
+            // T21 — Soạn quiz (US-007/US-009). scopeBindings: quiz phải thuộc khóa, câu hỏi phải thuộc quiz (sai/đã xoá →
+            // 404); quyền `manageContent` theo khóa. Đáp án đúng chỉ xuất hiện ở các route admin-api này.
+            Route::scopeBindings()->group(function (): void {
+                Route::get('/admin/courses/{course}/quizzes', [QuizController::class, 'index'])->name('admin.quizzes.index');
+                Route::post('/admin/courses/{course}/quizzes', [QuizController::class, 'store'])->name('admin.quizzes.store');
+                Route::get('/admin/courses/{course}/quizzes/{quiz}', [QuizController::class, 'show'])->name('admin.quizzes.show');
+                Route::put('/admin/courses/{course}/quizzes/{quiz}', [QuizController::class, 'update'])->name('admin.quizzes.update');
+                Route::delete('/admin/courses/{course}/quizzes/{quiz}', [QuizController::class, 'destroy'])->name('admin.quizzes.destroy');
+                Route::get('/admin/courses/{course}/quizzes/{quiz}/questions', [QuizQuestionController::class, 'index'])->name('admin.quiz-questions.index');
+                Route::post('/admin/courses/{course}/quizzes/{quiz}/questions', [QuizQuestionController::class, 'store'])->name('admin.quiz-questions.store');
+                Route::get('/admin/courses/{course}/quizzes/{quiz}/questions/{question}', [QuizQuestionController::class, 'show'])->name('admin.quiz-questions.show');
+                Route::put('/admin/courses/{course}/quizzes/{quiz}/questions/{question}', [QuizQuestionController::class, 'update'])->name('admin.quiz-questions.update');
+                Route::delete('/admin/courses/{course}/quizzes/{quiz}/questions/{question}', [QuizQuestionController::class, 'destroy'])->name('admin.quiz-questions.destroy');
             });
 
             // T14 — Duyệt đăng ký khóa miễn phí (US-012). Quyền theo EnrollmentPolicy: staff mọi khóa,
