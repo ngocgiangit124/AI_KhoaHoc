@@ -53,6 +53,16 @@ return [
             'report' => false,
         ],
 
+        // T08 (S2): ảnh người dùng tải lên đã được mã hoá lại (WebP, tên UUID). Phục vụ từ STATIC_URL (tên miền
+        // tĩnh riêng, không cookie) — Nginx trỏ root vào thư mục này; Laravel không phục vụ qua route.
+        'uploads' => [
+            'driver' => 'local',
+            'root' => env('UPLOADS_PATH', storage_path('app/uploads')),
+            'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

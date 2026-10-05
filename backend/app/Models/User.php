@@ -19,7 +19,7 @@ use Illuminate\Notifications\Notifiable;
  * dự án chỉ xác thực bằng session cookie SPA (`auth:sanctum` + cookie, không
  * phát hành personal access token — S24). Có trait này mà không dùng khiến
  * guard `sanctum` chấp nhận cả Bearer token (bỏ qua CSRF) nếu sau này có ai
- * vô tình gọi `$user->createToken()`. Không cần trait cho xác thực SPA qua
+ * vô tình gọi `$user->createToken` . Không cần trait cho xác thực SPA qua
  * cookie (guard `sanctum` của Sanctum dùng session guard trước, trait chỉ
  * cần khi thật sự phát hành/kiểm token). Xem test kiến trúc
  * `tests/Arch/NoApiTokensTest.php`.

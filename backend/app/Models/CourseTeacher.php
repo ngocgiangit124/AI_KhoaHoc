@@ -13,4 +13,10 @@ class CourseTeacher extends Pivot
     public const UPDATED_AT = null;
 
     protected $table = 'course_teacher';
+
+    /** Pivot mặc định `$guarded = []` (S17): đóng lại, ghi qua attach()/CourseTeacherService. */
+    protected $guarded = ['*'];
+
+    /** Chỉ `added_by` (do CourseTeacherService đặt) được fill qua attach(). */
+    protected $fillable = ['added_by'];
 }

@@ -4,12 +4,16 @@ namespace App\Models;
 
 use App\Enums\CourseStatus;
 use Database\Factories\CourseFactory;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -17,6 +21,7 @@ use Illuminate\Support\Str;
  * `slug` KHÔNG nằm trong $fillable (S17): chỉ đổi qua CourseService/EnrollmentService (T08+).
  *
  * @property CourseStatus $status
+ * @property Carbon|null $published_at
  */
 class Course extends Model
 {
@@ -102,6 +107,28 @@ class Course extends Model
     public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class);
+    }
+
+    /**
+     * Khóa học user được thấy ở trang quản trị: staff thấy tất cả, giáo viên chỉ khóa mình có tên trong
+     * `course_teacher` (US-009 AC6); vai trò khác không thấy khóa nào.
+     *
+     * @param  Builder<Course>  $query
+     */
+    #[Scope]
+    protected function visibleTo(Builder $query, User $user): void
+    {
+        if ($user->isStaff()) {
+            return;
+        }
+
+        if ($user->isTeacher()) {
+            $query->whereIn('courses.id', DB::table('course_teacher')->select('course_id')->where('user_id', $user->getKey()));
+
+            return;
+        }
+
+        $query->whereRaw('1 = 0');
     }
 
     /**
