@@ -206,7 +206,7 @@ Danh mục chỉ vài trăm khóa → quét `search_text LIKE %từ%` là đủ;
 
 **course_subject**: `course_id` FK cascade, `subject_id` FK restrict (chặn xoá cứng chuyên đề đang dùng — US-011 AC3). PK (course_id, subject_id), IX (subject_id).
 
-**course_teacher**: `course_id` FK cascade, `user_id` FK restrict, `added_by` FK users null, `created_at`. PK (course_id, user_id), IX (user_id). Ràng buộc "user phải là `giao_vien`" và "tối thiểu 1 giáo viên" ở `CourseTeacherService` (khoá dòng course khi gỡ).
+**course_teacher**: `course_id` FK cascade, `user_id` FK restrict, `added_by` FK users null, `created_at` (NOT NULL DEFAULT CURRENT_TIMESTAMP — `attach()` của Eloquent không ghi timestamp cho pivot chỉ có created_at). PK (course_id, user_id), IX (user_id). Ràng buộc "user phải là `giao_vien`" và "tối thiểu 1 giáo viên" ở `CourseTeacherService` (khoá dòng course khi gỡ).
 
 **chapters**: id, `course_id` FK, `title` varchar(255), `position` int unsigned, timestamps, deleted_at. IX (course_id, position).
 
