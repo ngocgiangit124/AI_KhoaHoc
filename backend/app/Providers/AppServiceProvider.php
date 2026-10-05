@@ -180,12 +180,12 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
+        // 30 lần SAI/ngày/HS (S18) do CartService::applyCoupon đếm riêng (limiter chỉ đếm mọi request, sẽ phạt cả lần đúng).
         RateLimiter::for('coupon', function (Request $request) {
             $identity = $this->identity($request);
 
             return [
                 Limit::perMinute(10)->by('coupon:'.$identity),
-                Limit::perDay(30)->by('coupon-day:'.$identity),
                 Limit::perHour(60)->by('coupon-ip:'.$request->ip()),
             ];
         });

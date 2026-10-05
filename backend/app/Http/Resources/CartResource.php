@@ -1,0 +1,80 @@
+<?php
+
+namespace App\Http\Resources;
+
+use App\Models\CartItem;
+use App\Services\Cart\Data\CartSnapshot;
+use App\Services\Content\ImageUploadService;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+/**
+ * Giỏ hàng (api-contract §2.3): `{items, coupon, pricing, notices}`, phẳng. Dòng không còn khả dụng có
+ * `unavailable: true`, không tính vào `pricing` và `discount_amount`/`final_amount` = null.
+ *
+ * @property CartSnapshot $resource
+ */
+class CartResource extends JsonResource
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        $snapshot = $this->resource;
+        $images = app(ImageUploadService::class);
+
+        $rows = [];
+        foreach ($snapshot->items as $item) {
+            $line = $snapshot->pricing->line($item->course_id);
+            $rows[] = $this->row($item, $images, false, $line?->discountAmount, $line?->finalAmount);
+        }
+        foreach ($snapshot->unavailableItems as $item) {
+            $rows[] = $this->row($item, $images, true, null, null);
+        }
+        usort($rows, fn (array $a, array $b) => $b['_id'] <=> $a['_id']);
+        $rows = array_map(function (array $r): array {
+            unset($r['_id']);
+
+            return $r;
+        }, $rows);
+
+        $coupon = $snapshot->coupon;
+
+        return [
+            'items' => $rows,
+            'coupon' => $coupon === null ? null : [
+                'code' => $coupon->code,
+                'name' => $coupon->name,
+                'discount_type' => $coupon->discount_type->value,
+                'discount_value' => $coupon->discount_value,
+                'discount_amount' => $snapshot->pricing->discount,
+                'applies_to_course_ids' => $snapshot->evaluation->eligibleCourseIds ?? [],
+            ],
+            'pricing' => $snapshot->pricing->toArray(),
+            'notices' => $snapshot->notices,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function row(CartItem $item, ImageUploadService $images, bool $unavailable, ?int $discount, ?int $final): array
+    {
+        $course = $item->course;
+
+        return [
+            '_id' => $item->id,
+            'course_id' => $item->course_id,
+            'title' => $course->title,
+            'slug' => $course->slug,
+            'grade_level' => $course->grade_level,
+            'thumbnail_url' => $images->url($course->thumbnail_path),
+            'price' => $course->price,
+            'unavailable' => $unavailable,
+            'discount_amount' => $discount,
+            'final_amount' => $final,
+            'added_at' => $item->created_at?->toIso8601String(),
+        ];
+    }
+}

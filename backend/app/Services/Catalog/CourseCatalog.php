@@ -11,6 +11,7 @@ use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\Subject;
 use App\Models\User;
+use App\Services\Cart\CartService;
 use App\Support\Like;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -27,6 +28,8 @@ class CourseCatalog
     public const PER_PAGE = 25;
 
     private const MAX_SEARCH_WORDS = 8;
+
+    public function __construct(private readonly CartService $cart) {}
 
     /**
      * @param  list<int>  $subjectIds
@@ -125,7 +128,7 @@ class CourseCatalog
         $state = match (true) {
             $enrollmentStatus !== null => 'pending_approval',
             $course->price === 0 => 'can_register_free',
-            // `in_cart` được nối ở T16 khi có bảng giỏ hàng.
+            $this->cart->contains($user, $course->id) => 'in_cart',
             default => 'can_buy',
         };
 

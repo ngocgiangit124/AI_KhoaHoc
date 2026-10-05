@@ -8,6 +8,9 @@ use App\Http\Controllers\Api\V1\Auth\OtpController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\PasswordResetController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
+use App\Http\Controllers\Api\V1\Cart\CartController;
+use App\Http\Controllers\Api\V1\Cart\CartCouponController;
+use App\Http\Controllers\Api\V1\Cart\CartItemController;
 use App\Http\Controllers\Api\V1\Catalog\CourseController as CatalogCourseController;
 use App\Http\Controllers\Api\V1\Catalog\SubjectController as CatalogSubjectController;
 use App\Http\Controllers\Api\V1\Enrollment\FreeEnrollmentController;
@@ -125,6 +128,18 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         Route::post('/courses/{course}/free-enrollments', [FreeEnrollmentController::class, 'store'])
             ->middleware('account.verified')
             ->name('api.courses.free-enrollments.store');
+
+        // T16 — giỏ hàng (US-004). Không cần `account.verified` (xem/sửa giỏ không bị chặn; chỉ checkout T18 chặn).
+        // PUT /cart/coupon: `throttle:coupon` (10/phút + 60/giờ/IP) và trần 30 lần SAI/ngày/HS do CartService đếm.
+        Route::get('/cart', [CartController::class, 'show'])->name('api.cart.show');
+        Route::post('/cart/items', [CartItemController::class, 'store'])->name('api.cart.items.store');
+        Route::delete('/cart/items/{course}', [CartItemController::class, 'destroy'])
+            ->whereNumber('course')
+            ->name('api.cart.items.destroy');
+        Route::put('/cart/coupon', [CartCouponController::class, 'update'])
+            ->middleware('throttle:coupon')
+            ->name('api.cart.coupon.update');
+        Route::delete('/cart/coupon', [CartCouponController::class, 'destroy'])->name('api.cart.coupon.destroy');
     });
 
     // T11 — webhook video (ADR-002 §2): payload không được tin, service gọi lại getVideo(). Tên provider chỉ

@@ -23,6 +23,7 @@ test('GET /auth/me tra dung shape user cua contract, phang, khong lo field khac'
             'grade_level' => 9,
             'is_verified' => false,
             'parent_consent_status' => 'not_required',
+            'cart_count' => 0,
         ])
         ->assertHeader('Cache-Control', 'no-store, private');
 });
