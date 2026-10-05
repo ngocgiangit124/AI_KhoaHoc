@@ -15,6 +15,7 @@ use App\Services\Auth\PasswordService;
 use App\Services\Payments\Contracts\PaymentGateway;
 use App\Services\Payments\Gateways\Fake\FakeGateway;
 use App\Services\Payments\PaymentGatewayManager;
+use App\Support\CatalogThrottle;
 use App\Support\ProductionConfigGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -209,7 +210,7 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(6)->by($this->identity($request).':'.$lessonKey);
         });
 
-        RateLimiter::for('catalog', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
+        RateLimiter::for('catalog', fn (Request $request) => CatalogThrottle::limits($request));
         RateLimiter::for('webhook', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
         RateLimiter::for('export', fn (Request $request) => Limit::perDay(10)->by($this->identity($request)));
 

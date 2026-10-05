@@ -41,6 +41,25 @@ class ProductionConfigGuard
         $this->guardTrustedProxies();
         $this->guardPayments();
         $this->guardVideo();
+        $this->guardInternalToken();
+    }
+
+    /** Token SSR (nếu bật) phải đủ dài; để trống = tắt (catalog throttle theo IP kết nối). */
+    private function guardInternalToken(): void
+    {
+        $token = config('internal.ssr_token');
+
+        throw_if(
+            config('internal.required') && (! is_string($token) || $token === ''),
+            RuntimeException::class,
+            'INTERNAL_API_TOKEN bắt buộc khi INTERNAL_API_REQUIRED=true ở production.'
+        );
+
+        throw_if(
+            is_string($token) && $token !== '' && mb_strlen($token) < (int) config('internal.ssr_token_min_length'),
+            RuntimeException::class,
+            'INTERNAL_API_TOKEN phải dài tối thiểu '.config('internal.ssr_token_min_length').' ký tự (sinh bằng openssl rand -hex 32).'
+        );
     }
 
     private function guardCaptcha(): void

@@ -339,3 +339,62 @@ Tóm tắt các điểm đã xử lý trong mã nguồn:
   `coupon_code`/`referral_code_used`.
 - **N3:** Nginx cũng chỉ bind `127.0.0.1:8000` (đã kiểm chứng thật
   `host.docker.internal` vẫn gọi được từ container Docker Desktop độc lập).
+
+## 10. Vận hành queue/scheduler (T26)
+
+**Queue.** Redis, 2 queue: `default` (mail OTP/duyệt/thiết bị mới, `SyncVideoAssetStatusJob`) và `exports` (xuất file
+lớn, chưa có job). Mọi job/Mailable khai báo `$tries`, `$timeout`, `$backoff`; `$timeout` < `REDIS_QUEUE_RETRY_AFTER`
+(90s). Hiện tại: mail `tries=3, timeout=30, backoff=[10,60]`; sync video `tries=3, timeout=60, backoff=[60,300]`.
+Tên queue/ngưỡng: `config/ops.php`.
+
+**Lịch** (đăng ký ở `OperationsServiceProvider`, tất cả `withoutOverlapping()->onOneServer()`): `counters:recount` 03:30,
+`otp:prune` 03:00, `queue:prune-failed` 03:10 (giữ 720 giờ), `videos:check-stuck` 15 phút, `videos:prune-orphans` mỗi giờ,
+`queue:monitor` 5 phút (log warning khi tồn đọng), `ops:health --log` 5 phút (log error khi có vấn đề).
+`onOneServer` cần cache Redis dùng chung. Xem: `php artisan schedule:list`.
+
+**Health check.** `php artisan ops:health [--json]` (exit 1 nếu worker/scheduler im > 120s/180s, `failed_jobs` > 10, queue
+> 500 job). Worker ghi nhịp vào cache mỗi 15s, scheduler mỗi phút. Gắn vào monitoring/cron hoặc healthcheck container.
+Cảnh báo: chuyển log level `error` ("Cảnh báo vận hành…", "Job queue thất bại") sang kênh cảnh báo (Slack/Sentry...).
+
+**failed_jobs.** `php artisan queue:failed` (xem), `queue:retry <id|all>`, `queue:forget <id>`, `queue:flush`.
+Payload mail OTP/thiết bị mới được mã hoá (S21). Sau khi sửa nguyên nhân mới retry; job không idempotent thì forget.
+
+**Production (Supervisor)** — `/etc/supervisor/conf.d/vitaminvui.conf`:
+
+```ini
+[program:vv-queue]
+command=php /var/www/backend/artisan queue:work redis --queue=default,exports --tries=3 --timeout=60 --max-time=3600 --sleep=1
+user=www-data
+numprocs=2
+process_name=%(program_name)s_%(process_num)02d
+autostart=true
+autorestart=true
+stopasgroup=true
+stopwaitsecs=90
+redirect_stderr=true
+stdout_logfile=/var/log/vitaminvui/queue.log
+
+[program:vv-scheduler]
+command=php /var/www/backend/artisan schedule:work
+user=www-data
+autostart=true
+autorestart=true
+redirect_stderr=true
+stdout_logfile=/var/log/vitaminvui/scheduler.log
+```
+
+(Hoặc cron `* * * * * php artisan schedule:run` thay cho `schedule:work`; chỉ chọn một.) Mỗi lần deploy chạy
+`php artisan queue:restart` để worker nạp code mới. Nếu thêm worker riêng cho `exports`, tăng `--timeout` cho worker đó
+và `REDIS_QUEUE_RETRY_AFTER` lớn hơn nó. Tunnel nhận IPN MoMo ở local: xem tài liệu T17/T20.
+
+## 11. Throttle `catalog` cho Next.js SSR
+
+SSR gọi API từ 1 IP nên cần phân biệt khách. Đặt `INTERNAL_API_TOKEN` (≥ 32 ký tự, `openssl rand -hex 32`, cùng giá trị ở
+env của Next.js server). Request SSR gửi `X-Internal-Token: <token>` và `X-Client-IP: <IP khách thật>`; token đúng → limiter
+theo IP khách (120/phút) + trần chung 6000/phút. Token trống/sai → theo IP kết nối như trước. Nginx phải **xoá** 2 header này
+khỏi request từ internet (`proxy_set_header X-Internal-Token ""` ở vhost public). Không đưa token vào code chạy trên trình duyệt.
+
+Ở production, SSR Next.js phải gọi Laravel qua đường nội bộ (mạng riêng/listener nội bộ) không đi qua server block công khai:
+block công khai (`infra/nginx/snippets/vv-common.conf`) luôn xoá `X-Internal-Token` và `X-Client-IP` khỏi request. Đặt
+`INTERNAL_API_REQUIRED=true` khi SSR đã gửi header để production từ chối khởi động nếu quên token (token rỗng ở production
+chỉ ghi log warning khi boot).

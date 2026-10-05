@@ -7,7 +7,6 @@ use App\Console\Commands\VideosPruneOrphansCommand;
 use App\Services\Video\Contracts\VideoProvider;
 use App\Services\Video\Providers\FakeVideoProvider;
 use App\Services\Video\VideoProviderManager;
-use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 
 class VideoServiceProvider extends ServiceProvider
@@ -32,9 +31,6 @@ class VideoServiceProvider extends ServiceProvider
     {
         $this->commands([VideosCheckStuckCommand::class, VideosPruneOrphansCommand::class]);
 
-        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
-            $schedule->command('videos:check-stuck')->everyFifteenMinutes()->withoutOverlapping();
-            $schedule->command('videos:prune-orphans')->hourly()->withoutOverlapping();
-        });
+        // Lịch chạy videos:* đăng ký tập trung ở OperationsServiceProvider (T26).
     }
 }

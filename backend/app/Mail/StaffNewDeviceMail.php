@@ -20,6 +20,9 @@ class StaffNewDeviceMail extends Mailable implements ShouldBeEncrypted, ShouldQu
 
     public int $tries = 3;
 
+    /** Gửi mail quá 30s là treo SMTP: huỷ để thử lại theo backoff (nhỏ hơn retry_after 90s). */
+    public int $timeout = 30;
+
     /** @var list<int> */
     public array $backoff = [10, 60];
 
