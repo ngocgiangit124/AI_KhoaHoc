@@ -8,6 +8,7 @@ use Database\Factories\EnrollmentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Ghi danh. `status` chỉ đổi qua EnrollmentService (T12/T14); không có cột nào nhận từ request (S17).
@@ -15,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @property EnrollmentStatus $status
  * @property EnrollmentSource $source
+ * @property Carbon|null $requested_at
+ * @property Carbon|null $approved_at
  */
 class Enrollment extends Model
 {
