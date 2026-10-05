@@ -210,6 +210,15 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(6)->by($this->identity($request).':'.$lessonKey);
         });
 
+        // T22: autosave quiz 120/phút/lượt (người làm bài chọn đáp án liên tục); bắt đầu/nộp 30/phút/người, xem/lịch sử 60/phút/người.
+        RateLimiter::for('quiz-answer', function (Request $request) {
+            $attempt = $request->route('attempt');
+
+            return Limit::perMinute(120)->by($this->identity($request).':quiz-answer:'.(is_scalar($attempt) ? $attempt : ''));
+        });
+        RateLimiter::for('quiz', fn (Request $request) => Limit::perMinute(30)->by($this->identity($request).':quiz'));
+        RateLimiter::for('quiz-read', fn (Request $request) => Limit::perMinute(60)->by($this->identity($request).':quiz-read'));
+
         RateLimiter::for('catalog', fn (Request $request) => CatalogThrottle::limits($request));
         RateLimiter::for('webhook', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
         RateLimiter::for('export', fn (Request $request) => Limit::perDay(10)->by($this->identity($request)));

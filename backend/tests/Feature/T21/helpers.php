@@ -2,8 +2,8 @@
 
 use App\Models\Course;
 use App\Models\Quiz;
+use App\Models\QuizAttempt;
 use App\Models\QuizQuestion;
-use Illuminate\Support\Facades\DB;
 
 require_once __DIR__.'/../T09/helpers.php';
 
@@ -37,13 +37,17 @@ function vvQuestionPayload(array $over = [], int $correct = 2): array
     ], $over);
 }
 
-/** Tạo bảng tạm quiz_attempts (tối thiểu) để mô phỏng T22; bảng tạm không gây commit ngầm nên RefreshDatabase vẫn dọn được. */
+/** Bảng `quiz_attempts` thật đã có từ T22 (migration); giữ hàm để các test T21 cũ không phải sửa. */
 function vvFakeAttemptTable(): void
 {
-    DB::statement('CREATE TEMPORARY TABLE quiz_attempts (id BIGINT AUTO_INCREMENT PRIMARY KEY, quiz_id BIGINT NOT NULL, question_ids JSON NOT NULL)');
+    // Không làm gì.
 }
 
+/** Tạo lượt làm thật cho quiz (mỗi lần 1 học sinh mới nên không đụng unique "1 lượt đang làm"). */
 function vvFakeAttempt(Quiz $quiz, array $questionIds): void
 {
-    DB::table('quiz_attempts')->insert(['quiz_id' => $quiz->id, 'question_ids' => json_encode($questionIds)]);
+    QuizAttempt::factory()->create([
+        'quiz_id' => $quiz->id,
+        'question_ids' => array_map('intval', $questionIds),
+    ]);
 }

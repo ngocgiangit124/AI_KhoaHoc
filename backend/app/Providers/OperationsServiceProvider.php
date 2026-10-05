@@ -32,6 +32,7 @@ class OperationsServiceProvider extends ServiceProvider
             $schedule->command('videos:check-stuck')->everyFifteenMinutes()->withoutOverlapping(30)->onOneServer();
             $schedule->command('videos:prune-orphans')->hourly()->withoutOverlapping(120)->onOneServer();
             $schedule->command('videolab:cleanup')->dailyAt('03:20')->withoutOverlapping(30)->onOneServer();
+            $schedule->command('quizzes:auto-submit-expired')->everyMinute()->withoutOverlapping(5)->onOneServer();
             $schedule->command('otp:prune')->dailyAt('03:00')->withoutOverlapping(30)->onOneServer();
             $schedule->command('queue:prune-failed', ['--hours' => config('ops.failed_jobs_retention_hours')])
                 ->dailyAt('03:10')->withoutOverlapping(30)->onOneServer();

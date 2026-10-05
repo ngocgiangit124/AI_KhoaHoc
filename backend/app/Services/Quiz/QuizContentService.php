@@ -9,7 +9,6 @@ use App\Models\QuizOption;
 use App\Models\QuizQuestion;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -20,8 +19,8 @@ use Illuminate\Support\Facades\DB;
  * lượt làm cũ đọc câu bằng `QuizQuestion::withTrashed()` (lựa chọn của câu cũ được giữ nguyên, không soft delete).
  * Id câu hỏi vì vậy có thể ĐỔI sau khi sửa: client dùng id trong response.
  *
- * Khoá: dòng quiz (`lockForUpdate`) cho mọi ghi câu hỏi. T22 khi tạo lượt làm phải đọc quiz với
- * `lockForUpdate`/`sharedLock` trước khi chốt `question_ids` để không lọt giữa "kiểm có lượt" và "sửa tại chỗ".
+ * Khoá: dòng quiz (`lockForUpdate`) cho mọi ghi câu hỏi. Tạo lượt làm (QuizAttemptService::start) đọc quiz với
+ * `sharedLock` trước khi chốt `question_ids` nên không lọt giữa "kiểm có lượt" và "sửa tại chỗ".
  */
 class QuizContentService
 {
@@ -134,23 +133,16 @@ class QuizContentService
     }
 
     /**
-     * Câu đã được ít nhất 1 lượt làm tham chiếu? (cả lượt đang làm lẫn đã nộp). Bảng `quiz_attempts` do T22 tạo;
-     * trước đó chưa thể có lượt nào.
+     * Câu đã được ít nhất 1 lượt làm tham chiếu? (cả lượt đang làm lẫn đã nộp). `question_ids` là JSON mảng số
+     * nguyên nên JSON_CONTAINS với số nguyên khớp; lọc theo `quiz_id` (index) trước. Gọi dưới `lockForUpdate` dòng
+     * quiz; QuizAttemptService::start đọc quiz bằng `sharedLock` trước khi chốt `question_ids`.
      */
     public function hasAttempts(Quiz $quiz, QuizQuestion $question): bool
     {
-        try {
-            return DB::table('quiz_attempts')
-                ->where('quiz_id', $quiz->getKey())
-                ->whereRaw('JSON_CONTAINS(question_ids, CAST(? AS JSON))', [(string) (int) $question->getKey()])
-                ->exists();
-        } catch (QueryException $e) {
-            if ($e->getCode() === '42S02') { // bảng chưa tồn tại (trước T22) → chưa thể có lượt làm
-                return false;
-            }
-
-            throw $e;
-        }
+        return DB::table('quiz_attempts')
+            ->where('quiz_id', $quiz->getKey())
+            ->whereRaw('JSON_CONTAINS(question_ids, CAST(? AS JSON))', [(string) (int) $question->getKey()])
+            ->exists();
     }
 
     /**

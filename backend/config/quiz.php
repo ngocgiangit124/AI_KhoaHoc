@@ -19,4 +19,11 @@ return [
 
     'max_time_limit_minutes' => 300,
 
+    // T22: ân hạn (giây) sau `expires_at` cho autosave/nộp bài do độ trễ mạng; quá hạn này server tự nộp bằng
+    // đáp án đã autosave (đồng hồ do server quyết định, không tin client).
+    // Số lượt tối đa trả về ở lịch sử lượt làm của 1 quiz.
+    'history_limit' => 50,
+
+    'submit_grace_seconds' => (int) env('QUIZ_SUBMIT_GRACE_SECONDS', 30),
+
 ];

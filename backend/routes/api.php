@@ -20,6 +20,8 @@ use App\Http\Controllers\Api\V1\Learn\LessonController as LearnLessonController;
 use App\Http\Controllers\Api\V1\Learn\PlaybackController;
 use App\Http\Controllers\Api\V1\Learn\ProgressController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
+use App\Http\Controllers\Api\V1\Quiz\AnswerController;
+use App\Http\Controllers\Api\V1\Quiz\AttemptController;
 use App\Http\Controllers\Api\V1\Webhook\VideoWebhookController;
 use App\Http\Middleware\VaryOnOrigin;
 use Illuminate\Support\Facades\Route;
@@ -169,6 +171,24 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             ->whereNumber('lesson')
             ->middleware('throttle:heartbeat')
             ->name('api.learn.lessons.heartbeat');
+
+        // T22 — làm quiz (US-007). Quyền (COURSE_NOT_OWNED; lượt của người khác → 404) kiểm trong QuizAttemptService.
+        Route::middleware('throttle:quiz')->group(function (): void {
+            Route::post('/learn/quizzes/{quiz}/attempts', [AttemptController::class, 'store'])
+                ->whereNumber('quiz')->name('api.quiz.attempts.store');
+            Route::post('/learn/quiz-attempts/{attempt}/submit', [AttemptController::class, 'submit'])
+                ->whereNumber('attempt')->name('api.quiz.attempts.submit');
+        });
+        Route::middleware('throttle:quiz-read')->group(function (): void {
+            Route::get('/learn/quizzes/{quiz}/attempts', [AttemptController::class, 'index'])
+                ->whereNumber('quiz')->name('api.quiz.attempts.index');
+            Route::get('/learn/quiz-attempts/{attempt}', [AttemptController::class, 'show'])
+                ->whereNumber('attempt')->name('api.quiz.attempts.show');
+        });
+        Route::put('/learn/quiz-attempts/{attempt}/answers/{question}', [AnswerController::class, 'update'])
+            ->whereNumber(['attempt', 'question'])
+            ->middleware('throttle:quiz-answer')
+            ->name('api.quiz.answers.update');
     });
 
     // T11 — webhook video (ADR-002 §2): payload không được tin, service gọi lại getVideo(). Tên provider chỉ
