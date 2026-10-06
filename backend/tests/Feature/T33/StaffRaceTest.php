@@ -59,7 +59,8 @@ test('race: hai admin khoa cheo nhau -> khong deadlock/500, con >= 1 admin activ
 
             expect(collect($res)->pluck('result')->all())->not->toContain('error');
             $active = vvStaffRaceOnce(['state', $a, $b])['active'];
-            expect($active)->toBeGreaterThanOrEqual(1);
+            // `others` = admin active khác (dữ liệu sót/seed) lúc bắt đầu: chỉ khi $others = 0 thì a,b phải còn ≥ 1.
+            expect($active + $s['others'])->toBeGreaterThanOrEqual(1);
             // Cả hai cùng thành công chỉ khi còn admin khác ngoài hai người này.
             if ($s['others'] === 0) {
                 expect(collect($res)->where('result', 'ok')->count())->toBe(1)->and($active)->toBe(1);
@@ -83,7 +84,7 @@ test('race: hai admin cung ha quyen / khoa admin cuoi (3 nguoi, 2 thao tac vao c
 
             expect(collect($res)->pluck('result')->all())->not->toContain('error');
             $active = vvStaffRaceOnce(['state', $a, $b, $c])['active'];
-            expect($active)->toBeGreaterThanOrEqual(1);
+            expect($active + $s['others'])->toBeGreaterThanOrEqual(1);
             if ($s['others'] === 0) {
                 expect($active)->toBe(3 - collect($res)->where('result', 'ok')->count());
             }
@@ -103,7 +104,7 @@ test('race: hai admin cung ha quyen nhau (2 admin) -> chi mot thanh cong', funct
             $res = vvStaffRaceParallel([['demote', $a, $b, $t], ['demote', $b, $a, $t]]);
 
             expect(collect($res)->pluck('result')->all())->not->toContain('error');
-            expect(vvStaffRaceOnce(['state', $a, $b])['active'])->toBeGreaterThanOrEqual(1);
+            expect(vvStaffRaceOnce(['state', $a, $b])['active'] + $s['others'])->toBeGreaterThanOrEqual(1);
         } finally {
             vvStaffRaceOnce(['cleanup', ...$s['ids']]);
         }
