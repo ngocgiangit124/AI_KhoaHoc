@@ -28,6 +28,7 @@ class CourseSearchRequest extends FormRequest
             'subject_ids' => ['nullable', 'array', 'max:20'],
             'subject_ids.*' => ['integer', 'min:1', 'max:4294967295'],
             'q' => ['nullable', 'string', 'max:100'],
+            'teacher_id' => ['nullable', 'integer', 'min:1', 'max:9223372036854775807'],
             'sort' => ['nullable', 'string', 'in:'.implode(',', self::SORTS)],
             'page' => ['nullable', 'integer', 'min:1', 'max:100000'],
         ];
@@ -48,6 +49,9 @@ class CourseSearchRequest extends FormRequest
             'subject_ids.*.max' => 'Chuyên đề không hợp lệ.',
             'q.max' => 'Từ khóa tối đa 100 ký tự.',
             'q.string' => 'Từ khóa không hợp lệ.',
+            'teacher_id.integer' => 'Giáo viên không hợp lệ.',
+            'teacher_id.min' => 'Giáo viên không hợp lệ.',
+            'teacher_id.max' => 'Giáo viên không hợp lệ.',
             'sort.in' => 'Kiểu sắp xếp không hợp lệ.',
             'page.integer' => 'Số trang không hợp lệ.',
             'page.min' => 'Số trang không hợp lệ.',

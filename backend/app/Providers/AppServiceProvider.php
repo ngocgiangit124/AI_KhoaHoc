@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\TeacherProfile;
 use App\Models\User;
 use App\Rules\NotCommonPassword;
 use App\Services\Auth\Captcha\CaptchaVerifier;
@@ -94,6 +95,15 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-system', fn (User $user) => $user->isAdmin());
 
         Gate::define('access-admin-area', fn (User $user) => $user->isStaff() || $user->isTeacher());
+
+        // US-020: không có Policy theo model vì không có quyền theo từng bản ghi. Giáo viên chỉ đi qua `/admin/me/...`
+        // (hồ sơ của chính mình); Admin/QLT quản lý mọi hồ sơ nhưng KHÔNG đồng ý thay (Admin/QLT gọi `/me` → 403).
+        Gate::define('manage-teacher-profiles', fn (User $user) => $user->isStaff());
+        Gate::define('own-teacher-profile', fn (User $user) => $user->isTeacher());
+        // L1 (security T36): quyền của chủ thể dữ liệu. Người ĐÃ TỪNG có hồ sơ (dòng `teacher_profiles`) mà nay đổi vai trò vẫn tự rút
+        // đồng ý và xoá ảnh của mình được. Chỉ dùng cho 2 thao tác gỡ; đồng ý/sửa nội dung vẫn chỉ cho `own-teacher-profile`.
+        Gate::define('withdraw-own-teacher-profile', fn (User $user) => $user->isTeacher()
+            || TeacherProfile::query()->whereKey($user->getKey())->exists());
     }
 
     /**
@@ -226,6 +236,10 @@ class AppServiceProvider extends ServiceProvider
 
         // T23: Khóa học của tôi / tiến độ (đọc, tổng hợp nhiều bảng): 60/phút/người.
         RateLimiter::for('me-courses', fn (Request $request) => Limit::perMinute(60)->by($this->identity($request).':me-courses'));
+
+        // US-020 (T36): ghi hồ sơ giáo viên 30/phút/người; tải ảnh (decode + encode WebP, tốn CPU) 10/phút/người.
+        RateLimiter::for('teacher-profile', fn (Request $request) => Limit::perMinute(30)->by('teacher-profile:'.$this->identity($request)));
+        RateLimiter::for('teacher-avatar', fn (Request $request) => Limit::perMinute(10)->by('teacher-avatar:'.$this->identity($request)));
 
         RateLimiter::for('catalog', fn (Request $request) => CatalogThrottle::limits($request));
         RateLimiter::for('webhook', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));

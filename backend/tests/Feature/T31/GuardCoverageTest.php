@@ -14,7 +14,7 @@ beforeEach(function () {
         'captcha.driver' => 'turnstile',
         'auth.otp.channels' => ['email'],
         'auth.otp.e2e_relaxed' => false,
-        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'],
+        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net',
         'app.url' => 'https://api.vitaminvui.vn',
         'app.frontend_url' => 'https://vitaminvui.vn',
         'app.admin_url' => 'https://admin.vitaminvui.vn',

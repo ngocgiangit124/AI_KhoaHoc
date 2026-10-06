@@ -38,7 +38,7 @@ test('APP_ENV la (uat, prod) bi chan du moi cau hinh khac deu dung (C4-M2); prod
         'captcha.driver' => 'turnstile',
         'auth.otp.channels' => ['email'],
         'auth.otp.e2e_relaxed' => false,
-        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'],
+        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net',
         'app.trusted_proxies' => '10.0.0.1',
         'payments.enabled_gateways' => [],
         'video.provider' => 'internal',

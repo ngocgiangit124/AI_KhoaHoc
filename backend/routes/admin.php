@@ -14,11 +14,13 @@ use App\Http\Controllers\Api\V1\Admin\CurriculumOrderController;
 use App\Http\Controllers\Api\V1\Admin\EnrollmentRequestController;
 use App\Http\Controllers\Api\V1\Admin\LessonController;
 use App\Http\Controllers\Api\V1\Admin\LessonVideoUploadController;
+use App\Http\Controllers\Api\V1\Admin\MyTeacherProfileController;
 use App\Http\Controllers\Api\V1\Admin\QuizController;
 use App\Http\Controllers\Api\V1\Admin\QuizQuestionController;
 use App\Http\Controllers\Api\V1\Admin\StaffAccountController;
 use App\Http\Controllers\Api\V1\Admin\SubjectController;
 use App\Http\Controllers\Api\V1\Admin\TeacherController;
+use App\Http\Controllers\Api\V1\Admin\TeacherProfileController;
 use App\Http\Controllers\Api\V1\Auth\CsrfController;
 use App\Http\Controllers\Api\V1\Learn\PlaybackController;
 use Illuminate\Support\Facades\Route;
@@ -178,5 +180,23 @@ Route::domain(config('app.admin_api_host'))
             Route::patch('/admin/staff/{staff}/role', [StaffAccountController::class, 'updateRole'])->middleware('throttle:30,1')->name('admin.staff.role');
             Route::post('/admin/staff/{staff}/reset-password', [StaffAccountController::class, 'resetPassword'])->middleware('throttle:30,1')->name('admin.staff.reset-password');
             Route::get('/admin/audit-logs', [AuditLogController::class, 'index'])->name('admin.audit-logs.index');
+
+            // T36 — Hồ sơ giáo viên công khai (US-020, ADR-005).
+            // "Hồ sơ của tôi": Gate `own-teacher-profile` (chỉ giáo viên; Admin/QLT → 403), không có `{user}` nên không có
+            // IDOR. Đồng ý/rút đồng ý CHỈ có ở nhóm này (không có route đồng ý mang `{user}`).
+            Route::get('/admin/me/teacher-profile', [MyTeacherProfileController::class, 'show'])->name('admin.me.teacher-profile.show');
+            Route::patch('/admin/me/teacher-profile', [MyTeacherProfileController::class, 'update'])->middleware('throttle:teacher-profile')->name('admin.me.teacher-profile.update');
+            Route::post('/admin/me/teacher-profile/avatar', [MyTeacherProfileController::class, 'storeAvatar'])->middleware('throttle:teacher-avatar')->name('admin.me.teacher-profile.avatar.store');
+            Route::delete('/admin/me/teacher-profile/avatar', [MyTeacherProfileController::class, 'destroyAvatar'])->middleware('throttle:teacher-profile')->name('admin.me.teacher-profile.avatar.destroy');
+            Route::post('/admin/me/teacher-profile/consent', [MyTeacherProfileController::class, 'consent'])->middleware('throttle:teacher-profile')->name('admin.me.teacher-profile.consent');
+            Route::delete('/admin/me/teacher-profile/consent', [MyTeacherProfileController::class, 'withdrawConsent'])->middleware('throttle:teacher-profile')->name('admin.me.teacher-profile.consent.withdraw');
+
+            // Admin/QLT: Gate `manage-teacher-profiles` (kiểm trước validate/tìm bản ghi). Sửa hộ nội dung, bật/tắt trang chủ.
+            Route::get('/admin/teacher-profiles', [TeacherProfileController::class, 'index'])->name('admin.teacher-profiles.index');
+            Route::get('/admin/teacher-profiles/{user}', [TeacherProfileController::class, 'show'])->name('admin.teacher-profiles.show');
+            Route::patch('/admin/teacher-profiles/{user}', [TeacherProfileController::class, 'update'])->middleware('throttle:teacher-profile')->name('admin.teacher-profiles.update');
+            Route::post('/admin/teacher-profiles/{user}/avatar', [TeacherProfileController::class, 'storeAvatar'])->middleware('throttle:teacher-avatar')->name('admin.teacher-profiles.avatar.store');
+            Route::delete('/admin/teacher-profiles/{user}/avatar', [TeacherProfileController::class, 'destroyAvatar'])->middleware('throttle:teacher-profile')->name('admin.teacher-profiles.avatar.destroy');
+            Route::patch('/admin/teacher-profiles/{user}/homepage', [TeacherProfileController::class, 'updateHomepage'])->middleware('throttle:teacher-profile')->name('admin.teacher-profiles.homepage');
         });
     });

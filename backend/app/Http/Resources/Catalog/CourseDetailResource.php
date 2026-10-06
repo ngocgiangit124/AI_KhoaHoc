@@ -5,7 +5,9 @@ namespace App\Http\Resources\Catalog;
 use App\Models\Chapter;
 use App\Models\Course;
 use App\Models\Lesson;
+use App\Models\User;
 use App\Services\Content\HtmlSanitizer;
+use App\Support\PublicTeacher;
 use App\Support\StaticUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -14,6 +16,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Chi tiết công khai (cache được: không chứa dữ liệu theo người xem). Outline chỉ có tên bài, thời lượng,
  * `is_preview` — KHÔNG có URL/ID video/asset/nguồn video (S13). Cần eager load
  * `subjects`, `teachers`, `chapters.lessons`.
+ *
+ * Giáo viên: ảnh/bio CHỈ đi qua `PublicTeacher` (chưa đồng ý công khai thì null; US-020 BR5). Cần eager load
+ * `teachers.teacherProfile`.
  *
  * `description` được sanitize khi ghi (T08) và lọc lại khi trả ra bằng HtmlSanitizer (api-contract §4).
  *
@@ -61,12 +66,7 @@ class CourseDetailResource extends JsonResource
             'enrollments_count' => $this->enrollments_count,
             'published_at' => $this->published_at?->toIso8601String(),
             'subjects' => PublicSubjectResource::collection($this->subjects)->resolve($request),
-            'teachers' => $this->teachers->map(fn ($t) => [
-                'id' => $t->id,
-                'name' => $t->name,
-                'bio' => $t->bio,
-                'avatar_url' => StaticUrl::to($t->avatar_path),
-            ])->values()->all(),
+            'teachers' => $this->teachers->map(fn (User $t) => PublicTeacher::toArray($t))->values()->all(),
             'lessons_count' => $lessonsCount,
             'total_duration_seconds' => $duration,
             'has_preview' => $hasPreview,

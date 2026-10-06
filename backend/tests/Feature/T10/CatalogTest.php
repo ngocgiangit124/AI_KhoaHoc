@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\Subject;
+use App\Models\TeacherProfile;
 use App\Models\User;
 use App\Support\StaticUrl;
 use Illuminate\Support\Facades\DB;
@@ -219,7 +220,9 @@ test('truy van loc dung index, khong quet toan bang', function () {
 
 test('chi tiet theo slug: outline, giao vien, dem ghi danh, khong lo video (US-003)', function () {
     $course = vvPublished(['price' => 199000, 'enrollments_count' => 7, 'description' => '<p>Mô tả</p>']);
-    $t1 = vvTeach($course, User::factory()->teacher()->create(['name' => 'Cô A', 'bio' => 'Giảng viên 10 năm']));
+    // US-020 (ADR-005): bio lấy từ teacher_profiles và chỉ trả khi giáo viên đã đồng ý công khai.
+    $t1 = vvTeach($course, User::factory()->teacher()->create(['name' => 'Cô A']));
+    TeacherProfile::factory()->consented()->create(['user_id' => $t1->id, 'bio' => 'Giảng viên 10 năm']);
     vvTeach($course, User::factory()->teacher()->create(['name' => 'Thầy B']));
     $ch2 = Chapter::factory()->for($course)->create(['position' => 2, 'title' => 'Chương 2']);
     $ch1 = Chapter::factory()->for($course)->create(['position' => 1, 'title' => 'Chương 1']);
@@ -238,6 +241,8 @@ test('chi tiet theo slug: outline, giao vien, dem ghi danh, khong lo video (US-0
         ->assertJsonPath('lessons_count', 3)->assertJsonPath('total_duration_seconds', 180)->assertJsonPath('has_preview', true);
     expect(collect($r->json('teachers'))->pluck('name')->all())->toBe(['Cô A', 'Thầy B']);
     expect($r->json('teachers.0.bio'))->toBe('Giảng viên 10 năm');
+    // Thầy B chưa có hồ sơ/đồng ý: bio và avatar_url null (key vẫn có).
+    expect($r->json('teachers.1.bio'))->toBeNull()->and($r->json('teachers.1.avatar_url'))->toBeNull();
     expect(collect($r->json('outline'))->pluck('title')->all())->toBe(['Chương 1', 'Chương 2']);
     expect(collect($r->json('outline.0.lessons'))->pluck('title')->all())->toBe(['B1', 'B2']);
     expect($r->json('outline.0.lessons.0'))->toBe(['id' => $l1->id, 'title' => 'B1', 'position' => 1, 'duration_seconds' => 120, 'is_preview' => true]);

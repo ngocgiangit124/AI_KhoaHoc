@@ -91,6 +91,7 @@ class ProductionConfigGuard
         $this->guardCaptcha();
         $this->guardOtpChannels();
         $this->guardUrlsHttps();
+        $this->guardStaticUrl();
         $this->guardStatefulDomains();
         $this->guardTrustedProxies();
         $this->guardPayments();
@@ -251,6 +252,128 @@ class ProductionConfigGuard
                 "{$name} phải dùng https ở production/staging (C4-L5)."
             );
         }
+    }
+
+    /**
+     * Nhãn cấp 2 thường gặp dưới ccTLD 2 chữ (`com.vn`, `edu.vn`, `co.uk`...): heuristic thay cho Public Suffix List (không cài
+     * package mới). GIỚI HẠN: chỉ đúng với các đuôi dạng `<sld>.<cc>` trong danh sách này; đuôi lạ (ví dụ `city.kawasaki.jp`)
+     * bị coi là 2 nhãn cuối. Đã đủ cho tên miền của dự án (`.vn`, `.net`, `.com`); sai thì lỗi nghiêng về an toàn ở phần
+     * so khớp cha/con bên dưới.
+     */
+    private const SECOND_LEVEL_LABELS = ['com', 'net', 'org', 'edu', 'gov', 'ac', 'info', 'biz', 'name', 'pro', 'health', 'int', 'co'];
+
+    /**
+     * US-020 (T36, S2) — miền tĩnh phục vụ ảnh chân dung CÔNG KHAI của giáo viên (và thumbnail khóa), nên phải là miền
+     * riêng KHÔNG cùng site với web/api/admin: `STATIC_URL` bắt buộc đặt, dùng https, host là tên miền (không phải IP) và
+     * KHÁC registrable domain (eTLD+1, heuristic) của `APP_URL`, `FRONTEND_URL`, `ADMIN_URL` và host `api`/`admin-api`
+     * (`APP_API_HOST`, `APP_ADMIN_API_HOST`); đồng thời không trùng hoặc là miền cha/con của chúng, và không nằm dưới
+     * `SESSION_DOMAIN`. Host được chuẩn hoá trước khi so (chữ thường, bỏ dấu chấm cuối, đổi dấu chấm toàn chiều rộng/CJK
+     * thành `.`, IDNA → punycode). Kiểm thêm câu chữ đồng ý (`teacher_profile.consent_version`) khác rỗng.
+     */
+    private function guardStaticUrl(): void
+    {
+        throw_if(
+            trim((string) config('teacher_profile.consent_version')) === '',
+            RuntimeException::class,
+            'teacher_profile.consent_version phải khác rỗng (bằng chứng đồng ý công khai hồ sơ giáo viên, US-020).'
+        );
+
+        $url = trim((string) config('app.static_url'));
+
+        throw_if(
+            $url === '',
+            RuntimeException::class,
+            'STATIC_URL phải được đặt ở production/staging (miền tĩnh riêng cho ảnh công khai, US-020).'
+        );
+
+        throw_unless(
+            str_starts_with(mb_strtolower($url), 'https://'),
+            RuntimeException::class,
+            'STATIC_URL phải dùng https ở production/staging (US-020).'
+        );
+
+        $host = $this->normalizeHost((string) parse_url($url, PHP_URL_HOST));
+
+        throw_if(
+            $host === '',
+            RuntimeException::class,
+            'STATIC_URL không đọc được tên miền (US-020).'
+        );
+
+        throw_if(
+            filter_var(trim($host, '[]'), FILTER_VALIDATE_IP) !== false || str_contains($host, ':'),
+            RuntimeException::class,
+            'STATIC_URL phải là tên miền, không được là địa chỉ IP (US-020).'
+        );
+
+        $others = [
+            'APP_URL' => (string) parse_url((string) config('app.url'), PHP_URL_HOST),
+            'FRONTEND_URL' => (string) parse_url((string) config('app.frontend_url'), PHP_URL_HOST),
+            'ADMIN_URL' => (string) parse_url((string) config('app.admin_url'), PHP_URL_HOST),
+            'APP_API_HOST' => (string) config('app.api_host'),
+            'APP_ADMIN_API_HOST' => (string) config('app.admin_api_host'),
+        ];
+        $staticSite = $this->registrableDomain($host);
+
+        foreach ($others as $name => $raw) {
+            $other = $this->normalizeHost($raw);
+
+            if ($other === '') {
+                continue;
+            }
+
+            throw_if(
+                $host === $other
+                    || str_ends_with($host, '.'.$other)
+                    || str_ends_with($other, '.'.$host)
+                    || $staticSite === $this->registrableDomain($other),
+                RuntimeException::class,
+                "STATIC_URL không được cùng site (cùng tên miền đăng ký, hoặc miền cha/con) với {$name}: miền tĩnh không được chia sẻ cookie/same-site (S2, US-020)."
+            );
+        }
+
+        $cookieDomain = $this->normalizeHost((string) config('session.domain'));
+
+        throw_if(
+            $cookieDomain !== '' && $cookieDomain !== 'null' && ($host === $cookieDomain || str_ends_with($host, '.'.$cookieDomain)),
+            RuntimeException::class,
+            'SESSION_DOMAIN đang phủ cả host của STATIC_URL: cookie phiên sẽ gửi sang miền tĩnh (S2, US-020).'
+        );
+    }
+
+    /** Chữ thường, bỏ khoảng trắng, đổi dấu chấm toàn chiều rộng (U+FF0E), CJK (U+3002), nửa chiều rộng (U+FF61) thành `.`, bỏ dấu chấm cuối/đầu, IDNA → ASCII. */
+    private function normalizeHost(string $host): string
+    {
+        $host = mb_strtolower(trim($host));
+        $host = str_replace(["\u{FF0E}", "\u{3002}", "\u{FF61}"], '.', $host);
+        $host = trim($host, '.');
+
+        if ($host !== '' && function_exists('idn_to_ascii')) {
+            $ascii = idn_to_ascii($host, IDNA_NONTRANSITIONAL_TO_ASCII, INTL_IDNA_VARIANT_UTS46);
+            $host = is_string($ascii) && $ascii !== '' ? $ascii : $host;
+        }
+
+        return $host;
+    }
+
+    /** Registrable domain (eTLD+1) theo heuristic: 2 nhãn cuối, hoặc 3 nhãn khi đuôi là `<sld>.<cc 2 chữ>` (xem SECOND_LEVEL_LABELS). */
+    private function registrableDomain(string $host): string
+    {
+        $labels = explode('.', $host);
+        $count = count($labels);
+
+        if ($count <= 2) {
+            return $host;
+        }
+
+        $tld = $labels[$count - 1];
+        $sld = $labels[$count - 2];
+
+        if (strlen($tld) === 2 && in_array($sld, self::SECOND_LEVEL_LABELS, true)) {
+            return implode('.', array_slice($labels, -3));
+        }
+
+        return implode('.', array_slice($labels, -2));
     }
 
     /**

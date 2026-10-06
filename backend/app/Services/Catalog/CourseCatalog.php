@@ -5,6 +5,7 @@ namespace App\Services\Catalog;
 use App\Enums\CourseStatus;
 use App\Enums\EnrollmentStatus;
 use App\Enums\SubjectStatus;
+use App\Enums\UserRole;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Lesson;
@@ -35,7 +36,7 @@ class CourseCatalog
      * @param  list<int>  $subjectIds
      * @return LengthAwarePaginator<int, Course>
      */
-    public function search(?int $grade, array $subjectIds, ?string $q, string $sort, int $page): LengthAwarePaginator
+    public function search(?int $grade, array $subjectIds, ?string $q, string $sort, int $page, ?int $teacherId = null): LengthAwarePaginator
     {
         $query = $this->published()
             ->select([
@@ -62,6 +63,15 @@ class CourseCatalog
                 ->select('cs.course_id'));
         }
 
+        if ($teacherId !== null) {
+            // US-020 (Q6): chỉ khóa có giáo viên này; id lạ/không phải giáo viên → rỗng (không lỗi, không lộ gì thêm).
+            $query->whereIn('courses.id', DB::table('course_teacher as ct')
+                ->join('users as u', 'u.id', '=', 'ct.user_id')
+                ->where('ct.user_id', $teacherId)
+                ->where('u.role', UserRole::Teacher->value)
+                ->select('ct.course_id'));
+        }
+
         $words = $this->searchWords($q);
         if ($words === [] && $q !== null && trim($q) !== '') {
             // Từ khoá không còn ký tự nào sau khi chuẩn hoá (CJK/emoji...) → không khớp khóa nào.
@@ -85,8 +95,10 @@ class CourseCatalog
             ->where('courses.slug', $slug)
             ->with([
                 'subjects' => fn (Relation $r) => $this->activeSubjects($r),
-                'teachers' => fn (Relation $r) => $r->select('users.id', 'users.name', 'users.bio', 'users.avatar_path')
+                // US-020: ảnh/bio lấy từ `teacher_profiles`, chỉ xuất qua `PublicTeacher` (cần `role` + hồ sơ).
+                'teachers' => fn (Relation $r) => $r->select('users.id', 'users.name', 'users.role')
                     ->orderBy('course_teacher.created_at')->orderBy('users.id'),
+                'teachers.teacherProfile:user_id,headline,bio,avatar_path,public_consent_at',
                 'chapters' => fn (Relation $r) => $r->select('id', 'course_id', 'title', 'position')
                     ->orderBy('position')->orderBy('id'),
                 'chapters.lessons' => fn (Relation $r) => $r->select('id', 'chapter_id', 'title', 'position', 'duration_seconds', 'is_preview')

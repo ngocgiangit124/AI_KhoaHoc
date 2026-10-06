@@ -23,5 +23,7 @@ Thiết kế MVP (US-001 → US-014) được viết tập trung ở `docs/archi
 | US-016 Quản lý tài khoản staff + MFA (chờ BA) | ADR-004 §3; api-contract §2.5 | T28, T33 |
 | US-017 Đồng ý dữ liệu & xác nhận phụ huynh (chờ BA, chờ pháp chế) | data-model `consents`; api-contract §2.8 | T03, T29 |
 | US-018 Quyền dữ liệu cá nhân (chờ BA) | data-model §7; api-contract §2.8 | T30, T34 |
+| US-019 Trang chủ | tasks.md "Sau MVP" (FW8); không có API mới | FW8 |
+| US-020 Hồ sơ giáo viên công khai | **[US-020.md](US-020.md)**; **ADR-005**; api-contract §2.9; data-model `teacher_profiles` | T36, FW9, FA11 |
 
 Danh sách task đầy đủ (kể cả T01, T02, FE0 chi tiết): `docs/architecture/tasks.md`. Truy vết review Security/DBA: `docs/architecture/review-traceability.md`.

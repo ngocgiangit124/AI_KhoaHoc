@@ -80,6 +80,8 @@ Ngoại lệ duy nhất: `POST /auth/logout` và `POST /admin/auth/logout` chỉ
 | `csrf` | — | 120/phút (PO chốt 2026-10-05, lớp học dùng chung NAT) |
 | `webhook` | — | 120/phút |
 | `export` | 10 lần tạo/ngày/user | — |
+| `teacher-profile` (T36: PATCH hồ sơ, xoá ảnh, đồng ý/rút, bật trang chủ; `/admin/me/teacher-profile*` và `/admin/teacher-profiles/{user}*`) | 30/phút/user | — |
+| `teacher-avatar` (T36: `POST .../avatar`, lần lỗi 422 cũng tính) | 10/phút/user | — |
 | `admin-password` (T28) | 5/phút, 20/giờ/user | — |
 
 IP thật lấy qua `TrustProxies` với danh sách IP cụ thể (không `*`).
@@ -113,6 +115,9 @@ Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $statu
 | 409 | `COURSE_UNAVAILABLE` | Khóa đã xoá mềm: không duyệt được yêu cầu / không cấp quyền sau thanh toán (T14; T19 chuyển đơn needs_review/hoàn tiền) |
 | 422 | `COURSE_NOT_FREE` | Xin học miễn phí cho khóa có phí (T14) |
 | 409 | `SUBJECT_IN_USE` | Xoá chuyên đề đang gán khóa học (T06) |
+| 409 | `TEACHER_HOMEPAGE_LIMIT` | Bật hiển thị trang chủ khi đã có `teacher_profile.homepage_max` (6) giáo viên được bật (US-020, T36) |
+| 409 | `CONSENT_VERSION_CHANGED` | Giáo viên gửi đồng ý với `version` khác câu chữ hiện hành → FE tải lại hồ sơ, hiện câu mới (US-020, T36) |
+| 422 | `NOT_TEACHER` | Sửa nội dung hồ sơ / bật trang chủ cho tài khoản không còn vai trò `giao_vien` (US-020, T36) |
 | 409 | `COURSE_HAS_ENROLLMENTS`, `INVALID_COURSE_STATE` | Xoá khóa đã có enrollment; ngừng bán khóa chưa xuất bản (T08) |
 | 409 | `COURSE_HAS_PENDING_ORDERS` | Xoá khóa đang nằm trong đơn `pending` chưa hết hạn (T18) |
 | 409 | `PAYMENT_IN_PROGRESS` | Đang tạo giao dịch thanh toán cho đơn (T18) |
@@ -136,8 +141,9 @@ Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $statu
 | GET | /csrf-token | `Auth\CsrfController` | — | — | `{token}` (không cache) |
 | GET | /config/public | `PublicConfigController@show` | public | — | **Object phẳng**, chỉ gồm các khoá trong allowlist (ví dụ ngay dưới bảng) |
 | GET | /subjects | `Catalog\SubjectController@index` | public | — | `{data:[{id,name,slug}]}` chuyên đề `active`, sắp `name asc, id asc`, không phân trang. Cùng nhóm cache với `/courses` |
-| GET | /courses | `Catalog\CourseController@index` | public, throttle:catalog | `CourseSearchRequest`: grade (6–12), subject_ids[] (≤ 20), q (≤ 100, escape LIKE — S24), sort (`newest`\|`popular`\|`featured`), page | 25 khóa `published` **T10 chốt:** `subject_ids[]` = OR (khóa thuộc ít nhất 1 chuyên đề); id chuyên đề ẩn/không tồn tại không khớp khóa nào (kết quả rỗng, không lỗi); `q` bỏ dấu + chữ thường, tách từ (≤ 8), mọi từ phải khớp `search_text` (AND); tham số sai (`grade`=99, `sort` lạ, `page`<1, `q`>100) → **422** `VALIDATION_ERROR`; `sort`: `newest` (mặc định `published_at desc, id desc`), `popular` (`enrollments_count desc` + như trên), `featured` (`manual_order` tăng dần, null xếp sau + như trên). Item: `{id,title,slug,short_description,grade_level,price,is_free,thumbnail_url,enrollments_count,published_at,subjects:[{id,name,slug}],teachers:[{id,name}]}`; chỉ chuyên đề active. Response `{data, meta:{current_page,per_page,total,last_page}, links:{next,prev}}`. Header: `Cache-Control: public, max-age=60` + `ETag` (If-None-Match → 304), `Vary: Origin` (không bao giờ Cookie), không Set-Cookie; lỗi 4xx không có `public` |
-| GET | /courses/{course:slug} | `Catalog\CourseController@show` | public | — | Chi tiết công khai + outline (tên bài, thời lượng, `is_preview`) + GV + `enrollments_count`. **Không chứa URL/ID video**. Khóa `unpublished`/xoá → 404 **T10 chốt (object phẳng):** `{id,title,slug,short_description,description,grade_level,price,is_free,thumbnail_url,enrollments_count,published_at,subjects,teachers:[{id,name,bio,avatar_url}],lessons_count,total_duration_seconds,has_preview,outline:[{id,title,position,lessons:[{id,title,position,duration_seconds,is_preview}]}]}`. Chương/bài xoá mềm không lộ; không có `video_source`/provider/asset. Slug sai định dạng hoặc không published → 404 `NOT_FOUND` (không cache public). `description` sanitize khi ghi (T08) và lọc lại khi trả ra (HtmlSanitizer); FE vẫn DOMPurify |
+| GET | /courses | `Catalog\CourseController@index` | public, throttle:catalog | `CourseSearchRequest`: grade (6–12), subject_ids[] (≤ 20), q (≤ 100, escape LIKE — S24), sort (`newest`\|`popular`\|`featured`), page | 25 khóa `published` **T10 chốt:** `subject_ids[]` = OR (khóa thuộc ít nhất 1 chuyên đề); id chuyên đề ẩn/không tồn tại không khớp khóa nào (kết quả rỗng, không lỗi); `q` bỏ dấu + chữ thường, tách từ (≤ 8), mọi từ phải khớp `search_text` (AND); tham số sai (`grade`=99, `sort` lạ, `page`<1, `q`>100) → **422** `VALIDATION_ERROR`; `sort`: `newest` (mặc định `published_at desc, id desc`), `popular` (`enrollments_count desc` + như trên), `featured` (`manual_order` tăng dần, null xếp sau + như trên). Item: `{id,title,slug,short_description,grade_level,price,is_free,thumbnail_url,enrollments_count,published_at,subjects:[{id,name,slug}],teachers:[{id,name}]}`; chỉ chuyên đề active. **US-020 (T36) thêm `teacher_id`** (int ≥ 1, tuỳ chọn): chỉ khóa có giáo viên đó trong `course_teacher` (AND với các bộ lọc khác); id không tồn tại/không phải giáo viên → danh sách rỗng, không lỗi; sai kiểu → 422; `links` giữ `teacher_id`. Response `{data, meta:{current_page,per_page,total,last_page}, links:{next,prev}}`. Header: `Cache-Control: public, max-age=60` + `ETag` (If-None-Match → 304), `Vary: Origin` (không bao giờ Cookie), không Set-Cookie; lỗi 4xx không có `public` |
+| GET | /courses/{course:slug} | `Catalog\CourseController@show` | public | — | Chi tiết công khai + outline (tên bài, thời lượng, `is_preview`) + GV + `enrollments_count`. **Không chứa URL/ID video**. Khóa `unpublished`/xoá → 404 **T10 chốt (object phẳng):** `{id,title,slug,short_description,description,grade_level,price,is_free,thumbnail_url,enrollments_count,published_at,subjects,teachers:[{id,name,bio,avatar_url}],lessons_count,total_duration_seconds,has_preview,outline:[{id,title,position,lessons:[{id,title,position,duration_seconds,is_preview}]}]}`. Chương/bài xoá mềm không lộ; không có `video_source`/provider/asset. Slug sai định dạng hoặc không published → 404 `NOT_FOUND` (không cache public). `description` sanitize khi ghi (T08) và lọc lại khi trả ra (HtmlSanitizer); FE vẫn DOMPurify. **US-020 (T36, đổi hành vi, tương thích):** `teachers[].bio`/`avatar_url` lấy từ `teacher_profiles` qua `PublicTeacher` và là **`null` khi giáo viên chưa đồng ý công khai/đã rút** (key vẫn có); `bio` là văn bản thuần nhiều dòng (`\n`), FE render text (`white-space: pre-line`), cấm `dangerouslySetInnerHTML` |
+| GET | /home/teachers | `Catalog\HomeTeacherController@index` | public, throttle:catalog (cùng nhóm cache với `/courses`) | — | **US-020 (T36).** Khu vực giáo viên trang chủ, ≤ `teacher_profile.homepage_max` (6) người. Chi tiết §2.9 |
 | GET | /courses/{course:slug}/viewer-state | `Catalog\CourseController@viewerState` | student (không cần verified) | — | `viewer_state` (`can_buy`\|`in_cart`\|`can_register_free`\|`pending_approval`\|`owned`) + `resume_lesson_id`. Tách khỏi `show` để `show` cache được (S16) **T10 chốt:** `{viewer_state, resume_lesson_id}`; ưu tiên `owned` > `pending_approval` > `can_register_free` (price=0) > `can_buy`. **T16:** `in_cart` khi khóa có phí đang trong giỏ (sau `can_register_free`, trước `can_buy`). `resume_lesson_id` chỉ khi `owned`: bài có `lesson_progress.last_accessed_at` mới nhất (bài chưa xoá), chưa có thì bài đầu theo (chương, bài). Khóa không published: chỉ người `owned` thấy, người khác 404. Luôn `no-store, private` |
 | GET | /preview/lessons/{lesson}/playback | `Learn\PlaybackController@preview` | public, throttle:playback (theo IP) · `LessonPolicy@preview` (bài `is_preview`, chưa xoá, khóa published) | — | `PlaybackInfo` (không ràng IP) | **T13 chốt:** cùng shape với `/learn/.../playback` (`resume_at_seconds` luôn 0); không session/cookie; mọi lý do từ chối (không preview, khóa nháp, bài/chương/khóa xoá) đều 404 `NOT_FOUND`; throttle 30/phút/IP.
 
@@ -375,6 +381,132 @@ CLI `staff:create|lock|unlock` dùng chung `StaffAccountService` (cùng audit, c
 | GET | /me/data-export | api (student) | Xuất dữ liệu cá nhân của chính mình (JSON) |
 | POST | /me/account/delete | api (student) | Yêu cầu xoá tài khoản → xác nhận OTP → ẩn danh hoá (`anonymized_at`), giữ đơn hàng |
 
+### 2.9 Hồ sơ giáo viên công khai (US-020, task T36 — thiết kế 2026-10-06, PO đã duyệt)
+
+Thiết kế: `docs/tech/US-020.md`, ADR-005. Dữ liệu: bảng `teacher_profiles` (data-model §3.1).
+
+**Quy tắc chung:**
+- **Chốt đồng ý (BR5):** ảnh và bio giáo viên chỉ đi ra API công khai qua `App\Support\PublicTeacher`. Điều kiện: `role = giao_vien` và `teacher_profiles.public_consent_at` khác null. Không thoả thì `avatar_url = null`, `bio = null` (và `headline = null` nếu API có trường này); `id`, `name` vẫn trả. Áp cho `GET /courses/{slug}`, `GET /home/teachers` và mọi API công khai về giáo viên sau này.
+- **Cache:** Laravel không cache (không `Cache::remember`), nên API phản ánh ngay khi giáo viên rút đồng ý. Header như `/courses`: `Cache-Control: public, max-age=60`, `ETag`, `Vary: Origin`, không cookie. Độ trễ ≤ 60 s phía web do Next Data Cache `revalidate: 60` (FW9).
+- **Văn bản:**
+  - `headline` là văn bản thuần 1 dòng, ≤ 120 ký tự;
+  - `bio` là văn bản thuần nhiều dòng (`\n`), ≤ 600 ký tự sau khi chuẩn hoá `\r\n` → `\n` và trim;
+  - cả hai: chứa `<`, `>`, thẻ HTML, ký tự điều khiển (trừ `\n` trong bio), bidi hoặc zero-width → 422 `VALIDATION_ERROR`; chuỗi rỗng → lưu `null`;
+  - FE render bằng text của React (`white-space: pre-line`), **cấm `dangerouslySetInnerHTML`**.
+- **Ảnh (`avatar`):**
+  - rule như §4 (jpg/png/webp, ≤ 2 MB, ≤ 4000×4000; SVG/GIF/HTML/polyglot → 422);
+  - backend cắt giữa thành hình vuông, thu nhỏ còn ≤ 800 px (không phóng to), mã hoá lại WebP, bỏ EXIF, đặt tên UUID;
+  - upload bằng `POST` multipart; thay hoặc xoá ảnh thì file cũ bị xoá sau commit;
+  - alt do FE dựng: "Ảnh thầy/cô {name}".
+
+#### Công khai (host api)
+
+`GET /api/v1/home/teachers`: nhóm catalog, `throttle:catalog`. Không tham số. Trả `{data}`, không phân trang, tối đa 6 người.
+
+```json
+{
+  "data": [
+    {
+      "id": 12,
+      "name": "Nguyễn Thị Lan",
+      "headline": "Giáo viên Toán THPT chuyên",
+      "bio": "10 năm luyện thi vào 10.\nHọc sinh đạt giải cấp tỉnh 2025.",
+      "avatar_url": "https://static.vitaminvui-media.net/3f2b...c1.webp",
+      "grade_levels": [9, 10],
+      "courses_count": 3
+    }
+  ]
+}
+```
+- Điều kiện hiện (BR2), phải thoả đồng thời:
+  - user: `role = giao_vien`, `status = active`, chưa ẩn danh hoá;
+  - hồ sơ: `public_consent_at` khác null, `show_on_homepage = true`, có `avatar_path`, có `bio`;
+  - có ít nhất 1 khóa `published` chưa xoá trong `course_teacher`.
+- Thứ tự: `homepage_order` tăng dần, người chưa có thứ tự xếp sau, cùng thứ tự thì theo `id` tăng dần (BR3).
+- `headline` có thể `null`. `avatar_url`, `bio` luôn khác null ở endpoint này.
+- `grade_levels` là các lớp khác nhau của khóa `published`, sắp tăng dần. `courses_count` đếm mỗi khóa `published` một lần.
+- Không có ai đủ điều kiện → `{"data": []}` (200). Lỗi 429 `TOO_MANY_ATTEMPTS`. Response lỗi không có `public`.
+- Không trả email, SĐT, trạng thái hay cờ nội bộ (BR13).
+
+**T36 chốt khi hiện thực:**
+- `PlainText` (mọi trường văn bản thuần của dự án) nay chặn thêm U+2028/U+2029 (trình duyệt vẽ thành xuống dòng); `bio` dùng `PlainText(allowNewlines: true)` chỉ cho `\n`.
+- `GET /admin/me/teacher-profile` và `GET /admin/teacher-profiles/{user}` không tạo dòng hồ sơ; dòng được tạo lười ở lần ghi đầu tiên (nội dung, ảnh, đồng ý, bật trang chủ, đặt thứ tự). Tắt hiển thị cho người chưa có dòng là no-op.
+- `consent.withdrawn_at` chỉ có giá trị khi `consent.given = false`.
+- Danh sách `GET /admin/teacher-profiles` trả `abilities` không có khoá `consent`.
+- **`NOT_TEACHER` được ưu tiên.** `PATCH .../homepage` với `show_on_homepage:true` cho người không còn là `giao_vien` luôn 422 `NOT_TEACHER`, kể cả khi cờ đang bật (không đổi giá trị): quy tắc "giá trị không đổi → 200" không áp cho trường hợp này. FE chỉ gửi `homepage_order` (hoặc `show_on_homepage:false`) cho người không còn là giáo viên.
+- **Đồng ý lại thì thêm một dòng `consents` mới.** Giáo viên đang đồng ý bản cũ mà POST `consent` đúng `current_version` mới: cập nhật phiên bản ở `teacher_profiles` và INSERT thêm một dòng `consents`; dòng cũ giữ nguyên (`revoked_at` NULL, cùng hiệu lực) tới khi rút (rút thu hồi mọi dòng).
+- **Rút đồng ý vô hiệu URL ảnh cũ (M1).** Rút đồng ý: ảnh được sao chép sang tên UUID mới, `avatar_path` đổi, file cũ bị xoá sau commit; URL cũ trả 404 ở miền tĩnh. Giáo viên vẫn thấy ảnh ở "Hồ sơ của tôi" (URL mới); đồng ý lại thì công khai URL mới. Không sao chép được ảnh thì vẫn rút đồng ý (log lỗi, giữ đường dẫn cũ). Miền tĩnh gửi `X-Robots-Tag: noindex, noimageindex`.
+- **Người đã đổi vai trò nhưng còn hồ sơ (L1)** tự gỡ được: `DELETE /admin/me/teacher-profile/consent` và `DELETE /admin/me/teacher-profile/avatar` dùng Gate `withdraw-own-teacher-profile` (giáo viên, hoặc user có dòng `teacher_profiles`). Các route `/me` còn lại (GET, PATCH, POST avatar, POST consent) vẫn chỉ cho giáo viên (403 với người khác).
+- **Email báo khi Admin/QLT sửa hộ.** Admin/QLT sửa headline, bio hoặc ảnh (thay/xoá) của giáo viên ĐANG đồng ý công khai thì giáo viên nhận email (queue, `ShouldBeEncrypted`) nêu tên người sửa, thời điểm và TÊN các trường đã đổi, không chứa nội dung. Không gửi khi giáo viên tự sửa, chưa đồng ý/đã rút, không đổi gì, hoặc không có email. Lỗi gửi không làm hỏng thao tác.
+- **`PlainText` chặn theo lớp ký tự (L2):** `\p{Cc}`, `\p{Cf}` (trừ ZWJ ghép emoji), U+2028/2029, filler (U+3164, U+115F/1160, U+FFA0, U+2800, U+17B4/17B5, U+034F), bộ chọn biến thể lạc (chỉ hợp lệ sau emoji hoặc trong keycap), quá 3 dấu kết hợp liên tiếp. `bio`: tối đa 2 dòng trống liên tiếp (chuẩn hoá `\n{4,}` → `\n\n\n`), cắt khoảng trắng Unicode ở hai đầu và cuối dòng. "Có bio" (điều kiện trang chủ, `no_bio`) tính trên nội dung sau khi bỏ khoảng trắng và ký tự ẩn.
+- Lỗi 409 `CONSENT_VERSION_CHANGED` có `context.current_version`; 409 `TEACHER_HOMEPAGE_LIMIT` có `context.max`.
+
+`GET /courses?teacher_id=` và `GET /courses/{slug}`: xem §2.1 (bổ sung T36).
+
+#### Quản trị (host admin-api, nhóm `staff`)
+
+**`TeacherProfile`** (object phẳng, dùng chung cho `/admin/me/teacher-profile` và `/admin/teacher-profiles/{user}`):
+```json
+{
+  "user": { "id": 12, "name": "Nguyễn Thị Lan", "role": "giao_vien", "status": "active" },
+  "headline": "Giáo viên Toán THPT chuyên",
+  "bio": "10 năm luyện thi vào 10.\nHọc sinh đạt giải cấp tỉnh 2025.",
+  "avatar_url": "https://static.vitaminvui-media.net/3f2b...c1.webp",
+  "consent": {
+    "given": true,
+    "given_at": "2026-10-06T09:15:00+07:00",
+    "version": "2026-10",
+    "withdrawn_at": null,
+    "current_version": "2026-10",
+    "current_text": "Tôi đồng ý công khai ảnh, họ tên và phần giới thiệu của tôi trên website VitaminVui"
+  },
+  "show_on_homepage": true,
+  "homepage_order": 2,
+  "homepage_status": { "visible": false, "reasons": ["no_published_course"] },
+  "published_courses_count": 0,
+  "last_edited_by": { "id": 1, "name": "Trần Quản Trị", "is_self": false },
+  "last_edited_at": "2026-10-06T10:00:00+07:00",
+  "updated_at": "2026-10-06T10:00:00+07:00",
+  "abilities": { "edit_content": true, "consent": false, "manage_homepage": true }
+}
+```
+- `homepage_status.reasons` lấy từ tập sau, theo đúng thứ tự này:
+  - `not_teacher`, `account_locked`, `not_enabled`, `no_consent`, `no_avatar`, `no_bio`, `no_published_course`.
+  - `visible = reasons` rỗng (vì số người được bật ≤ 6 nên mọi người đủ điều kiện đều hiện).
+  - FE dịch sang tiếng Việt, ví dụ "Chưa hiện: chưa đồng ý công khai".
+- `last_edited_by`/`last_edited_at` là lần sửa **nội dung** gần nhất (ảnh/headline/bio) của bất kỳ ai, `null` nếu chưa có (BR6).
+- `abilities` chỉ để ẩn/hiện UI:
+  - giáo viên ở `/me`: `{edit_content: true, consent: true, manage_homepage: false}`;
+  - Admin/QLT: `{edit_content: <là giao_vien>, consent: false, manage_homepage: true}`.
+- Giáo viên chưa có dòng hồ sơ vẫn nhận object đủ khoá, giá trị rỗng/false/null.
+
+**Giáo viên: "Hồ sơ của tôi".** Gate `own-teacher-profile`: chỉ `giao_vien`. Admin/QLT gọi các route này → 403 `FORBIDDEN` (BR12, AC8). Quyền được kiểm trước validate.
+
+| Method | URI | Request | Response / lỗi |
+|---|---|---|---|
+| GET | /admin/me/teacher-profile | — | 200 `TeacherProfile` |
+| PATCH | /admin/me/teacher-profile | JSON `{headline?: string\|null, bio?: string\|null}`: **chỉ gửi trường đã đổi** (AC21, không báo xung đột; trường không gửi giữ nguyên). Không có trường nào → 422 | 200 `TeacherProfile`. 422 `VALIDATION_ERROR` (`errors.headline`/`errors.bio`). Throttle 30/phút/user. Audit `teacher_profile.update` khi có thay đổi |
+| POST | /admin/me/teacher-profile/avatar | multipart `avatar` | 200 `TeacherProfile` (`avatar_url` mới). 422 `errors.avatar` (định dạng, dung lượng, kích thước, không giải mã được). Throttle 10/phút/user. Audit `teacher_profile.update` `{fields:['avatar'], avatar:'changed'}` |
+| DELETE | /admin/me/teacher-profile/avatar | — | 200 `TeacherProfile` (`avatar_url: null`). Không có ảnh vẫn 200, không audit |
+| POST | /admin/me/teacher-profile/consent | `{version: "2026-10"}` (= `consent.current_version` vừa hiển thị) | 200 `TeacherProfile`. Khác phiên bản hiện hành → 409 `CONSENT_VERSION_CHANGED`. Đã đồng ý đúng phiên bản → 200, không ghi gì. Ghi `consents` (type `teacher_public_profile`) + audit `teacher_profile.consent`. Throttle 30/phút |
+| DELETE | /admin/me/teacher-profile/consent | — | 200 `TeacherProfile` (`consent.given=false`, `withdrawn_at`). Chưa đồng ý vẫn 200, không ghi gì. Nội dung hồ sơ giữ nguyên. Audit `teacher_profile.consent_withdraw` |
+
+**Admin/QLT: quản lý hồ sơ giáo viên.** Gate `manage-teacher-profiles`: admin, quản lý trang. Giáo viên → 403 `FORBIDDEN`, kiểm trước validate (AC18).
+
+`{user}` là id số và phải là user `giao_vien` **hoặc** user còn dòng `teacher_profiles` (đã đổi vai trò nhưng còn hồ sơ: BR9 giữ cờ trang chủ, và để Admin/QLT xoá ảnh hộ, L1). Mọi trường hợp khác → 404 `NOT_FOUND`.
+
+| Method | URI | Request | Response / lỗi |
+|---|---|---|---|
+| GET | /admin/teacher-profiles | `q` (≤ 100, theo tên, escape LIKE), `homepage` (`1` = chỉ người đang bật), `per_page` (25\|50), `page`. Sai → 422 | `{data:[TeacherProfile không có abilities.consent], meta:{current_page,per_page,total,last_page, homepage:{enabled_count, max}}, links}`. Gồm mọi `giao_vien` (kể cả bị khoá) và người đã đổi vai trò còn bật cờ. Sắp: đang bật trước (`homepage_order` tăng dần, null sau), rồi `name`, `id`. Đếm khóa bằng 1 câu GROUP BY (không N+1) |
+| GET | /admin/teacher-profiles/{user} | — | 200 `TeacherProfile` |
+| PATCH | /admin/teacher-profiles/{user} | như PATCH của giáo viên | 200. User không còn `giao_vien` → 422 `NOT_TEACHER`. Audit `teacher_profile.update` có `on_behalf: true`. Nội dung có hiệu lực ngay nếu giáo viên đã đồng ý (BR6) |
+| POST / DELETE | /admin/teacher-profiles/{user}/avatar | như của giáo viên | như trên, `NOT_TEACHER` khi POST cho người không còn là giáo viên |
+| PATCH | /admin/teacher-profiles/{user}/homepage | `{show_on_homepage?: bool, homepage_order?: int 1..999 \| null}`, có ít nhất 1 trường | 200 `TeacherProfile`. Được bật khi chưa đủ điều kiện (AC9, xem `homepage_status`). Bật người thứ 7 → **409 `TEACHER_HOMEPAGE_LIMIT`** "Trang chủ chỉ hiển thị tối đa 6 giáo viên. Hãy tắt bớt một người trước.", không đổi gì (kể cả `homepage_order` gửi kèm). Bật cho user không còn `giao_vien` → 422 `NOT_TEACHER` (tắt và đổi thứ tự vẫn được). Giá trị không đổi → 200, không audit. Audit `teacher_profile.homepage_toggle` / `teacher_profile.homepage_order`. Throttle 30/phút/user |
+
+- **Không có route đồng ý thay người khác.** `/admin/teacher-profiles/{user}/consent` không tồn tại, gọi vào nhận 404/405.
+- **Giới hạn 6:** đếm mọi dòng `show_on_homepage = true`, kể cả người bị khoá hoặc đã đổi vai trò (BR9 giữ cờ). Màn quản trị phải hiện những người này để admin tắt được.
+- **Khoá khi bật:** mutex khoá mọi dòng `teacher_profiles` theo `user_id` tăng dần (ADR-005), nên hai admin bật cùng lúc vẫn không vượt quá 6.
+
 ## 3. Cấu trúc code (backend `backend/`)
 
 Quy ước: **Service theo domain**, controller mỏng (Form Request → authorize → service → Resource), `$fillable` tường minh (S17), không Repository, Event chỉ cho tác dụng phụ bất đồng bộ (ADR-004 §4).
@@ -433,6 +565,7 @@ config/                 features.php, payments.php, video.php, orders.php, priva
 ```
 - Không dùng rule `image` trơn. **Không nhận SVG/GIF/HTML.**
 - `ImageUploadService` đọc lại bằng GD/Imagick (qua `intervention/image`) và mã hoá lại sang **WebP** (tối đa 1600px). Bước này bỏ toàn bộ metadata EXIF.
+- **Ảnh đại diện giáo viên (US-020, T36):** cùng rule kiểm (field `avatar`), nhưng cắt giữa thành hình vuông và thu nhỏ ≤ 800px (không phóng to). File không còn được tham chiếu, cũ hơn 24h, do `images:prune-orphans` dọn hằng ngày. Production/staging: `STATIC_URL` bắt buộc https và khác host của `APP_URL`/`FRONTEND_URL`/`ADMIN_URL` (`ProductionConfigGuard`).
 - Lưu `{uuid}.webp` trên disk `uploads`, phục vụ từ `STATIC_URL` (tên miền riêng, không cookie) với header `Content-Security-Policy: default-src 'none'; img-src 'self'; sandbox`, `X-Content-Type-Options: nosniff`.
 - Test: `.svg`, `.html`, PNG chứa `<svg>` đổi đuôi, polyglot → 422; file hợp lệ → tên ngẫu nhiên, không còn EXIF.
 

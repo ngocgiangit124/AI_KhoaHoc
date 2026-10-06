@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\ParentConsentStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\TeacherProfile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -113,6 +114,23 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'phone_verified_at' => now(),
         ]);
+    }
+
+    /**
+     * Giáo viên có hồ sơ công khai đầy đủ (US-020): ảnh, headline, bio, đã đồng ý. Dùng sau `teacher()`.
+     * `$onHomepage` bật cờ trang chủ (điều kiện còn lại: khóa `published`).
+     */
+    public function withPublicProfile(bool $onHomepage = false, ?int $order = null): static
+    {
+        return $this->afterCreating(function (User $user) use ($onHomepage, $order): void {
+            $profile = TeacherProfile::factory()->withContent()->consented();
+
+            if ($onHomepage) {
+                $profile = $profile->onHomepage($order);
+            }
+
+            $profile->create(['user_id' => $user->getKey()]);
+        });
     }
 
     public function student(): static

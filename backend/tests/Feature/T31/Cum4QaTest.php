@@ -15,7 +15,7 @@ function c4qaProductionConfig(): void
     app()->detectEnvironment(fn () => 'production');
     config([
         'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
-        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.trusted_proxies' => '10.0.0.1',
+        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net', 'app.trusted_proxies' => '10.0.0.1',
         'payments.enabled_gateways' => [], 'video.provider' => 'internal', 'video.enabled_providers' => ['internal'],
         'internal.required' => false, 'internal.ssr_token' => null, 'features.paid_checkout' => false,
         'videolab.enabled' => false,

@@ -42,7 +42,7 @@ test('production: driver fake khong duoc dang ky va boot guard cam fake', functi
 
     config([
         'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
-        'sanctum.stateful' => ['vitaminvui.vn'], 'app.trusted_proxies' => '10.0.0.1',
+        'sanctum.stateful' => ['vitaminvui.vn'], 'app.trusted_proxies' => '10.0.0.1', 'app.static_url' => 'https://static.vitaminvui-media.net',
     ]);
     expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);
 });

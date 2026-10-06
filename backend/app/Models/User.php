@@ -7,6 +7,8 @@ use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -51,7 +53,6 @@ class User extends Authenticatable
         'date_of_birth',
         'parent_phone',
         'parent_email',
-        'bio',
         'referral_code_used',
     ];
 
@@ -122,5 +123,25 @@ class User extends Authenticatable
     public function isStudent(): bool
     {
         return $this->role === UserRole::Student;
+    }
+
+    /**
+     * Hồ sơ công khai của giáo viên (US-020, ADR-005). `users.bio`/`users.avatar_path` ngừng dùng từ T36.
+     *
+     * @return HasOne<TeacherProfile, $this>
+     */
+    public function teacherProfile(): HasOne
+    {
+        return $this->hasOne(TeacherProfile::class, 'user_id');
+    }
+
+    /**
+     * Các khóa giáo viên này phụ trách (`course_teacher`).
+     *
+     * @return BelongsToMany<Course, $this>
+     */
+    public function taughtCourses(): BelongsToMany
+    {
+        return $this->belongsToMany(Course::class, 'course_teacher');
     }
 }

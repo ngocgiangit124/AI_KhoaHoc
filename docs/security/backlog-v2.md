@@ -304,3 +304,22 @@ Review vòng 2 (Sửa lỗi nhỏ 3): R6 trần heartbeat theo người học đ
 | R1 | Medium | `ChangeContactForm.tsx` (FE web) chưa gửi `current_password` nên luôn 422 khi backend lên. **Backend bản này BẮT BUỘC phát hành cùng FE có ô mật khẩu hiện tại** (không phát hành backend một mình). Đã ghi ở FW1 trong `tasks.md` | Giao `nextjs-dev`, chặn phát hành |
 | R3 | Low | Đổi SĐT không gửi thư báo và không huỷ phiên khác. Hiện SĐT không phải kênh khôi phục nên không chiếm được tài khoản; khi bật kênh `sms` (hoặc reset qua SMS) phải thêm thư báo email cho đổi SĐT và huỷ phiên khác | Hoãn V2 (cùng ý nghĩa đổi SĐT) |
 | R4 | Low | Khoá lượt sai `current-password-fail:u:{id}` (10/giờ) dùng chung: kẻ cầm phiên đánh cắp có thể đốt hạn mức để chủ tài khoản không đổi được mật khẩu/liên hệ 1 giờ (vẫn dùng được `forgot`, không ảnh hưởng đăng nhập). Chấp nhận đánh đổi | Ghi nhận, không sửa |
+
+## T36 (hồ sơ giáo viên công khai, US-020) — từ `docs/security/review-T36.md` và `docs/review/T36.md` (2026-10-06)
+
+Đã sửa trong T36 (2026-10-06): M1 (rút đồng ý đổi tên file ảnh + `X-Robots-Tag`), L1 (Gate `withdraw-own-teacher-profile`, `managedQuery` theo dòng hồ sơ), L2 (`PlainText` theo lớp ký tự, Zalgo, dòng trống bio, "có bio" nhìn thấy được), L3 (`guardStaticUrl` theo registrable domain), email báo khi Admin/QLT sửa hộ, I3 (`BinaryImageDecoder`), I7 (pruner bỏ qua symlink), R1–R7 của review.
+
+Còn lại (không sửa trong T36):
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| I1 | Info | Ảnh tải lên TRƯỚC khi đồng ý đã nằm trên miền tĩnh công khai (URL UUIDv4 không đoán được; chỉ giáo viên và staff biết URL). Chặt hơn: lưu ảnh chưa đồng ý ở disk private, chỉ chuyển sang `uploads` khi đồng ý | Chấp nhận. Làm ở V2 nếu pháp chế yêu cầu |
+| I2 | Info | Test kiến trúc hẹp | **Đã sửa** (gộp vào R1: quét mọi Resource/Controller không thuộc admin, Service nhóm công khai, và test mức route `PublicRoutesNoLeakTest`) |
+| I4 | Info | Đồng ý lại bản câu chữ mới để lại 2 dòng `consents` cùng `revoked_at IS NULL` (rút thu hồi tất cả; không lộ dữ liệu) | Hoãn. Đề xuất: ghi dấu `superseded` hoặc thu hồi dòng cũ trước khi INSERT, sau khi pháp chế chốt cách ghi bằng chứng |
+| I5 | Info | `TeacherProfileService::erase()` chưa được gọi (T34 chưa làm): ẩn danh hoá tài khoản chưa xoá ảnh/bio/đồng ý. `PublicTeacher` không kiểm `status`/`anonymized_at` (trang chi tiết khóa vẫn hiện ảnh/bio giáo viên bị khoá nếu đã đồng ý, đúng BR5/BR9) | **Ghi vào định nghĩa "xong" của T34:** gọi `erase()` và test |
+| I6 | Info | Admin vẫn "đồng ý thay" được gián tiếp: reset mật khẩu staff rồi đăng nhập thành giáo viên (không MFA) và tự tick. Truy vết được (audit, `consents.ip`) | V2: gửi email cho giáo viên khi có `teacher_profile.consent` và khi admin reset mật khẩu |
+| M1-FE | Info | FW9: ảnh giáo viên không đi qua `/_next/image` (hoặc `minimumCacheTTL` ≤ 60 giây); CDN (nếu có) purge URL cũ khi giáo viên rút đồng ý | Giao `nextjs-dev` (FW9) |
+| R6-T33 | Low | `StaffAccountService` (T33) chưa dùng `DB::transaction($fn, 3)` (T36 đã thêm retry 3 lần cho `TeacherProfileService`) | Làm cùng đợt hạ tầng V2 |
+| R7-SQL | Low | `TeacherProfileReader::managedQuery` có `OR` chéo bảng nên danh sách admin quét bảng `users` (khoảng 150k dòng sau 3 năm; chỉ admin gọi) | Chấp nhận; nếu chậm: `users.id IN (SELECT user_id FROM teacher_profiles)` |
+| L3-PSL | Info | `guardStaticUrl` dùng heuristic registrable domain (2 nhãn cuối, hoặc 3 nhãn với `com/net/org/edu/gov/ac/info/biz/name/pro/health/int/co` dưới ccTLD 2 chữ), không dùng Public Suffix List (không cài package). Đuôi lạ bị coi là 2 nhãn cuối | Chấp nhận. Đổi sang `php-domain-parser` nếu có tên miền dưới đuôi lạ |
+| Pháp chế | — | Thời hạn giữ IP/User-Agent trong `consents` sau khi rút đồng ý hoặc ẩn danh hoá (như I4 của T03); nội dung đồng ý có bao gồm nội dung do Admin/QLT sửa hộ không (email báo đã giảm rủi ro) | Chờ pháp chế (V2) |

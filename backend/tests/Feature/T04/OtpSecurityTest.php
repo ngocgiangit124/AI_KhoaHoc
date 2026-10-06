@@ -89,6 +89,7 @@ test('S9 production: kenh sms duoc bat trong cau hinh -> app khong boot (guard)'
         'session.secure' => true, 'session.encrypt' => true,
         'captcha.driver' => 'turnstile',
         'sanctum.stateful' => ['vitaminvui.vn'],
+        'app.static_url' => 'https://static.vitaminvui-media.net',
         'app.trusted_proxies' => '10.0.0.1',
         'payments.enabled_gateways' => [],
         'auth.otp.channels' => ['email'],

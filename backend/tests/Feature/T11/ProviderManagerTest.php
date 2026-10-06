@@ -41,7 +41,7 @@ test('production guard: fake video bi cam', function () {
     app()->detectEnvironment(fn () => 'production');
     config([
         'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
-        'sanctum.stateful' => ['vitaminvui.vn'], 'app.trusted_proxies' => '10.0.0.1',
+        'sanctum.stateful' => ['vitaminvui.vn'], 'app.trusted_proxies' => '10.0.0.1', 'app.static_url' => 'https://static.vitaminvui-media.net',
         'payments.enabled_gateways' => ['momo'], 'payments.gateways.momo.endpoint' => 'https://payment.momo.vn/x',
         'video.provider' => 'internal', 'video.enabled_providers' => ['internal'],
     ]);

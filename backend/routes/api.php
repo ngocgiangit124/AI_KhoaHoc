@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Cart\CartController;
 use App\Http\Controllers\Api\V1\Cart\CartCouponController;
 use App\Http\Controllers\Api\V1\Cart\CartItemController;
 use App\Http\Controllers\Api\V1\Catalog\CourseController as CatalogCourseController;
+use App\Http\Controllers\Api\V1\Catalog\HomeTeacherController;
 use App\Http\Controllers\Api\V1\Catalog\SubjectController as CatalogSubjectController;
 use App\Http\Controllers\Api\V1\Checkout\CheckoutController;
 use App\Http\Controllers\Api\V1\Enrollment\FreeEnrollmentController;
@@ -59,6 +60,8 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         ->group(function (): void {
             Route::get('/subjects', [CatalogSubjectController::class, 'index'])->name('api.catalog.subjects');
             Route::get('/courses', [CatalogCourseController::class, 'index'])->name('api.catalog.courses');
+            // US-020 (T36): khu vực giáo viên trang chủ. Laravel không cache; ảnh/bio chỉ qua `PublicTeacher`.
+            Route::get('/home/teachers', [HomeTeacherController::class, 'index'])->name('api.catalog.home-teachers');
             Route::get('/courses/{slug}', [CatalogCourseController::class, 'show'])
                 ->where('slug', '[a-z0-9-]+')
                 ->name('api.catalog.courses.show');

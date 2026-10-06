@@ -33,6 +33,8 @@ class OperationsServiceProvider extends ServiceProvider
             $schedule->command('counters:recount')->dailyAt('03:30')->withoutOverlapping(180)->onOneServer();
             $schedule->command('videos:check-stuck')->everyFifteenMinutes()->withoutOverlapping(30)->onOneServer();
             $schedule->command('videos:prune-orphans')->hourly()->withoutOverlapping(120)->onOneServer();
+            // US-020 (T36): ảnh uploads mồ côi (> 24 giờ, không còn tham chiếu).
+            $schedule->command('images:prune-orphans')->dailyAt('04:10')->withoutOverlapping(120)->onOneServer();
             $schedule->command('videolab:notify')->everyMinute()->withoutOverlapping(5)->onOneServer();
             $schedule->command('videolab:cleanup')->dailyAt('03:20')->withoutOverlapping(30)->onOneServer();
             $schedule->command('quizzes:auto-submit-expired')->everyMinute()->withoutOverlapping(5)->onOneServer();

@@ -104,8 +104,8 @@ Ký hiệu: **U** = unique, **IX** = index, **FK** = khoá ngoại (mặc địn
 | referral_code_used | varchar(50) | Y | | | **[Chờ PO]** chỉ lưu, không validate; bật/tắt bằng `features.referral_code` |
 | email_verified_at | datetime | Y | | | |
 | phone_verified_at | datetime | Y | | | |
-| bio | text | Y | | | Mô tả ngắn giáo viên (US-003 AC6). Văn bản thuần |
-| avatar_path | varchar(255) | Y | | | Chỉ lưu tên file ngẫu nhiên trên disk `uploads` (S2) |
+| bio | text | Y | | | **Ngừng dùng từ T36 (US-020, ADR-005)**: chuyển sang `teacher_profiles.bio`. Xoá cột ở release sau (backlog T36-1) |
+| avatar_path | varchar(255) | Y | | | **Ngừng dùng từ T36**: chuyển sang `teacher_profiles.avatar_path`. Xoá cột ở release sau (T36-1) |
 | must_change_password | boolean | N | false | | Tài khoản staff tạo bằng command → true; buộc đổi mật khẩu ở lần đăng nhập đầu (S15) |
 | password_changed_at | datetime | Y | | | |
 | current_session_id | varchar(255) | Y | | | Chỉ dùng cho học sinh — ADR-003. Giá trị `logged_out` sau khi đăng xuất (không set NULL — S11) |
@@ -142,8 +142,8 @@ Ghi chú `otp_codes.user_id`: luôn là user được xác thực; với `parent
 | Cột | Kiểu | Null | Index/FK | Ghi chú |
 |---|---|---|---|---|
 | id | bigint | | PK | |
-| user_id | bigint | N | FK users; IX (user_id, type, granted_at) | Chủ thể dữ liệu (HS) |
-| type | varchar(30) | N | | `privacy_policy` / `terms` / `parent_consent` / `marketing` |
+| user_id | bigint | N | FK users; IX (user_id, type, granted_at) | Chủ thể dữ liệu (HS; giáo viên với `teacher_public_profile`) |
+| type | varchar(30) | N | | `privacy_policy` / `terms` / `parent_consent` / `marketing` / `teacher_public_profile` (US-020: giáo viên đồng ý công khai ảnh, họ tên, giới thiệu; `policy_version` = phiên bản câu chữ `teacher_profile.consent_version`, `granted_by=self`, `channel=web_form`; rút → `revoked_at`) |
 | policy_version | varchar(20) | N | | Phiên bản văn bản chính sách đã hiển thị (config `privacy.policy_version`) |
 | granted_by | varchar(10) | N | | `self` / `parent` |
 | channel | varchar(20) | N | | `web_form` / `email_otp` / `email_link` |
@@ -171,6 +171,26 @@ Form đăng ký: checkbox đồng ý tách riêng, không tick sẵn; thiếu �
 | created_at | datetime | N | IX (created_at) | Dùng cho job dọn sau 24 tháng |
 
 Ghi từ Service qua `AuditLogger` (không dùng Observer chung). Không có route sửa/xoá; model không có `update()`/`delete()` công khai (ném exception).
+
+**teacher_profiles**: hồ sơ công khai của giáo viên, quan hệ 1-1 với `users` (US-020, T36, ADR-005). Chỉ `TeacherProfileService` được ghi.
+| Cột | Kiểu | Null | Default | Index/FK | Ghi chú |
+|---|---|---|---|---|---|
+| user_id | bigint unsigned | N | | **PK**; FK users cascade | Dòng tạo lười (`insertOrIgnore` ngoài transaction) ở lần ghi đầu |
+| headline | varchar(120) | Y | | | Văn bản thuần 1 dòng |
+| bio | varchar(600) | Y | | | Văn bản thuần, cho phép `\n`; rỗng → NULL |
+| avatar_path | varchar(255) | Y | | | `{uuid}.webp` trên disk `uploads`, vuông, ≤ 800px |
+| public_consent_at | datetime | Y | | | Khác NULL = đang đồng ý công khai. Rút → NULL |
+| public_consent_version | varchar(20) | Y | | | Phiên bản câu chữ đã đồng ý |
+| public_consent_withdrawn_at | datetime | Y | | | Lần rút gần nhất. Lịch sử đầy đủ ở `consents` |
+| show_on_homepage | boolean | N | false | IX (show_on_homepage, homepage_order) | Chỉ Admin/QLT đổi. Tối đa `teacher_profile.homepage_max` (6) dòng true, đảm bảo bằng mutex (§4) |
+| homepage_order | smallint unsigned | Y | | | 1..999, NULL xếp sau |
+| profile_updated_by | bigint unsigned | Y | | FK users null on delete | Người sửa nội dung gần nhất (ảnh/headline/bio) |
+| profile_updated_at | datetime | Y | | | |
+| created_at, updated_at | | | | | |
+
+CHECK: `chk_teacher_profiles_homepage_order` (`homepage_order IS NULL OR homepage_order BETWEEN 1 AND 999`), `chk_teacher_profiles_consent_version` (`public_consent_at IS NULL OR public_consent_version IS NOT NULL`). `$fillable` = `headline`, `bio`. Các cột còn lại chỉ đổi bằng `forceFill` trong service.
+
+Khối lượng: ≤ 200 dòng sau 3 năm. API công khai chỉ xuất `bio`/`avatar_path` qua `App\Support\PublicTeacher` (chốt đồng ý).
 
 ### 3.2 Danh mục & nội dung (US-002, US-003, US-009, US-011)
 
@@ -448,10 +468,14 @@ Index: **U (user_id, pending_flag)** (mỗi HS tối đa 1 đơn pending — ch�
 | Double submit quiz / 2 lượt đang làm | U (user, quiz, in_progress_flag) | Nộp = UPDATE có điều kiện `submitted_at IS NULL` |
 | Hoàn tiền 2 lần | — | Khoá dòng order, chỉ cho `paid → refunded` |
 | Trùng tiến độ bài học | U (user_id, lesson_id) | `upsert` |
+| Hai admin cùng bật hiển thị trang chủ, vượt 6 giáo viên (US-020) | — (số 6 là hằng cấu hình, không ép ở DB) | Trong transaction: khoá **mọi dòng `teacher_profiles` theo `user_id` tăng dần** (`FOR UPDATE`) rồi mới đếm `show_on_homepage = 1` (ADR-005). Không dùng `WHERE show_on_homepage=1 FOR UPDATE`, vì ở READ COMMITTED cách này có thể bỏ sót dòng vừa được bật |
+| Tạo trùng hồ sơ giáo viên | PK `teacher_profiles.user_id` | `insertOrIgnore` ngoài transaction, rồi khoá theo PK |
 
 **Thứ tự khoá chuẩn DUY NHẤT (DBA #2 — khớp ADR-001 §4):**
 `carts (của user)` → `orders` → `payment_attempts` → `courses` (khoá SHARE ở checkout, EXCLUSIVE ở fulfillment/xoá/ngừng bán; nhiều khóa khoá theo **id tăng dần**) → `enrollments` → `coupons` / `coupon_usages`. `courses.enrollments_count` được tăng ngay trong `EnrollmentService::grantPurchase` khi đã giữ khoá `courses` X (không còn bước "courses ở cuối"). **T18 chốt (2026-10-06):** `EnrollmentService` khoá `courses` trước `enrollments`, nên `courses` phải đứng trước `coupons` để không deadlock checkout ↔ IPN.
 Mọi luồng chỉ được đi **một đoạn con theo đúng chiều này**: checkout = `carts → orders → courses(S) → coupons`; fulfillment (IPN/đối soát) = `carts → orders → payment_attempts → courses(X) → enrollments → coupons → coupon_usages`; huỷ 12h = `carts → orders → payment_attempts`; duyệt miễn phí = `courses → enrollments`; hoàn tiền = `orders → courses → enrollments`. Luồng mới phải tuân thủ và ghi rõ trong PR. Mọi transaction nhiều bảng dùng `DB::transaction($fn, 3)`; hết 3 lần vẫn lỗi → log `critical` kèm `request_id` (không 500 âm thầm). Hot row cần load test trước chiến dịch lớn: `coupons` (nhiều HS cùng mã), `courses.enrollments_count` (khóa bán chạy).
+
+**Đoạn khoá miền hồ sơ giáo viên (US-020, độc lập với chuỗi thương mại):** `users` → `teacher_profiles` (nhiều dòng thì theo `user_id` tăng dần) → `consents`. Bật trang chủ khoá toàn bộ `teacher_profiles`. Sửa nội dung, ảnh hay đồng ý chỉ khoá 1 dòng. Ẩn danh hoá (T34) khoá `users` trước. Không luồng nào được khoá `teacher_profiles` rồi mới khoá `users`. Ghi `profile_updated_by` khiến InnoDB lấy khoá S dòng `users` của người sửa (kiểm FK), nên luồng sửa nội dung/ảnh khoá S dòng người sửa rồi dòng giáo viên TRƯỚC khi khoá `teacher_profiles` (cùng chiều với `StaffAccountService`: admin trước, đích sau); race test T36 đã bắt được chu trình khi để FK tự khoá sau.
 
 **Chỉ khoá dòng chắc chắn tồn tại** (`carts` của HS — tạo trước bằng `firstOrCreate` ngoài transaction; `orders`, `coupons` theo PK). Không dùng `SELECT ... FOR UPDATE` để "kiểm tra chưa tồn tại" (vd tìm đơn pending khi chưa có): tìm bằng đọc thường, nếu có thì khoá theo PK rồi kiểm lại trạng thái. Dòng `carts` đóng vai trò mutex theo học sinh cho giỏ/checkout/IPN; phần còn lại dựa vào unique index. Chi tiết InnoDB (gap lock, isolation) ở §6.
 
@@ -469,6 +493,7 @@ Dự án mới (greenfield) → chưa có vấn đề zero-downtime; tạo migra
 8. `quizzes` → `quiz_questions` → `quiz_options` → `quiz_attempts`.
 9. `exports`.
 10. Module VideoLab: `vl_videos` (migration nằm trong module, chỉ chạy khi `VIDEO_PROVIDER=internal`).
+11. (Sau MVP, T36 / US-020) `teacher_profiles` + 2 CHECK. Cùng migration chép `users.bio`/`avatar_path` của giáo viên sang bằng `INSERT … SELECT` (dự kiến 0 dòng; không chép đồng ý). Release sau (T36-1): xoá `users.bio`, `users.avatar_path`.
 
 Generated column & CHECK: dùng `->storedAs(...)` và `DB::statement('ALTER TABLE ... ADD CONSTRAINT chk_<bảng>_<ý nghĩa> CHECK (...)')` — **luôn đặt tên constraint tường minh** để `down()` chạy được `ALTER TABLE ... DROP CHECK chk_...`. Danh sách CHECK: `chk_users_grade_level`, `chk_quizzes_single_parent`, `chk_quiz_attempts_question_count`, `chk_coupons_percent_range`, `chk_coupons_full_discount_limited`, `chk_courses_grade_level`. Chạy checklist kiểm chứng ở `docs/db/design-review.md` §5 trước khi merge migration đầu tiên (T07).
 

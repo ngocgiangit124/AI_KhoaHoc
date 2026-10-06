@@ -454,6 +454,96 @@ Cài ở task sau:
 
 **Tổng frontend ≈ 35,5 ngày** (FE0 2 — đã xong; web 18; admin 15,5).
 
+## Sau MVP / bổ sung
+
+Story do BA viết sau khi chốt task MVP (PO 2026-10-06). Architect đã chốt mã task ngày 2026-10-06 (chờ PO duyệt ở cổng #2 của US-020).
+
+- **T35 không thuộc US-020.** PO đã dành mã này cho "image staging + CI build". Backend US-020 dùng **T36**.
+- Câu hỏi mở của US-019/US-020 chưa có trả lời thì dùng mặc định ghi trong từng story.
+
+| Story | Task | Phụ thuộc | Ghi chú |
+|---|---|---|---|
+| US-019 Trang chủ (Ready) | **FW8** (frontend web) | FW2 (đã dev, chưa review), design v2 (PO duyệt) | Backend không cần API mới |
+| US-020 Hồ sơ giáo viên công khai (Ready) | **T36** (backend) [SEC] [DBA] | T08, T10, T33 (đã xong) | Thiết kế: `docs/tech/US-020.md`, ADR-005, api-contract §2.9, data-model `teacher_profiles` |
+| US-020 | **FA11** (frontend admin) | T36, FA1, design US-020 (`nextjs-designer`) | **Màn riêng, không gộp FA10**: FA10 chỉ admin (`manage-system`), còn QLT cũng phải quản lý hồ sơ giáo viên |
+| US-020 | **FW9** (frontend web) | T36, FW8, design US-020 | Gắn khu vực giáo viên vào chỗ FW8 đã chừa |
+
+Thứ tự:
+
+```
+T36 ─┬─▶ FA11
+     └─▶ FW9 ◀── FW8 ◀── FW2
+design US-020 ──▶ FA11, FW9 ;  design v2 ──▶ FW8
+```
+
+T36 làm được ngay (backend không chờ design). FW8 làm song song với T36.
+
+### T36 — Hồ sơ giáo viên công khai, backend (~3 ngày) **[SEC] [DBA]** (US-020)
+Phụ thuộc T08, T10, T33. Thiết kế: `docs/tech/US-020.md` (chia T36.1–T36.5, T36.2 và T36.3 làm song song được).
+- Migration `teacher_profiles` + 2 CHECK + `INSERT … SELECT` từ `users.bio/avatar_path`. Model, factory, state `teacher()->withPublicProfile()`, `ConsentType::TeacherPublicProfile`, `config/teacher_profile.php` (hằng, không env).
+- `PublicTeacher` (chốt đồng ý duy nhất). Sửa `CourseCatalog::findPublished`/`CourseDetailResource`. `teacher_id` cho `GET /courses`. `GET /home/teachers` (`HomepageTeacherQuery`, 2 câu SQL).
+- `TeacherProfileService` gồm:
+  - nội dung (PATCH từng phần), ảnh (`ImageUploadService` cắt vuông 800px);
+  - đồng ý/rút (ghi `consents` + audit);
+  - bật trang chủ với mutex khoá toàn bộ `teacher_profiles` theo PK;
+  - `erase()` cho T34.
+- `PlainText(allowNewlines)`. Gate `manage-teacher-profiles` (admin, QLT) và `own-teacher-profile` (giáo viên). Controller, Request, Resource, `TeacherEligibility`. Route theo api-contract §2.9.
+- `images:prune-orphans` (hằng ngày, `--dry-run`). `ProductionConfigGuard::guardStaticUrl` (https, khác host app/web/admin) + kiểm `consent_version` khác rỗng.
+- Bỏ `bio` khỏi `User::$fillable`. Sửa test T10 về `teachers[].bio`.
+- **Xong khi:**
+  - mọi AC1–AC21 phần backend có feature test Pest, và các test sau đều xanh:
+    - (a) ma trận BR2: thiếu từng điều kiện → không có trong `/home/teachers`, kiểm cả `TeacherEligibility` cho cùng ma trận;
+    - (b) AC5/AC7 trên CẢ `/home/teachers` và `/courses/{slug}`: rút đồng ý → lần gọi kế tiếp trả `null` ngay;
+    - (c) AC10: bật người thứ 7 → 409 `TEACHER_HOMEPAGE_LIMIT`, trạng thái giữ nguyên; **race test** 2 tiến trình cùng bật khi đang có 5 → đúng 1 thành công (nhóm `race`);
+    - (d) IDOR: giáo viên A gọi `/admin/teacher-profiles/{B}` → 403; admin/QLT gọi `/admin/me/teacher-profile/consent` → 403; route consent có `{user}` → 404/405; học sinh/khách → 401/403;
+    - (e) upload `.svg`, `.gif`, `.html` đổi đuôi, polyglot, > 2 MB, > 4000 px → 422, không có file mới trên disk; jpg 1,5 MB → WebP vuông ≤ 800px, không EXIF, ảnh cũ bị xoá;
+    - (f) `bio` 601 ký tự / `headline` 121 / có `<b>`, bidi, zero-width → 422; `\r\n` lưu thành `\n`;
+    - (g) audit đủ 5 action, double submit không ghi trùng;
+    - (h) `GET /courses?teacher_id=` lọc đúng, id lạ → rỗng, `links` giữ tham số;
+    - (i) test kiến trúc: Resource công khai không đọc thẳng `avatar_path`/`bio`;
+    - (j) `guardStaticUrl` có test như `StagingGuardTest`;
+  - `composer ci` xanh (Pint, PHPStan, Pest);
+  - DBA review migration + mutex; Security review.
+- Backlog phát sinh: **T36-1** xoá cột `users.bio`, `users.avatar_path` ở release sau (~0,25 ngày, [DBA]). **T34** gọi `TeacherProfileService::erase()` khi ẩn danh hoá.
+
+### FW8 — Trang chủ thật (`nextjs-dev`, ~2,5 ngày) (US-019)
+Phụ thuộc FW2 (review xong), design v2 do PO duyệt.
+- Trang `/` thay `/v2`: hero, chọn lớp, khóa nổi bật (`GET /courses?sort=featured`, lấy 4 đầu), một buổi học, phụ huynh.
+- SSR, CSP nonce, `publicFetch` `revalidate: 60` (ADR-004 §2.7).
+- Mỗi khu vực tự xử lý rỗng/lỗi. Chừa slot khu vực giáo viên ngay sau "Khóa học nổi bật": chưa có FW9 thì không render gì.
+- **Xong khi:** AC của US-019 có test (Vitest + Playwright với backend thật); khu vực giáo viên vắng mặt không để khoảng trắng (US-019 AC11); 375/1280px không cuộn ngang; lint, typecheck, test, build xanh; review + QA.
+
+### FW9 — Khu vực giáo viên ở trang chủ (`nextjs-dev`, ~1,5 ngày) (US-020)
+Phụ thuộc T36, FW8, design US-020.
+- Server component gọi `GET /home/teachers` qua `publicFetch` (`revalidate: 60`, `tags: ['teachers']`, header SSR nội bộ như FW2).
+- Thẻ gồm: ảnh vuông (`next/image` hoặc `<img>` từ `STATIC_URL`, alt "Ảnh thầy/cô {name}"), tên (cắt 2 dòng), `headline` nếu có, "Lớp 9, 10", "N khóa học", `bio` cắt 3 dòng bằng text (cấm `dangerouslySetInnerHTML`), liên kết "Xem N khóa học" → `/khoa-hoc?teacher_id={id}`.
+- Ảnh lỗi → avatar chữ cái đầu (AC17).
+- `data` rỗng hoặc API lỗi → không render gì (BR10, AC15).
+- 375px: 1 cột hoặc dải cuộn tay, không tự chạy. Từ 1024px: 3 cột (AC16).
+- Thêm vào FW2: trang danh mục nhận `teacher_id` (truyền qua API, hiện chip "Giáo viên: {tên}" lấy từ `teachers[]` của kết quả, có nút bỏ lọc). Trang chi tiết khóa hiện avatar chữ cái khi `avatar_url = null` và ẩn bio khi `bio = null`.
+- **Xong khi:**
+  - Playwright với backend thật cho AC6, AC11–AC17 và AC7 (rút đồng ý, rồi sau ≤ 60 s ảnh biến mất ở trang chủ và trang chi tiết);
+  - thẻ không vỡ với tên 150 ký tự và với 1 người;
+  - CSP không bị vi phạm (ảnh từ `STATIC_URL` có trong `img-src`);
+  - lint, typecheck, test, build xanh; review + QA.
+
+### FA11 — Hồ sơ giáo viên (`nextjs-dev`, ~2,5 ngày) (US-020)
+Phụ thuộc T36, FA1, design US-020.
+- **"Hồ sơ của tôi"** (menu chỉ cho giáo viên):
+  - tải ảnh có bước cắt vuông 1:1 ở client trước khi upload (multipart `avatar`), xoá ảnh;
+  - `headline`, `bio` có đếm ký tự 120/600; PATCH chỉ gửi trường đã đổi;
+  - ô đồng ý hiện `consent.current_text`, gửi `version`; nhận 409 `CONSENT_VERSION_CHANGED` thì tải lại và hiện câu mới; nút rút đồng ý có xác nhận;
+  - trạng thái "Đang hiển thị/Chưa hiển thị trên trang chủ" kèm lý do (`homepage_status.reasons` dịch sang tiếng Việt);
+  - "Chỉnh sửa gần nhất bởi {tên}, {thời điểm}" khi `last_edited_by.is_self = false`.
+- **"Giáo viên trang chủ"** (menu cho admin + QLT):
+  - danh sách (`GET /admin/teacher-profiles`, lọc `homepage=1`, tìm tên), bộ đếm "đang bật X/6" từ `meta.homepage`;
+  - bật/tắt, đặt thứ tự (PATCH `/homepage`), nhãn "Chưa hiện: {lý do}";
+  - 409 `TEACHER_HOMEPAGE_LIMIT` hiện đúng thông điệp, giữ trạng thái cũ;
+  - sửa hộ ảnh/headline/bio;
+  - ô đồng ý chỉ đọc, kèm chữ "Chỉ giáo viên được đồng ý công khai" (không dùng tooltip);
+  - người bị khoá hoặc đã đổi vai trò vẫn hiện để tắt được.
+- **Xong khi:** Vitest cho form, cắt ảnh, mapping lỗi; Playwright với backend thật cho AC1, AC2, AC3, AC8, AC9, AC10, AC18, AC21 (2 tab sửa 2 trường khác nhau không mất dữ liệu); giáo viên không thấy menu quản lý, admin/QLT không thấy "Hồ sơ của tôi"; lint, typecheck, test, build xanh; review + QA.
+
 ## Thứ tự & ước lượng
 
 ```

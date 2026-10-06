@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Lesson;
 use App\Models\Subject;
+use App\Models\TeacherProfile;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -100,8 +101,11 @@ test('US-003 AC8: so hoc sinh chi dem enrollment active (cot enrollments_count) 
 
 test('US-003 AC6: nhieu giao vien deu hien thi, khong lo email/sdt cua giao vien', function () {
     $c = qaPub();
-    $t1 = User::factory()->teacher()->create(['bio' => 'GV A']);
-    $t2 = User::factory()->teacher()->create(['bio' => 'GV B']);
+    // US-020: bio nằm ở teacher_profiles; t1 đã đồng ý, t2 chưa (bio null).
+    $t1 = User::factory()->teacher()->create();
+    $t2 = User::factory()->teacher()->create();
+    TeacherProfile::factory()->consented()->create(['user_id' => $t1->id, 'bio' => 'GV A']);
+    TeacherProfile::factory()->create(['user_id' => $t2->id, 'bio' => 'GV B']);
     DB::table('course_teacher')->insert([
         ['course_id' => $c->id, 'user_id' => $t1->id], ['course_id' => $c->id, 'user_id' => $t2->id],
     ]);
@@ -110,6 +114,7 @@ test('US-003 AC6: nhieu giao vien deu hien thi, khong lo email/sdt cua giao vien
     foreach ($r->json('teachers') as $t) {
         expect(array_keys($t))->toEqualCanonicalizing(['id', 'name', 'bio', 'avatar_url']);
     }
+    expect(collect($r->json('teachers'))->pluck('bio', 'id')->all())->toBe([$t1->id => 'GV A', $t2->id => null]);
 });
 
 test('US-003 BR4/AC5: slug cu sau khi doi slug va slug co ky tu la deu 404, khong 500', function () {

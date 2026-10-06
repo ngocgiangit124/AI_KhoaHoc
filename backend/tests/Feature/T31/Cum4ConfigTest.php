@@ -145,7 +145,7 @@ test('M2: bien env quan trong chua " #" bi chan (guard doc gia tri tho)', functi
     app()->detectEnvironment(fn () => 'production');
     config([
         'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
-        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.trusted_proxies' => '10.0.0.1',
+        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net', 'app.trusted_proxies' => '10.0.0.1',
         'payments.enabled_gateways' => [], 'video.provider' => 'internal', 'video.enabled_providers' => ['internal'],
         'internal.required' => false, 'internal.ssr_token' => null, 'features.paid_checkout' => false,
         'videolab.enabled' => false,
@@ -171,7 +171,7 @@ test('M1: guard bat buoc SESSION_ENCRYPT=true ngoai local/testing', function () 
     app()->detectEnvironment(fn () => 'production');
     config([
         'app.debug' => false, 'session.secure' => true, 'session.encrypt' => false, 'captcha.driver' => 'turnstile',
-        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.trusted_proxies' => '10.0.0.1',
+        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net', 'app.trusted_proxies' => '10.0.0.1',
         'payments.enabled_gateways' => [], 'video.provider' => 'internal', 'video.enabled_providers' => ['internal'],
         'internal.required' => false, 'features.paid_checkout' => false, 'videolab.enabled' => false,
     ]);
@@ -431,7 +431,7 @@ test('R4: mat khau hop le chua # sat chu (ab#cd, #abc, a#b) khong bi chan; " #" 
     app()->detectEnvironment(fn () => 'production');
     config([
         'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
-        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.trusted_proxies' => '10.0.0.1',
+        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net', 'app.trusted_proxies' => '10.0.0.1',
         'payments.enabled_gateways' => [], 'video.provider' => 'internal', 'video.enabled_providers' => ['internal'],
         'internal.required' => false, 'internal.ssr_token' => null, 'features.paid_checkout' => false,
         'videolab.enabled' => false,

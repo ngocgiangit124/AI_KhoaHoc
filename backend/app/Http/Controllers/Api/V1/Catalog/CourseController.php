@@ -24,6 +24,7 @@ class CourseController extends Controller
             $request->filled('q') ? $request->string('q')->toString() : null,
             $request->input('sort', 'newest'),
             $request->integer('page', 1),
+            $request->filled('teacher_id') ? $request->integer('teacher_id') : null,
         );
 
         return response()->json([
@@ -67,7 +68,7 @@ class CourseController extends Controller
     private function pageLink(CourseSearchRequest $request, int $page): string
     {
         $query = array_filter(
-            $request->only(['grade', 'subject_ids', 'q', 'sort']),
+            $request->only(['grade', 'subject_ids', 'q', 'sort', 'teacher_id']),
             fn ($v) => $v !== null && $v !== '',
         );
         $query['page'] = $page;

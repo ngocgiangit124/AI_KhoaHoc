@@ -16,7 +16,7 @@ beforeEach(function () {
         'app.debug' => false,
         'session.secure' => true, 'session.encrypt' => true,
         'captcha.driver' => 'turnstile',
-        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'],
+        'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net',
         'app.trusted_proxies' => '10.0.0.1,10.0.0.2',
         'payments.enabled_gateways' => ['momo'],
         'payments.gateways.momo.endpoint' => 'https://payment.momo.vn/v2/gateway/api/create',
