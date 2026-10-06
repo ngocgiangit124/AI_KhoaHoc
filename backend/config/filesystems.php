@@ -63,6 +63,15 @@ return [
             'report' => false,
         ],
 
+        // T12 — lưu trữ VideoLab (incoming/source/hls). Riêng, không public; worker video mount đúng thư mục này.
+        'videolab' => [
+            'driver' => 'local',
+            'root' => env('VIDEOLAB_PATH', storage_path('app/videolab')),
+            'visibility' => 'private',
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

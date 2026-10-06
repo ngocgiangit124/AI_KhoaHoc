@@ -78,6 +78,7 @@ services:
       retries: 20
     networks:
       - vitaminvui
+      - internal
 
   redis:
     image: redis:7
@@ -89,6 +90,7 @@ services:
       - "127.0.0.1:6379:6379"
     networks:
       - vitaminvui
+      - internal
 
   mailpit:
     image: axllent/mailpit:latest
@@ -119,6 +121,63 @@ services:
     networks:
       - vitaminvui
 
+  # T12 — worker transcode VideoLab (queue `video`, ffmpeg). Sandbox theo ADR-002 §3a.3:
+  # non-root, rootfs chỉ đọc, KHÔNG env_file/.env (ghi đè bằng /dev/null), chỉ mạng `internal`
+  # (MySQL/Redis), chỉ ghi được volume videolab, giới hạn CPU/RAM/số tiến trình.
+  worker-video:
+    build:
+      context: ./worker-video
+    image: vitaminvui-worker-video:8.3
+    working_dir: /var/www/backend
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    cpus: 2
+    mem_limit: 2g
+    pids_limit: 256
+    environment:
+      HOME: /tmp
+      APP_NAME: VitaminVui
+      APP_ENV: local
+      APP_DEBUG: "false"
+      # R1 — PHẢI khớp prefix Redis của app (config/database.php: slug(APP_NAME).'-database-', .env APP_NAME=VitaminVui);
+      # lệch prefix thì worker không thấy queue `video` và webhook đẩy vào hàng đợi không ai đọc.
+      REDIS_PREFIX: ${VV_REDIS_PREFIX:-vitaminvui-database-}
+      LOG_CHANNEL: stderr
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_DATABASE: ${VV_DB_DATABASE:-vitaminvui}
+      DB_USERNAME: ${VV_DB_USERNAME:-vitaminvui}
+      DB_PASSWORD: ${VV_DB_PASSWORD:?Thiếu VV_DB_PASSWORD}
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${VV_REDIS_PASSWORD:?Thiếu VV_REDIS_PASSWORD}
+      REDIS_DB_SESSION: "1"
+      REDIS_CACHE_DB: "2"
+      REDIS_QUEUE_DB: "3"
+      REDIS_LIMITER_DB: "4"
+      CACHE_PREFIX: vitaminvui_cache
+      VIDEOLAB_ENABLED: "true"
+    volumes:
+      - ../backend:/var/www/backend:ro
+      - /dev/null:/var/www/backend/.env:ro
+      - ../backend/storage/app/videolab:/var/www/backend/storage/app/videolab
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - internal
+
   scheduler:
     image: vitaminvui-php:8.3
     working_dir: /var/www/backend
@@ -140,6 +199,10 @@ services:
 networks:
   vitaminvui:
     driver: bridge
+  # T12 — mạng cô lập cho worker video: không ra Internet, chỉ nối MySQL/Redis (ADR-002 §3a.3).
+  internal:
+    driver: bridge
+    internal: true
 
 volumes:
   vitaminvui-mysql:

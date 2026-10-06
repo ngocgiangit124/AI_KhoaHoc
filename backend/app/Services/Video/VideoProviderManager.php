@@ -4,13 +4,14 @@ namespace App\Services\Video;
 
 use App\Services\Video\Contracts\VideoProvider;
 use App\Services\Video\Exceptions\VideoProviderException;
+use App\Services\Video\Providers\InternalVideoProvider;
 use Illuminate\Support\Manager;
 use InvalidArgumentException;
 
 /**
  * Resolve adapter theo tên, CHỈ trong allowlist `config('video.enabled_providers')` (ADR-002 §1).
- * `fake` do VideoServiceProvider `extend` ở local/testing. `internal` (VideoLab, T12) và `bunny` chưa có
- * adapter: resolve sẽ ném VideoProviderException (→ 503) cho tới khi được hiện thực và cấu hình.
+ * `fake` do VideoServiceProvider `extend` ở local/testing. `internal` (VideoLab, T12) cần `videolab.enabled`;
+ * `bunny` chưa có adapter: resolve sẽ ném VideoProviderException (→ 503).
  *
  * @method VideoProvider driver(?string $driver = null)
  */
@@ -49,7 +50,12 @@ class VideoProviderManager extends Manager
 
     protected function createInternalDriver(): VideoProvider
     {
-        throw new VideoProviderException('InternalVideoProvider (VideoLab) chưa được cài đặt/cấu hình (chờ T12).');
+        // Chỉ khả dụng khi module VideoLab bật (route/migration cùng cờ `videolab.enabled`).
+        if (! $this->config->get('videolab.enabled')) {
+            throw new VideoProviderException('VideoLab đang tắt (VIDEOLAB_ENABLED).');
+        }
+
+        return $this->container->make(InternalVideoProvider::class);
     }
 
     protected function createBunnyDriver(): VideoProvider

@@ -57,6 +57,8 @@ class ConfigureHostContext
                 allowedOrigin: config('app.admin_url'),
                 secure: $secure,
             );
+        } elseif (config('videolab.enabled') && $host === config('videolab.host')) {
+            // T12 — VideoLab: không phiên/cookie, CORS do VideoLabCors tự xử lý (route không thuộc nhóm web/api).
         } else {
             abort(404);
         }

@@ -398,3 +398,11 @@ khỏi request từ internet (`proxy_set_header X-Internal-Token ""` ở vhost p
 block công khai (`infra/nginx/snippets/vv-common.conf`) luôn xoá `X-Internal-Token` và `X-Client-IP` khỏi request. Đặt
 `INTERNAL_API_REQUIRED=true` khi SSR đã gửi header để production từ chối khởi động nếu quên token (token rỗng ở production
 chỉ ghi log warning khi boot).
+
+## 12. VideoLab (T12)
+
+- Module `app/VideoLab`, route `routes/videolab.php` (host `VIDEOLAB_HOST`), bảng `vl_videos`, queue `video` (connection `redis_video`, `retry_after` 3900 > timeout job 3600).
+- Worker transcode chạy ở container `worker-video` (xem `infra/docker-compose.yml`): non-root, rootfs chỉ đọc, `.env` bị `/dev/null` đè, chỉ network `internal`. **Env của worker phải khớp app:** `APP_NAME` và `REDIS_PREFIX` (app dùng `slug(APP_NAME)-database-` = `vitaminvui-database-`). Lệch prefix thì worker không thấy queue `video` và webhook đẩy vào hàng đợi không ai đọc. Đổi `APP_NAME` ở `.env` thì đặt `VV_REDIS_PREFIX` ở `infra/.env`.
+- ffmpeg/ffprobe chạy với env sạch (chỉ `PATH`, `HOME=/tmp`), không thấy mật khẩu DB/Redis.
+- Khoá `VIDEOLAB_API_KEY/TOKEN_KEY/WEBHOOK_SECRET`: chỉ local/testing tự suy từ `APP_KEY`; môi trường khác (staging, production) bắt buộc đặt riêng ≥ 32 ký tự, thiếu thì app không khởi động.
+- Production phát video: bật `VIDEOLAB_ACCEL_REDIRECT=true` (Nginx `location /_protected_hls/ { internal; }`), thêm `limit_req` Nginx cho `/videolab/cdn/` (route Laravel chỉ có `throttle:1200,1` theo IP); allow-list `/videolab/library/` dùng IP app server cụ thể + `real_ip` (local đang allow cả dải private).

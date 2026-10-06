@@ -95,9 +95,9 @@ test('nha cung cap loi -> 503 VIDEO_PROVIDER_UNAVAILABLE, khong tao asset, bai k
         ->and($lesson->fresh()->video_asset_id)->toBeNull();
 });
 
-test('provider internal/bunny chua co adapter -> 503, khong ro ri chi tiet', function () {
+test('provider bunny chua co adapter -> 503, khong ro ri chi tiet', function () {
     vvCourseActor();
-    config(['video.provider' => 'internal', 'video.enabled_providers' => ['internal']]);
+    config(['video.provider' => 'bunny', 'video.enabled_providers' => ['bunny']]);
     [$course, , $lesson] = vvContentSet();
 
     $res = vvRequestUpload($course, $lesson)->assertStatus(503)->assertJsonPath('code', 'VIDEO_PROVIDER_UNAVAILABLE');

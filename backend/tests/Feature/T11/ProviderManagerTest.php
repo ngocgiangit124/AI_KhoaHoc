@@ -18,8 +18,8 @@ test('manager: chi resolve provider trong allowlist', function () {
     expect(fn () => $manager->driver('../x'))->toThrow(InvalidArgumentException::class);
 });
 
-test('manager: internal/bunny chua co adapter -> VideoProviderException', function () {
-    config(['video.enabled_providers' => ['internal', 'bunny']]);
+test('manager: bunny chua co adapter; internal chi khi VideoLab bat -> VideoProviderException', function () {
+    config(['video.enabled_providers' => ['internal', 'bunny'], 'videolab.enabled' => false]);
     $manager = app(VideoProviderManager::class);
 
     expect(fn () => $manager->driver('internal'))->toThrow(VideoProviderException::class);

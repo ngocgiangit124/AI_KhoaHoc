@@ -65,6 +65,8 @@ return Application::configure(basePath: dirname(__DIR__))
         TrustHosts::at(fn () => [
             '^'.preg_quote((string) config('app.api_host'), '#').'$',
             '^'.preg_quote((string) config('app.admin_api_host'), '#').'$',
+            // T12 — host VideoLab (upload TUS, phát HLS), chỉ khi module bật.
+            ...(config('videolab.enabled') ? ['^'.preg_quote((string) config('videolab.host'), '#').'$'] : []),
         ], subdomains: false);
         $middleware->prepend(TrustHosts::class);
 
