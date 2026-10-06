@@ -12,6 +12,7 @@
 - Đọc `docs/board.md` trước tiên: trạng thái task, việc tiếp theo, quy tắc đã thống nhất với PO.
 - Danh sách task và định nghĩa "xong": `docs/architecture/tasks.md`. Hợp đồng API: `docs/architecture/api-contract.md`. Quyết định kiến trúc: `docs/adr/`.
 - Đội agent nằm trong `.claude/agents/`. Quy trình mỗi task: dev → `laravel-reviewer` → `laravel-security` (task [SEC]) → `laravel-qa` → PO duyệt commit/push.
+- Frontend: `nextjs-designer` (design system + dựng trang/component bằng dữ liệu mẫu) → `nextjs-dev` (nối API, xác thực, logic) → `laravel-reviewer` → `laravel-qa`.
 
 ## Cấu trúc repo
 - `backend/`: Laravel 13 API (2 host: `api.` cho học sinh, `admin-api.` cho quản trị). Xem `backend/README.md`.
