@@ -18,6 +18,7 @@ class PublicConfigController extends Controller
         return response()->json([
             'referral_code_enabled' => (bool) config('features.referral_code'),
             'quiz_time_limit_enabled' => (bool) config('features.quiz_time_limit'),
+            'paid_checkout_enabled' => (bool) config('features.paid_checkout'),
             'otp' => [
                 'ttl_minutes' => config('auth.otp.ttl_minutes'),
                 'resend_cooldown_seconds' => config('auth.otp.cooldown_seconds'),

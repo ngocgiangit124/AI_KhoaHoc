@@ -113,3 +113,120 @@ Chưa có dòng code nào của M1–M3, L1–L5 được viết (đã xác nh�
 - R2: S18 cho mã fixed phụ thuộc giá khóa hiện tại; chưa có khóa trả phí thì mã fixed lớn không bị ép giới hạn, và hạ giá/xuất bản khóa rẻ sau đó không kiểm lại mã cũ. T16 (`CouponEvaluator`) chặn mã fixed lớn hơn giá trị đơn/khóa áp dụng.
 - R3: `is_restricted=true` nhưng `coupon_course`/`coupon_subject` rỗng (sau cascade) không audit; T16 phải trả `COUPON_NOT_APPLICABLE`, không coi là áp toàn bộ. UI nên cảnh báo khi `courses_count + subjects_count = 0`.
 - Thời gian: so sánh bind Carbon theo `config('app.timezone')` (`now()`), không dùng `NOW()` của MySQL; không truyền Carbon UTC khi app timezone khác UTC (QA T15).
+
+## T16 (giỏ hàng) — ghi nhận (2026-10-05)
+- T16-1 | Low | Dò mã: `COUPON_EXPIRED`/`COUPON_ALREADY_USED`/`COUPON_NOT_APPLICABLE` cho biết mã tồn tại (chỉ inactive/upcoming/không tồn tại gộp `COUPON_INVALID` theo S18). Bù bằng throttle 10/phút + 60/giờ/IP + trần 30 lần sai/ngày/HS (đếm ở cache, mất khi flush Redis). Cân nhắc đếm thêm theo IP cho lần sai.
+- T16-2 | Low | Trần "30 lần sai/ngày" tính theo tài khoản; tài khoản mới tạo hàng loạt vẫn dò được theo IP ở mức 60/giờ.
+- T16-3 | Info | `GET /cart` có ghi DB (gỡ mã hết hiệu lực) dưới khoá dòng `carts`; chỉ xảy ra khi giỏ có mã.
+
+- T16-4 (Low): trần 30 lần nhập sai mã/ngày/HS lưu trong RateLimiter (Redis); flush Redis hoặc mất key thì bộ đếm về 0. Chấp nhận ở v1.
+
+## T11 (contract video) — ghi nhận (2026-10-05)
+
+| # | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T11-1 | Low | Webhook `internal` chưa kiểm HMAC header (ADR nói "để thực hành"); hiện an toàn nhờ pull-verify `getVideo()`. Thêm HMAC khi viết `InternalVideoProvider::parseWebhook` (T12) | T12 |
+| T11-2 | Low | Hạn mức 20 GB/ngày tính theo `declared_size_bytes` của asset tạo trong ngày lịch (múi giờ app), gồm cả asset failed/mồ côi; chưa hoàn lại hạn mức khi upload thất bại | v2 nếu PO muốn |
+| T11-3 | Low | `POST video-uploads` chỉ throttle 20/phút theo user (limiter chuỗi), chưa có limiter đặt tên riêng | v2 |
+| T11-4 | Info | `videos:check-stuck` và `videos:prune-orphans` cần scheduler chạy (`schedule:run`) ở staging/production; `internal`/`bunny` chưa có adapter nên prune asset provider đó sẽ báo lỗi và giữ dòng tới khi adapter có | Theo dõi T12 / go-live |
+| T11-5 | Info | Link TUS trả cho FE chứa chữ ký có hạn ≤ 6h gắn `VideoId`; endpoint `GET .../video` không trả lại chữ ký | — |
+
+## T21 (soạn quiz) — ghi nhận (2026-10-05)
+
+| # | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T21-1 | Low | Chưa có throttle riêng cho ghi quiz/câu hỏi (chỉ staff/GV được gán, đã đăng nhập); mỗi lần tạo/sửa/xoá khoá dòng `courses`/`quizzes` | Review v2 |
+| T21-2 | Low | Văn bản quiz (`QuizText`) từ chối thẻ HTML nhưng không kiểm cú pháp LaTeX; bảo vệ phía hiển thị dựa vào FE (`katex trust:false`, không innerHTML). Cần test FE v2 với payload KaTeX độc (`\href`, `\url`) | FE v2 |
+| T21-3 | Info | `QuizOption.is_correct` và `QuizQuestion.explanation` nằm trong `$hidden` (không lộ qua serialize mặc định). T22 bắt buộc dùng Resource riêng cho lượt đang làm và test khẳng định không có `is_correct`/`explanation` | T22 |
+| T21-4 | Info | Copy-on-write kiểm "có lượt làm" bằng `JSON_CONTAINS(question_ids)` lọc theo `quiz_id` (bảng `quiz_attempts` do T22 tạo; chưa có bảng → coi như chưa có lượt). T22 phải khoá/đọc dòng `quizzes` (`lockForUpdate`/`sharedLock`) khi chốt `question_ids` để không lọt giữa kiểm và sửa tại chỗ | T22 |
+| T21-5 | Low | Review R1: `QuizText` chặn bidi/zero-width/UTF-8 sai; chưa chuẩn hoá Unicode (NFC) hay chặn homoglyph | Review v2 |
+| T11-6 | Low | Review R5: `parseWebhook` của adapter thật phải kiểm chữ ký (Bunny/HMAC) và trả null nếu sai; cân nhắc throttle webhook theo guid (kẻ ẩn danh kích hoạt 1 lệnh gọi API ra ngoài mỗi request, đã chặn bởi throttle 120/phút/IP) | T12 / adapter Bunny |
+| T11-7 | Info | Review R6: 404 (provider chưa bật) so với 204 cho phép dò allowlist provider; bỏ qua được | — |
+| T11-8 | Info | `config('video.upload_ttl_minutes')` dùng `min(360, env)` cắt im lặng giá trị lớn hơn (cố ý, có comment) | — |
+
+## T33 (tài khoản staff) — ghi nhận (2026-10-05)
+
+| # | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T33-1 | Low | Mật khẩu khởi tạo/đặt lại trả trong response JSON (hiển thị một lần cho admin, `no_store`), không gửi email; đúng CLI. Kênh an toàn hơn (link đặt mật khẩu có hạn) để v2 nếu PO muốn. | v2 |
+| T33-2 | Low | Huỷ phiên dùng "phiên bản huỷ phiên" trong cache (Redis); nếu Redis mất dữ liệu thì phiên cũ của người đã bị huỷ có thể sống lại tới hết idle/12 giờ (người đang khoá vẫn bị chặn bởi `account.active`). | v2 |
+| T33-3 | Low | `audit_logs` chưa có chỉ mục theo `(subject_type, subject_id, created_at)`/`created_at` đã có; lọc kết hợp nhiều điều kiện trên bảng lớn có thể chậm (đã dùng simplePaginate, không đếm tổng). | v2 |
+| T33-4 | Info | Đổi vai trò giáo viên → vai trò khác không gỡ các dòng `course_teacher` của họ (CoursePolicy vẫn cho GV chỉ khóa được gán; vai trò mới có quyền rộng hơn). | — |
+| T33-5 | Info | Khoá/đổi vai trò/đặt lại mật khẩu không vô hiệu hoá mã OTP MFA đang chờ của người bị tác động (mã vẫn cần phiên hợp lệ + mật khẩu mới để dùng). | v2 |
+
+## Gom sửa lỗi nhỏ 1 — ghi nhận từ review (2026-10-05)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| MF1-1 | Low | `AUTH_OTP_E2E_RELAXED` chỉ dựa vào `APP_ENV`. Đặt nhầm `APP_ENV=local` trên server thật thì hạn mức OTP nới thành 1000/giờ. Thêm vào checklist deploy (T31) hoặc guard kiểm thêm. | Hoãn v2 / T31 |
+
+## T26 (queue/scheduler + throttle catalog SSR) — ghi nhận từ review (2026-10-05)
+
+| # | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T26-1 | Low | Token SSR rỗng ở production âm thầm tắt tính năng (mọi người dùng chung bucket). | Đã xử lý phần lớn: cờ `INTERNAL_API_REQUIRED` + log warning khi boot; còn phải bật cờ ở checklist deploy (T31) |
+| T26-2 | Low | Trần tổng `ssr-total` 6000/phút là điểm DoS chung (botnet qua SSR làm 429 cho mọi trang). | v2: WAF/CDN, SSR retry/fallback cache khi 429 |
+| T26-3 | Low | Nginx chưa xoá header nội bộ `X-Internal-Token`/`X-Client-IP`. | Đã xử lý ở `vv-common.conf` (api, admin-api); kiểm lại ở staging/production (T31) và bảo đảm SSR đi đường nội bộ |
+| T33-6 | Low | (review R1) Version huỷ phiên nằm trong cache: mất cache thì phiên của người bị đổi vai trò còn mang MFA cũ (khoá/mật khẩu vẫn chặn nhờ DB/băm). Hướng sửa v2: lưu `users.session_version` trong DB. | v2 |
+
+## T13 (học & tiến độ) — ghi nhận từ dev (2026-10-05)
+
+| # | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T13-1 | Low | Heartbeat đầu tiên của mỗi bài được cộng tới 45s (coi như 20s trôi qua) dù chưa phát gì; tua nhanh bằng devtool vẫn đạt 90% với tốc độ cộng tối đa ~2,5× thời gian thật (2× + 5s bù mỗi heartbeat, heartbeat 20s) (hạn chế đã chấp nhận ở US-006). Muốn chặt hơn: cấp token phát gắn với `playback` và chỉ cộng khi đã có lần cấp link gần đây. | v2 |
+| T13-2 | Low | Cảnh báo bất thường (>3 IP, >60 bài/giờ) chỉ ghi log, đếm trong cache (race làm sai số nhẹ); chưa có cảnh báo tự động/khoá. | v2 |
+| T13-3 | Low | `playback` công khai (preview) throttle theo IP 30/phút: lớp học dùng chung NAT có thể chạm trần; link preview không ràng IP nên chia sẻ được trong 15 phút (chấp nhận, bài preview vốn công khai). | Chấp nhận |
+| T13-4 | Info | Ràng IP chỉ chống chia sẻ link thô; người dùng đổi mạng (Wi-Fi ↔ 4G) nhận 403 từ CDN và player phải gọi lại `/playback` (đúng ADR-002 §4). | Chấp nhận |
+| T13-5 | Info | Quyền thu hồi giữa phiên được kiểm lại mỗi heartbeat/playback nhưng link HLS đã cấp còn dùng được tới hết TTL 15 phút (không thể thu hồi token CDN). | Chấp nhận |
+| T13-6 | Info | Log kênh `playback` chứa IP + UA, giữ 90 ngày (PO uỷ quyền tự quyết thời hạn): đưa vào chính sách lưu giữ log khi lên production (T31). | T31 |
+
+## T12 (VideoLab) — ghi nhận từ dev (2026-10-06)
+
+| # | Mức | Mô tả | Xử lý |
+|---|---|---|---|
+| T12-1 | Low | Đã đóng T11-1/T11-6 phần `internal`: `parseWebhook` kiểm HMAC `X-VideoLab-Signature` (sai → bỏ qua). Chưa throttle webhook theo guid (đã có throttle:webhook theo IP) | Bunny adapter |
+| T12-2 | Low | `max_bytes` của video VideoLab = `video.max_upload_mb` (trần chung), KHÔNG phải kích thước khai ở `video-uploads` (interface `createVideo(title)` không mang `size`). Hạn mức/ngày và kiểm `size` vẫn ở nghiệp vụ. Muốn đúng ADR §3a.5 phải mở rộng interface `VideoProvider` (đụng T11/Fake) | Backlog nếu PO muốn |
+| T12-3 | Low | TUS `PATCH` giữ khoá hàng DB trong lúc ghi chunk (≤ 8 MB) để chặn ghi chồng; đủ cho dev, cần xem lại nếu nhiều upload đồng thời trên 1 hàng (không xảy ra: 1 upload/guid) | Theo dõi |
+| T12-4 | Low | Chưa có Nginx rate-limit riêng cho `/videolab/cdn/` (chỉ `throttle:600,1` ở TUS); production cần `limit_req` + `X-Accel-Redirect` (đã có cấu hình local, bật `VIDEOLAB_ACCEL_REDIRECT`) | Go-live |
+| T12-5 | Low | Allow-list Nginx cho `/videolab/library/*` ở local gồm toàn dải private (Docker publish port nên Nginx thấy IP gateway); production phải thay bằng IP app server cụ thể | Go-live |
+| T12-6 | Low | Worker video local mount `../backend` chỉ đọc + `/dev/null` đè `.env`, nhưng vẫn thấy toàn bộ mã nguồn và nhận DB/Redis credential qua env (cần để ghi `vl_videos`). Production nên dùng DB user riêng chỉ có quyền `vl_*` và image build sẵn không mount mã nguồn | Go-live |
+| T12-7 | Info | Không có DRM/chống tải segment (ADR-002 đã chấp nhận); token HLS ràng IP chỉ khi T13 truyền `ip` | T13 |
+| T12-8 | Info | Phát hiện nội dung ffmpeg độc hại phụ thuộc cấu hình khoá cứng (`-protocol_whitelist file`, `-f`, magic bytes, `-format_whitelist`); nên cập nhật ffmpeg định kỳ (CVE demuxer) | Vận hành |
+
+
+## T18 (checkout) — ghi nhận từ dev (2026-10-06)
+
+Không có Critical/High. Điểm ghi nhận:
+- **T18-1 (Medium):** đơn pending bị thay (`superseded`) hoặc quá `expires_at` do checkout huỷ trực tiếp, KHÔNG đối soát attempt cũ trước khi huỷ (khác job huỷ 12h của T20). Nếu HS đã trả tiền ở link cũ thì IPN đến muộn đi đường `cancelled → paid` + `needs_review` (ADR-001 §3). Giảm nhẹ: chỉ tạo link mới khi không còn attempt chưa xác nhận.
+- **T18-2 (Low):** attempt `created` mà tiến trình chết sau khi cổng đã tạo giao dịch (trước khi ghi `pay_url`) bị đánh dấu `error` sau 45 giây; job đối soát (T20) chỉ quét attempt có `pay_url` nên link "mồ côi" không được đối soát chủ động (IPN vẫn khớp theo `gateway_order_id`).
+- **T18-3 (Low):** `parent.consent` là bản tạm, nay sau cờ `features.parent_consent_enforced` (tắt mặc định); ngưỡng tuổi/nội dung pháp lý ở T29. `POST /courses/{id}/free-enrollments` chưa gắn `parent.consent` (contract yêu cầu) — làm cùng T29.
+- **T18-4 (Low):** `link_ttl_minutes`/`min_amount`/`max_amount` của cổng `fake` không có trong config (chỉ MoMo có) nên đơn dùng cổng fake mặc định TTL 30 phút, không kiểm hạn mức; chỉ ảnh hưởng local/testing.
+- **T18-5 (Low):** HS tạo/huỷ đơn pending liên tục (10 lần/phút) để chiếm lượt mã trong `coupon_hold_minutes` (30 phút): đã giới hạn bởi hạn giữ chỗ + throttle `checkout`, chưa có trần số lần/ngày.
+- Nhắc T19/T20: thứ tự khoá `carts → orders → courses → enrollments → coupons` (courses trước coupons); `markPaid` đã có retry deadlock ở mức ngoài.
+| T12-9 | Low | Review R5: xoá video khi worker đang transcode có thể để lại `hls/{guid}`/`.work-{guid}` mồ côi; `videolab:cleanup` chưa quét thư mục không có bản ghi và chưa cứu video kẹt status 1–3 (job mất do flush Redis) | Backlog |
+| T12-10 | Low | Review R2/R7: worker dùng tài khoản DB đầy đủ quyền (đã làm sạch env của ffmpeg); production nên có user MySQL riêng chỉ quyền `vl_videos` + jobs/cache; ffprobe stdout chưa giới hạn kích thước; so `Content-Type` TUS bằng `!==` (không nhận `; charset`) | Go-live |
+| T12-11 | Info | Review R3 đã xử lý: CDN không truy vấn DB mỗi segment (dựa vào sự tồn tại của `hls/{guid}/` sau rename + token), thêm `throttle:1200,1`; ghi chú limit_req/X-Accel vào README | Đã xong |
+
+- **T18-6 (Low, review R6):** `payment_attempts.create_response` lưu nguyên JSON phản hồi cổng: rà T17 `rawResponse` không chứa chữ ký/secret/PII, mask và đặt thời hạn lưu khi T19 hoàn thiện.
+- **T18-7 (Info, review R1):** cờ `FEATURE_PARENT_CONSENT_ENFORCED` (mặc định `false`, PO tạm bỏ ngưỡng tuổi phụ huynh ở v1). T29 phải bật cờ khi có luồng đồng ý phụ huynh + nội dung pháp lý, trước go-live nếu pháp chế yêu cầu.
+
+## T22 (làm quiz, API học sinh) — ghi nhận (2026-10-06), không có Critical/High
+
+| # | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T22-1 | Low | Học sinh vẫn thấy lời giải của quiz sau khi nộp rồi làm lại nhiều lần: đáp án đúng của câu lộ ngay từ lượt đầu (BR5, quyết định PO) nên có thể chia sẻ đáp án; chưa xáo thứ tự câu/đáp án (ngoài phạm vi story) | Chấp nhận (đúng yêu cầu PO) |
+| T22-2 | Low | Throttle autosave 120/phút/lượt và 30/phút/người cho start/submit/show/history; chưa có trần số lượt "tạo mới" mỗi giờ (mỗi lần nộp xong học sinh được bắt đầu ngay lượt mới, lưu 1 dòng JSON ≤ vài KB) | Hoãn v2 (theo dõi dung lượng `quiz_attempts`) |
+| T22-3 | Info | Ân hạn nộp bài `QUIZ_SUBMIT_GRACE_SECONDS` (mặc định 30 giây) cho phép tối đa ~30 giây autosave sau `expires_at`; đồng hồ lấy từ server PHP (không từ DB `NOW()`) nên nhiều app server phải đồng bộ NTP | Hoãn v2 |
+| T22-4 | Info | Lượt quá hạn được tự nộp theo kiểu làm lười (đọc/ghi) và quét `quizzes:auto-submit-expired` mỗi phút; cần scheduler chạy ở staging/production | Cần kiểm khi deploy (T26/T31) |
+| T22-5 | Low | Autosave chưa giới hạn tổng số lần ghi/lượt ngoài throttle 120/phút/lượt (không ảnh hưởng toàn vẹn; `answers` tối đa 1 key/câu nên dung lượng bị chặn) | Hoãn v2 |
+
+## T23 (Khóa học của tôi + tiến độ, API học sinh) — ghi nhận từ dev (2026-10-06), không có Critical/High
+
+| # | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| T23-1 | Info | Chỉ đọc dữ liệu của chính user đăng nhập (mọi truy vấn lọc `user_id` từ session, không nhận user_id từ request); trang tiến độ dùng `assertCanLearnCourse` (chưa sở hữu: 403 `COURSE_NOT_OWNED`, khóa nháp 404). Không trả đáp án/giải thích quiz, không trả URL/ID video | Đã xong |
+| T23-2 | Low | `/me/courses` trả `pending`/`rejected` (tối đa `learning.my_courses.status_list_limit`) kèm `rejection_reason` của admin: nội dung do admin nhập, FE phải render dạng text (không HTML) | Nhắc FE (FW6) |
+| T23-3 | Info | `enrollments.last_accessed_at` chỉ ghi tối đa 1 lần/5 phút (T13) nên thứ tự "học gần nhất" lệch tối đa 5 phút giữa các khóa; mốc p95 300 ms: log channel `learning` (`duration_ms`, `slow`), cần đo trên staging với dữ liệu thật (DBA #10) | Theo dõi ở T31 |
+| T23-4 | Low | Danh sách tính % theo lô nhưng bài học tiếp tải toàn bộ id bài của các khóa trong trang (tối đa 30 khóa/trang): nếu khóa có hàng nghìn bài cần denormalize `resume_lesson_id` | Hoãn v2 |
+| T23-5 | Low | Review R3: `progress()` đọc `lesson_progress` 2 lần (outline + chi tiết) và `percent` lấy từ `course_percent` còn đếm bài tự cộng (2 nguồn, hiện nhất quán vì xoá chương xoá cả bài); chấp nhận ở MVP | Hoãn v2 |
+| T23-6 | Low | Review R4: `statusList()` lấy `limit*3` dòng rồi loại trùng khóa, HS có >60 dòng bị từ chối mới nhất thuộc ít khóa sẽ thiếu khóa (cực hiếm); sửa bằng subquery `MAX(id)` theo khóa | Hoãn v2 |

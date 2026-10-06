@@ -28,6 +28,10 @@ return [
     // T29 bật khi có luồng đồng ý + nội dung pháp lý.
     'parent_consent_enforced' => (bool) env('FEATURE_PARENT_CONSENT_ENFORCED', false),
 
+    // Checkout có tính tiền (tổng > 0). PO 2026-10-06: thanh toán chuyển V2 (chờ kết nối MoMo) → mặc định TẮT.
+    // Tắt: POST /checkout tổng > 0 trả 503 PAYMENT_DISABLED, preview có can_checkout=false. Đơn 0đ/khóa miễn phí không ảnh hưởng.
+    'paid_checkout' => (bool) env('FEATURE_PAID_CHECKOUT', false),
+
     'external_video_preview_only' => (bool) env('FEATURE_EXTERNAL_VIDEO_PREVIEW_ONLY', true),
 
 ];

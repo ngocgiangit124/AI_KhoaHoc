@@ -28,14 +28,21 @@ class CheckoutPreviewResource extends JsonResource
             $row['unavailable'] ? $removed[] = $row : $items[] = $row;
         }
 
+        $requiresPayment = $items !== [] && $cart['pricing']['total'] > 0;
+        $notices = $cart['notices'];
+        $paymentDisabled = $requiresPayment && ! config('features.paid_checkout');
+        if ($paymentDisabled) {
+            $notices[] = ['code' => 'PAYMENT_DISABLED', 'message' => 'Thanh toán trực tuyến đang tạm khoá.'];
+        }
+
         return [
             'items' => $items,
             'removed_items' => $removed,
             'coupon' => $cart['coupon'],
             'pricing' => $cart['pricing'],
-            'notices' => $cart['notices'],
-            'can_checkout' => $items !== [],
-            'requires_payment' => $items !== [] && $cart['pricing']['total'] > 0,
+            'notices' => $notices,
+            'can_checkout' => $items !== [] && ! $paymentDisabled,
+            'requires_payment' => $requiresPayment,
         ];
     }
 }

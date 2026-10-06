@@ -308,6 +308,7 @@ Cài ở task sau:
   - `VideoProvider`, `VideoProviderManager`, `FakeVideoProvider` (chỉ local/testing).
   - Phải dọn `video_asset` mồ côi: T09 gỡ `lessons.video_asset_id` khi bài đổi khỏi `upload` (kể cả asset đang `processing`) — job/lệnh dọn asset không còn bài trỏ tới (review T09 m3).
   - Tạo phiên upload (kiểm size ≤ 2 GB, hạn mức 20 GB/ngày); webhook `whereIn(provider)` + pull-verify; `videos:check-stuck`.
+  - _Dev 2026-10-05: xong phần contract: `VideoProvider` + DTO, `VideoProviderManager` (allowlist `video.enabled_providers`), `FakeVideoProvider` (local/testing, boot guard cấm production), `VideoUploadService`, `VideoAssetSyncService`, `VideoWebhookService`, `OrphanVideoPruner`, `SyncVideoAssetStatusJob`, lệnh `videos:check-stuck` (15 phút) và `videos:prune-orphans` (hourly), route admin upload/trạng thái + webhook. 29 test ở tests/Feature/T11. CHƯA có `InternalVideoProvider` (T12) và `BunnyStreamProvider` (chờ tài khoản): chọn chúng → 503 `VIDEO_PROVIDER_UNAVAILABLE`. Playback (`LessonAccessService`, `/learn/.../playback`, endpoint admin playback) thuộc T13; `FakeVideoProvider::playback` đã sẵn để T13 dùng._
 - [ ] **T12 Module VideoLab** (~4 ngày) **[SEC]** — song song T13 sau T11
   - Toàn bộ ADR-002 §3a: magic bytes; ffprobe/ffmpeg với `-protocol_whitelist file` + `-format_whitelist` qua `Process` mảng tham số.
   - **Container `infra/worker-video`** (non-root, không mount `.env`, network `internal`, giới hạn CPU/RAM).
@@ -315,10 +316,12 @@ Cài ở task sau:
   - TUS: `max_bytes`, 413, 1 upload/guid, TTL ≤ 6h, HMAC.
   - CORS riêng, `library/*` chỉ nội bộ, `X-Accel-Redirect` + `internal`.
   - Test đủ 5 case ở §3a.7.
+  - _Dev 2026-10-06: xong — module `app/VideoLab` (bảng `vl_videos`, TUS Creation+Core, API quản lý AccessKey, CDN HLS có token/IP, `TranscodeVideoJob` queue `video` qua connection `redis_video` retry_after 3900, `SendVideoLabWebhookJob`, `videolab:cleanup`), adapter `InternalVideoProvider`, `infra/worker-video` (+ network `internal`), Nginx host `video.localhost`. Tests ở tests/Feature/T12 (đủ 5 case §3a.7). Việc phải làm khác: FE đặt `chunkSize` tus-js-client ≤ 8 MB; `.env` thêm khoá `VIDEOLAB_*` (xem `.env.example`; local tự suy ra từ APP_KEY). Chờ Reviewer + Security._
 - [ ] **T13 Học & tiến độ** (~2 ngày) **[DBA] [SEC]** — phụ thuộc T11, T05
   - `LessonAccessService`, playback (TTL 15 phút, ràng IP bài không preview, throttle 30/phút/user, log `playback`, cảnh báo bất thường).
   - Heartbeat dùng `lockForUpdate` (DBA 2.5) + kẹp delta; 90%.
   - Preview chỉ bài chưa xoá của khóa published.
+  - _Dev 2026-10-05: xong. `LessonAccessService`, `PlaybackService`/`PlaybackAuditor`, `ProgressService`, `CourseProgressService` (cho T23: `percentsFor`, `completedLessonIds`), `LearningOutlineService`, `LessonPolicy`, `CoursePolicy@learn`, 4 controller Learn, `config/learning.php`, route learn/preview/admin playback. Không có migration (schema T07 đủ). Test tests/Feature/T13 (kể cả race 8 heartbeat đồng thời và heartbeat ↔ xoá bài). Chưa làm (thuộc T23): `/me/courses`, `/me/courses/{course}/progress`._
 
 ## Giai đoạn 4 — Ghi danh miễn phí (US-012)
 - [ ] **T14 EnrollmentService** (~1,5 ngày) **[SEC]** — phụ thuộc T07, T04
@@ -336,7 +339,8 @@ Cài ở task sau:
 - [ ] **T16 Giỏ hàng** (~1,5 ngày) — phụ thuộc T15, T14
   - `PricingCalculator`, `CouponEvaluator`.
   - Mã không tồn tại/chưa bắt đầu/vô hiệu → cùng `COUPON_INVALID`; limiter 30 lần sai/ngày (S18).
-  - _Từ review T15:_ (a) chặn thêm mã `fixed` lớn hơn giá trị đơn/khóa áp dụng (S18 ở T15 chỉ kiểm theo giá hiện tại, không kiểm lại khi hạ giá); (b) `is_restricted=true` mà pivot rỗng (sau cascade xoá chuyên đề/khóa) → `COUPON_NOT_APPLICABLE`, KHÔNG coi là áp toàn bộ; (c) so sánh thời gian phải bind Carbon theo `config('app.timezone')` (dùng `now()`; local/production là `Asia/Ho_Chi_Minh`, cột DATETIME lưu giờ theo múi giờ app), không dùng `NOW()` của MySQL và không truyền Carbon UTC vào `Coupon::scopeInState`/`state()` (QA T15).
+  - _Từ review T15:_ (a) [chốt M1 review T16, theo US-013 BR6] mã `fixed` lớn hơn phần giá áp dụng VẪN dùng được (giảm = min); riêng khi mã fixed đưa tổng về 0đ thì chỉ cho khi mã có cả `max_uses` và `valid_until`, nếu không → `COUPON_NOT_APPLICABLE`; (b) `is_restricted=true` mà pivot rỗng (sau cascade xoá chuyên đề/khóa) → `COUPON_NOT_APPLICABLE`, KHÔNG coi là áp toàn bộ; (c) so sánh thời gian phải bind Carbon theo `config('app.timezone')` (dùng `now()`; local/production là `Asia/Ho_Chi_Minh`, cột DATETIME lưu giờ theo múi giờ app), không dùng `NOW()` của MySQL và không truyền Carbon UTC vào `Coupon::scopeInState`/`state()` (QA T15).
+  - _Dev 2026-10-05: xong, chờ Reviewer. Migration `carts`/`cart_items`; `App\Services\Cart\{CartService, PricingCalculator, CouponEvaluator}` + DTO `Data/`; 5 route giỏ + `cart_count` ở /auth/me + `in_cart` ở viewer-state; limiter `coupon` bỏ perDay (30 lần SAI/ngày do `CartService` đếm). Interface cho T18: `CartService::lockCart($user)` → `snapshot($cart, $user)` (items hợp lệ, `unavailableItems` = removed_items, mã còn hiệu lực, `pricing`); `PricingCalculator::calculate($prices, $coupon, $eligibleIds)` (có `lines[]` để ghi `order_items`); `CouponEvaluator::evaluate($coupon, $user, $prices)`. Test ở tests/Feature/T16 (có race 8 tiến trình)._
 - [ ] **T17 Thanh toán: abstraction + MoMo** (~2 ngày) **[SEC]** — song song T15/T16
   - `enabled_gateways` + boot guard + Fake chỉ local/testing (S4).
   - `MoMoSigner` (unit test vector mẫu).
@@ -347,13 +351,16 @@ Cài ở task sau:
   - _Dev 2026-10-05: code + 63 test xong (tests/Feature/T17), chờ Reviewer; sandbox MoMo + vector chính thức chưa kiểm (xem backlog-v2 T17-1). `queryStatus` nhận DTO `PaymentStatusQuery` thay vì model `PaymentAttempt` (model thuộc T18)._
 - [ ] **T18 Checkout** (~2 ngày) **[SEC] [DBA]** — phụ thuộc T16, T17
   - _Từ review T15:_ thêm test tích hợp `CouponService::isUsed()` (COUPON_LOCKED/COUPON_IN_USE) với bảng `coupon_usages`/`orders` thật (T15 chỉ test bằng `used_count`).
+  - _Từ review T16:_ khi tạo bảng `coupon_usages` thì bỏ nhánh `Schema::hasTable('coupon_usages')` trong `CouponEvaluator::alreadyUsedBy` (và thêm test tích hợp COUPON_ALREADY_USED với bảng thật).
   - Bảng: `orders` (+ `coupon_hold_until`), `order_items`, `order_status_logs`, `payment_attempts`.
   - **Migration thêm FK `enrollments.order_id` → `orders.id` (restrictOnDelete)** (T07 chỉ tạo cột + index vì `orders` chưa tồn tại); `down()` `dropForeign`; kèm test kiểm FK.
   - `CheckoutService` (khoá `carts → orders → coupons`, sức chứa theo `coupon_hold_until`), middleware `parent.consent` (tạm cho qua nếu `parent_consent_status` ∈ {not_required, granted}; luồng đầy đủ ở T29).
   - Test: race 2 tab; N HS cùng mã cuối (DBA checklist §5.6).
   - **Khi có bảng `order_items`/`orders`: sửa `CourseService::delete` (T08)** kiểm thêm khóa còn nằm trong đơn đang chờ thanh toán (`pending`, chưa hết hạn) → 409 `COURSE_HAS_ENROLLMENTS` (hoặc mã riêng); xoá mềm khóa đang có đơn chờ làm IPN về sau không cấp được quyền học. Kèm test. (Review T08 R1.)
   - Khi thêm FK `enrollments.order_id`: sửa `tests/Feature/T14/ConcurrentEnrollmentTest.php` (worker `grant` dùng `order_id=42` không có FK; test nhóm `race`).
+  - _Dev 2026-10-06: code xong, chờ Reviewer. Migration `2026_10_14_100000_create_orders_tables` (orders, order_items, order_status_logs, payment_attempts, coupon_usages) + `2026_10_14_110000_add_enrollments_order_foreign_key`. `App\Services\Orders\{CheckoutService, OrderFulfillmentService, OrderStateMachine, CouponCapacity, OrderCodeGenerator, CheckoutChangedException}`; route `GET /checkout/preview`, `POST /checkout`; middleware `parent.consent`; config `orders.php`, `payments.coupon_hold_minutes`. **Thứ tự khoá thực tế: `carts → orders → courses → enrollments → coupons`** (courses TRƯỚC coupons vì `grantPurchase` khoá courses trước enrollments; checkout khoá `courses` SHARE tăng dần id rồi mới `coupons` — T19 phải theo đúng, nếu không deadlock checkout↔IPN). **Đơn 0đ:** sau khi tạo đơn pending, `OrderFulfillmentService::markPaid($order, 'checkout')` (transaction riêng) — T19 dùng lại đúng hàm này cho IPN/query (`'ipn'|'query'`, truyền `$paymentReference`), cần bổ sung: attempt `succeeded`, so số tiền, email `OrderPaid` afterCommit. `CourseService::delete` → 409 `COURSE_HAS_PENDING_ORDERS`. `CouponService::isUsed`/`CouponEvaluator::alreadyUsedBy` bỏ nhánh `Schema::hasTable`. Test ở tests/Feature/T18 (có race), sửa T14 ConcurrentEnrollmentTest + T15 test recount dùng bảng thật._
 - [ ] **T19 IPN & fulfillment** (~2 ngày) **[SEC] [DBA]** — phụ thuộc T18, T14
+  - _**V2 (PO 2026-10-06):** chuyển V2, chờ kết nối MoMo; khi làm V2 bật `FEATURE_PAID_CHECKOUT=true`._
   - `payment_webhook_events` (IX `received_at`, payload chỉ trường đã biết, `source`).
   - `PaymentWebhookService::apply`, `markPaid` theo thứ tự khoá chuẩn (DBA #2).
   - Rà lại `CourseService::delete` (T08) đã chặn khóa có đơn chờ thanh toán (xem T18).
@@ -363,35 +370,44 @@ Cài ở task sau:
   - `needs_review` khi `used_count > max_uses`.
   - `OrderPaidMail` ShouldBeEncrypted.
   - Test: bảng mã, `amount` lạ, body 1 MB → 413, IPN trùng.
+  - _Từ review T18:_ (R3) test "tiền về link của đơn đã `superseded`" (`cancelled → paid` + `needs_review`); (R6) rà `PaymentInitResult::rawResponse` của T17 (đã lưu vào `payment_attempts.create_response`) không chứa chữ ký/PII, mask và đặt thời hạn lưu `create_response`.
 - [ ] **T20 Đối soát + huỷ 12h + `/pay` + đơn của tôi** (~2 ngày) **[SEC] [DBA]** — phụ thuộc T19
+  - _**V2 (PO 2026-10-06):** chuyển V2, chờ kết nối MoMo; khi làm V2 bật `FEATURE_PAID_CHECKOUT=true`._
   - Như bản trước, thêm: `/pay` khoá `carts → orders`, vi phạm unique → trả attempt hiện có; kiểm lại sức chứa mã khi quá `coupon_hold_until` (S12.5, S18).
+  - _Từ review T18:_ (R3) khi đơn bị `superseded`, attempt còn `pending` vẫn phải được job đối soát query tới hết `expires_at` của link (kể cả đơn đã `cancelled`); (R4) job huỷ 12h phải huỷ được đơn 0đ treo (`payment_method=none`, không có attempt).
   - Test: 2 request `/pay` song song → 1 attempt mới.
 
 ## Giai đoạn 6 — Quiz & tiến độ (US-007, US-008)
 - [ ] **T21 Soạn quiz** (~1,5 ngày) **[SEC]** — phụ thuộc T09
   - scopeBindings; `course_id` suy ra; nội dung văn bản thuần ≤ 5.000; ≤ 200 câu; copy-on-write.
-- [ ] **T22 Làm quiz** (~2 ngày) **[DBA]** — phụ thuộc T21, T13
+- [x] **T22 Làm quiz** (~2 ngày) **[DBA]** — phụ thuộc T21, T13 (dev xong 2026-10-06, chờ review/QA)
+  - **Việc T22 phải làm từ T21:** gỡ nhánh bắt SQLSTATE 42S02 trong `QuizContentService::hasAttempts` khi tạo bảng `quiz_attempts`; `question_ids` là mảng số nguyên; index `quiz_attempts(quiz_id)`; `lockForUpdate`/`sharedLock` dòng `quizzes` trước khi chốt `question_ids`.
   - CHECK `chk_quiz_attempts_question_count` (DBA #6); `JSON_SET` với `question_id` ép int.
   - Resource lượt đang làm không có `is_correct`/`explanation` (test khẳng định — I3).
-- [ ] **T23 Khóa học của tôi + tiến độ** (~1 ngày) — phụ thuộc T13, T22. Ghi thời gian xử lý vào log để theo dõi mốc p95 300 ms (DBA #10).
+- [x] **T23 Khóa học của tôi + tiến độ** (~1 ngày) — phụ thuộc T13, T22. Ghi thời gian xử lý vào log để theo dõi mốc p95 300 ms (DBA #10). (dev xong 2026-10-06, chờ review/QA)
+  - _Dev 2026-10-06: `MyCoursesService` (batch: `percentsFor`, đếm bài, bài học tiếp theo luật AC6, điểm quiz cao nhất), `Learn\MyCourseController`, `MyCoursesRequest`, limiter `me-courses` 60/phút, log channel `learning` (`duration_ms`, warning khi > `learning.my_courses.slow_ms` = 300). Không migration. Test tests/Feature/T23 (có kiểm không N+1)._
 
 ## Giai đoạn 7 — Quản lý đơn (US-010)
 - [ ] **T24 Admin đơn hàng** (~2 ngày) **[SEC] [DBA]** — phụ thuộc T19, T28
+  - _**V2 (PO 2026-10-06):** chuyển V2, chờ kết nối MoMo; khi làm V2 bật `FEATURE_PAID_CHECKOUT=true`._
   - `OrderFilterQuery` (bắt buộc khoảng ngày ≤ 366, áp ngày/trạng thái trước; `q` theo 4 dạng, escape LIKE).
   - **`cursorPaginate`** + `COUNT` riêng (DBA #9).
   - `PiiMasker` che email/SĐT ở danh sách; chi tiết ghi audit `order.view_pii`; `RefundService` + audit.
   - `EXPLAIN ANALYZE` với ≥ 100k đơn seed (DBA checklist §5.4).
 - [ ] **T25 Xuất CSV/XLSX** (~2 ngày) **[SEC] [DBA]** — phụ thuộc T24
+  - _**V2 (PO 2026-10-06):** chuyển V2, chờ kết nối MoMo; khi làm V2 bật `FEATURE_PAID_CHECKOUT=true`._
   - `include_contact` chỉ admin + lý do; không bao giờ xuất thông tin phụ huynh.
   - `CsvCell` chống injection (`= + - @ \t \r`), XLSX kiểu string.
   - Giới hạn 10 lần/ngày; audit tạo/tải; tên file cố định; signed URL 10 phút đúng host admin-api.
   - `exports:purge` + file mồ côi 48h.
+  - (T26 review M4) Queue `exports` cần connection Redis riêng với `retry_after` > timeout job và `--timeout` worker riêng; ngưỡng `ops.health.worker_max_age` riêng cho worker exports (tránh báo động giả "worker chết"/phát lại job).
 
 ## Giai đoạn 8 — Dữ liệu cá nhân, vận hành, phát hành
 - [ ] **T29 Đồng ý của phụ huynh** (US-017 — BA viết story; nội dung pháp lý chờ pháp chế) (~2 ngày) **[SEC]** — phụ thuộc T03, T04
   - `ParentConsentService`, `ParentConsentMail` (link ký 72h, dùng 1 lần), endpoint `/parent-consents/{token}`.
   - Middleware `parent.consent` đầy đủ; rút lại đồng ý; audit.
 - [ ] **T30 Job dọn dữ liệu & bộ đếm** (~1 ngày) **[DBA]** — phụ thuộc T19, T04, T25 (DBA #3)
+  - _Dev 2026-10-06 (phần không liên quan thanh toán): xong `audit:purge` (giữ 24 tháng — PO uỷ quyền chọn, `OPS_AUDIT_RETENTION_MONTHS`; lô 1.000, `--dry-run`) và `users:purge-unverified` (HS chưa xác thực > 7 ngày, loại trừ có đơn/ghi danh/tiến độ/quiz/coupon_usages; xoá kèm `consents`). Lịch 03:40/03:50 ở OperationsServiceProvider. `otp:prune`, `queue:prune-failed`, `counters:recount` đã có lịch (T26). `payments:purge-webhook-events` để V2._
   - `payments:purge-webhook-events` (> 24 tháng, lô 5.000, nghỉ 200ms).
   - `audit:purge`, `otp:prune`, `users:purge-unverified` (> 7 ngày, chỉ tài khoản không có đơn/enrollment).
   - `queue:prune-failed --hours=168`; lịch trong `routes/console.php`.
@@ -400,20 +416,23 @@ Cài ở task sau:
   - `/me/data-export`, xoá tài khoản bằng OTP → `AccountAnonymizer` (giữ đơn hàng), audit.
 - [ ] **T33 Quản lý tài khoản staff** (US-016 — BA viết story) (~1,5 ngày) **[SEC]** — phụ thuộc T28
   - API admin: tạo/khoá/mở khoá/đặt lại mật khẩu staff (`manage-system` chỉ admin); xem audit log (chỉ đọc).
+  - _Dev 2026-10-05: xong (không migration). `StaffAccountService` dùng chung với `staff:create|lock|unlock`; `StaffSessionRevoker` (phiên bản huỷ phiên trong cache, kiểm ở `staff.idle`); API `/admin/staff*` + `/admin/audit-logs` ở api-contract §2.5; 17 test ở tests/Feature/T33, chờ Reviewer._
 - [ ] **T26 Vận hành queue/scheduler** (~1 ngày)
   - Lưu ý `counters:recount` (T14) chưa được lên lịch.
   - Đăng ký toàn bộ lịch (README §4) với `withoutOverlapping()->onOneServer()`; Supervisor mẫu; cảnh báo `failed_jobs`; tài liệu tunnel IPN.
 - [ ] **T31 Checklist production & DNS** (~1 ngày) **[SEC]**
+  - Chính sách lưu giữ log: kênh `playback` (IP + UA, T13) giữ 90 ngày (`LOG_DAILY_DAYS`), ghi trong chính sách lưu log có IP.
   - ADR-004 §6 (S22): Nginx 4 host + tên miền tĩnh; header; Redis; secret; staging domain riêng; rà DNS chống subdomain takeover (S6).
   - Kiểm `php artisan about` staging = production.
   - Staging (`APP_ENV=staging`) **không được** dùng `CAPTCHA_DRIVER=fake` (ProductionConfigGuard chỉ chặn ở `production`): mở rộng guard hoặc kiểm tay; mặc định config đã là `turnstile` (R3, review T03).
+  - VideoLab (review T12 R7): allow-list Nginx `/videolab/library/` bằng IP app server cụ thể + `real_ip` sau LB (local allow cả dải private); `TRUSTED_PROXIES` đúng (token CDN ràng IP, `Location` TUS phụ thuộc scheme); `worker-video` production = image build sẵn, `APP_ENV`/`APP_KEY`/`REDIS_PREFIX` riêng, DB user riêng chỉ quyền `vl_videos`; bật `VIDEOLAB_ACCEL_REDIRECT` + `limit_req` cho `/videolab/cdn/`; khoá `VIDEOLAB_*` ≥ 32 ký tự ở mọi môi trường ngoài local/testing.
 
 ## Frontend Next.js (agent `nextjs-dev`)
 
 | Mã | Nội dung | Phụ thuộc API | Ước lượng |
 |---|---|---|---|
 | FE0 | Khởi tạo (mục trên) | T01 | 2 |
-| FW1 | Đăng ký (checkbox đồng ý, Turnstile, phụ huynh), đăng nhập, OTP, quên/đổi mật khẩu, overlay phiên | T03–T05, T27 | 3 |
+| FW1 | Đăng ký (checkbox đồng ý, Turnstile, phụ huynh), đăng nhập, OTP, quên/đổi mật khẩu, overlay phiên<br>• **Ghi chú (gom sửa lỗi nhỏ):** lỗi OTP nay là 422 với `code` = `OTP_INVALID` (sai) / `OTP_EXPIRED` (hết hạn/không có mã) thay vì `VALIDATION_ERROR` gộp; `errors.code[]` vẫn còn nên FE cũ không vỡ — FE đổi sang phân biệt theo `code` envelope (hiện thông điệp/nút "Gửi lại mã" theo `OTP_EXPIRED`)<br>• Thiếu `Accept: application/json` giờ vẫn nhận envelope JSON; lấy `/csrf-token` với cookie phiên cũ không còn 401 → FE không cần "thử lại một lần" | T03–T05, T27 | 3 |
 | FW2 | Danh mục `/khoa-hoc`, `/lop-{grade}`, chi tiết `/khoa-hoc/{slug}`:<br>• **render động + CSP nonce** (ADR-004 §2.7 — không ISR/PPR), dữ liệu qua `publicFetch` với `revalidate: 60`, `tags: ['catalog']`<br>• `generateMetadata` + JSON-LD có `nonce`<br>• `robots.txt` / `sitemap.xml` là route handler `revalidate = 3600`<br>• `viewer-state` gọi phía client bằng `authFetch`<br>• mô tả khóa qua DOMPurify (thêm allowlist ESLint cho đúng 1 component)<br>• **load test**: p95 TTFB ≤ 500 ms ở 50 req/s khi cache ấm, ≤ 1,2 s khi cache lạnh — ghi kết quả vào `frontend/README.md` | T10 | 3,5 |
 | FW3 | Giỏ hàng, checkout, `/checkout/ket-qua` (poll, "Kiểm tra lại", link hết hạn), đơn của tôi; kiểm host `pay_url` | T16–T20 | 3 |
 | FW4 | Học video (hls.js, tự lấy lại link khi 403, heartbeat, overlay), iframe link ngoài sandbox | T13 | 3 |

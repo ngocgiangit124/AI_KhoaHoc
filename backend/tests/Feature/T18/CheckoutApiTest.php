@@ -76,7 +76,7 @@ class VvFlakyFulfillment extends OrderFulfillmentService
 }
 
 beforeEach(function () {
-    config(['payments.enabled_gateways' => ['fake']]);
+    config(['payments.enabled_gateways' => ['fake'], 'features.paid_checkout' => true]);
     $this->student = vvActAsStudent(User::factory()->student()->verified()->create());
 });
 
@@ -545,4 +545,94 @@ test('QA: cong bat co parent_consent_enforced -> pending 403 PARENT_CONSENT_REQU
     vvActAsStudent(User::factory()->student()->verified()->create(['parent_consent_status' => ParentConsentStatus::Pending]));
     vvCoPreview()->assertForbidden()->assertJsonPath('code', 'PARENT_CONSENT_REQUIRED');
     vvCoPost(0)->assertForbidden()->assertJsonPath('code', 'PARENT_CONSENT_REQUIRED');
+});
+
+test('V2: cờ paid_checkout tắt -> POST tổng > 0 trả 503 PAYMENT_DISABLED, không tạo đơn/attempt; preview can_checkout=false + notice', function () {
+    config(['features.paid_checkout' => false]);
+    vvCoCart($this->student, [vvCoCourse(100000)]);
+
+    $p = vvCoPreview()->assertOk();
+    expect($p->json('can_checkout'))->toBeFalse()->and($p->json('requires_payment'))->toBeTrue()
+        ->and(collect($p->json('notices'))->pluck('code')->all())->toContain('PAYMENT_DISABLED');
+
+    vvCoPost(100000)->assertStatus(503)->assertJsonPath('code', 'PAYMENT_DISABLED');
+    expect(Order::count())->toBe(0)->and(PaymentAttempt::count())->toBe(0);
+});
+
+test('V2: cờ paid_checkout tắt -> đơn 0đ (mã giảm hết) vẫn thành công, preview can_checkout=true', function () {
+    config(['features.paid_checkout' => false]);
+    $coupon = Coupon::factory()->percent(100)->create(['max_uses' => 5, 'valid_until' => now()->addDay()]);
+    vvCoCart($this->student, [vvCoCourse(100000)], $coupon);
+
+    vvCoPreview()->assertOk()->assertJsonPath('can_checkout', true)->assertJsonPath('requires_payment', false);
+    vvCoPost(0)->assertCreated()->assertJsonPath('status', 'paid');
+});
+
+test('V2: đã có đơn pending rồi tắt cờ -> POST lại 503, đơn cũ không bị superseded, không có attempt mới', function () {
+    vvCoCart($this->student, [vvCoCourse(100000)]);
+    vvCoPost(100000)->assertCreated();
+
+    config(['features.paid_checkout' => false]);
+    vvCoPost(100000)->assertStatus(503)->assertJsonPath('code', 'PAYMENT_DISABLED');
+
+    expect(Order::count())->toBe(1)->and(PaymentAttempt::count())->toBe(1)
+        ->and(Order::first()->status->value)->toBe('pending');
+});
+
+test('V2: config/public trả paid_checkout_enabled theo cờ', function () {
+    foreach ([true, false] as $flag) {
+        config(['features.paid_checkout' => $flag]);
+        $this->getJson('http://'.config('app.api_host').'/api/v1/config/public')->assertOk()->assertJsonPath('paid_checkout_enabled', $flag);
+    }
+});
+
+test('QA V2: cờ tắt + expected_total sai -> 409 CHECKOUT_CHANGED chứ không phải 503', function () {
+    config(['features.paid_checkout' => false]);
+    vvCoCart($this->student, [vvCoCourse(100000)]);
+
+    vvCoPost(1)->assertStatus(409)->assertJsonPath('code', 'CHECKOUT_CHANGED');
+    vvCoPost(0)->assertStatus(409)->assertJsonPath('code', 'CHECKOUT_CHANGED');
+    expect(Order::count())->toBe(0)->and(PaymentAttempt::count())->toBe(0);
+});
+
+test('QA V2: cờ tắt + mã đang được giữ chỗ bởi đơn pending cũ -> 503, giữ chỗ không đổi, mã vẫn trong giỏ, HS khác vẫn thấy hết chỗ', function () {
+    $coupon = Coupon::factory()->percent(10)->create(['code' => 'HOLD0001', 'max_uses' => 1, 'valid_until' => now()->addDay()]);
+    $course = vvCoCourse(100000);
+    $cart = vvCoCart($this->student, [$course], $coupon);
+    vvCoPost(90000)->assertCreated();
+    $order = Order::firstOrFail();
+    $holdUntil = $order->coupon_hold_until;
+    expect($holdUntil)->not->toBeNull();
+
+    config(['features.paid_checkout' => false]);
+    vvCoPost(90000)->assertStatus(503)->assertJsonPath('code', 'PAYMENT_DISABLED');
+
+    $order->refresh();
+    expect(Order::count())->toBe(1)->and($order->status->value)->toBe('pending')
+        ->and($order->coupon_hold_until->equalTo($holdUntil))->toBeTrue()
+        ->and($cart->fresh()->coupon_id)->toBe($coupon->id)
+        ->and($coupon->fresh()->used_count)->toBe(0)
+        ->and(PaymentAttempt::count())->toBe(1);
+
+    // HS khác: mã hết chỗ (đơn cũ còn giữ) -> giá đổi -> 409, không bị 503 che mất
+    vvActAsStudent(User::factory()->student()->verified()->create());
+    vvCoCart(auth()->user(), [$course], $coupon);
+    vvCoPost(90000)->assertStatus(409)->assertJsonPath('code', 'CHECKOUT_CHANGED');
+    expect(Order::count())->toBe(1);
+});
+
+test('QA V2: bật lại cờ sau khi tắt -> đơn pending cũ được dùng lại (200 reused), không tạo đơn/attempt mới', function () {
+    vvCoCart($this->student, [vvCoCourse(100000)]);
+    $first = vvCoPost(100000)->assertCreated();
+
+    config(['features.paid_checkout' => false]);
+    vvCoPost(100000)->assertStatus(503);
+
+    config(['features.paid_checkout' => true]);
+    $again = vvCoPost(100000)->assertOk()->assertJsonPath('reused', true);
+
+    expect($again->json('order_code'))->toBe($first->json('order_code'))
+        ->and($again->json('payment.pay_url'))->toBe($first->json('payment.pay_url'))
+        ->and(Order::count())->toBe(1)->and(PaymentAttempt::count())->toBe(1)
+        ->and(Order::first()->status->value)->toBe('pending');
 });

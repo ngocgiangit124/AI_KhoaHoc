@@ -23,7 +23,7 @@ if (! preg_match('/_testing(_[a-z])?$/', (string) DB::connection()->getDatabaseN
     exit(9);
 }
 
-config(['payments.enabled_gateways' => ['fake']]);
+config(['payments.enabled_gateways' => ['fake'], 'features.paid_checkout' => true]);
 
 $mode = $argv[1];
 $args = array_slice($argv, 2);

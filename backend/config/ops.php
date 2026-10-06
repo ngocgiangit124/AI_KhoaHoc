@@ -29,4 +29,13 @@ return [
     'failed_jobs_retention_hours' => (int) env('OPS_FAILED_JOBS_RETENTION_HOURS', 720),
     // Giữ otp_codes bao lâu (ngày); limiter OTP chỉ nhìn cửa sổ 24h.
     'otp_retention_days' => (int) env('OPS_OTP_RETENTION_DAYS', 7),
+
+    // T30 — thời hạn lưu `audit_logs` (tháng). Log có IP/user-agent là dữ liệu cá nhân → không giữ vô thời hạn.
+    // PO uỷ quyền chọn: 24 tháng (đủ cho điều tra gian lận/tranh chấp đơn; cần pháp chế xác nhận ở T29/T34).
+    'audit_retention_months' => (int) env('OPS_AUDIT_RETENTION_MONTHS', 24),
+    // T30 — tài khoản học sinh chưa xác thực OTP quá số ngày này (và chưa có đơn/ghi danh/bài làm) bị xoá.
+    'unverified_account_days' => (int) env('OPS_UNVERIFIED_ACCOUNT_DAYS', 7),
+    // Kích thước lô + nghỉ giữa các lô (ms) cho các lệnh dọn dữ liệu.
+    'purge_chunk' => (int) env('OPS_PURGE_CHUNK', 1000),
+    'purge_sleep_ms' => (int) env('OPS_PURGE_SLEEP_MS', 100),
 ];

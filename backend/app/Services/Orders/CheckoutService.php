@@ -207,6 +207,10 @@ class CheckoutService
             return $this->changed($reasons === [] ? ['PRICE_CHANGED'] : $reasons);
         }
 
+        if ($pricing->total > 0 && ! config('features.paid_checkout')) {
+            throw new DomainException('PAYMENT_DISABLED', 'Thanh toán trực tuyến đang tạm khoá.', 503);
+        }
+
         $this->assertPayable($pricing->total, $gateway);
 
         $method = $pricing->total === 0 ? 'none' : $gateway;
