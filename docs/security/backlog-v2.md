@@ -9,8 +9,8 @@ Task có cờ [SEC] trong `tasks.md` vẫn đi qua dev → reviewer → QA, ch�
 | Mã | Mức | Nội dung | Trạng thái |
 |---|---|---|---|
 | M1 | Medium | Khoá được tài khoản người khác (10 lượt sai/giờ theo tài khoản; 50 lượt/IP khoá cả trường dùng chung NAT). Đề xuất: khoá theo tài khoản+IP, vượt ngưỡng thì bắt captcha ở login thay vì 429; sửa contract §1.6 | Hoãn v2 (cần PO chọn) |
-| M2 | Medium | Né giới hạn theo tài khoản bằng email có dấu (collation `utf8mb4_0900_ai_ci`, `accountKey()` tạo bộ đếm khác nhau). Sửa: đếm theo user id / ASCII-fold | Hoãn v2 (xem mục "Ghi chú tiến trình") |
-| M3 | Medium | Bộ đếm không nguyên tử (kiểm trước, đếm sau) nên request đồng thời vượt ngưỡng. Sửa: `RateLimiter::hit()` trước khi so mật khẩu | Hoãn v2 (xem mục "Ghi chú tiến trình") |
+| M2 | Medium | Né giới hạn theo tài khoản bằng email có dấu (collation `utf8mb4_0900_ai_ci`, `accountKey()` tạo bộ đếm khác nhau). Sửa: đếm theo user id / ASCII-fold | **Đã sửa 2026-10-06 ("Sửa lỗi nhỏ 2")**: `LoginService::attempt` tìm user trước, khoá đếm theo user id (`login-fail:u:{id}`), không có tài khoản thì `accountKey()` bỏ dấu (`Str::ascii`) + hạ chữ; áp cả đăng nhập staff. Test `tests/Feature/T03/LoginThrottleHardeningTest.php` |
+| M3 | Medium | Bộ đếm không nguyên tử (kiểm trước, đếm sau) nên request đồng thời vượt ngưỡng. Sửa: `RateLimiter::hit()` trước khi so mật khẩu | **Đã sửa 2026-10-06 ("Sửa lỗi nhỏ 2")**: `RateLimiter::hit()` (INCR nguyên tử) TRƯỚC khi so mật khẩu, vượt ngưỡng → 429; mật khẩu đúng thì `decrement` hoàn lượt (vẫn chỉ đếm lượt sai). Ngưỡng giữ nguyên (10/tài khoản, 50/IP; staff theo config). Áp cả staff (`StaffAuthService`) |
 | L1 | Low | Khoá IPv6 theo địa chỉ đầy đủ, nên gộp /64 | Hoãn v2 |
 | L2 | Low | `QueryException` ở nhánh rethrow đăng ký ghi SQL kèm binding (email, SĐT, hash) vào log | Hoãn v2 |
 | L3 | Low | Khai tuổi giả để bỏ qua phụ huynh (không đối chiếu `grade_level`); liên hệ phụ huynh được trùng của chính học sinh (R6 review) | Hoãn v2, cần pháp chế |
@@ -21,7 +21,17 @@ Task có cờ [SEC] trong `tasks.md` vẫn đi qua dev → reviewer → QA, ch�
 Test QA gợi ý khi làm v2: 11 lượt sai bằng 11 cách viết có dấu của một email → lượt 11 phải 429; 30 request sai đồng thời → tối đa 10 lần so mật khẩu; 10 lượt sai từ IP-1 rồi đăng nhập đúng từ IP-2 (theo phương án M1); test throttle bằng `REMOTE_ADDR`; log không có PII khi `QueryException`; Turnstile `hostname` sai → `CAPTCHA_FAILED`.
 
 ## Ghi chú tiến trình
-Chưa có dòng code nào của M1–M3, L1–L5 được viết (đã xác nhận 2026-10-05). Code T03 hiện chỉ gồm R1–R5 của review (limiter chỉ đếm lượt sai, regex index cho race unique, captcha fake yêu cầu token, no-store). `composer ci` xanh: 194 test.
+M2, M3 đã sửa 2026-10-06 ("Sửa lỗi nhỏ 2"); M1, L1–L5 chưa có code (xác nhận 2026-10-05). Code T03 hiện chỉ gồm R1–R5 của review (limiter chỉ đếm lượt sai, regex index cho race unique, captcha fake yêu cầu token, no-store). `composer ci` xanh: 194 test.
+
+## Sửa lỗi nhỏ 2 — ghi nhận từ review (2026-10-06, `docs/review/minor-fixes-2.md`)
+
+R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọc mọi khoá trước (vượt ngưỡng → 429, không hit), rồi mới `hit`; vượt do đua → hoàn mọi khoá đã hit. Dùng chung cho `StaffAuthService`.
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| MF2-R3 | Low | `decrement` khi khoá vừa hết hạn có thể tạo bộ đếm -1 (tặng tối đa 1 lượt). Đã giảm nhẹ: `releaseAttempts()` chỉ hoàn khi `attempts > 0` (còn cửa sổ đua cực hẹp) | Chấp nhận |
+| MF2-R4 | Low | Tài khoản có thật: email và SĐT chung 1 bộ đếm; không tồn tại: 2 bộ đếm riêng, nên kẻ biết cả hai định danh có oracle yếu | Hoãn v2 |
+| MF2-R5 | Low | Chưa có race test đa tiến trình cho đăng nhập (30 request song song → đúng 10 lần so mật khẩu); hiện dựa vào tính nguyên tử INCR của cache | **Đã xử lý 2026-10-06 (QA minor-fixes-2, BUG-1):** QA viết `T03/LoginRaceTest` + `T28/StaffLoginRaceTest` (15 tiến trình, Redis thật) phát hiện `RateLimiter::hit` không nguyên tử (vượt 10 lượt); Dev thay bằng `AtomicCounter` (Lua), 12/12 lần chạy liên tiếp xanh |
 
 ## T04 (OTP) — điểm nghi ngờ ghi nhận, không chặn (2026-10-06)
 
@@ -71,7 +81,7 @@ Chưa có dòng code nào của M1–M3, L1–L5 được viết (đã xác nh�
 | T27-2 | Low | Chưa gửi email cảnh báo "mật khẩu vừa được thay đổi" sau reset/đổi (câu hỏi mở US-015); chưa kiểm N mật khẩu gần nhất (chỉ chặn trùng mật khẩu hiện tại khi đổi) | Hoãn v2 |
 | T27-3 | Low | `forgot` gửi OTP sau response (`defer`) nên timing đồng đều, nhưng queue mail và lỗi gửi bị nuốt (chỉ log): người dùng không biết mã không tới. Cần giám sát tỉ lệ lỗi gửi OTP ở vận hành | Theo dõi |
 | T27-4 | Low | Reset thành công không xoá bộ đếm đăng nhập sai (`login-fail:*`) của tài khoản | Hoãn v2 |
-| T27-5 | Medium | `reset` (không captcha) còn lộ tài khoản tồn tại qua THÔNG ĐIỆP: tài khoản có mã hiệu lực + mã sai → "Mã OTP không đúng", không tồn tại → "đã hết hạn" (kẻ ngoài gọi `forgot` rồi `reset` mã bậy). Phần TIMING đã sửa (QA BUG-1: `dummyHash()` cache liên request qua `Cache::rememberForever` theo cost, mỗi nhánh đúng 1 lần `Hash::check`, có test đếm băm); còn lại phần thông điệp. Giữ AC3 theo quyết định PO; v2 cân nhắc thông điệp chung hoặc captcha ở reset | Hoãn v2 (PO) |
+| T27-5 | Medium | `reset` (không captcha) còn lộ tài khoản tồn tại qua THÔNG ĐIỆP: tài khoản có mã hiệu lực + mã sai → "Mã OTP không đúng", không tồn tại → "đã hết hạn" (kẻ ngoài gọi `forgot` rồi `reset` mã bậy). Phần TIMING đã sửa (QA BUG-1: `dummyHash()` cache liên request qua `Cache::rememberForever` theo cost, mỗi nhánh đúng 1 lần `Hash::check`, có test đếm băm); còn lại phần thông điệp. Giữ AC3 theo quyết định PO; v2 cân nhắc thông điệp chung hoặc captcha ở reset | **Đã sửa 2026-10-06 ("Sửa lỗi nhỏ 2")**: `PasswordService::reset` đổi mọi lỗi mã (sai, hết lượt 5 lần, thua race) thành 422 `OTP_EXPIRED` + thông điệp "hết hạn", giống tài khoản không tồn tại/bị khoá/không có mã. Contract §1.7 và khối T27 đã cập nhật. Test `T27/QaMinorFixesTest` + `PasswordResetTest`. **Ghi chú FW1:** màn đặt lại mật khẩu không còn phân biệt "mã sai" và "hết hạn"; hiển thị thông điệp hết hạn kèm nút "Gửi lại mã" cho cả hai |
 | T27-6 | Low | R4 review: `StudentSessionService::killSession` (tombstone + destroy) chạy trong transaction của reset/change; commit lỗi sau đó → văng phiên oan. Đề xuất `DB::afterCommit` trong `revoke()` (đụng code T05, chạy lại test T05) | Hoãn v2 |
 | T27-7 | Low | R6 review: cooldown OTP 60s dùng chung mọi purpose nên quên mật khẩu ngay sau đăng ký (<60s) không nhận mã dù vẫn 202; mã `reset_password` còn hiệu lực chưa bị vô hiệu khi `change()` | Hoãn v2 |
 

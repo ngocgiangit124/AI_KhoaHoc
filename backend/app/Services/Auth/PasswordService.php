@@ -5,6 +5,7 @@ namespace App\Services\Auth;
 use App\Enums\OtpPurpose;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Exceptions\DomainException;
 use App\Exceptions\OtpValidationException;
 use App\Models\OtpCode;
 use App\Models\User;
@@ -143,20 +144,30 @@ class PasswordService
 
         $destinationValid = static fn (OtpCode $otp, User $u): bool => $u->email !== null && hash_equals($otp->destination, $u->email);
 
-        $this->otp->consume(
-            $user,
-            OtpPurpose::ResetPassword,
-            $code,
-            $destinationValid,
-            function (OtpCode $otp, User $locked) use ($newPassword): void {
-                // Bị khoá/ẩn danh sau khi mã được gửi → không hoàn tất (BR8); rollback cả việc tiêu thụ mã.
-                if (! self::isEligible($locked)) {
-                    throw OtpValidationException::expired(OtpService::MESSAGE_EXPIRED);
-                }
+        try {
+            $this->otp->consume(
+                $user,
+                OtpPurpose::ResetPassword,
+                $code,
+                $destinationValid,
+                function (OtpCode $otp, User $locked) use ($newPassword): void {
+                    // Bị khoá/ẩn danh sau khi mã được gửi → không hoàn tất (BR8); rollback cả việc tiêu thụ mã.
+                    if (! self::isEligible($locked)) {
+                        throw OtpValidationException::expired(OtpService::MESSAGE_EXPIRED);
+                    }
 
-                $this->applyNewPassword($locked, $newPassword);
-            },
-        );
+                    $this->applyNewPassword($locked, $newPassword);
+                },
+            );
+        } catch (OtpValidationException|DomainException $e) {
+            // T27-5: `reset` không có captcha nên MỌI lỗi mã (sai, hết lượt, thua race) trả cùng 422 OTP_EXPIRED + thông điệp
+            // như tài khoản không tồn tại; nếu không, "Mã OTP không đúng"/429 phân biệt được tài khoản có mã hiệu lực.
+            if ($e instanceof DomainException && $e->code() !== 'TOO_MANY_ATTEMPTS') {
+                throw $e;
+            }
+
+            throw OtpValidationException::expired(OtpService::MESSAGE_EXPIRED);
+        }
 
         $this->audit->log('account.password_reset', $user, []);
     }

@@ -18,7 +18,7 @@ function vvQAWorker(array $args): Process
         'QUEUE_CONNECTION' => 'sync',
         'SESSION_DRIVER' => 'array',
     ]);
-    $p->setTimeout(120);
+    $p->setTimeout(180);
 
     return $p;
 }

@@ -184,7 +184,10 @@ describe('reset', function () {
         $code = vvIssueResetCode($user);
         $wrong = $code === '000000' ? '111111' : '000000';
 
-        vvReset($wrong)->assertStatus(422)->assertJsonValidationErrors('code')->assertJsonPath('errors.code.0', 'Mã OTP không đúng, vui lòng thử lại.');
+        // T27-5: mã sai trả cùng OTP_EXPIRED + thông điệp như tài khoản không tồn tại (không lộ tài khoản có mã hiệu lực).
+        vvReset($wrong)->assertStatus(422)->assertJsonValidationErrors('code')
+            ->assertJsonPath('code', 'OTP_EXPIRED')
+            ->assertJsonPath('errors.code.0', "Mã OTP đã hết hạn. Bấm 'Gửi lại mã' để nhận mã mới.");
         expect(Hash::check('mat-khau-cu-1', $user->fresh()->password))->toBeTrue();
 
         OtpCode::query()->update(['expires_at' => now()->subMinute()]);
@@ -192,7 +195,7 @@ describe('reset', function () {
         expect(Hash::check('mat-khau-cu-1', $user->fresh()->password))->toBeTrue();
     });
 
-    test('ma het luot (5 lan sai) -> 429 TOO_MANY_ATTEMPTS, ma dung cung khong dung duoc', function () {
+    test('ma het luot (5 lan sai) -> 422 OTP_EXPIRED (T27-5: khong lo 429 rieng), ma dung cung khong dung duoc', function () {
         $user = vvPwStudent();
         $code = vvIssueResetCode($user);
         $wrong = $code === '000000' ? '111111' : '000000';
@@ -202,7 +205,7 @@ describe('reset', function () {
             vvReset($wrong)->assertStatus(422);
         }
         Cache::flush();
-        vvReset($code)->assertStatus(429)->assertJsonPath('code', 'TOO_MANY_ATTEMPTS');
+        vvReset($code)->assertStatus(422)->assertJsonPath('code', 'OTP_EXPIRED');
         expect(Hash::check('mat-khau-cu-1', $user->fresh()->password))->toBeTrue();
     });
 

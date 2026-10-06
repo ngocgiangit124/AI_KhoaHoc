@@ -29,8 +29,6 @@ class StaffAuthService
 {
     public const GENERIC_FAILURE = LoginService::GENERIC_FAILURE;
 
-    private const DECAY_SECONDS = 3600;
-
     public function __construct(
         private readonly OtpService $otp,
         private readonly AuditLogger $audit,
@@ -46,35 +44,27 @@ class StaffAuthService
      */
     public function login(string $login, #[\SensitiveParameter] string $password, Request $request): array
     {
-        $accountKey = 'staff-login-fail:'.LoginService::accountKey($login);
+        // M2/M3 (như LoginService::attempt): khoá theo user id, đếm nguyên tử trước khi so mật khẩu.
+        $user = LoginService::findByLogin($login);
+        $accountKey = 'staff-login-fail:'.LoginService::throttleSubject($login, $user);
         $ipKey = 'staff-login-fail-ip:'.$request->ip();
 
-        // Kiểm TRƯỚC khi so mật khẩu: bị khoá thì mật khẩu đúng cũng không vào được (S10).
-        foreach ([
+        LoginService::reserveAttempts([
             [$accountKey, (int) config('auth.staff.login_max_failures_per_account')],
             [$ipKey, (int) config('auth.staff.login_max_failures_per_ip')],
-        ] as [$key, $max]) {
-            if (RateLimiter::tooManyAttempts($key, $max)) {
-                throw new ThrottleRequestsException(
-                    'Too Many Attempts.',
-                    null,
-                    ['Retry-After' => (string) RateLimiter::availableIn($key)],
-                );
-            }
-        }
-
-        $user = LoginService::findByLogin($login);
+        ]);
 
         // Luôn băm 1 lần dù không có tài khoản: thời gian phản hồi không lộ tài khoản tồn tại.
         $passwordOk = Hash::check($password, $user !== null ? $user->password : LoginService::dummyHash());
 
         if ($user === null || ! $passwordOk) {
-            RateLimiter::hit($accountKey, self::DECAY_SECONDS);
-            RateLimiter::hit($ipKey, self::DECAY_SECONDS);
             $this->audit->log('staff.login_failed', $user, ['reason' => 'bad_credentials']);
 
             throw ValidationException::withMessages(['login' => self::GENERIC_FAILURE]);
         }
+
+        // Chỉ đếm lượt SAI: mật khẩu đúng thì hoàn lượt đã giữ chỗ.
+        LoginService::releaseAttempts($accountKey, $ipKey);
 
         if ($user->role === UserRole::Student) {
             $this->audit->log('staff.login_failed', $user, ['reason' => 'wrong_portal']);

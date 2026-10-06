@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Exceptions\DomainException;
 use App\Models\User;
+use App\Support\AtomicCounter;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -42,33 +44,27 @@ class LoginService
      */
     public function attempt(string $login, string $password, Request $request): User
     {
-        $accountKey = 'login-fail:'.self::accountKey($login);
+        // M2: tìm tài khoản TRƯỚC để khoá đếm theo user id (DB so khớp email không phân biệt dấu/hoa thường, nên mọi
+        // cách viết của 1 email phải dùng chung 1 bộ đếm). Không có tài khoản → khoá chuẩn hoá (bỏ dấu, hạ chữ).
+        $user = self::findByLogin($login);
+        $accountKey = 'login-fail:'.self::throttleSubject($login, $user);
         $ipKey = 'login-fail-ip:'.$request->ip();
 
-        // Kiểm TRƯỚC khi so mật khẩu: bị khoá thì mật khẩu đúng cũng không vào được (S10).
-        foreach ([[$accountKey, self::ACCOUNT_MAX_FAILURES], [$ipKey, self::IP_MAX_FAILURES]] as [$key, $max]) {
-            if (RateLimiter::tooManyAttempts($key, $max)) {
-                throw new ThrottleRequestsException(
-                    'Too Many Attempts.',
-                    null,
-                    ['Retry-After' => (string) RateLimiter::availableIn($key)],
-                );
-            }
-        }
-
-        $user = self::findByLogin($login);
+        // M3: đếm NGUYÊN TỬ trước khi so mật khẩu (`hit` = INCR). Request đồng thời mỗi cái nhận 1 số thứ tự riêng, chỉ
+        // ngưỡng đầu tiên được so mật khẩu; vượt ngưỡng thì mật khẩu đúng cũng bị chặn (S10).
+        self::reserveAttempts([[$accountKey, self::ACCOUNT_MAX_FAILURES], [$ipKey, self::IP_MAX_FAILURES]]);
 
         // Luôn băm 1 lần dù không có tài khoản, để thời gian phản hồi không lộ tài khoản tồn tại.
         $hash = $user !== null ? $user->password : self::dummyHash();
         $passwordOk = Hash::check($password, $hash);
 
         if ($user === null || ! $passwordOk) {
-            // Chỉ đếm lượt SAI (contract §1.6); đăng nhập đúng không tiêu hao hạn mức.
-            RateLimiter::hit($accountKey, self::DECAY_SECONDS);
-            RateLimiter::hit($ipKey, self::DECAY_SECONDS);
-
+            // Lượt sai: giữ nguyên số đã đếm ở trên.
             throw ValidationException::withMessages(['login' => self::GENERIC_FAILURE]);
         }
+
+        // Chỉ đếm lượt SAI (contract §1.6): mật khẩu đúng thì hoàn lượt đã giữ chỗ (kể cả khi sau đó bị WRONG_PORTAL/LOCKED).
+        self::releaseAttempts($accountKey, $ipKey);
 
         if ($user->role !== UserRole::Student) {
             throw new DomainException(
@@ -94,6 +90,45 @@ class LoginService
     }
 
     /**
+     * Giữ chỗ 1 lượt ở MỌI khoá (tài khoản + IP) trước khi so mật khẩu.
+     * 1) Kiểm chỉ-đọc: có khoá nào đã đạt ngưỡng → 429 ngay, KHÔNG hit gì (IP bị chặn không lan sang tài khoản
+     *    vô tội).
+     * 2) Không khoá nào đạt → `AtomicCounter::hit` (INCR nguyên tử, Redis/Lua). Giá trị trả về > ngưỡng (đua) → 429 và
+     *    KHÔNG so mật khẩu; không hoàn lượt ở đường chặn (bộ đếm tối đa ngưỡng + số request đồng thời).
+     *
+     * @param  list<array{0: string, 1: int}>  $limits  [khoá, ngưỡng tối đa số lượt sai]
+     *
+     * @throws ThrottleRequestsException
+     */
+    public static function reserveAttempts(array $limits): void
+    {
+        foreach ($limits as [$key, $max]) {
+            if (AtomicCounter::attempts($key) >= $max) {
+                throw self::throttled($key);
+            }
+        }
+
+        foreach ($limits as [$key, $max]) {
+            if (AtomicCounter::hit($key, self::DECAY_SECONDS) > $max) {
+                throw self::throttled($key);
+            }
+        }
+    }
+
+    private static function throttled(string $key): ThrottleRequestsException
+    {
+        return new ThrottleRequestsException('Too Many Attempts.', null, ['Retry-After' => (string) AtomicCounter::availableIn($key)]);
+    }
+
+    /** Hoàn lượt đã giữ chỗ khi mật khẩu đúng (chỉ đếm lượt SAI). DECR nguyên tử, không xuống dưới 0. */
+    public static function releaseAttempts(string ...$keys): void
+    {
+        foreach ($keys as $key) {
+            AtomicCounter::release($key, self::DECAY_SECONDS);
+        }
+    }
+
+    /**
      * Khoá theo tài khoản phải chuẩn hoá: `0912…`, `+84912…`, `84 912…` là cùng 1 SĐT,
      * email không phân biệt hoa/thường (nếu không, đổi cách viết là né được giới hạn).
      */
@@ -105,7 +140,14 @@ class LoginService
             return $phone;
         }
 
-        return mb_strtolower(mb_substr($login, 0, 254));
+        // Bỏ dấu (khớp collation `utf8mb4_0900_ai_ci` của DB) rồi hạ chữ.
+        return mb_strtolower(Str::ascii(mb_substr($login, 0, 254)));
+    }
+
+    /** Khoá đếm theo tài khoản: user id nếu tìm thấy (mọi cách viết cùng 1 bộ đếm), không thì khoá chuẩn hoá. */
+    public static function throttleSubject(string $login, ?User $user): string
+    {
+        return $user !== null ? 'u:'.$user->getKey() : 'a:'.self::accountKey($login);
     }
 
     /**

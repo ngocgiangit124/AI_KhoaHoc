@@ -59,6 +59,26 @@ test('QA minor-fixes: reset - khong ton tai / bi khoa / khong co ma: cung 422 OT
     expect(array_values($results)[0][0])->toBe('OTP_EXPIRED')->and(array_values($results)[0][2])->toHaveKey('code');
 });
 
+test('T27-5: reset - ma sai / het luot cua tai khoan co ma hieu luc giong het tai khoan khong ton tai', function () {
+    $user = vvPwStudent();
+    $sender = vvFakeOtp();
+    (new VvPwBrowser)->call('POST', '/auth/password/forgot', ['login' => $user->email, 'captcha_token' => 'ok'])->assertStatus(202);
+    Cache::flush();
+    $code = $sender->lastCode();
+    $wrong = $code === '000000' ? '111111' : '000000';
+
+    Cache::flush();
+    $ghost = vvReset($wrong, ['login' => 'khongco@example.com'])->assertStatus(422);
+    $expected = [$ghost->json('code'), $ghost->json('message'), $ghost->json('errors')];
+
+    for ($i = 0; $i < 6; $i++) { // 5 lượt sai rồi hết lượt: mọi lần đều giống tài khoản không tồn tại
+        Cache::flush();
+        $r = vvReset($wrong)->assertStatus(422);
+        expect([$r->json('code'), $r->json('message'), $r->json('errors')])->toBe($expected);
+    }
+    expect($expected[0])->toBe('OTP_EXPIRED');
+});
+
 test('QA minor-fixes: do chenh thoi gian phan hoi reset (ghi nhan, khong chat)', function () {
     vvPwStudent();
     User::factory()->create(['email' => 'khoa@example.com', 'phone' => '0911111111', 'status' => UserStatus::Locked]);

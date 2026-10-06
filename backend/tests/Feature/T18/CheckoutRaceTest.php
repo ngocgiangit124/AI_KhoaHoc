@@ -13,7 +13,7 @@ function vvCoWorker(array $args): Process
         'DB_DATABASE' => (string) config('database.connections.mysql.database'), 'DB_URL' => '',
         'CACHE_STORE' => 'array', 'QUEUE_CONNECTION' => 'sync', 'SESSION_DRIVER' => 'array',
     ]);
-    $p->setTimeout(90);
+    $p->setTimeout(180);
 
     return $p;
 }

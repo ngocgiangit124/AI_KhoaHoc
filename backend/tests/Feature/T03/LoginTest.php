@@ -169,11 +169,14 @@ describe('throttle 2 lop (S10)', function () {
 
         vvLogin(['login' => '+84 912 345 678', 'password' => 'sai'])->assertStatus(429);
 
-        // Email: hoa/thuong cung 1 khoa.
+        // M2: email và SĐT của cùng 1 tài khoản dùng chung bộ đếm (khoá theo user id).
+        vvLogin(['login' => 'hs@example.com', 'password' => 'sai'])->assertStatus(429);
+
+        // Email: hoa/thuong cung 1 khoa (tài khoản không tồn tại → khoá chuẩn hoá).
         for ($i = 0; $i < 10; $i++) {
-            vvLogin(['login' => $i % 2 ? 'HS@EXAMPLE.COM' : 'hs@example.com', 'password' => 'sai'])->assertStatus(422);
+            vvLogin(['login' => $i % 2 ? 'KHONG@EXAMPLE.COM' : 'khong@example.com', 'password' => 'sai'])->assertStatus(422);
         }
-        vvLogin(['login' => 'Hs@Example.Com', 'password' => 'sai'])->assertStatus(429);
+        vvLogin(['login' => 'Khong@Example.Com', 'password' => 'sai'])->assertStatus(429);
     });
 
     test('1 IP, nhieu tai khoan khac nhau: 50/gio roi 429 (X-Forwarded-For gia khong tron duoc)', function () {
