@@ -1,0 +1,280 @@
+/*
+ * VitaminVui — token design system v2 "Vở ô ly & mực tím" (docs/design/design-system-v2.md).
+ *
+ * Cách hoạt động:
+ * - `@theme inline` ánh xạ tên token Tailwind (bg-primary, text-ink, rounded-card...) sang biến
+ *   CSS `--vv-*`. Vì là `inline`, utility sinh ra chứa nguyên biểu thức `var(--vv-*)` nên giá trị
+ *   được tính tại phần tử dùng nó.
+ * - Giá trị thật của `--vv-*` chỉ khai báo trong phạm vi `.theme-v2` (bản xem trước v2). Ngoài
+ *   phạm vi này, các tên trùng với token v1 (primary, accent, success...) rơi về giá trị v1 qua
+ *   fallback, nên màn v1 đang chạy không đổi.
+ * - Khi PO duyệt v2: chuyển khối `.theme-v2` sang `:root` (hoặc gắn class `theme-v2` lên <html>),
+ *   bỏ fallback v1. Không phải sửa component.
+ * - Dark mode: `data-theme="dark"` trên phần tử `.theme-v2`, hoặc `data-theme="system"` để theo
+ *   hệ điều hành.
+ */
+
+@theme inline {
+  /* Font */
+  --font-sans: var(--vv-font-sans, var(--font-geist-sans));
+  --font-hand: var(--vv-font-hand, cursive);
+
+  /* Bề mặt và chữ */
+  --color-paper: var(--vv-paper);
+  --color-surface: var(--vv-surface);
+  --color-sunken: var(--vv-sunken);
+  --color-ink: var(--vv-ink);
+  --color-ink-soft: var(--vv-ink-soft);
+  --color-line: var(--vv-line);
+  --color-line-strong: var(--vv-line-strong);
+  --color-grid: var(--vv-grid);
+  --color-margin: var(--vv-margin);
+  --color-scrim: var(--vv-scrim);
+
+  /* Màu chính (fallback = giá trị v1 để màn cũ không đổi) */
+  --color-primary: var(--vv-primary, oklch(51.1% 0.262 276.966));
+  --color-primary-hover: var(--vv-primary-hover, oklch(45.7% 0.24 277.023));
+  --color-primary-soft: var(--vv-primary-soft);
+  --color-on-primary: var(--vv-on-primary);
+  --color-focus: var(--vv-focus);
+
+  --color-accent: var(--vv-accent, oklch(76.9% 0.188 70.08));
+  --color-accent-soft: var(--vv-accent-soft);
+  --color-accent-ink: var(--vv-accent-ink);
+  --color-on-accent: var(--vv-on-accent);
+
+  /* Trạng thái */
+  --color-success: var(--vv-success, oklch(59.6% 0.145 163.225));
+  --color-success-soft: var(--vv-success-soft);
+  --color-danger: var(--vv-danger, oklch(58.6% 0.253 17.585));
+  --color-danger-hover: var(--vv-danger-hover);
+  --color-danger-soft: var(--vv-danger-soft);
+  --color-warning: var(--vv-warning, oklch(66.6% 0.179 58.318));
+  --color-warning-soft: var(--vv-warning-soft);
+  --color-info: var(--vv-info, oklch(58.8% 0.158 241.966));
+  --color-info-soft: var(--vv-info-soft);
+  --color-on-status: var(--vv-on-status);
+
+  /* Khung video luôn tối, kể cả ở giao diện sáng */
+  --color-player: var(--vv-player);
+  --color-player-ink: var(--vv-player-ink);
+
+  /* Cỡ chữ ngữ nghĩa (cỡ / line-height / weight). Line-height tiêu đề >= 1.15 để dấu chồng không bị cắt. */
+  --text-display: 2.125rem; /* 34px */
+  --text-display--line-height: 1.18;
+  --text-display-lg: 3.25rem; /* 52px */
+  --text-display-lg--line-height: 1.15;
+  --text-title: 1.625rem; /* 26px */
+  --text-title--line-height: 1.25;
+  --text-title-lg: 2rem; /* 32px */
+  --text-title-lg--line-height: 1.25;
+  --text-heading: 1.25rem; /* 20px */
+  --text-heading--line-height: 1.3;
+  --text-heading-lg: 1.5rem; /* 24px */
+  --text-heading-lg--line-height: 1.3;
+  --text-question: 1.125rem; /* 18px — nội dung câu hỏi có công thức */
+  --text-question--line-height: 1.75;
+  --tracking-heading: -0.01em;
+
+  /* Bo góc */
+  --radius-control: 0.75rem; /* 12px: nút, ô nhập */
+  --radius-card: 1rem; /* 16px: thẻ, khung */
+  --radius-sheet: 1.5rem; /* 24px: bottom-sheet, dialog lớn */
+
+  /* Đổ bóng: chỉ cho lớp nổi */
+  --shadow-raised: 0 1px 2px var(--vv-shadow-1), 0 6px 16px var(--vv-shadow-1);
+  --shadow-overlay: 0 4px 8px var(--vv-shadow-1), 0 16px 40px var(--vv-shadow-2);
+
+  /* Chuyển động: chỉ phản hồi thao tác. Component luôn bọc bằng `motion-safe:`. */
+  --ease-out-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --animate-fade-in: fade-in 150ms var(--ease-out-soft);
+  --animate-rise-in: rise-in 200ms var(--ease-out-soft);
+  --animate-sheet-in: sheet-in 220ms var(--ease-out-soft);
+  --animate-tick: tick 200ms var(--ease-out-soft);
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  @keyframes sheet-in {
+    from {
+      transform: translateY(24px);
+      opacity: 0.4;
+    }
+  }
+  @keyframes tick {
+    from {
+      transform: scale(0.6);
+    }
+  }
+}
+
+@layer base {
+  .theme-v2 {
+    --vv-font-sans: var(--font-be-vietnam), system-ui, sans-serif;
+    --vv-font-hand: var(--font-mali), var(--font-be-vietnam), cursive;
+
+    --vv-paper: #fbfaff;
+    --vv-surface: #ffffff;
+    --vv-sunken: #f4f1fb;
+    --vv-ink: #1e1537;
+    --vv-ink-soft: #5b5378;
+    --vv-line: #e6e1f2;
+    --vv-line-strong: #8a82a6;
+    --vv-grid: #dcd2f7;
+    --vv-margin: #e5484d;
+    --vv-scrim: rgb(18 12 36 / 0.55);
+
+    --vv-primary: #5b2ec4;
+    --vv-primary-hover: #4a21a8;
+    --vv-primary-soft: #efe9fd;
+    --vv-on-primary: #ffffff;
+    --vv-focus: #5b2ec4;
+
+    --vv-accent: #ff8a3d;
+    --vv-accent-soft: #fff0e4;
+    --vv-accent-ink: #a84300;
+    --vv-on-accent: #1e1537;
+
+    --vv-success: #127a55;
+    --vv-success-soft: #e3f5ec;
+    --vv-danger: #c42b3c;
+    --vv-danger-hover: #a51f30;
+    --vv-danger-soft: #fdecee;
+    --vv-warning: #995400;
+    --vv-warning-soft: #fff3dc;
+    --vv-info: #0b66a3;
+    --vv-info-soft: #e5f2fb;
+    --vv-on-status: #ffffff;
+
+    --vv-player: #120c24;
+    --vv-player-ink: #ffffff;
+
+    --vv-shadow-1: rgb(30 21 55 / 0.07);
+    --vv-shadow-2: rgb(30 21 55 / 0.16);
+
+    color-scheme: light;
+  }
+
+  .theme-v2[data-theme="dark"] {
+    --vv-paper: #14111c;
+    --vv-surface: #1c1827;
+    --vv-sunken: #100d17;
+    --vv-ink: #eeeaf7;
+    --vv-ink-soft: #b4adc8;
+    --vv-line: #2d2740;
+    --vv-line-strong: #6f6789;
+    --vv-grid: #2a2340;
+    --vv-margin: #8c3a3e;
+    --vv-scrim: rgb(0 0 0 / 0.65);
+
+    --vv-primary: #a98bff;
+    --vv-primary-hover: #bda6ff;
+    --vv-primary-soft: #2a2147;
+    --vv-on-primary: #14092e;
+    --vv-focus: #bda6ff;
+
+    --vv-accent: #ff9a55;
+    --vv-accent-soft: #3a2417;
+    --vv-accent-ink: #ffb683;
+    --vv-on-accent: #14092e;
+
+    --vv-success: #4fc48c;
+    --vv-success-soft: #11291e;
+    --vv-danger: #ff7d87;
+    --vv-danger-hover: #ff98a0;
+    --vv-danger-soft: #35171c;
+    --vv-warning: #f0b45c;
+    --vv-warning-soft: #2f2413;
+    --vv-info: #62b6f0;
+    --vv-info-soft: #10263a;
+    --vv-on-status: #14092e;
+
+    --vv-player: #0b0815;
+
+    --vv-shadow-1: rgb(0 0 0 / 0.3);
+    --vv-shadow-2: rgb(0 0 0 / 0.5);
+
+    color-scheme: dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .theme-v2[data-theme="system"] {
+      --vv-paper: #14111c;
+      --vv-surface: #1c1827;
+      --vv-sunken: #100d17;
+      --vv-ink: #eeeaf7;
+      --vv-ink-soft: #b4adc8;
+      --vv-line: #2d2740;
+      --vv-line-strong: #6f6789;
+      --vv-grid: #2a2340;
+      --vv-margin: #8c3a3e;
+      --vv-scrim: rgb(0 0 0 / 0.65);
+      --vv-primary: #a98bff;
+      --vv-primary-hover: #bda6ff;
+      --vv-primary-soft: #2a2147;
+      --vv-on-primary: #14092e;
+      --vv-focus: #bda6ff;
+      --vv-accent: #ff9a55;
+      --vv-accent-soft: #3a2417;
+      --vv-accent-ink: #ffb683;
+      --vv-on-accent: #14092e;
+      --vv-success: #4fc48c;
+      --vv-success-soft: #11291e;
+      --vv-danger: #ff7d87;
+      --vv-danger-hover: #ff98a0;
+      --vv-danger-soft: #35171c;
+      --vv-warning: #f0b45c;
+      --vv-warning-soft: #2f2413;
+      --vv-info: #62b6f0;
+      --vv-info-soft: #10263a;
+      --vv-on-status: #14092e;
+      --vv-player: #0b0815;
+      --vv-shadow-1: rgb(0 0 0 / 0.3);
+      --vv-shadow-2: rgb(0 0 0 / 0.5);
+      color-scheme: dark;
+    }
+  }
+
+  /* Công thức (MathML ở bản xem trước, KaTeX ở bản thật): to hơn chữ thường 10%, không bị cắt dấu mũ/phân số. */
+  .theme-v2 math {
+    font-family: "Latin Modern Math", "STIX Two Math", "Cambria Math", math;
+    font-size: 1.1em;
+  }
+  .theme-v2 .math-text {
+    overflow-wrap: anywhere;
+  }
+
+  /* Chữ số thẳng cột cho giá, điểm, đồng hồ. */
+  .theme-v2 .num {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Viền focus bàn phím chung: 2px, cách 2px, màu focus (>= 3:1 với nền). */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--vv-focus, currentColor);
+    outline-offset: 2px;
+  }
+}
+
+/* Lưới vở ô ly (chỉ vẽ đường kẻ, màu nền đặt riêng bằng bg-*): ô lớn 32px + dòng kẻ mảnh 8px.
+   Chỉ dùng cho hero trang chủ, bìa khóa học dựng sẵn, minh hoạ trạng thái rỗng. Không đặt sau đoạn văn dài. */
+@utility bg-oly {
+  background-image:
+    linear-gradient(var(--vv-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--vv-grid) 1px, transparent 1px),
+    linear-gradient(color-mix(in oklab, var(--vv-grid) 45%, transparent) 1px, transparent 1px);
+  background-size:
+    32px 32px,
+    32px 32px,
+    100% 8px;
+}

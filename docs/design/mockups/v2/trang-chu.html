@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VitaminVui — Học Toán lớp 6–12 theo từng bài</title>
+<meta name="description" content="Video bài giảng Toán lớp 6–12 bám sát SGK, trắc nghiệm sau mỗi bài, tiến độ học được lưu để học tiếp đúng chỗ.">
+<!-- Mockup v2 — design-system-v2.md. Tailwind v4 (browser build) chỉ dùng cho mockup; app thật dùng @theme trong app/globals.css -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&family=Mali:wght@500;600&display=swap&subset=vietnamese" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+@theme {
+  --font-sans: "Be Vietnam Pro", system-ui, sans-serif;
+  --font-hand: "Mali", "Be Vietnam Pro", cursive;
+  --color-paper: #FBFAFF; --color-surface: #FFFFFF;
+  --color-ink: #1E1537; --color-ink-soft: #5B5378;
+  --color-line: #E6E1F2; --color-grid: #DCD2F7; --color-margin: #E5484D;
+  --color-primary: #5B2EC4; --color-primary-hover: #4A21A8; --color-primary-soft: #EFE9FD;
+  --color-accent: #FF8A3D; --color-accent-soft: #FFF0E4; --color-accent-ink: #A84300;
+  --color-success: #127A55; --color-success-soft: #E3F5EC;
+  --color-danger: #C42B3C; --color-danger-soft: #FDECEE;
+  --color-warning: #995400; --color-warning-soft: #FFF3DC;
+  --color-info: #0B66A3; --color-info-soft: #E5F2FB;
+  --color-player: #120C24;
+}
+@utility bg-oly {
+  background-color: var(--color-paper);
+  background-image:
+    linear-gradient(var(--color-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-grid) 1px, transparent 1px),
+    linear-gradient(color-mix(in oklab, var(--color-grid) 45%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px, 32px 32px, 8px 8px;
+}
+@utility focus-ring { @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+</style>
+</head>
+<body class="bg-paper font-sans text-ink antialiased">
+
+<a href="#noi-dung" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2">Bỏ qua tới nội dung</a>
+
+<!-- ===== <SiteHeader> ===== -->
+<header class="sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
+  <div class="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
+    <a href="#" class="focus-ring flex items-center gap-2 rounded-lg" aria-label="VitaminVui — Trang chủ">
+      <!-- <Logo>: viên vitamin nửa mực tím, nửa cam (logo tạm) -->
+      <svg class="h-7 w-11" viewBox="0 0 44 28" aria-hidden="true"><rect x="1" y="1" width="42" height="26" rx="13" fill="#5B2EC4"/><path d="M22 1h8a13 13 0 0 1 0 26h-8z" fill="#FF8A3D"/><path d="M11 14.5l3.2 3.2L20 11" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="text-lg font-extrabold tracking-tight">VitaminVui</span>
+    </a>
+    <nav class="ml-6 hidden items-center gap-1 lg:flex" aria-label="Điều hướng chính">
+      <a href="danh-muc-khoa-hoc.html" class="focus-ring rounded-lg px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink">Khóa học</a>
+      <a href="#chon-lop" class="focus-ring rounded-lg px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink">Theo lớp</a>
+      <a href="#phu-huynh" class="focus-ring rounded-lg px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink">Dành cho phụ huynh</a>
+    </nav>
+    <form class="ml-auto hidden flex-1 md:block md:max-w-xs" role="search" action="danh-muc-khoa-hoc.html">
+      <label for="tim-kiem" class="sr-only">Tìm khóa học</label>
+      <div class="relative">
+        <svg class="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-ink-soft" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7.5"/><path d="m20.5 20.5-4-4"/></svg>
+        <input id="tim-kiem" name="q" type="search" placeholder="Ví dụ: hình học lớp 9" class="h-11 w-full rounded-xl border border-line bg-paper pl-10 pr-3 text-base placeholder:text-ink-soft/80 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25">
+      </div>
+    </form>
+    <div class="ml-auto flex items-center gap-1 md:ml-2">
+      <a href="#" class="focus-ring relative grid size-11 place-items-center rounded-xl text-ink hover:bg-primary-soft md:hidden" aria-label="Tìm kiếm">
+        <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7.5"/><path d="m20.5 20.5-4-4"/></svg>
+      </a>
+      <a href="#" class="focus-ring relative grid size-11 place-items-center rounded-xl text-ink hover:bg-primary-soft" aria-label="Giỏ hàng, 2 khóa học">
+        <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="20.5" r="1.25"/><circle cx="18" cy="20.5" r="1.25"/><path d="M2.5 3h2.2l2.4 11.6a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.5L21.5 7H5.6"/></svg>
+        <span class="absolute right-1 top-1 grid min-w-5 place-items-center rounded-full bg-accent px-1 text-xs font-semibold text-ink">2</span>
+      </a>
+      <a href="#" class="focus-ring hidden h-11 items-center rounded-xl px-4 text-sm font-semibold text-primary hover:bg-primary-soft sm:flex">Đăng nhập</a>
+      <a href="#" class="focus-ring hidden h-11 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-hover sm:flex">Đăng ký</a>
+      <button type="button" class="focus-ring grid size-11 place-items-center rounded-xl hover:bg-primary-soft sm:hidden" aria-label="Mở menu">
+        <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="noi-dung">
+
+  <!-- ===== Hero: điểm nhấn duy nhất của toàn site — trang vở ô ly ===== -->
+  <section class="relative overflow-hidden border-b border-line bg-oly">
+    <!-- Lề đỏ của vở (trang trí) -->
+    <div class="pointer-events-none absolute inset-y-0 left-6 w-px bg-margin/70 sm:left-10 lg:left-[max(2.5rem,calc(50%-36rem))]" aria-hidden="true"></div>
+    <div class="pointer-events-none absolute inset-y-0 left-7 w-px bg-margin/40 sm:left-11 lg:left-[calc(max(2.5rem,calc(50%-36rem))+4px)]" aria-hidden="true"></div>
+
+    <div class="relative mx-auto grid max-w-6xl gap-10 px-4 pb-14 pt-10 pl-12 sm:pl-16 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-12 lg:pb-20 lg:pt-16 lg:pl-20">
+      <div>
+        <h1 class="text-[34px] font-extrabold leading-[1.15] tracking-[-0.01em] sm:text-[44px] lg:text-[52px]">
+          Học Toán <span class="whitespace-nowrap">lớp 6–12</span> theo từng bài, hiểu tới đâu chắc tới đó.
+        </h1>
+        <p class="mt-5 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg">
+          Video bài giảng bám sát sách giáo khoa, trắc nghiệm ngay sau mỗi bài, và tiến độ được lưu lại để lần sau bạn học tiếp đúng chỗ.
+        </p>
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+          <a href="danh-muc-khoa-hoc.html" class="focus-ring inline-flex h-12 items-center justify-center rounded-xl bg-primary px-6 text-base font-semibold text-white hover:bg-primary-hover motion-safe:transition-colors">Xem khóa học</a>
+          <a href="#" class="focus-ring inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-primary/30 bg-surface px-6 text-base font-semibold text-primary hover:border-primary motion-safe:transition-colors">
+            <svg class="size-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>
+            Học thử bài miễn phí
+          </a>
+        </div>
+        <p class="mt-4 text-sm text-ink-soft">Mỗi khóa có bài học thử, không cần đăng ký.</p>
+      </div>
+
+      <!-- Khung bài học thật: thứ đặc trưng nhất của sản phẩm -->
+      <div class="relative">
+        <figure class="rounded-2xl border border-line bg-surface p-3 shadow-[0_18px_40px_-24px_rgba(30,21,55,0.45)]">
+          <div class="relative aspect-video overflow-hidden rounded-xl bg-player">
+            <!-- Bảng phấn trong video (minh hoạ) -->
+            <svg class="absolute inset-0 h-full w-full" viewBox="0 0 320 180" aria-hidden="true">
+              <path d="M70 140 L70 50 L190 140 Z" fill="none" stroke="#ffffff" stroke-opacity=".85" stroke-width="2"/>
+              <path d="M70 128 h12 v12" fill="none" stroke="#ffffff" stroke-opacity=".7" stroke-width="1.5"/>
+              <text x="52" y="100" fill="#fff" fill-opacity=".85" font-size="13" font-family="Be Vietnam Pro">a</text>
+              <text x="124" y="158" fill="#fff" fill-opacity=".85" font-size="13" font-family="Be Vietnam Pro">b</text>
+              <text x="136" y="88" fill="#FF8A3D" font-size="13" font-family="Be Vietnam Pro">c</text>
+              <text x="212" y="80" fill="#fff" fill-opacity=".9" font-size="16" font-family="Be Vietnam Pro">a² + b² = c²</text>
+            </svg>
+            <span class="absolute inset-0 grid place-items-center">
+              <span class="grid size-14 place-items-center rounded-full bg-white/95 text-primary shadow-lg">
+                <svg class="ml-0.5 size-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>
+              </span>
+            </span>
+            <span class="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-xs font-medium text-white tabular-nums">12:40</span>
+          </div>
+          <figcaption class="px-1 pb-1 pt-3">
+            <p class="text-sm font-medium text-ink-soft">Hình học 9 · Chương 1</p>
+            <p class="mt-0.5 font-semibold">Bài 3. Định lý Pythagore và ứng dụng</p>
+            <div class="mt-3 flex items-center gap-3">
+              <div class="h-2 flex-1 overflow-hidden rounded-full bg-primary-soft" role="progressbar" aria-valuenow="30" aria-valuemin="0" aria-valuemax="100" aria-label="Tiến độ khóa học">
+                <div class="h-full w-[30%] rounded-full bg-primary"></div>
+              </div>
+              <span class="text-sm font-medium text-ink-soft tabular-nums">6/20 bài</span>
+            </div>
+          </figcaption>
+        </figure>
+        <!-- Chú thích viết tay bằng mực tím -->
+        <p class="absolute -bottom-9 right-2 rotate-[-3deg] font-hand text-lg font-semibold text-primary sm:-right-2 lg:-bottom-11 lg:text-xl" aria-hidden="true">
+          Hiểu rồi! Làm tiếp bài 4 nhé
+          <svg class="-mt-1 ml-1 inline size-6 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l5 5L20 6"/></svg>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Chọn lớp ===== -->
+  <section id="chon-lop" class="mx-auto max-w-6xl px-4 py-14 lg:py-20" aria-labelledby="tieu-de-chon-lop">
+    <h2 id="tieu-de-chon-lop" class="text-xl font-extrabold tracking-[-0.01em] sm:text-2xl">Bạn đang học lớp mấy?</h2>
+    <p class="mt-2 text-ink-soft">Chọn lớp để xem các khóa học bám sát chương trình của lớp đó.</p>
+    <ul class="mt-6 grid grid-cols-4 gap-2 sm:gap-3 lg:grid-cols-7">
+      <li><a href="danh-muc-khoa-hoc.html" class="focus-ring group flex h-full flex-col rounded-2xl border border-line bg-surface p-3 sm:p-4 hover:border-primary motion-safe:transition-colors"><span class="text-sm font-medium text-ink-soft">Lớp</span><span class="text-3xl font-extrabold leading-none tracking-tight sm:text-4xl group-hover:text-primary">6</span><span class="mt-2 text-xs text-ink-soft sm:mt-3 sm:text-sm">8 khóa học</span></a></li>
+      <li><a href="danh-muc-khoa-hoc.html" class="focus-ring group flex h-full flex-col rounded-2xl border border-line bg-surface p-3 sm:p-4 hover:border-primary motion-safe:transition-colors"><span class="text-sm font-medium text-ink-soft">Lớp</span><span class="text-3xl font-extrabold leading-none tracking-tight sm:text-4xl group-hover:text-primary">7</span><span class="mt-2 text-xs text-ink-soft sm:mt-3 sm:text-sm">9 khóa học</span></a></li>
+      <li><a href="danh-muc-khoa-hoc.html" class="focus-ring group flex h-full flex-col rounded-2xl border border-line bg-surface p-3 sm:p-4 hover:border-primary motion-safe:transition-colors"><span class="text-sm font-medium text-ink-soft">Lớp</span><span class="text-3xl font-extrabold leading-none tracking-tight sm:text-4xl group-hover:text-primary">8</span><span class="mt-2 text-xs text-ink-soft sm:mt-3 sm:text-sm">10 khóa học</span></a></li>
+      <li><a href="danh-muc-khoa-hoc.html" class="focus-ring group flex h-full flex-col rounded-2xl border border-primary bg-primary-soft p-3 sm:p-4 motion-safe:transition-colors"><span class="text-sm font-medium text-primary">Lớp</span><span class="text-3xl font-extrabold leading-none tracking-tight sm:text-4xl text-primary">9</span><span class="mt-2 text-xs font-medium text-primary sm:mt-3 sm:text-sm">14 khóa · ôn thi vào 10</span></a></li>
+      <li><a href="danh-muc-khoa-hoc.html" class="focus-ring group flex h-full flex-col rounded-2xl border border-line bg-surface p-3 sm:p-4 hover:border-primary motion-safe:transition-colors"><span class="text-sm font-medium text-ink-soft">Lớp</span><span class="text-3xl font-extrabold leading-none tracking-tight sm:text-4xl group-hover:text-primary">10</span><span class="mt-2 text-xs text-ink-soft sm:mt-3 sm:text-sm">11 khóa học</span></a></li>
+      <li><a href="danh-muc-khoa-hoc.html" class="focus-ring group flex h-full flex-col rounded-2xl border border-line bg-surface p-3 sm:p-4 hover:border-primary motion-safe:transition-colors"><span class="text-sm font-medium text-ink-soft">Lớp</span><span class="text-3xl font-extrabold leading-none tracking-tight sm:text-4xl group-hover:text-primary">11</span><span class="mt-2 text-xs text-ink-soft sm:mt-3 sm:text-sm">9 khóa học</span></a></li>
+      <li><a href="danh-muc-khoa-hoc.html" class="focus-ring group flex h-full flex-col rounded-2xl border border-line bg-surface p-3 sm:p-4 hover:border-primary motion-safe:transition-colors"><span class="text-sm font-medium text-ink-soft">Lớp</span><span class="text-3xl font-extrabold leading-none tracking-tight sm:text-4xl group-hover:text-primary">12</span><span class="mt-2 text-xs text-ink-soft sm:mt-3 sm:text-sm">15 khóa · ôn thi THPT</span></a></li>
+    </ul>
+  </section>
+
+  <!-- ===== Khóa học nổi bật ===== -->
+  <section class="border-y border-line bg-surface" aria-labelledby="tieu-de-noi-bat">
+    <div class="mx-auto max-w-6xl px-4 py-14 lg:py-20">
+      <div class="flex items-end justify-between gap-4">
+        <div>
+          <h2 id="tieu-de-noi-bat" class="text-xl font-extrabold tracking-[-0.01em] sm:text-2xl">Được học nhiều tuần này</h2>
+          <p class="mt-2 text-ink-soft">Các khóa học sinh lớp 9 đang chọn để chuẩn bị thi vào 10.</p>
+        </div>
+        <a href="danh-muc-khoa-hoc.html" class="focus-ring hidden shrink-0 rounded-lg px-2 py-1 text-sm font-semibold text-primary hover:underline sm:block">Xem tất cả khóa học</a>
+      </div>
+
+      <ul class="-mx-4 mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
+        <!-- <CourseCard> -->
+        <li class="w-[78%] shrink-0 snap-start sm:w-[45%] lg:w-auto">
+          <a href="#" class="focus-ring group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface hover:border-primary motion-safe:transition-colors">
+            <div class="relative aspect-[16/10] bg-oly [--color-paper:#FFF0E4] [--color-grid:#FFD9BD]">
+              <span class="absolute left-3 top-3 rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-ink">Lớp 9</span>
+              <span class="absolute inset-0 grid place-items-center text-6xl font-extrabold text-accent-ink" aria-hidden="true">△</span>
+            </div>
+            <div class="flex flex-1 flex-col p-4">
+              <span class="text-sm font-medium text-ink-soft">Hình học</span>
+              <h3 class="mt-1 font-semibold leading-snug group-hover:text-primary">Đường tròn lớp 9: từ cơ bản đến nâng cao</h3>
+              <p class="mt-2 text-sm text-ink-soft">24 bài · 6 giờ 30 phút</p>
+              <div class="mt-auto flex items-baseline gap-2 pt-4">
+                <span class="font-extrabold text-primary tabular-nums">399.000đ</span>
+                <span class="text-sm text-ink-soft line-through tabular-nums">499.000đ</span>
+              </div>
+            </div>
+          </a>
+        </li>
+        <li class="w-[78%] shrink-0 snap-start sm:w-[45%] lg:w-auto">
+          <a href="#" class="focus-ring group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface hover:border-primary motion-safe:transition-colors">
+            <div class="relative aspect-[16/10] bg-oly [--color-paper:#EFE9FD]">
+              <span class="absolute left-3 top-3 rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-ink">Lớp 9</span>
+              <span class="absolute inset-0 grid place-items-center text-5xl font-extrabold text-primary" aria-hidden="true">x²</span>
+            </div>
+            <div class="flex flex-1 flex-col p-4">
+              <span class="text-sm font-medium text-ink-soft">Đại số</span>
+              <h3 class="mt-1 font-semibold leading-snug group-hover:text-primary">Phương trình bậc hai và hệ thức Vi-ét</h3>
+              <p class="mt-2 text-sm text-ink-soft">18 bài · 4 giờ 50 phút</p>
+              <div class="mt-auto pt-4"><span class="font-extrabold text-primary tabular-nums">349.000đ</span></div>
+            </div>
+          </a>
+        </li>
+        <li class="w-[78%] shrink-0 snap-start sm:w-[45%] lg:w-auto">
+          <a href="#" class="focus-ring group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface hover:border-primary motion-safe:transition-colors">
+            <div class="relative aspect-[16/10] bg-oly [--color-paper:#FFF3DC] [--color-grid:#F5DDA8]">
+              <span class="absolute left-3 top-3 rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-ink">Lớp 9</span>
+              <span class="absolute inset-0 grid place-items-center text-6xl font-extrabold text-warning" aria-hidden="true">Σ</span>
+            </div>
+            <div class="flex flex-1 flex-col p-4">
+              <span class="text-sm font-medium text-ink-soft">Ôn thi</span>
+              <h3 class="mt-1 font-semibold leading-snug group-hover:text-primary">Ôn thi vào lớp 10: 30 đề chọn lọc có chữa chi tiết</h3>
+              <p class="mt-2 text-sm text-ink-soft">30 bài · 12 giờ</p>
+              <div class="mt-auto pt-4"><span class="font-extrabold text-primary tabular-nums">599.000đ</span></div>
+            </div>
+          </a>
+        </li>
+        <li class="w-[78%] shrink-0 snap-start sm:w-[45%] lg:w-auto">
+          <a href="#" class="focus-ring group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface hover:border-primary motion-safe:transition-colors">
+            <div class="relative aspect-[16/10] bg-oly [--color-paper:#EFE9FD]">
+              <span class="absolute left-3 top-3 rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-ink">Lớp 9</span>
+              <span class="absolute right-3 top-3 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-ink">Miễn phí</span>
+              <span class="absolute inset-0 grid place-items-center text-5xl font-extrabold text-primary" aria-hidden="true">√x</span>
+            </div>
+            <div class="flex flex-1 flex-col p-4">
+              <span class="text-sm font-medium text-ink-soft">Đại số</span>
+              <h3 class="mt-1 font-semibold leading-snug group-hover:text-primary">Căn bậc hai, căn bậc ba: học chắc nền tảng</h3>
+              <p class="mt-2 text-sm text-ink-soft">12 bài · 3 giờ</p>
+              <div class="mt-auto pt-4"><span class="font-extrabold text-success">Miễn phí · cần duyệt</span></div>
+            </div>
+          </a>
+        </li>
+      </ul>
+      <a href="danh-muc-khoa-hoc.html" class="focus-ring mt-4 inline-flex h-11 items-center rounded-xl px-1 text-sm font-semibold text-primary hover:underline sm:hidden">Xem tất cả khóa học</a>
+    </div>
+  </section>
+
+  <!-- ===== Học thế nào (đây thật sự là các bước nối tiếp nên được đánh số) ===== -->
+  <section class="mx-auto max-w-6xl px-4 py-14 lg:py-20" aria-labelledby="tieu-de-hoc-the-nao">
+    <h2 id="tieu-de-hoc-the-nao" class="text-xl font-extrabold tracking-[-0.01em] sm:text-2xl">Một buổi học trên VitaminVui</h2>
+    <ol class="mt-8 grid gap-8 md:grid-cols-3 md:gap-6">
+      <li class="relative pl-14 md:pl-0">
+        <span class="absolute left-0 top-0 grid size-10 place-items-center rounded-full border-2 border-primary text-lg font-extrabold text-primary md:static md:mb-4">1</span>
+        <h3 class="font-semibold">Xem video từng bài</h3>
+        <p class="mt-1.5 leading-relaxed text-ink-soft">Mỗi bài 10–20 phút, có ví dụ giải từng bước. Xem đủ 90% là bài tự đánh dấu hoàn thành.</p>
+      </li>
+      <li class="relative pl-14 md:pl-0">
+        <span class="absolute left-0 top-0 grid size-10 place-items-center rounded-full border-2 border-primary text-lg font-extrabold text-primary md:static md:mb-4">2</span>
+        <h3 class="font-semibold">Làm trắc nghiệm ngay sau bài</h3>
+        <p class="mt-1.5 leading-relaxed text-ink-soft">Biết ngay câu nào đúng, câu nào sai và lời giải, trước khi học bài tiếp theo.</p>
+      </li>
+      <li class="relative pl-14 md:pl-0">
+        <span class="absolute left-0 top-0 grid size-10 place-items-center rounded-full border-2 border-primary text-lg font-extrabold text-primary md:static md:mb-4">3</span>
+        <h3 class="font-semibold">Học tiếp đúng chỗ</h3>
+        <p class="mt-1.5 leading-relaxed text-ink-soft">Lần sau mở khóa học, bạn được đưa tới bài chưa học xong, không phải học lại từ đầu.</p>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ===== Dành cho phụ huynh ===== -->
+  <section id="phu-huynh" class="mx-auto max-w-6xl px-4 pb-16 lg:pb-24" aria-labelledby="tieu-de-phu-huynh">
+    <div class="grid gap-6 rounded-2xl border border-line bg-surface p-6 sm:p-8">
+      <div>
+        <h2 id="tieu-de-phu-huynh" class="text-xl font-extrabold tracking-[-0.01em] sm:text-2xl">Dành cho phụ huynh</h2>
+        <p class="mt-2 leading-relaxed text-ink-soft">Với học sinh dưới 18 tuổi, phụ huynh nhận email xác nhận trước khi con mua khóa học.</p>
+      </div>
+      <ul class="grid gap-5 sm:grid-cols-3 sm:gap-6">
+        <li class="flex gap-3">
+          <svg class="size-6 shrink-0 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+          <p class="text-sm leading-relaxed"><span class="font-semibold">Phụ huynh xác nhận</span><br><span class="text-ink-soft">Con chỉ thanh toán được sau khi bạn đồng ý qua email.</span></p>
+        </li>
+        <li class="flex gap-3">
+          <svg class="size-6 shrink-0 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
+          <p class="text-sm leading-relaxed"><span class="font-semibold">Một tài khoản, một thiết bị</span><br><span class="text-ink-soft">Mỗi lúc chỉ học được trên một thiết bị, tránh dùng chung tài khoản.</span></p>
+        </li>
+        <li class="flex gap-3">
+          <svg class="size-6 shrink-0 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg>
+          <p class="text-sm leading-relaxed"><span class="font-semibold">Xem được tiến độ</span><br><span class="text-ink-soft">Bài đã học, điểm trắc nghiệm của từng khóa.</span></p>
+        </li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<!-- ===== <SiteFooter> ===== -->
+<footer class="border-t border-line bg-surface">
+  <div class="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 text-sm text-ink-soft sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <p class="font-extrabold text-ink">VitaminVui</p>
+      <p class="mt-1">Khóa học Toán lớp 6–12 trực tuyến.</p>
+    </div>
+    <nav class="grid grid-cols-2 gap-x-10 gap-y-2" aria-label="Liên kết cuối trang">
+      <a href="danh-muc-khoa-hoc.html" class="focus-ring rounded hover:text-ink">Khóa học</a>
+      <a href="#" class="focus-ring rounded hover:text-ink">Điều khoản sử dụng</a>
+      <a href="#phu-huynh" class="focus-ring rounded hover:text-ink">Dành cho phụ huynh</a>
+      <a href="#" class="focus-ring rounded hover:text-ink">Chính sách dữ liệu cá nhân</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>

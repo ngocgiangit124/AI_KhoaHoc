@@ -506,12 +506,13 @@ Phụ thuộc T08, T10, T33. Thiết kế: `docs/tech/US-020.md` (chia T36.1–T
   - DBA review migration + mutex; Security review.
 - Backlog phát sinh: **T36-1** xoá cột `users.bio`, `users.avatar_path` ở release sau (~0,25 ngày, [DBA]). **T34** gọi `TeacherProfileService::erase()` khi ẩn danh hoá.
 
-### FW8 — Trang chủ thật (`nextjs-dev`, ~2,5 ngày) (US-019)
+### FW8 — Trang chủ thật (`nextjs-dev`, ~2,5 ngày, +0,25–0,5 ngày cho poster) (US-019)
 Phụ thuộc FW2 (review xong), design v2 do PO duyệt.
 - Trang `/` thay `/v2`: hero, chọn lớp, khóa nổi bật (`GET /courses?sort=featured`, lấy 4 đầu), một buổi học, phụ huynh.
 - SSR, CSP nonce, `publicFetch` `revalidate: 60` (ADR-004 §2.7).
-- Mỗi khu vực tự xử lý rỗng/lỗi. Chừa slot khu vực giáo viên ngay sau "Khóa học nổi bật": chưa có FW9 thì không render gì.
-- **Xong khi:** AC của US-019 có test (Vitest + Playwright với backend thật); khu vực giáo viên vắng mặt không để khoảng trắng (US-019 AC11); 375/1280px không cuộn ngang; lint, typecheck, test, build xanh; review + QA.
+- Mỗi khu vực tự xử lý rỗng/lỗi. Chừa slot khu vực giáo viên sau "Khóa học nổi bật" (và sau poster nếu poster hiển thị): chưa có FW9 thì không render gì.
+- Ghi chú phạm vi (PO 2026-10-06): thêm khối "poster người sáng lập" ngay sau "Khóa học nổi bật" (US-019 BR10, AC13–AC19). Nội dung cố định trong code + asset tĩnh, không API/backend; chưa có ảnh/chữ thật thì component trả `null`. Ước lượng cộng thêm khoảng 0,25–0,5 ngày, tổng ~2,75–3 ngày (chưa tính chờ PO gửi ảnh/chữ, xem Q15–Q16 của US-019).
+- **Xong khi:** AC của US-019 (gồm AC13–AC19 của poster) có test (Vitest + Playwright với backend thật); khu vực giáo viên vắng mặt không để khoảng trắng (US-019 AC11); 375/1280px không cuộn ngang; lint, typecheck, test, build xanh; review + QA.
 
 ### FW9 — Khu vực giáo viên ở trang chủ (`nextjs-dev`, ~1,5 ngày) (US-020)
 Phụ thuộc T36, FW8, design US-020.

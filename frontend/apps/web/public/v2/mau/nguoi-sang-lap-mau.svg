@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 2000" width="1600" height="2000" role="img" aria-label="Ảnh minh hoạ mẫu: chân dung cách điệu, không phải người thật">
+  <!-- Ảnh MẪU cho bản xem trước v2 (khối "Người sáng lập" trang chủ). Tự vẽ, không phải ảnh người thật.
+       Tỉ lệ 4:5, cỡ gốc khuyến nghị 1600×2000. Khung nét đứt = vùng an toàn cho mặt (giữa 70% ngang, 12–50% dọc). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EFE9FD"/>
+      <stop offset="0.62" stop-color="#F6EEFB"/>
+      <stop offset="1" stop-color="#FFE7D6"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#DCD2F7"/>
+      <stop offset="1" stop-color="#DCD2F7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="2000" fill="url(#bg)"/>
+  <circle cx="800" cy="700" r="560" fill="url(#halo)"/>
+
+  <!-- Thân, vai -->
+  <path d="M190 2000 C 210 1520, 430 1290, 800 1270 C 1170 1290, 1390 1520, 1410 2000 Z" fill="#2B1D52"/>
+  <!-- Cổ áo -->
+  <path d="M640 1300 L800 1520 L960 1300 C 900 1282, 700 1282, 640 1300 Z" fill="#FBFAFF"/>
+  <!-- Cổ -->
+  <path d="M705 1040 L705 1300 L800 1420 L895 1300 L895 1040 Z" fill="#7B63C9"/>
+  <!-- Đầu -->
+  <ellipse cx="800" cy="760" rx="250" ry="300" fill="#8C73D9"/>
+  <!-- Tóc -->
+  <path d="M548 760 C 530 520, 660 430, 810 430 C 980 430, 1080 540, 1056 760 C 1010 640, 930 590, 820 600 C 700 610, 600 650, 548 760 Z" fill="#3B2A78"/>
+
+  <!-- Vùng an toàn cho mặt: x 15%–85%, y 12%–50% -->
+  <rect x="240" y="240" width="1120" height="760" rx="24" fill="none" stroke="#5B2EC4" stroke-opacity="0.45" stroke-width="6" stroke-dasharray="28 20"/>
+
+  <!-- Nhãn ảnh mẫu -->
+  <rect x="240" y="1816" width="560" height="120" rx="60" fill="#FFFFFF" fill-opacity="0.92"/>
+  <text x="520" y="1894" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="52" font-weight="600" fill="#1E1537">Ảnh mẫu · 4:5</text>
+</svg>

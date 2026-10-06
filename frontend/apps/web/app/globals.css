@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Token design system v2 (docs/design/design-system-v2.md). Giá trị v2 chỉ có hiệu lực trong
+   phạm vi `.theme-v2`; ngoài phạm vi, primary/accent/success... giữ đúng giá trị v1 qua fallback. */
+@import "../../../packages/ui/src/v2/tokens.css";
 
 /* packages/ui nằm ngoài apps/web — Tailwind v4 quét nội dung theo heuristic dựa trên thư
    mục gốc build; khai báo tường minh để class Tailwind dùng trong component dùng chung
@@ -15,17 +18,11 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* font-sans, primary, primary-hover, accent, success, danger, warning, info: khai báo trong
+     packages/ui/src/v2/tokens.css (fallback = giá trị v1 cũ). */
 
-  --color-primary: var(--color-indigo-600);
-  --color-primary-hover: var(--color-indigo-700);
   --color-primary-subtle: var(--color-indigo-50);
-  --color-accent: var(--color-amber-500);
-  --color-success: var(--color-emerald-600);
-  --color-danger: var(--color-rose-600);
-  --color-warning: var(--color-amber-600);
-  --color-info: var(--color-sky-600);
 }
 
 body {

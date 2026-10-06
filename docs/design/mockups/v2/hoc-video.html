@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 7. Góc nội tiếp — Đường tròn lớp 9 — VitaminVui</title>
+<!-- Mockup v2 — US-006 /hoc/{course}/bai/{lesson}. design-system-v2.md -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap&subset=vietnamese" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+@theme {
+  --font-sans: "Be Vietnam Pro", system-ui, sans-serif;
+  --color-paper: #FBFAFF; --color-surface: #FFFFFF;
+  --color-ink: #1E1537; --color-ink-soft: #5B5378;
+  --color-line: #E6E1F2; --color-grid: #DCD2F7;
+  --color-primary: #5B2EC4; --color-primary-hover: #4A21A8; --color-primary-soft: #EFE9FD;
+  --color-accent: #FF8A3D; --color-accent-soft: #FFF0E4; --color-accent-ink: #A84300;
+  --color-success: #127A55; --color-success-soft: #E3F5EC;
+  --color-danger: #C42B3C; --color-danger-soft: #FDECEE;
+  --color-warning: #995400; --color-warning-soft: #FFF3DC;
+  --color-player: #120C24;
+}
+@utility focus-ring { @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+details > summary::-webkit-details-marker { display: none; }
+</style>
+</head>
+<body class="bg-paper font-sans text-ink antialiased">
+
+<!-- ===== <LearnHeader>: gọn, không có tìm kiếm/giỏ hàng để học sinh tập trung ===== -->
+<header class="sticky top-0 z-30 border-b border-line bg-surface">
+  <div class="mx-auto flex h-14 max-w-[1400px] items-center gap-2 px-2 sm:px-4">
+    <a href="danh-muc-khoa-hoc.html" class="focus-ring grid size-11 shrink-0 place-items-center rounded-xl hover:bg-primary-soft" aria-label="Quay lại trang khóa học">
+      <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+    </a>
+    <p class="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base">Đường tròn lớp 9: từ cơ bản đến nâng cao</p>
+    <div class="hidden items-center gap-3 md:flex">
+      <div class="h-2 w-32 overflow-hidden rounded-full bg-primary-soft" role="progressbar" aria-valuenow="30" aria-valuemin="0" aria-valuemax="100" aria-label="Tiến độ khóa học">
+        <div class="h-full w-[30%] rounded-full bg-primary"></div>
+      </div>
+      <span class="text-sm font-medium text-ink-soft tabular-nums">6/20 bài</span>
+    </div>
+    <span class="ml-2 grid size-9 shrink-0 place-items-center rounded-full bg-primary-soft text-sm font-semibold text-primary" aria-label="Tài khoản Minh Anh">MA</span>
+  </div>
+</header>
+
+<div class="mx-auto max-w-[1400px] lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6 lg:px-4 lg:py-6">
+
+  <main>
+    <!-- ===== <VideoPlayer> (Client Component): giữ khung 16:9, không tự phát ===== -->
+    <section aria-label="Trình phát video" class="lg:overflow-hidden lg:rounded-2xl">
+      <div class="relative aspect-video bg-player">
+        <!-- Khung hình bài giảng (minh hoạ) -->
+        <svg class="absolute inset-0 h-full w-full" viewBox="0 0 640 360" aria-hidden="true">
+          <circle cx="215" cy="180" r="110" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="2.5"/>
+          <path d="M140 260 L215 70 L305 245" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="2.5"/>
+          <path d="M140 260 L305 245" fill="none" stroke="#FF8A3D" stroke-width="2.5"/>
+          <path d="M205 96 a28 28 0 0 0 22 4" fill="none" stroke="#FF8A3D" stroke-width="2"/>
+          <circle cx="215" cy="180" r="3.5" fill="#fff"/>
+          <text x="209" y="62" fill="#fff" font-size="18" font-family="Be Vietnam Pro">A</text>
+          <text x="121" y="278" fill="#fff" font-size="18" font-family="Be Vietnam Pro">B</text>
+          <text x="311" y="262" fill="#fff" font-size="18" font-family="Be Vietnam Pro">C</text>
+          <text x="612" y="150" text-anchor="end" fill="#fff" fill-opacity=".92" font-size="21" font-family="Be Vietnam Pro">∠BAC = ½ sđ cung BC</text>
+        </svg>
+        <!-- Thanh điều khiển -->
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 pb-2 pt-10 sm:px-4">
+          <div class="group relative h-5 cursor-pointer" role="slider" tabindex="0" aria-label="Vị trí phát" aria-valuemin="0" aria-valuemax="760" aria-valuenow="312" aria-valuetext="5 phút 12 giây trên 12 phút 40 giây">
+            <div class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/25"></div>
+            <div class="absolute left-0 top-1/2 h-1 w-[58%] -translate-y-1/2 rounded-full bg-white/40"></div>
+            <div class="absolute left-0 top-1/2 h-1 w-[41%] -translate-y-1/2 rounded-full bg-accent"></div>
+            <!-- Mốc 90% = tự hoàn thành bài (BR2) -->
+            <div class="absolute left-[90%] top-1/2 h-2.5 w-0.5 -translate-y-1/2 rounded bg-white/80" title="Xem tới đây là bài được tính hoàn thành"></div>
+            <div class="absolute left-[41%] top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow"></div>
+          </div>
+          <div class="mt-1 flex items-center gap-1 text-white">
+            <button class="focus-ring grid size-11 place-items-center rounded-lg hover:bg-white/10" aria-label="Tạm dừng">
+              <svg class="size-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>
+            </button>
+            <button class="focus-ring grid size-11 place-items-center rounded-lg hover:bg-white/10" aria-label="Tắt tiếng">
+              <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+            </button>
+            <span class="ml-1 text-sm font-medium tabular-nums">05:12 / 12:40</span>
+            <button class="focus-ring ml-auto grid size-11 place-items-center rounded-lg hover:bg-white/10" aria-label="Bật phụ đề" aria-pressed="false">
+              <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M7 15h4M14 15h3M7 11h2M12 11h5"/></svg>
+            </button>
+            <button class="focus-ring grid size-11 place-items-center rounded-lg hover:bg-white/10" aria-label="Toàn màn hình">
+              <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Thông tin bài + điều hướng ===== -->
+    <section class="px-4 pt-4 lg:px-0 lg:pt-5" aria-labelledby="ten-bai">
+      <p class="text-sm font-medium text-ink-soft">Chương 2 · Góc với đường tròn</p>
+      <h1 id="ten-bai" class="mt-1 text-[22px] font-extrabold leading-tight tracking-[-0.01em] sm:text-[26px]">Bài 7. Góc nội tiếp</h1>
+      <p class="mt-2 flex items-center gap-2 text-sm text-ink-soft">
+        <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Xem tới 90% video, bài sẽ tự được đánh dấu hoàn thành.
+      </p>
+
+      <div class="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-between">
+        <a href="#" class="focus-ring inline-flex h-12 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-4 text-sm font-semibold hover:border-primary sm:h-11">
+          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          Bài trước
+        </a>
+        <a href="#" class="focus-ring inline-flex h-12 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-hover sm:h-11">
+          Bài tiếp theo
+          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </a>
+      </div>
+    </section>
+
+    <!-- Tabs chỉ trên mobile: Nội dung khóa học (mặc định) / Mô tả bài học -->
+    <div class="mt-6 border-b border-line px-4 lg:hidden" role="tablist" aria-label="Thông tin bài học">
+      <div class="flex gap-6">
+        <button role="tab" id="tab-noi-dung" aria-selected="true" aria-controls="noi-dung-khoa-hoc" class="focus-ring -mb-px h-11 border-b-2 border-primary text-sm font-semibold text-primary" data-tab="noi-dung-khoa-hoc">Nội dung khóa học</button>
+        <button role="tab" id="tab-mo-ta" aria-selected="false" aria-controls="mo-ta-bai" class="focus-ring -mb-px h-11 border-b-2 border-transparent text-sm font-semibold text-ink-soft" data-tab="mo-ta-bai">Mô tả bài học</button>
+      </div>
+    </div>
+
+    <section id="mo-ta-bai" role="tabpanel" aria-labelledby="tab-mo-ta" class="max-lg:hidden px-4 py-5 lg:mt-6 lg:rounded-2xl lg:border lg:border-line lg:bg-surface lg:p-6">
+      <h2 class="hidden font-semibold lg:block">Trong bài này</h2>
+      <ul class="space-y-2 leading-relaxed text-ink-soft lg:mt-3">
+        <li class="flex gap-2"><span class="mt-2.5 size-1.5 shrink-0 rounded-full bg-primary"></span>Định nghĩa góc nội tiếp và cung bị chắn.</li>
+        <li class="flex gap-2"><span class="mt-2.5 size-1.5 shrink-0 rounded-full bg-primary"></span>Định lý: số đo góc nội tiếp bằng nửa số đo cung bị chắn.</li>
+        <li class="flex gap-2"><span class="mt-2.5 size-1.5 shrink-0 rounded-full bg-primary"></span>3 ví dụ giải từng bước, hay gặp trong đề thi vào 10.</li>
+      </ul>
+      <!-- Gợi ý bước tiếp theo: trắc nghiệm của bài (US-007) -->
+      <a href="#" class="focus-ring group mt-5 flex items-center gap-4 rounded-xl border border-line bg-paper p-4 hover:border-primary">
+        <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-ink">
+          <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l2 2 4-4"/><rect x="4" y="3" width="16" height="18" rx="2"/></svg>
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block font-semibold group-hover:text-primary">Trắc nghiệm Bài 7</span>
+          <span class="block text-sm text-ink-soft">10 câu · làm sau khi xem xong video</span>
+        </span>
+        <svg class="size-5 shrink-0 text-ink-soft" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+      </a>
+    </section>
+  </main>
+
+  <!-- ===== <CourseOutline variant="enrolled">: desktop luôn hiện bên phải, cuộn riêng ===== -->
+  <aside id="noi-dung-khoa-hoc" role="tabpanel" aria-labelledby="tab-noi-dung" class="px-4 pb-10 pt-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:rounded-2xl lg:border lg:border-line lg:bg-surface lg:p-0 lg:self-start">
+    <div class="lg:sticky lg:top-0 lg:z-10 lg:border-b lg:border-line lg:bg-surface lg:p-5">
+      <h2 class="hidden font-extrabold lg:block">Nội dung khóa học</h2>
+      <div class="flex items-center justify-between text-sm lg:mt-3">
+        <span class="font-medium">Tiến độ của bạn</span>
+        <span class="font-semibold text-primary tabular-nums">6/20 bài · 30%</span>
+      </div>
+      <div class="mt-2 h-2 overflow-hidden rounded-full bg-primary-soft" role="progressbar" aria-valuenow="30" aria-valuemin="0" aria-valuemax="100" aria-label="Tiến độ khóa học">
+        <div class="h-full w-[30%] rounded-full bg-primary"></div>
+      </div>
+    </div>
+
+    <div class="mt-4 space-y-3 lg:mt-0 lg:space-y-0 lg:divide-y lg:divide-line">
+      <!-- Chương 1: đã xong -->
+      <details class="group rounded-xl border border-line bg-surface lg:rounded-none lg:border-0">
+        <summary class="focus-ring flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 lg:px-5">
+          <svg class="size-5 shrink-0 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-semibold">Chương 1. Đường tròn và vị trí tương đối</span>
+            <span class="block text-sm text-ink-soft">Đã xong 5/5 bài</span>
+          </span>
+          <svg class="size-5 shrink-0 text-ink-soft group-open:rotate-180 motion-safe:transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+      </details>
+
+      <!-- Chương 2: đang học (mở sẵn) -->
+      <details open class="group rounded-xl border border-line bg-surface lg:rounded-none lg:border-0">
+        <summary class="focus-ring flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 lg:px-5">
+          <span class="grid size-5 shrink-0 place-items-center rounded-full border-2 border-primary" aria-hidden="true"><span class="size-2 rounded-full bg-primary"></span></span>
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-semibold">Chương 2. Góc với đường tròn</span>
+            <span class="block text-sm text-ink-soft">Đã xong 1/6 bài</span>
+          </span>
+          <svg class="size-5 shrink-0 text-ink-soft group-open:rotate-180 motion-safe:transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <ol class="pb-2">
+          <li>
+            <a href="#" class="focus-ring flex min-h-12 items-center gap-3 px-4 py-2.5 text-sm hover:bg-paper lg:px-5">
+              <svg class="size-5 shrink-0 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Đã hoàn thành"><circle cx="12" cy="12" r="9.5"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+              <span class="min-w-0 flex-1">Bài 6. Góc ở tâm, số đo cung</span>
+              <span class="text-ink-soft tabular-nums">11:05</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" aria-current="page" class="focus-ring relative flex min-h-12 items-center gap-3 bg-primary-soft px-4 py-2.5 text-sm font-semibold text-primary lg:px-5">
+              <span class="absolute inset-y-1.5 left-0 w-1 rounded-r bg-primary" aria-hidden="true"></span>
+              <span class="grid size-5 shrink-0 place-items-center rounded-full bg-primary text-white" aria-label="Đang học">
+                <svg class="ml-px size-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3v18l15-9z"/></svg>
+              </span>
+              <span class="min-w-0 flex-1">Bài 7. Góc nội tiếp</span>
+              <span class="tabular-nums">12:40</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="focus-ring flex min-h-12 items-center gap-3 px-4 py-2.5 text-sm hover:bg-paper lg:px-5">
+              <svg class="size-5 shrink-0 text-ink-soft/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l2 2 4-4"/><rect x="4" y="3" width="16" height="18" rx="2"/></svg>
+              <span class="min-w-0 flex-1">Trắc nghiệm Bài 7</span>
+              <span class="text-ink-soft">10 câu</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="focus-ring flex min-h-12 items-center gap-3 px-4 py-2.5 text-sm hover:bg-paper lg:px-5">
+              <svg class="size-5 shrink-0 text-ink-soft/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Chưa học"><circle cx="12" cy="12" r="9.5"/></svg>
+              <span class="min-w-0 flex-1">Bài 8. Góc tạo bởi tia tiếp tuyến và dây cung</span>
+              <span class="text-ink-soft tabular-nums">14:20</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="focus-ring flex min-h-12 items-center gap-3 px-4 py-2.5 text-sm hover:bg-paper lg:px-5">
+              <svg class="size-5 shrink-0 text-ink-soft/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Chưa học"><circle cx="12" cy="12" r="9.5"/></svg>
+              <span class="min-w-0 flex-1">Bài 9. Góc có đỉnh bên trong, bên ngoài đường tròn</span>
+              <span class="text-ink-soft tabular-nums">13:15</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="focus-ring flex min-h-12 items-center gap-3 px-4 py-2.5 text-sm hover:bg-paper lg:px-5">
+              <svg class="size-5 shrink-0 text-ink-soft/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Chưa học"><circle cx="12" cy="12" r="9.5"/></svg>
+              <span class="min-w-0 flex-1">Bài 10. Tứ giác nội tiếp</span>
+              <span class="text-ink-soft tabular-nums">16:30</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="focus-ring flex min-h-12 items-center gap-3 px-4 py-2.5 text-sm hover:bg-paper lg:px-5">
+              <svg class="size-5 shrink-0 text-ink-soft/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Chưa học"><circle cx="12" cy="12" r="9.5"/></svg>
+              <span class="min-w-0 flex-1">Bài 11. Luyện tập: chứng minh tứ giác nội tiếp</span>
+              <span class="text-ink-soft tabular-nums">18:10</span>
+            </a>
+          </li>
+        </ol>
+      </details>
+
+      <details class="group rounded-xl border border-line bg-surface lg:rounded-none lg:border-0">
+        <summary class="focus-ring flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 lg:px-5">
+          <svg class="size-5 shrink-0 text-ink-soft/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/></svg>
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-semibold">Chương 3. Độ dài đường tròn, diện tích hình tròn</span>
+            <span class="block text-sm text-ink-soft">6 bài · chưa học</span>
+          </span>
+          <svg class="size-5 shrink-0 text-ink-soft group-open:rotate-180 motion-safe:transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+      </details>
+
+      <details class="group rounded-xl border border-line bg-surface lg:rounded-none lg:border-0">
+        <summary class="focus-ring flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 lg:px-5">
+          <svg class="size-5 shrink-0 text-ink-soft/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/></svg>
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-semibold">Chương 4. Ôn tập và đề kiểm tra</span>
+            <span class="block text-sm text-ink-soft">3 bài · chưa học</span>
+          </span>
+          <svg class="size-5 shrink-0 text-ink-soft group-open:rotate-180 motion-safe:transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+      </details>
+    </div>
+  </aside>
+</div>
+
+<!-- ===== Tham khảo cho Dev: trạng thái của player & thông báo (không hiển thị cùng lúc trong app) ===== -->
+<section class="mx-auto mb-16 mt-6 max-w-[1400px] px-4" aria-label="Các trạng thái khác (tham khảo)">
+  <div class="rounded-2xl border-2 border-dashed border-line p-4 sm:p-6">
+    <p class="text-sm font-semibold text-ink-soft">Tham khảo cho Dev — trạng thái của trình phát và thông báo</p>
+    <div class="mt-5 grid gap-6 md:grid-cols-3">
+      <div>
+        <p class="mb-2 text-sm font-medium">Đang tải video</p>
+        <div class="grid aspect-video place-items-center rounded-xl bg-player" role="status">
+          <svg class="size-10 text-white motion-safe:animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".25" stroke-width="3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+          <span class="sr-only">Đang tải video</span>
+        </div>
+      </div>
+      <div>
+        <p class="mb-2 text-sm font-medium">Lỗi tải video (AC5)</p>
+        <div class="flex aspect-video flex-col items-center justify-center rounded-xl bg-player px-6 text-center text-white" role="alert">
+          <svg class="size-8 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/></svg>
+          <p class="mt-2 text-sm font-medium">Không tải được video, vui lòng thử lại.</p>
+          <button class="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-ink hover:bg-primary-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.8 9.8 0 0 0-6.7 2.7L3 8"/><path d="M3 3v5h5"/></svg>
+            Thử lại
+          </button>
+        </div>
+      </div>
+      <div>
+        <p class="mb-2 text-sm font-medium">Toast khi đạt 90% (AC2) — không chặn video</p>
+        <div class="flex items-start gap-3 rounded-xl border border-success/25 bg-surface p-4 shadow-[0_12px_32px_-16px_rgba(30,21,55,0.35)]" role="status">
+          <svg class="size-6 shrink-0 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+          <div class="text-sm">
+            <p class="font-semibold">Bạn đã hoàn thành bài 7</p>
+            <p class="mt-0.5 text-ink-soft">Tiến độ khóa học: 7/20 bài.</p>
+          </div>
+        </div>
+        <p class="mt-3 text-sm text-ink-soft">Phiên bị đăng nhập ở thiết bị khác: dùng <code class="rounded bg-primary-soft px-1 text-primary">&lt;ForcedLogoutOverlay&gt;</code> theo US-014, video tạm dừng ngay.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Chỉ để xem trước mockup: chuyển tab trên mobile
+  document.querySelectorAll('[role=tab]').forEach(tab => tab.addEventListener('click', () => {
+    document.querySelectorAll('[role=tab]').forEach(t => {
+      const on = t === tab;
+      t.setAttribute('aria-selected', on);
+      t.classList.toggle('border-primary', on); t.classList.toggle('text-primary', on);
+      t.classList.toggle('border-transparent', !on); t.classList.toggle('text-ink-soft', !on);
+      document.getElementById(t.dataset.tab).classList.toggle('max-lg:hidden', !on);
+    });
+  }));
+</script>
+</body>
+</html>
