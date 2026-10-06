@@ -166,7 +166,7 @@ class LearningOutlineService
      * @param  list<int>  $ordered
      * @param  array<int, array{status: string, accessed: int}>  $progress
      */
-    private function resumeLessonId(array $ordered, array $progress): ?int
+    public function resumeLessonId(array $ordered, array $progress): ?int
     {
         if ($ordered === []) {
             return null;

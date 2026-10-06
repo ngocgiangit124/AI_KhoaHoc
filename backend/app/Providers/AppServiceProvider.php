@@ -219,6 +219,9 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('quiz', fn (Request $request) => Limit::perMinute(30)->by($this->identity($request).':quiz'));
         RateLimiter::for('quiz-read', fn (Request $request) => Limit::perMinute(60)->by($this->identity($request).':quiz-read'));
 
+        // T23: Khóa học của tôi / tiến độ (đọc, tổng hợp nhiều bảng): 60/phút/người.
+        RateLimiter::for('me-courses', fn (Request $request) => Limit::perMinute(60)->by($this->identity($request).':me-courses'));
+
         RateLimiter::for('catalog', fn (Request $request) => CatalogThrottle::limits($request));
         RateLimiter::for('webhook', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
         RateLimiter::for('export', fn (Request $request) => Limit::perDay(10)->by($this->identity($request)));

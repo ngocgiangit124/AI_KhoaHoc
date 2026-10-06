@@ -18,6 +18,8 @@ use Illuminate\Support\Carbon;
  * @property EnrollmentSource $source
  * @property Carbon|null $requested_at
  * @property Carbon|null $approved_at
+ * @property Carbon|null $activated_at
+ * @property Carbon|null $last_accessed_at
  */
 class Enrollment extends Model
 {

@@ -161,6 +161,16 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // T23: thời gian xử lý /me/courses để theo dõi mốc p95 300 ms (DBA #10).
+        'learning' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/learning.log'),
+            // Cố định info: đây là nguồn đo p95, không để LOG_LEVEL=warning làm mất.
+            'level' => 'info',
+            'max_files' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];

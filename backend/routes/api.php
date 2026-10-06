@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\Enrollment\FreeEnrollmentController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\Learn\LearnCourseController;
 use App\Http\Controllers\Api\V1\Learn\LessonController as LearnLessonController;
+use App\Http\Controllers\Api\V1\Learn\MyCourseController;
 use App\Http\Controllers\Api\V1\Learn\PlaybackController;
 use App\Http\Controllers\Api\V1\Learn\ProgressController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
@@ -181,6 +182,14 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             ->whereNumber('lesson')
             ->middleware('throttle:heartbeat')
             ->name('api.learn.lessons.heartbeat');
+
+        // T23 — Khóa học của tôi + tiến độ (US-008). Quyền: role học sinh (group) + LessonAccessService (COURSE_NOT_OWNED).
+        Route::middleware('throttle:me-courses')->group(function (): void {
+            Route::get('/me/courses', [MyCourseController::class, 'index'])->name('api.me.courses.index');
+            Route::get('/me/courses/{course}/progress', [MyCourseController::class, 'progress'])
+                ->whereNumber('course')
+                ->name('api.me.courses.progress');
+        });
 
         // T22 — làm quiz (US-007). Quyền (COURSE_NOT_OWNED; lượt của người khác → 404) kiểm trong QuizAttemptService.
         Route::middleware('throttle:quiz')->group(function (): void {

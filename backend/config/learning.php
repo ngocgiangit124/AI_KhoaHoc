@@ -30,4 +30,13 @@ return [
         'max_lessons' => 60,
     ],
 
+    // T23: Khóa học của tôi. Ghi log thời gian xử lý (channel `learning`); vượt `slow_ms` thì mức warning (mốc p95 300 ms).
+    'my_courses' => [
+        'per_page' => 12,
+        'max_per_page' => 30,
+        'slow_ms' => 300,
+        // Số khóa đang chờ duyệt / bị từ chối trả kèm (không phân trang).
+        'status_list_limit' => 20,
+    ],
+
 ];
