@@ -206,6 +206,24 @@ class CourseService
                 );
             }
 
+            // T18: khóa còn nằm trong đơn đang chờ thanh toán (pending, chưa hết hạn) không xoá được — xoá mềm sẽ làm
+            // IPN về sau không cấp được quyền học. Checkout giữ khoá SHARE `courses` tới khi commit đơn nên phép đọc
+            // dưới khoá `courses` này luôn thấy đơn đã commit (không có đơn "chen" giữa).
+            $hasPendingOrder = DB::table('order_items')
+                ->join('orders', 'orders.id', '=', 'order_items.order_id')
+                ->where('order_items.course_id', $locked->getKey())
+                ->where('orders.status', 'pending')
+                ->where('orders.expires_at', '>', now())
+                ->exists();
+
+            if ($hasPendingOrder) {
+                throw new DomainException(
+                    'COURSE_HAS_PENDING_ORDERS',
+                    'Khóa học đang nằm trong đơn hàng chờ thanh toán nên không thể xoá lúc này. Hãy chuyển sang "Ngừng bán" hoặc thử lại sau khi đơn hết hạn.',
+                    409,
+                );
+            }
+
             $locked->lessons()->delete();
             $locked->chapters()->delete();
             $locked->delete();

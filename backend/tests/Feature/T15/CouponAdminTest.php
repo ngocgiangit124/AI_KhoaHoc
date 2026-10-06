@@ -4,6 +4,7 @@ use App\Enums\CouponState;
 use App\Models\AuditLog;
 use App\Models\Coupon;
 use App\Models\Course;
+use App\Models\Order;
 use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Database\QueryException;
@@ -365,31 +366,20 @@ test('Coupon::state va normalizeCode', function () {
     expect($c->state())->toBe(CouponState::Exhausted);
 });
 
-test('counters:recount: bo qua khi chua co coupon_usages; sua used_count lech, --dry-run khong sua', function () {
+test('counters:recount: sua used_count lech theo coupon_usages that, --dry-run khong sua', function () {
     $c1 = Coupon::factory()->create(['used_count' => 7]);
     $c2 = Coupon::factory()->create(['used_count' => 0]);
 
-    // T18 chưa tạo bảng: không đụng used_count.
-    test()->artisan('counters:recount')->assertSuccessful();
-    expect($c1->fresh()->used_count)->toBe(7);
-
-    // Bảng tạm (không commit ngầm như DDL thường) mô phỏng coupon_usages của T18.
-    DB::statement('CREATE TEMPORARY TABLE coupon_usages (id BIGINT AUTO_INCREMENT PRIMARY KEY, coupon_id BIGINT NOT NULL, user_id BIGINT NOT NULL)');
-
-    try {
-        DB::table('coupon_usages')->insert([
-            ['coupon_id' => $c2->id, 'user_id' => 1],
-            ['coupon_id' => $c2->id, 'user_id' => 2],
-        ]);
-
-        test()->artisan('counters:recount --dry-run')->assertSuccessful();
-        expect($c1->fresh()->used_count)->toBe(7)->and($c2->fresh()->used_count)->toBe(0);
-
-        test()->artisan('counters:recount')->assertSuccessful();
-        expect($c1->fresh()->used_count)->toBe(0)->and($c2->fresh()->used_count)->toBe(2);
-    } finally {
-        DB::statement('DROP TEMPORARY TABLE IF EXISTS coupon_usages');
+    foreach ([1, 2] as $_) {
+        $order = Order::factory()->paid()->create(['coupon_id' => $c2->id]);
+        DB::table('coupon_usages')->insert(['coupon_id' => $c2->id, 'user_id' => $order->user_id, 'order_id' => $order->id, 'used_at' => now()]);
     }
+
+    test()->artisan('counters:recount --dry-run')->assertSuccessful();
+    expect($c1->fresh()->used_count)->toBe(7)->and($c2->fresh()->used_count)->toBe(0);
+
+    test()->artisan('counters:recount')->assertSuccessful();
+    expect($c1->fresh()->used_count)->toBe(0)->and($c2->fresh()->used_count)->toBe(2);
 });
 
 test('DB: CHECK valid_until >= valid_from va discount_type hop le', function () {

@@ -13,15 +13,16 @@ use App\Http\Controllers\Api\V1\Cart\CartCouponController;
 use App\Http\Controllers\Api\V1\Cart\CartItemController;
 use App\Http\Controllers\Api\V1\Catalog\CourseController as CatalogCourseController;
 use App\Http\Controllers\Api\V1\Catalog\SubjectController as CatalogSubjectController;
+use App\Http\Controllers\Api\V1\Checkout\CheckoutController;
 use App\Http\Controllers\Api\V1\Enrollment\FreeEnrollmentController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\Learn\LearnCourseController;
 use App\Http\Controllers\Api\V1\Learn\LessonController as LearnLessonController;
 use App\Http\Controllers\Api\V1\Learn\PlaybackController;
 use App\Http\Controllers\Api\V1\Learn\ProgressController;
-use App\Http\Controllers\Api\V1\PublicConfigController;
 use App\Http\Controllers\Api\V1\Quiz\AnswerController;
 use App\Http\Controllers\Api\V1\Quiz\AttemptController;
+use App\Http\Controllers\Api\V1\PublicConfigController;
 use App\Http\Controllers\Api\V1\Webhook\VideoWebhookController;
 use App\Http\Middleware\VaryOnOrigin;
 use Illuminate\Support\Facades\Route;
@@ -155,6 +156,15 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             ->name('api.cart.coupon.update');
         Route::delete('/cart/coupon', [CartCouponController::class, 'destroy'])->name('api.cart.coupon.destroy');
 
+        // T18 — checkout (US-005). `account.verified` (US-001 AC9) + `parent.consent` (tạm: not_required/granted).
+        // Preview không ghi DB; POST /checkout tạo đơn pending + giao dịch cổng (hoặc hoàn tất đơn 0đ).
+        // `/orders/{code}/pay`, `/orders/{code}/check-payment`, GET /orders: T20.
+        Route::middleware(['account.verified', 'parent.consent'])->group(function (): void {
+            Route::get('/checkout/preview', [CheckoutController::class, 'preview'])->name('api.checkout.preview');
+            Route::post('/checkout', [CheckoutController::class, 'store'])
+                ->middleware('throttle:checkout')
+                ->name('api.checkout.store');
+        });
         // T13 — học & tiến độ (US-006). Quyền kiểm trong LessonAccessService (mã COURSE_NOT_OWNED, khóa nháp 404).
         // `account.verified` KHÔNG gắn: chưa xác thực OTP vẫn học được (US-001 AC9). Heartbeat: 6/phút/user/bài.
         Route::get('/learn/courses/{course}', [LearnCourseController::class, 'show'])

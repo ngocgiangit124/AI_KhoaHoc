@@ -8,6 +8,7 @@
 use App\Exceptions\DomainException;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\Courses\CourseService;
 use App\Services\Enrollment\EnrollmentService;
@@ -50,8 +51,10 @@ $out = match ($mode) {
         $user = User::factory()->student()->verified()->create();
         $course = Course::factory()->published()->create();
         $admin = User::factory()->admin()->create();
+        // T18: enrollments.order_id có FK → orders.id, nên `grant` cần đơn thật.
+        $order = Order::factory()->create(['user_id' => $user->id]);
 
-        return ['user' => $user->id, 'course' => $course->id, 'creator' => $course->created_by, 'admin' => $admin->id];
+        return ['user' => $user->id, 'course' => $course->id, 'creator' => $course->created_by, 'admin' => $admin->id, 'order' => $order->id];
     })(),
     'pending' => (function () use ($args) {
         // Tạo sẵn 1 yêu cầu chờ duyệt, trả id.
@@ -71,6 +74,7 @@ $out = match ($mode) {
         DB::table('audit_logs')->where('subject_type', (new Enrollment)->getMorphClass())
             ->whereIn('subject_id', DB::table('enrollments')->where('user_id', $args[0])->select('id'))->delete();
         DB::table('enrollments')->where('user_id', $args[0])->delete();
+        DB::table('orders')->where('user_id', $args[0])->delete();
         DB::table('courses')->where('id', $args[1])->delete();
         DB::table('users')->whereIn('id', [$args[0], $args[2], $args[3]])->delete();
 

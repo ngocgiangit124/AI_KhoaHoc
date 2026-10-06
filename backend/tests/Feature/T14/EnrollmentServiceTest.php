@@ -6,6 +6,7 @@ use App\Exceptions\DomainException;
 use App\Models\AuditLog;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\Enrollment\EnrollmentService;
 use App\Support\Mask;
@@ -157,13 +158,14 @@ test('grantPurchase: tao active/purchase kem order_id, count +1; goi lai idempot
     $student = User::factory()->verified()->create();
     $course = Course::factory()->published()->paid()->create();
 
-    $a = vvEnrollSvc()->grantPurchase($student, $course, 77);
-    $b = vvEnrollSvc()->grantPurchase($student, $course, 77);
+    $orderId = Order::factory()->paid()->create(['user_id' => $student->id])->id; // FK enrollments.order_id (T18)
+    $a = vvEnrollSvc()->grantPurchase($student, $course, $orderId);
+    $b = vvEnrollSvc()->grantPurchase($student, $course, $orderId);
 
     expect($a->wasRecentlyCreated)->toBeTrue()
         ->and($a->status)->toBe(EnrollmentStatus::Active)
         ->and($a->source)->toBe(EnrollmentSource::Purchase)
-        ->and($a->fresh()->order_id)->toBe(77)
+        ->and($a->fresh()->order_id)->toBe($orderId)
         ->and($b->id)->toBe($a->id)
         ->and($b->wasRecentlyCreated)->toBeFalse()
         ->and(Enrollment::where('user_id', $student->id)->count())->toBe(1)
@@ -175,7 +177,7 @@ test('grantPurchase: dang pending (xin mien phi truoc khi doi gia) -> nang thanh
     $course = vvFreeCourse();
     $pending = vvEnrollSvc()->requestFree($student, $course);
 
-    $g = vvEnrollSvc()->grantPurchase($student, $course, 5);
+    $g = vvEnrollSvc()->grantPurchase($student, $course, Order::factory()->paid()->create(['user_id' => $student->id])->id);
 
     expect($g->id)->toBe($pending->id)
         ->and($g->fresh()->status)->toBe(EnrollmentStatus::Active)
@@ -188,7 +190,7 @@ test('grantPurchase sau khi revoked/rejected tao dong moi (giu lich su)', functi
     $course = Course::factory()->published()->paid()->create();
     $old = Enrollment::factory()->revoked()->create(['user_id' => $student->id, 'course_id' => $course->id]);
 
-    $g = vvEnrollSvc()->grantPurchase($student, $course, 9);
+    $g = vvEnrollSvc()->grantPurchase($student, $course, Order::factory()->paid()->create(['user_id' => $student->id])->id);
 
     expect($g->id)->not->toBe($old->id)->and(Enrollment::where('user_id', $student->id)->count())->toBe(2);
 });
@@ -197,11 +199,13 @@ test('grantPurchase ben trong DB::transaction ngoai: 1062 van dung (dong thang c
     $student = User::factory()->verified()->create();
     $course = Course::factory()->published()->paid()->create();
 
-    DB::transaction(function () use ($student, $course) {
-        $a = vvEnrollSvc()->grantPurchase($student, $course, 11);
-        $b = vvEnrollSvc()->grantPurchase($student, $course, 11);
+    $orderId = Order::factory()->paid()->create(['user_id' => $student->id])->id;
 
-        expect($b->id)->toBe($a->id)->and($b->order_id)->toBe(11);
+    DB::transaction(function () use ($student, $course, $orderId) {
+        $a = vvEnrollSvc()->grantPurchase($student, $course, $orderId);
+        $b = vvEnrollSvc()->grantPurchase($student, $course, $orderId);
+
+        expect($b->id)->toBe($a->id)->and($b->order_id)->toBe($orderId);
     });
 
     expect(Enrollment::where('user_id', $student->id)->count())->toBe(1)
@@ -260,7 +264,7 @@ test('grantPurchase van cap quyen khi khoa chi ngung ban (unpublished): nguoi da
     $student = User::factory()->verified()->create();
     $course = Course::factory()->unpublished()->paid()->create();
 
-    expect(vvEnrollSvc()->grantPurchase($student, $course, 3)->status)->toBe(EnrollmentStatus::Active);
+    expect(vvEnrollSvc()->grantPurchase($student, $course, Order::factory()->paid()->create(['user_id' => $student->id])->id)->status)->toBe(EnrollmentStatus::Active);
 });
 
 test('counters:recount sua enrollments_count lech, --dry-run khong sua', function () {

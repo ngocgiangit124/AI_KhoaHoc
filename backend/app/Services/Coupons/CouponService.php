@@ -12,7 +12,6 @@ use App\Services\Audit\AuditLogger;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -191,8 +190,8 @@ class CouponService
     }
 
     /**
-     * Đã dùng = có lượt dùng ghi nhận, hoặc còn đơn/lượt dùng tham chiếu. Bảng `orders`/`coupon_usages` do T18
-     * tạo: chưa có thì chỉ xét `used_count`; có rồi thì tự động tính thêm (không cần sửa lại service).
+     * Đã dùng = có lượt dùng ghi nhận (`used_count`/`coupon_usages`), hoặc còn đơn tham chiếu mã (mọi trạng thái:
+     * đơn pending đang giữ chỗ cũng khoá đổi giá trị mã). FK `orders.coupon_id`/`coupon_usages.coupon_id` là chốt chặn cuối.
      */
     protected function isUsed(Coupon $coupon): bool
     {
@@ -200,11 +199,8 @@ class CouponService
             return true;
         }
 
-        if (Schema::hasTable('coupon_usages') && DB::table('coupon_usages')->where('coupon_id', $coupon->getKey())->exists()) {
-            return true;
-        }
-
-        return Schema::hasTable('orders') && DB::table('orders')->where('coupon_id', $coupon->getKey())->exists();
+        return DB::table('coupon_usages')->where('coupon_id', $coupon->getKey())->exists()
+            || DB::table('orders')->where('coupon_id', $coupon->getKey())->exists();
     }
 
     /**

@@ -9,7 +9,6 @@ use App\Models\User;
 use App\Services\Cart\Data\CouponEvaluation;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Kiểm hiệu lực một mã đối với một giỏ (US-004 BR7–BR9, US-013). Dùng chung cho giỏ (T16) và checkout (T18).
@@ -24,8 +23,6 @@ use Illuminate\Support\Facades\Schema;
  */
 class CouponEvaluator
 {
-    private ?bool $hasUsagesTable = null;
-
     /**
      * @param  array<int, int>  $prices  course_id => đơn giá của các khóa hợp lệ trong giỏ
      *
@@ -96,12 +93,9 @@ class CouponEvaluator
         return ! $bounded && min($coupon->discount_value, $eligibleSum) >= $subtotal;
     }
 
-    /** Mỗi HS dùng mỗi mã 1 lần (BR3). Bảng `coupon_usages` do T18 tạo: chưa có thì chưa ai dùng. */
+    /** Mỗi HS dùng mỗi mã 1 lần (BR3): có dòng `coupon_usages` (ghi khi đơn paid). */
     protected function alreadyUsedBy(Coupon $coupon, User $user): bool
     {
-        $this->hasUsagesTable ??= Schema::hasTable('coupon_usages');
-
-        return $this->hasUsagesTable
-            && DB::table('coupon_usages')->where('coupon_id', $coupon->getKey())->where('user_id', $user->getKey())->exists();
+        return DB::table('coupon_usages')->where('coupon_id', $coupon->getKey())->where('user_id', $user->getKey())->exists();
     }
 }

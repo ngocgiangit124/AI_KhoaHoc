@@ -201,11 +201,10 @@ test('QA tim kiem: q chu hoa/thuong/khoang trang, ky tu _ va %', function () {
     expect(vvAdminGet('/admin/coupons?q='.urlencode('  một '))->json('data'))->toHaveCount(1);
 });
 
-test('QA counters:recount: coupons voi coupon_usages that - sua lech, khong dat 0 khi bang vang', function () {
+test('QA counters:recount: coupon_usages that - bang rong thi used_count ve 0 (nguon su that la coupon_usages)', function () {
     $c = Coupon::factory()->create(['code' => 'REC00001', 'used_count' => 4]);
     $this->artisan('counters:recount')->assertSuccessful();
-    // Chưa có coupon_usages: không đặt 0.
-    expect($c->fresh()->used_count)->toBe(4);
+    expect($c->fresh()->used_count)->toBe(0);
 });
 
 function vvCouponRaceWorker(array $args): Process

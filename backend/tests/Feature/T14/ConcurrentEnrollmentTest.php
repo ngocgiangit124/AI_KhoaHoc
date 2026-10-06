@@ -3,8 +3,8 @@
 use Symfony\Component\Process\Process;
 
 /**
- * (Chạy riêng: `pest --group=race`; loại: `--exclude-group=race`.) Worker dùng order_id=42 KHÔNG có FK; khi T18
- * thêm FK `enrollments.order_id` → `orders.id` thì phải sửa test `grantPurchase` ở đây (tạo đơn thật hoặc bỏ order_id).
+ * (Chạy riêng: `pest --group=race`; loại: `--exclude-group=race`.) Từ T18 `enrollments.order_id` có FK → `orders.id`:
+ * worker `setup` tạo đơn thật và test truyền `$ids['order']` cho `grantPurchase`.
  *
  * Race thật bằng nhiều tiến trình PHP (mỗi tiến trình một kết nối MySQL), cùng mốc xuất phát. Dữ liệu commit thật
  * nên dọn trong finally. Chạy nối tiếp với các test ghi DB thật khác (T05/T07).
@@ -128,7 +128,7 @@ test('race: 6 tien trinh grantPurchase (IPN trung) -> 1 dong active, count = 1, 
 
     try {
         $startAt = microtime(true) + 3.0;
-        $results = vvEnrollParallel(array_fill(0, 6, ['grant', $ids['user'], $ids['course'], 42, $startAt]));
+        $results = vvEnrollParallel(array_fill(0, 6, ['grant', $ids['user'], $ids['course'], $ids['order'], $startAt]));
 
         expect(collect($results)->pluck('result')->unique()->all())->toBe(['ok'])
             ->and(collect($results)->pluck('id')->unique())->toHaveCount(1);
@@ -147,9 +147,9 @@ test('race: xin hoc mien phi dong thoi voi grantPurchase -> van chi 1 dong live,
         $startAt = microtime(true) + 3.0;
         $results = vvEnrollParallel([
             ['request', $ids['user'], $ids['course'], $startAt],
-            ['grant', $ids['user'], $ids['course'], 7, $startAt],
+            ['grant', $ids['user'], $ids['course'], $ids['order'], $startAt],
             ['request', $ids['user'], $ids['course'], $startAt],
-            ['grant', $ids['user'], $ids['course'], 7, $startAt],
+            ['grant', $ids['user'], $ids['course'], $ids['order'], $startAt],
         ]);
 
         expect(collect($results)->where('result', 'error')->values()->all())->toBe([]);
@@ -169,7 +169,7 @@ test('race (T08 R1): xoa khoa song song voi xin hoc/grantPurchase -> khong bao g
             ['delete_course', $ids['course'], $startAt],
             ['request', $ids['user'], $ids['course'], $startAt],
             ['delete_course', $ids['course'], $startAt],
-            ['grant', $ids['user'], $ids['course'], 42, $startAt],
+            ['grant', $ids['user'], $ids['course'], $ids['order'], $startAt],
         ]);
 
         expect(collect($results)->where('result', 'error')->values()->all())->toBe([]);

@@ -114,7 +114,7 @@ payment_attempts:  created ─▶ pending ─▶ succeeded | failed | expired | 
 Chuyển trạng thái đơn chỉ qua `OrderStateMachine` (ghi `order_status_logs` mỗi lần, `meta.source = ipn|query`).
 Attempt chỉ vào trạng thái cuối `failed`/`expired` khi **cổng xác nhận** (IPN hoặc query trả kết quả không thành công/không tồn tại sau khi link hết hạn). Riêng `error` = tạo giao dịch thất bại (chưa từng có `pay_url`).
 
-**Thứ tự khoá chuẩn duy nhất (DBA #2, trùng data-model §4):** `carts → orders → payment_attempts → enrollments → coupons/coupon_usages → courses`. Luồng fulfillment ở §4 đi đúng thứ tự này; checkout chỉ đi đoạn `carts → orders → coupons`.
+**Thứ tự khoá chuẩn duy nhất (DBA #2, trùng data-model §4; cập nhật T18 2026-10-06):** `carts → orders → payment_attempts → courses (S ở checkout / X ở fulfillment, id tăng dần) → enrollments → coupons / coupon_usages`. Luồng fulfillment ở §4 đi đúng thứ tự này (khoá `courses` X theo id tăng dần trong `grantPurchase`, `courses.enrollments_count` tăng ngay lúc đó; sau đó `coupons`/`coupon_usages`); checkout đi `carts → orders → courses(S) → coupons`. (Bản cũ đặt `enrollments → coupons → courses` — đảo thứ tự gây deadlock vì `EnrollmentService` khoá `courses` trước `enrollments`.)
 
 **Nguyên tắc: tiền đã thực nhận (xác nhận hợp lệ, đúng số tiền) không bao giờ bị bỏ qua.** Khi trả tiền muộn (`cancelled → paid`) làm `coupons.used_count > max_uses`, hoặc vi phạm unique `coupon_usages`, đơn cũng được gắn `needs_review` (S12.7). Nếu đơn đã huỷ/hết hạn/đã trả bằng attempt khác/đã hoàn tiền → vẫn ghi nhận attempt `succeeded`, bật `orders.needs_review = true` và (nếu đơn chưa `paid`) chuyển `paid` + cấp quyền học; admin xử lý hoàn tiền thủ công phần trùng. (Tình huống hiếm vì hạn link MoMo < 12h — **cần PO đồng ý nguyên tắc này**.)
 
@@ -177,7 +177,7 @@ sequenceDiagram
 
 - `used_count`/`coupon_usages` chỉ ghi khi đơn `paid` (**đúng diễn giải BA ở US-013 BR7 — vẫn chờ PO xác nhận**).
 - **Giữ chỗ có thời hạn (S18):** `orders.coupon_hold_until = hạn link thanh toán đầu tiên` (≤ `payments.coupon_hold_minutes` = 30). Khi tạo link mới cho đơn (`/orders/{code}/pay`) sau mốc này:
-  - Khoá `carts → orders → coupons` và kiểm lại sức chứa.
+  - Khoá `carts → orders → courses(S) → coupons` và kiểm lại sức chứa.
   - Hết chỗ → huỷ đơn (`coupon_exhausted`), trả 409 `COUPON_EXHAUSTED`; HS tạo đơn mới không có mã.
   - Còn chỗ → gia hạn `coupon_hold_until`.
   - Nhờ vậy vài chục tài khoản tạo đơn pending không thể "giữ hết" mã trong 12 giờ.
