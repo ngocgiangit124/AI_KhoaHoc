@@ -1,6 +1,6 @@
 # Báo cáo task VitaminVui
 
-Cập nhật: 2026-10-06 (backend MVP xong: thêm T12, T31, Sửa lỗi nhỏ 2). Nguồn định nghĩa task: `docs/architecture/tasks.md`. Trạng thái chi tiết và quy tắc làm việc: `docs/board.md`.
+Cập nhật: 2026-10-06 (backend MVP xong; thêm T36 hồ sơ giáo viên công khai). Nguồn định nghĩa task: `docs/architecture/tasks.md`. Trạng thái chi tiết và quy tắc làm việc: `docs/board.md`.
 Ngày công là ước lượng của tài liệu, chưa tính thời gian chờ PO duyệt và sửa sau review/QA.
 
 ## Tóm tắt
@@ -42,6 +42,7 @@ Ghi chú: thanh toán tạm khoá (cờ `FEATURE_PAID_CHECKOUT=false`, PO 2026-1
 | T33 | Tài khoản staff + nhật ký thao tác | Review, QA |
 | T12 | Module VideoLab | Review, QA e2e + sandbox |
 | T31 | Checklist production & mẫu cấu hình | Review, QA; chờ PO/hạ tầng điền giá trị thật khi dựng staging |
+| T36 | Hồ sơ giáo viên công khai (trang chủ tối đa 6 thầy/cô, cần đồng ý) | Review, Security, QA; frontend FW8/FW9/FA11 chờ duyệt design v2 |
 | Sửa lỗi nhỏ 2 | Bộ đếm đăng nhập nguyên tử, reset không lộ tài khoản | Review, QA (race) |
 | T30 (một phần) | `audit:purge` (24 tháng), `users:purge-unverified` (7 ngày) | Review, QA; phần dọn dữ liệu thanh toán để V2 |
 | Sửa lỗi nhỏ 1 | validation tiếng Việt, T28 BUG-1/2, mã lỗi OTP, email duyệt đăng ký | Review, QA |

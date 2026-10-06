@@ -1,6 +1,6 @@
 # Bảng theo dõi VitaminVui
 
-Cập nhật: 2026-10-05. Phiên tiếp theo (kể cả Claude Code on the web) đọc file này trước tiên.
+Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) đọc file này trước tiên.
 
 ## Trạng thái task
 
@@ -41,6 +41,7 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | Khoá thanh toán + T30 (phần lẻ) | Cờ `FEATURE_PAID_CHECKOUT` (tắt, 503 PAYMENT_DISABLED), `audit:purge` 24 tháng, `users:purge-unverified` 7 ngày | Xong | ✅ Review (M1 khoá ứng viên, M2 cô lập user lỗi), QA (60 test + 5 race). Commit edca8ad | — | 2026-10-06 |
 | T23 | Khóa học của tôi + tiến độ | Xong | ✅ Review APPROVE (R1 quiz xoá mềm, R2 test quyền), QA (27 test T23, IDOR). Commit 9ad3765 | — | 2026-10-06 |
 | T22 | Làm quiz | Xong | ✅ Review, QA (commit 7919cab) | — | 2026-10-06 |
+| T36 | Hồ sơ giáo viên công khai (US-019/US-020, ADR-005) | Xong | ✅ Review APPROVE, Security PASS (đã sửa hết), QA PASS (BUG-1 cờ emoji đã sửa). Commit 270289a. Frontend FW8/FW9/FA11 chờ PO duyệt design v2 | — | 2026-10-06 |
 
 ## Việc tiếp theo (theo thứ tự)
 
