@@ -34,11 +34,13 @@ class InternalVideoProvider implements VideoProvider
         return 'internal';
     }
 
-    public function createVideo(string $title): ProviderVideo
+    public function createVideo(string $title, ?int $maxBytes = null): ProviderVideo
     {
-        $response = $this->send(fn (PendingRequest $http) => $http->post($this->videosUrl(), [
+        $response = $this->send(fn (PendingRequest $http) => $http->post($this->videosUrl(), array_filter([
             'title' => mb_substr($title, 0, 255),
-        ]));
+            // T12-2: trần upload của video = kích thước đã khai (VideoLab kẹp thêm theo `video.max_upload_mb`).
+            'max_bytes' => $maxBytes !== null && $maxBytes > 0 ? $maxBytes : null,
+        ], static fn ($v) => $v !== null)));
 
         if ($response->status() !== 201) {
             throw new VideoProviderException('VideoLab từ chối tạo video (HTTP '.$response->status().').');

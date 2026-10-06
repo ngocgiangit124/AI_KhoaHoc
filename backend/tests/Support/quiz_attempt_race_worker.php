@@ -61,6 +61,7 @@ $out = match ($mode) {
 
         return ['student' => $student->id, 'course' => $course->id, 'quiz' => $quiz->id, 'questions' => $qs, 'creator' => $course->created_by];
     })(),
+    // Không xoá audit_logs: trigger L2 chặn DELETE dòng mới và DB test riêng nên dòng audit không ảnh hưởng assert.
     'cleanup' => (function () use ($args) {
         [$student, $course, $creator] = $args;
         $quizIds = DB::table('quizzes')->where('course_id', $course)->pluck('id');
@@ -70,7 +71,6 @@ $out = match ($mode) {
         DB::table('quiz_questions')->whereIn('id', $qids)->update(['replaced_by_id' => null]);
         DB::table('quiz_questions')->whereIn('id', $qids)->delete();
         DB::table('quizzes')->where('course_id', $course)->delete();
-        DB::table('audit_logs')->where('subject_type', (new Course)->getMorphClass())->where('subject_id', $course)->delete();
         DB::table('enrollments')->where('course_id', $course)->delete();
         DB::table('chapters')->where('course_id', $course)->delete();
         DB::table('courses')->where('id', $course)->delete();

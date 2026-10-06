@@ -2,6 +2,7 @@
 
 namespace App\VideoLab\Services;
 
+use App\VideoLab\Exceptions\VideoInvalidUploadException;
 use App\VideoLab\Jobs\SendVideoLabWebhookJob;
 use App\VideoLab\Jobs\TranscodeVideoJob;
 use App\VideoLab\Models\Video;
@@ -182,7 +183,7 @@ class TusUploadService
 
         // Từ chối SAU khi commit để trạng thái upload_failed được lưu (abort trong transaction sẽ rollback).
         if ($result->status === Video::UPLOAD_FAILED) {
-            abort(422, 'Định dạng tệp không được hỗ trợ.');
+            throw new VideoInvalidUploadException('Định dạng tệp không được hỗ trợ. Vui lòng chọn tệp video hợp lệ (mp4, mov, mkv, webm).');
         }
 
         return $result;

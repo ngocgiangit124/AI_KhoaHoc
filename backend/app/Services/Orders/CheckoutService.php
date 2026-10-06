@@ -97,14 +97,13 @@ class CheckoutService
      * @throws DomainException CART_EMPTY 422 · ZERO_TOTAL_DISABLED 422 · AMOUNT_BELOW_GATEWAY_MIN/ABOVE_GATEWAY_MAX 422 ·
      *                         PAYMENT_IN_PROGRESS 409 · PAYMENT_GATEWAY_UNAVAILABLE 502 (đơn vẫn pending, `errors.order_code`) ·
      *                         CheckoutChangedException 409
-     * @throws ValidationException cổng không nằm trong `enabled_gateways`
+     * @throws ValidationException cổng không nằm trong `enabled_gateways` (chỉ khi tổng > 0, sau 409/503)
      */
     public function checkout(User $user, int $expectedTotal, string $gateway): CheckoutResult
     {
+        // Cụm 3 M1: cổng chỉ được kiểm khi đơn cần thanh toán (tổng > 0, trong prepare()); đơn 0đ không cần gateway
+        // nên vẫn chạy khi PAYMENT_GATEWAYS rỗng (mẫu production V1).
         $gateway = mb_strtolower($gateway);
-        if (! in_array($gateway, $this->gateways->enabled(), true)) {
-            throw ValidationException::withMessages(['gateway' => ['Phương thức thanh toán không được hỗ trợ.']]);
-        }
 
         if (Cart::query()->where('user_id', $user->getKey())->doesntExist()) {
             throw $this->cartEmpty();
@@ -209,6 +208,10 @@ class CheckoutService
 
         if ($pricing->total > 0 && ! config('features.paid_checkout')) {
             throw new DomainException('PAYMENT_DISABLED', 'Thanh toán trực tuyến đang tạm khoá.', 503);
+        }
+
+        if ($pricing->total > 0 && ! in_array($gateway, $this->gateways->enabled(), true)) {
+            throw ValidationException::withMessages(['gateway' => ['Phương thức thanh toán không được hỗ trợ.']]);
         }
 
         $this->assertPayable($pricing->total, $gateway);

@@ -125,11 +125,13 @@ test('QA audit: approve/reject/request ghi audit khong chua PII (email/sdt)', fu
     vvStaffLogin(vvStaffUser('admin'));
     $course = Course::factory()->published()->create();
     $student = User::factory()->verified()->create(['email' => 'qa-audit@example.com', 'phone' => '0933445566']);
+    // audit_logs bất biến (trigger L2) nên dòng từ test khác có thể còn lại: đếm theo mức nền.
+    $before = AuditLog::whereIn('action', ['enrollment.request', 'enrollment.approve'])->count();
     $e = app(EnrollmentService::class)->requestFree($student, $course);
 
     qaAdminPost("/admin/enrollment-requests/{$e->id}/approve")->assertOk();
 
     $dump = AuditLog::whereIn('action', ['enrollment.request', 'enrollment.approve'])->get()->toJson();
-    expect(AuditLog::whereIn('action', ['enrollment.request', 'enrollment.approve'])->count())->toBe(2)
+    expect(AuditLog::whereIn('action', ['enrollment.request', 'enrollment.approve'])->count() - $before)->toBe(2)
         ->and($dump)->not->toContain('qa-audit@example.com')->not->toContain('0933445566');
 });

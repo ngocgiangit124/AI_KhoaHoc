@@ -13,10 +13,11 @@ use App\Models\Enrollment;
 use App\Models\User;
 use App\Services\Cart\Data\CartSnapshot;
 use App\Services\Cart\Data\CouponEvaluation;
+use App\Support\AtomicCounter;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -125,14 +126,38 @@ class CartService
      * Áp mã (thay mã cũ — AC9). Thất bại giữ nguyên mã/giá hiện tại. Mỗi lần thất bại tính vào trần 30/ngày.
      *
      * @throws DomainException COUPON_INVALID | COUPON_EXPIRED | COUPON_ALREADY_USED | COUPON_NOT_APPLICABLE (422)
-     * @throws ThrottleRequestsException 429 khi đã sai quá 30 lần/ngày
+     * @throws ThrottleRequestsException 429 khi đã sai quá 30 lần/ngày (theo HS) hoặc quá `orders.coupon_fails_per_ip_per_day` (theo IP)
      */
-    public function applyCoupon(User $user, string $rawCode): CartSnapshot
+    public function applyCoupon(User $user, string $rawCode, ?string $ip = null): CartSnapshot
     {
-        // Đếm nguyên tử: `hit` trước (một bước với kiểm trần), lần áp thành công thì hoàn lại (review T16 M2).
+        // Đếm nguyên tử (AtomicCounter, Lua/INCR): kiểm chỉ-đọc mọi khoá trước (đã vượt → 429, không hit thêm), rồi mới
+        // `hit`; lần áp thành công hoặc lỗi hạ tầng thì hoàn lượt (review T16 M2, minor-fixes-3 R1).
         $key = 'coupon-fail:'.$user->getKey();
-        if (RateLimiter::hit($key, 86400) > self::COUPON_FAILS_PER_DAY) {
-            throw new ThrottleRequestsException('Too Many Attempts.', null, ['Retry-After' => (string) max(1, RateLimiter::availableIn($key))]);
+        $ipLimit = (int) config('orders.coupon_fails_per_ip_per_day');
+        $ipKey = $ip !== null && $ip !== '' && $ipLimit > 0 ? 'coupon-fail-ip:'.$ip : null;
+
+        $limits = [[$key, self::COUPON_FAILS_PER_DAY]];
+        if ($ipKey !== null) {
+            $limits[] = [$ipKey, $ipLimit];
+        }
+
+        foreach ($limits as [$k, $max]) {
+            if (AtomicCounter::attempts($k) >= $max) {
+                $this->couponThrottled($k, $ipKey);
+            }
+        }
+
+        $hit = [];
+        foreach ($limits as [$k, $max]) {
+            $hit[] = $k;
+            if (AtomicCounter::hit($k, 86400) > $max) {
+                // Thua race: hoàn lượt ở các khoá đã hit trong request này rồi 429.
+                foreach ($hit as $h) {
+                    AtomicCounter::release($h, 86400);
+                }
+
+                $this->couponThrottled($k, $ipKey);
+            }
         }
 
         try {
@@ -158,15 +183,34 @@ class CartService
         } catch (\Throwable $e) {
             // Chỉ lỗi `COUPON_*` là "lần sai"; lỗi khác (hạ tầng) không bị tính.
             if (! ($e instanceof DomainException && str_starts_with($e->code(), 'COUPON_'))) {
-                RateLimiter::decrement($key, 86400);
+                AtomicCounter::release($key, 86400);
+                if ($ipKey !== null) {
+                    AtomicCounter::release($ipKey, 86400);
+                }
             }
 
             throw $e;
         }
 
-        RateLimiter::decrement($key, 86400);
+        AtomicCounter::release($key, 86400);
+        if ($ipKey !== null) {
+            AtomicCounter::release($ipKey, 86400);
+        }
 
         return $snapshot;
+    }
+
+    /**
+     * 429 cho trần lần sai mã. R3: chạm trần theo IP thì ghi cảnh báo (IP băm, không có mã giảm giá) để vận hành thấy
+     * trường hợp khoá oan lớp dùng chung NAT.
+     */
+    private function couponThrottled(string $key, ?string $ipKey): never
+    {
+        if ($key === $ipKey) {
+            Log::warning('coupon.ip_fail_cap_reached', ['ip_hash' => substr(hash_hmac('sha256', (string) $ipKey, (string) config('app.key')), 0, 16)]);
+        }
+
+        throw new ThrottleRequestsException('Too Many Attempts.', null, ['Retry-After' => (string) AtomicCounter::availableIn($key)]);
     }
 
     public function removeCoupon(User $user): CartSnapshot

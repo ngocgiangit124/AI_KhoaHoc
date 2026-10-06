@@ -58,7 +58,13 @@ test('transcode: nguon thap hon 720p chi co bac 360; nguon rat nho van co 1 bac'
     $this->toolkit->info = ['duration' => 30.0, 'width' => 320, 'height' => 240, 'has_audio' => true];
     $small = vlUploaded();
     (new TranscodeVideoJob($small))->handle(app(TranscodeService::class));
-    expect(array_column(vlVideo($small)->renditions, 'height'))->toBe([360]);
+    // Cụm 2 L2: nguồn nhỏ hơn bậc thấp nhất KHÔNG bị phóng to lên 360p, giữ chiều cao gốc.
+    expect(array_column(vlVideo($small)->renditions, 'height'))->toBe([240])->and(vlVideo($small)->renditions[0]['width'])->toBe(320);
+
+    $this->toolkit->info = ['duration' => 30.0, 'width' => 160, 'height' => 120, 'has_audio' => true];
+    $tiny = vlUploaded();
+    (new TranscodeVideoJob($tiny))->handle(app(TranscodeService::class));
+    expect(array_column(vlVideo($tiny)->renditions, 'height'))->toBe([120])->and(vlVideo($tiny)->renditions[0]['path'])->toBe('120p/index.m3u8');
 });
 
 test('transcode: bi tu choi (ffprobe/gioi han) -> status 5, KHONG nem (khong retry), webhook, khong co HLS', function () {
@@ -155,6 +161,7 @@ test('toolkit: probe tu choi dinh dang/khong co video/qua dai/qua lon (du lieu f
 
     $ok = ['format' => ['format_name' => 'mov,mp4,m4a,3gp,3g2,mj2', 'duration' => '60.0'], 'streams' => [['codec_type' => 'video', 'width' => 1280, 'height' => 720], ['codec_type' => 'audio']]];
     expect($validate($ok))->toMatchArray(['width' => 1280, 'height' => 720, 'has_audio' => true]);
+    expect($validate(['format' => $ok['format'], 'streams' => [['codec_type' => 'video', 'width' => 160, 'height' => 120]]]))->toMatchArray(['width' => 160, 'height' => 120]);
 
     $cases = [
         'format la' => array_replace_recursive($ok, ['format' => ['format_name' => 'hls,applehttp']]),
@@ -163,6 +170,9 @@ test('toolkit: probe tu choi dinh dang/khong co video/qua dai/qua lon (du lieu f
         'chi anh bia' => ['format' => $ok['format'], 'streams' => [['codec_type' => 'video', 'width' => 100, 'height' => 100, 'disposition' => ['attached_pic' => 1]]]],
         'qua dai' => array_replace_recursive($ok, ['format' => ['duration' => (string) (181 * 60)]]),
         'khong thoi luong' => array_replace_recursive($ok, ['format' => ['duration' => '0']]),
+        'dai 3840x100' => ['format' => $ok['format'], 'streams' => [['codec_type' => 'video', 'width' => 3840, 'height' => 100]]],
+        'cao 100x1000' => ['format' => $ok['format'], 'streams' => [['codec_type' => 'video', 'width' => 100, 'height' => 1000]]],
+        'qua nho 64x48' => ['format' => $ok['format'], 'streams' => [['codec_type' => 'video', 'width' => 64, 'height' => 48]]],
         'qua 4k' => ['format' => $ok['format'], 'streams' => [['codec_type' => 'video', 'width' => 7680, 'height' => 4320]]],
     ];
 

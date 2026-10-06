@@ -45,7 +45,7 @@ test('tus: file .mp4 thuc chat la #EXTM3U bi tu choi TRUOC ffprobe, status 6, kh
     $guid = vlCreateVideo();
     vlTusCreate($guid, strlen($body))->assertCreated();
 
-    vlTusPatch($guid, 0, $body)->assertStatus(422);
+    vlTusPatch($guid, 0, $body)->assertStatus(422)->assertJsonPath('code', 'VIDEO_INVALID');
 
     $video = vlVideo($guid);
     expect($video->status)->toBe(Video::UPLOAD_FAILED)->and($video->error)->not->toBeEmpty();
@@ -238,4 +238,11 @@ test('tus: ghi thieu (dia day) -> 507, file khoi phuc ve offset cu, resume duoc'
     $tus->failing = false;
     vlTusPatch($guid, 50, str_repeat('a', 150))->assertNoContent();
     expect(vlVideo($guid)->status)->toBe(Video::UPLOADED);
+});
+
+test('tus: POST tao phien tra 201 voi Content-Type khong phai text/html', function () {
+    $guid = vlCreateVideo();
+    $response = vlTusCreate($guid, 10)->assertCreated();
+
+    expect((string) $response->headers->get('Content-Type'))->toStartWith('text/plain')->not->toContain('html');
 });

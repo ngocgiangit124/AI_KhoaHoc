@@ -19,6 +19,9 @@ return [
         explode(',', (string) env('PAYMENT_GATEWAYS', 'fake'))
     ))),
 
+    // Cụm 3 L1: T19 (IPN) + T20 (đối soát) đã có thì đổi thành true; ProductionConfigGuard chặn FEATURE_PAID_CHECKOUT=true khi còn false.
+    'ipn_ready' => false,
+
     // Đơn pending chỉ "giữ chỗ" lượt mã giảm giá tới `coupon_hold_until` = min(hạn link thanh toán, giá trị này)
     // (ADR-001 §6, S18) — chặn việc tạo hàng loạt đơn pending để chiếm hết lượt của mã.
     'coupon_hold_minutes' => (int) env('PAYMENTS_COUPON_HOLD_MINUTES', 30),

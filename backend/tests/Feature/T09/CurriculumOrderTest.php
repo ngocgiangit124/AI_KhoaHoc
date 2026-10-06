@@ -37,7 +37,7 @@ test('reorder: doi thu tu chuong, chuyen bai sang chuong khac, position lien tuc
         ->and($l2->fresh()->chapter_id)->toBe($c2->id)->and($l2->fresh()->position)->toBe(1)
         ->and($l3->fresh()->position)->toBe(2)->and($l1->fresh()->position)->toBe(1)
         ->and($l2->fresh()->course_id)->toBe($course->id);
-    expect(AuditLog::query()->where('action', 'curriculum.reorder')->count())->toBe(1);
+    expect(AuditLog::query()->where('action', 'curriculum.reorder')->where('subject_id', $course->id)->count())->toBe(1);
 
     // chương rỗng được phép
     vvCourseJson('PUT', "/admin/courses/{$course->id}/curriculum/order", [

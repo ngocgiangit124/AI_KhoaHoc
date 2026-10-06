@@ -28,6 +28,9 @@ class FakeVideoProvider implements VideoProvider
 
     private bool $unavailable = false;
 
+    /** Test: `maxBytes` của lần `createVideo` gần nhất (T12-2). */
+    public ?int $lastMaxBytes = null;
+
     /** Test: chạy ngay sau createVideo (mô phỏng thay đổi đồng thời trong lúc gọi HTTP). */
     public ?\Closure $afterCreate = null;
 
@@ -36,9 +39,10 @@ class FakeVideoProvider implements VideoProvider
         return 'fake';
     }
 
-    public function createVideo(string $title): ProviderVideo
+    public function createVideo(string $title, ?int $maxBytes = null): ProviderVideo
     {
         $this->guard();
+        $this->lastMaxBytes = $maxBytes;
         $video = new ProviderVideo((string) Str::uuid(), VideoAssetStatus::Created);
         $this->videos[$video->guid] = $video;
 

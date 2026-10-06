@@ -131,7 +131,7 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             ->name('api.auth.otp.verify');
 
         Route::put('/auth/contact', [ContactController::class, 'update'])
-            ->middleware('throttle:contact')
+            ->middleware(['throttle:password-change', 'throttle:contact', 'no_store'])
             ->name('api.auth.contact');
 
         // T27 — đổi mật khẩu: huỷ phiên khác, bind lại phiên hiện tại (ADR-003).
@@ -147,21 +147,22 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
 
         // T16 — giỏ hàng (US-004). Không cần `account.verified` (xem/sửa giỏ không bị chặn; chỉ checkout T18 chặn).
         // PUT /cart/coupon: `throttle:coupon` (10/phút + 60/giờ/IP) và trần 30 lần SAI/ngày/HS do CartService đếm.
-        Route::get('/cart', [CartController::class, 'show'])->name('api.cart.show');
-        Route::post('/cart/items', [CartItemController::class, 'store'])->name('api.cart.items.store');
+        Route::get('/cart', [CartController::class, 'show'])->middleware('throttle:cart')->name('api.cart.show');
+        Route::post('/cart/items', [CartItemController::class, 'store'])->middleware('throttle:cart')->name('api.cart.items.store');
         Route::delete('/cart/items/{course}', [CartItemController::class, 'destroy'])
+            ->middleware('throttle:cart')
             ->whereNumber('course')
             ->name('api.cart.items.destroy');
         Route::put('/cart/coupon', [CartCouponController::class, 'update'])
             ->middleware('throttle:coupon')
             ->name('api.cart.coupon.update');
-        Route::delete('/cart/coupon', [CartCouponController::class, 'destroy'])->name('api.cart.coupon.destroy');
+        Route::delete('/cart/coupon', [CartCouponController::class, 'destroy'])->middleware('throttle:cart')->name('api.cart.coupon.destroy');
 
         // T18 — checkout (US-005). `account.verified` (US-001 AC9) + `parent.consent` (tạm: not_required/granted).
         // Preview không ghi DB; POST /checkout tạo đơn pending + giao dịch cổng (hoặc hoàn tất đơn 0đ).
         // `/orders/{code}/pay`, `/orders/{code}/check-payment`, GET /orders: T20.
         Route::middleware(['account.verified', 'parent.consent'])->group(function (): void {
-            Route::get('/checkout/preview', [CheckoutController::class, 'preview'])->name('api.checkout.preview');
+            Route::get('/checkout/preview', [CheckoutController::class, 'preview'])->middleware('throttle:cart')->name('api.checkout.preview');
             Route::post('/checkout', [CheckoutController::class, 'store'])
                 ->middleware('throttle:checkout')
                 ->name('api.checkout.store');

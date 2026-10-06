@@ -36,7 +36,7 @@ afterEach(function () {
     }
 
     if ($this->raceUserId !== null) {
-        DB::table('audit_logs')->where('subject_id', $this->raceUserId)->delete();
+        // Không xoá audit_logs: trigger L2 chặn DELETE dòng mới (DB test riêng, không ảnh hưởng assert).
         DB::table('otp_codes')->where('user_id', $this->raceUserId)->delete();
         DB::table('users')->where('id', $this->raceUserId)->delete();
     }
@@ -91,6 +91,7 @@ test('AC7 8 tien trinh dat lai mat khau song song cung 1 ma -> dung 1 thanh cong
     $user = User::factory()->create([
         'email' => $email,
         'password' => Hash::make('mat-khau-cu-1'),
+        'email_verified_at' => now(),
         'current_session_id' => $sessionId,
     ]);
     $this->raceUserId = $user->id;
@@ -138,7 +139,7 @@ test('AC7 8 tien trinh dat lai mat khau song song cung 1 ma -> dung 1 thanh cong
 
 test('AC7 + AC3 5 tien trinh song song cung 1 ma SAI -> khong ai doi duoc mat khau, tong so luot khong vuot tran', function () {
     $email = 'race-'.Str::random(6).'@example.com';
-    $user = User::factory()->create(['email' => $email, 'password' => Hash::make('mat-khau-cu-1')]);
+    $user = User::factory()->create(['email' => $email, 'password' => Hash::make('mat-khau-cu-1'), 'email_verified_at' => now()]);
     $this->raceUserId = $user->id;
 
     OtpCode::query()->create([

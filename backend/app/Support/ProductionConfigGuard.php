@@ -50,6 +50,17 @@ class ProductionConfigGuard
         $this->guardOtpRelaxed();
         $this->guardVideoLabSecrets();
         $this->guardPaidCheckout();
+        $this->guardStaffMfa();
+    }
+
+    /** Cụm 1 L1 — MFA staff không được tắt ở production/staging (cờ chỉ để e2e local). */
+    private function guardStaffMfa(): void
+    {
+        throw_if(
+            ! config('features.staff_mfa'),
+            RuntimeException::class,
+            'FEATURE_STAFF_MFA phải là true ở production/staging (cụm 1 L1).'
+        );
     }
 
     /**
@@ -93,6 +104,15 @@ class ProductionConfigGuard
             config('features.paid_checkout') && (array) config('payments.enabled_gateways', []) === [],
             RuntimeException::class,
             'FEATURE_PAID_CHECKOUT=true nhưng PAYMENT_GATEWAYS rỗng.'
+        );
+
+        // Cụm 3 L1: chưa có route IPN (T19) thì HS trả tiền xong không được ghi danh. `payments.ipn_ready` là hằng trong
+        // config/payments.php (không phải env), mặc định false. TODO(T19): khi route webhook + đối soát (T20) xong,
+        // đổi hằng đó thành true (hoặc gỡ điều kiện này) cùng lúc bật FEATURE_PAID_CHECKOUT ở production.
+        throw_if(
+            config('features.paid_checkout') && ! config('payments.ipn_ready'),
+            RuntimeException::class,
+            'FEATURE_PAID_CHECKOUT=true nhưng chưa có route IPN/đối soát (T19/T20): payments.ipn_ready=false.'
         );
     }
 
@@ -163,6 +183,18 @@ class ProductionConfigGuard
             in_array('*', $proxies, true),
             RuntimeException::class,
             'TRUSTED_PROXIES không được là "*" ở production (M4, S10).'
+        );
+
+        // minor-fixes-3 R2: request HTTP không có proxy tin cậy thì `$request->ip()` luôn là IP của Nginx/LB, nên mọi
+        // học sinh dùng chung một bộ đếm theo IP (trần mã giảm giá, đăng nhập) và khoá lẫn nhau. Tiến trình console
+        // (queue:work của worker-video, scheduler, artisan) không nhận HTTP nên được miễn: file mẫu worker-video
+        // để `TRUSTED_PROXIES=` rỗng. `app.trusted_proxies_console_exempt` chỉ để test tắt được ngoại lệ này.
+        $exempt = app()->runningInConsole() && (bool) config('app.trusted_proxies_console_exempt', true);
+
+        throw_if(
+            ! $exempt && array_filter($proxies, static fn (string $p): bool => $p !== '') === [],
+            RuntimeException::class,
+            'TRUSTED_PROXIES phải liệt kê IP của Nginx/load balancer ở production/staging (không được rỗng): nếu rỗng, mọi người dùng chung một IP với proxy (R2).'
         );
     }
 

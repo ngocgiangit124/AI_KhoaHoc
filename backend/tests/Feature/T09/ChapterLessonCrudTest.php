@@ -163,7 +163,7 @@ test('xoa bai: mem, audit; bai co tien do hoc sinh -> 409 LESSON_HAS_PROGRESS', 
 
     vvCourseJson('DELETE', vvLessonPath($course, $chapter, $lesson))->assertNoContent();
     expect(Lesson::withTrashed()->find($lesson->id)->trashed())->toBeTrue()
-        ->and(AuditLog::query()->where('action', 'lesson.delete')->count())->toBe(1);
+        ->and(AuditLog::query()->where('action', 'lesson.delete')->where('subject_id', $lesson->id)->count())->toBe(1);
 
     // xoá lại: bản ghi đã xoá mềm không còn bind được -> 404
     vvCourseJson('DELETE', vvLessonPath($course, $chapter, $lesson))->assertNotFound();

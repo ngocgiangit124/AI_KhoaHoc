@@ -19,17 +19,19 @@ function vvAudit(string $createdAt): void
 }
 
 test('audit:purge xoá log quá 24 tháng, giữ log mới; --dry-run không xoá', function () {
-    DB::table('audit_logs')->delete();
+    // Trigger L2 chặn xoá dòng mới: đếm theo mức nền thay vì xoá sạch bảng.
+    DB::table('audit_logs')->where('created_at', '<', now()->subMonths(24))->delete();
+    $base = DB::table('audit_logs')->count();
     vvAudit(now()->subMonths(25)->toDateTimeString());
     vvAudit(now()->subMonths(30)->toDateTimeString());
     vvAudit(now()->subMonths(23)->toDateTimeString());
 
     $this->artisan('audit:purge --dry-run')->assertSuccessful();
-    expect(DB::table('audit_logs')->count())->toBe(3);
+    expect(DB::table('audit_logs')->count())->toBe($base + 3);
 
     config(['ops.purge_chunk' => 1]);
     $this->artisan('audit:purge')->assertSuccessful();
-    expect(DB::table('audit_logs')->count())->toBe(1);
+    expect(DB::table('audit_logs')->count())->toBe($base + 1);
 });
 
 test('users:purge-unverified chỉ xoá học sinh chưa xác thực > 7 ngày, không có dữ liệu', function () {
@@ -155,7 +157,8 @@ test('QA: số user > purge_chunk, xen kẽ user được giữ -> xoá hết �
 });
 
 test('QA: audit:purge nhiều lô (chunk nhỏ) xoá đủ, --dry-run khớp số xoá thật', function () {
-    DB::table('audit_logs')->delete();
+    DB::table('audit_logs')->where('created_at', '<', now()->subMonths(24))->delete();
+    $base = DB::table('audit_logs')->count();
     config(['ops.purge_chunk' => 2, 'ops.purge_sleep_ms' => 0]);
     foreach (range(1, 5) as $i) {
         vvAudit(now()->subMonths(24)->subDays($i)->toDateTimeString());
@@ -164,7 +167,7 @@ test('QA: audit:purge nhiều lô (chunk nhỏ) xoá đủ, --dry-run khớp s�
 
     $this->artisan('audit:purge --dry-run')->expectsOutputToContain('5 dòng sẽ xoá')->assertSuccessful();
     $this->artisan('audit:purge')->expectsOutputToContain('5 dòng đã xoá')->assertSuccessful();
-    expect(DB::table('audit_logs')->count())->toBe(1);
+    expect(DB::table('audit_logs')->count())->toBe($base + 1);
 
     $this->artisan('audit:purge --months=0')->assertFailed();
 });

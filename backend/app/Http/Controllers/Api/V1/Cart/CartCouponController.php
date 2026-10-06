@@ -19,7 +19,7 @@ class CartCouponController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        return (new CartResource($this->cart->applyCoupon($user, $request->string('code')->toString())))->response();
+        return (new CartResource($this->cart->applyCoupon($user, $request->string('code')->toString(), $request->ip())))->response();
     }
 
     public function destroy(Request $request): JsonResponse

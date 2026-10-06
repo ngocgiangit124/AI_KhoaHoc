@@ -82,15 +82,18 @@ class StaffAccountController extends Controller
         return new StaffAccountResource($this->accounts->unlock($this->find($staff)));
     }
 
-    public function updateRole(StaffRoleRequest $request, string $staff): StaffAccountResource
+    public function updateRole(StaffRoleRequest $request, string $staff): JsonResponse
     {
-        $user = $this->accounts->changeRole(
+        ['user' => $user, 'released_course_ids' => $released] = $this->accounts->changeRoleDetailed(
             $this->find($staff),
             UserRole::from($request->string('role')->toString()),
             $this->actor($request),
         );
 
-        return new StaffAccountResource($user);
+        return response()->json([
+            ...(new StaffAccountResource($user))->resolve(),
+            'released_course_ids' => $released,
+        ]);
     }
 
     public function resetPassword(Request $request, string $staff): JsonResponse

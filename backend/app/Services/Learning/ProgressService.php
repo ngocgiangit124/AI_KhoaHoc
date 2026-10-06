@@ -9,6 +9,7 @@ use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\User;
+use App\Support\AtomicCounter;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -106,7 +107,7 @@ class ProgressService
             $cap = 0;
         }
 
-        $credited = max(0, min($delta, $cap));
+        $credited = $this->capByUser($userId, max(0, min($delta, $cap)), $cfg);
         $watched = $row->watched_seconds + $credited;
         if ($duration > 0) {
             $watched = min($watched, $duration);
@@ -130,6 +131,40 @@ class ProgressService
         LessonProgress::query()->whereKey($row->getKey())->update($changes);
 
         return LessonProgressStatus::from((string) ($changes['status'] ?? $row->status->value));
+    }
+
+    /**
+     * Trần cộng giây theo người học trên mọi bài (cụm 2 L1). Giữ chỗ nguyên tử bằng `AtomicCounter::add`, phần vượt
+     * trần được hoàn và cộng 0 (không báo lỗi để player không vỡ). Khoá cache, không phải khoá DB: không ảnh hưởng thứ tự khoá.
+     *
+     * @param  array<string, mixed>  $cfg
+     */
+    private function capByUser(int $userId, int $credited, array $cfg): int
+    {
+        if ($credited <= 0) {
+            return 0;
+        }
+
+        $window = max(1, (int) ($cfg['user_credit_window_seconds'] ?? 60));
+        $limit = ($cfg['user_credit_cap_seconds'] ?? null) === null
+            ? (int) $cfg['max_speed'] * ($window + (int) $cfg['first_interval_seconds']) + (int) $cfg['slack_seconds']
+            : (int) $cfg['user_credit_cap_seconds'];
+
+        if ($limit <= 0) {
+            return $credited;
+        }
+
+        $key = 'hb-credit:u:'.$userId;
+        $total = AtomicCounter::add($key, $credited, $window);
+
+        if ($total <= $limit) {
+            return $credited;
+        }
+
+        $excess = min($credited, $total - $limit);
+        AtomicCounter::add($key, -$excess, $window);
+
+        return $credited - $excess;
     }
 
     /**

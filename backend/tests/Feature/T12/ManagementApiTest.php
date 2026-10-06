@@ -84,6 +84,34 @@ test('cleanup: upload do qua han -> status 6; file goc cu bi xoa', function () {
     expect(file_exists($storage->source($old)))->toBeTrue();
 });
 
+test('L3 cum 2: cleanup xoa source cua video loi (status 5) sau an han, giu video loi moi va video dang xu ly; --dry-run khong xoa', function () {
+    $storage = app(VideoLabStorage::class);
+    $storage->ensureDirs();
+
+    $mk = function (int $status, int $ageHours) use ($storage): string {
+        $guid = vlCreateVideo();
+        file_put_contents($storage->source($guid), 'SRC');
+        Video::query()->where('guid', $guid)->update(['status' => $status, 'source_path' => 'source/x', 'updated_at' => now()->subHours($ageHours)]);
+
+        return $guid;
+    };
+
+    $oldFailed = $mk(Video::ERROR, 30);
+    $newFailed = $mk(Video::ERROR, 1);
+    $oldProcessing = $mk(Video::TRANSCODING, 30);
+
+    $this->artisan('videolab:cleanup --dry-run')->assertSuccessful();
+    expect(file_exists($storage->source($oldFailed)))->toBeTrue();
+
+    config(['videolab.storage.keep_source' => true]);
+    $this->artisan('videolab:cleanup')->assertSuccessful();
+
+    expect(file_exists($storage->source($oldFailed)))->toBeFalse()
+        ->and(vlVideo($oldFailed)->source_path)->toBeNull()
+        ->and(file_exists($storage->source($newFailed)))->toBeTrue()
+        ->and(file_exists($storage->source($oldProcessing)))->toBeTrue();
+});
+
 test('cleanup: quet thu muc hls/source mo coi cu hon nguong, giu muc moi va muc con ban ghi; --dry-run khong xoa', function () {
     $storage = app(VideoLabStorage::class);
     $storage->ensureDirs();

@@ -42,13 +42,23 @@ describe('forgot', function () {
             ->and($sender->sent)->toHaveCount(1);
     });
 
-    test('email chua xac thuc van nhan OTP; dang nhap bang SDT dang +84 van tim ra', function () {
+    test('email da xac thuc nhan OTP; dang nhap bang SDT dang +84 van tim ra', function () {
         $sender = vvFakeOtp();
-        vvPwStudent(['email_verified_at' => null]);
+        vvPwStudent(['email_verified_at' => now()]);
 
         vvForgot(['login' => '+84 912 345 678'])->assertStatus(202);
 
         expect($sender->sent)->toHaveCount(1)->and($sender->sent[0]['destination'])->toBe('hs@example.com');
+    });
+
+    // H1 (review bao mat cum 1): doi voi V2 truoc day "email chua xac thuc van nhan OTP"; nay xu ly nhu khong co kenh.
+    test('email chua xac thuc: 202 chung nhung KHONG gui OTP (xu ly nhu khong co kenh, H1)', function () {
+        $sender = vvFakeOtp();
+        vvPwStudent(['email_verified_at' => null]);
+
+        vvForgot()->assertStatus(202)->assertJsonPath('message', 'Nếu thông tin tồn tại, chúng tôi đã gửi mã xác nhận đến email của bạn.');
+
+        expect($sender->sent)->toBe([]);
     });
 
     test('AC8 tai khoan locked / giao vien: 202 chung nhung khong gui OTP', function () {

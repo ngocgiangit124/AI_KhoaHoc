@@ -66,6 +66,7 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 
 ## Quy tắc làm việc đã thống nhất với PO
 
+- **2026-10-06 · PO mở lại cổng `laravel-security`** sau khi backend MVP xong: audit theo 4 cụm (1 xác thực/phiên; 2 nội dung/upload/video/học tập; 3 thanh toán T17–T18; 4 T31 + cấu hình tổng thể), chạy 2 cụm một lúc. Critical/High báo PO ngay rồi giao dev sửa; Medium/Low ghi `docs/security/backlog-v2.md`. Song song: "Sửa lỗi nhỏ 3" sửa các mục Low còn mở (trừ thanh toán, pháp lý, mục đã hoãn V2).
 - **2026-10-05 · Tạm dừng cổng `laravel-security`** (và việc sửa lỗi bảo mật không nghiêm trọng) để đẩy tiến độ; quy trình mỗi task tạm thời là dev → `laravel-reviewer` → `laravel-qa` → PO duyệt. Lỗi bảo mật đã biết được ghi ở `docs/security/backlog-v2.md`, review lại và sửa ở v2, bắt buộc trước go-live. Lỗi Critical/High vẫn phải báo PO ngay.
 
 - Chỉ commit/push khi PO đồng ý. `main` chỉ chứa code đã qua review.

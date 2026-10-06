@@ -206,6 +206,18 @@ class MediaToolkit
             throw new VideoRejectedException('Độ phân giải vượt quá '.config('videolab.ffmpeg.max_width').'x'.config('videolab.ffmpeg.max_height').'.');
         }
 
+        // Cụm 2 L2: tỉ lệ khung hình bất thường (dải 3840x100...) và nguồn quá nhỏ bị từ chối (không phóng to nguồn nhỏ).
+        $min = (int) config('videolab.ffmpeg.min_dimension');
+        $maxRatio = (float) config('videolab.ffmpeg.max_aspect_ratio');
+
+        if ($width < $min || $height < $min) {
+            throw new VideoRejectedException('Độ phân giải quá nhỏ (tối thiểu '.$min.'x'.$min.').');
+        }
+
+        if ($maxRatio > 0 && (max($width, $height) / min($width, $height)) > $maxRatio) {
+            throw new VideoRejectedException('Tỉ lệ khung hình không được hỗ trợ.');
+        }
+
         return ['duration' => $duration, 'width' => $width, 'height' => $height, 'has_audio' => $this->hasAudio($data)];
     }
 

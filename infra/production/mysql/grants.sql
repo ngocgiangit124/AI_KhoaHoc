@@ -4,6 +4,8 @@
 
 -- 1) User ứng dụng (php-fpm, queue, scheduler): DML trên mọi bảng, KHÔNG có DDL (CREATE/ALTER/DROP).
 --    DELETE trên audit_logs là CỐ Ý: `audit:purge` (T30) xoá bản ghi quá 24 tháng. Không thu hồi nếu không đổi chính sách.
+--    Dù vậy `audit_logs` vẫn bất biến ở tầng DB nhờ trigger (L2, migration 2026_10_16_100000): UPDATE luôn lỗi, DELETE chỉ
+--    xoá được dòng quá 24 tháng. vv_app KHÔNG có quyền TRIGGER nên không gỡ/sửa được trigger.
 CREATE USER IF NOT EXISTS 'vv_app'@'<APP_HOST>' IDENTIFIED BY '<MAT_KHAU_APP>';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `<DB>`.* TO 'vv_app'@'<APP_HOST>';
 -- Phương án cấp từng bảng KHÔNG khuyến nghị (dễ gãy khi thêm tính năng). Nếu vẫn làm, DELETE phải có tối thiểu cho:
@@ -14,7 +16,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `<DB>`.* TO 'vv_app'@'<APP_HOST>';
 
 -- 2) User migrate (chỉ dùng lúc deploy, tách khỏi user app): DDL + DML.
 CREATE USER IF NOT EXISTS 'vv_migrate'@'<MIGRATE_HOST>' IDENTIFIED BY '<MAT_KHAU_MIGRATE>';
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES ON `<DB>`.* TO 'vv_migrate'@'<MIGRATE_HOST>';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES, TRIGGER ON `<DB>`.* TO 'vv_migrate'@'<MIGRATE_HOST>';
+-- TRIGGER: migration audit_logs_immutability_triggers tạo/gỡ trigger. Nếu bật binary log, `SET GLOBAL log_bin_trust_function_creators=1`
+-- chỉ trong lúc migrate rồi trả về 0 (không ghi vào my.cnf), nếu không CREATE TRIGGER lỗi 1419. Trigger mang DEFINER=vv_migrate:
+-- không xoá user này (lỗi 1449 trên mọi UPDATE/DELETE audit_logs).
 
 -- 3) User worker-video (T12-6, T12-10): CHỈ bảng vl_videos (+ failed_jobs nếu QUEUE_FAILED_DRIVER=database-uuids,
 --    để ghi job thất bại). Queue/cache nằm ở Redis nên không cần quyền bảng jobs/cache.

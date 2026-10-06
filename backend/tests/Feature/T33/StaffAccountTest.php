@@ -306,8 +306,8 @@ test('audit-logs: loc theo hanh dong/nguoi thuc hien/khoang ngay, chi doc, khong
     vvT33Send('POST', "/admin/staff/{$teacher->id}/lock")->assertOk();
     vvT33Send('POST', "/admin/staff/{$teacher->id}/unlock")->assertOk();
 
-    $old = AuditLog::query()->create(['action' => 'user.lock', 'actor_id' => 999, 'actor_role' => 'admin']);
-    AuditLog::query()->whereKey($old->id)->toBase()->update(['created_at' => '2020-01-05 10:00:00']);
+    // Trigger L2 chặn UPDATE audit_logs: đặt created_at ngay lúc INSERT (không sửa sau).
+    DB::table('audit_logs')->insert(['action' => 'user.lock', 'actor_id' => 999, 'actor_role' => 'admin', 'created_at' => '2020-01-05 10:00:00']);
 
     $all = vvAdminGet('/admin/audit-logs')->assertOk();
     expect($all->json('data.0'))->toHaveKeys(['id', 'action', 'actor_id', 'actor_role', 'actor_name', 'subject_type', 'subject_id', 'changes', 'ip', 'user_agent', 'created_at']);

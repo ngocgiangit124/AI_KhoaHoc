@@ -9,7 +9,8 @@ use Illuminate\Support\Facades\File;
 
 /**
  * Dọn VideoLab (ADR-002 §3): upload dở > 24h (hoặc quá hạn chữ ký) → status 6 + xoá file tạm;
- * file gốc của video đã xong > 7 ngày → xoá (trừ khi `videolab.storage.keep_source`).
+ * file gốc của video đã xong > 7 ngày → xoá (trừ khi `videolab.storage.keep_source`);
+ * file gốc của video lỗi (status 5) quá `failed_source_retention_hours` → xoá.
  */
 class VideoLabCleanupCommand extends Command
 {
@@ -48,9 +49,29 @@ class VideoLabCleanupCommand extends Command
                 });
         }
 
+        // Cụm 2 L3: video lỗi (status 5) giữ `source/{guid}.bin` quá `failed_source_retention_hours` thì xoá (file độc/hỏng
+        // không cần giữ; kể cả khi `keep_source` bật).
+        $failedCutoff = now()->subHours((int) config('videolab.storage.failed_source_retention_hours', 24));
+        $failedSources = 0;
+
+        Video::query()
+            ->where('status', Video::ERROR)
+            ->where('updated_at', '<=', $failedCutoff)
+            ->each(function (Video $video) use ($storage, &$failedSources): void {
+                $path = $storage->source($video->guid);
+
+                if (is_file($path) && ! $this->option('dry-run')) {
+                    File::delete($path);
+                    $video->forceFill(['source_path' => null])->save();
+                    $failedSources++;
+                } elseif (is_file($path)) {
+                    $failedSources++;
+                }
+            });
+
         $orphans = $this->sweepOrphans($storage);
 
-        $this->info("Upload dở đã dọn: {$stale}; file gốc đã xoá: {$sources}; mồ côi ".($this->option('dry-run') ? 'tìm thấy' : 'đã xoá').": {$orphans}");
+        $this->info("Upload dở đã dọn: {$stale}; file gốc đã xoá: {$sources}; file gốc video lỗi: {$failedSources}; mồ côi ".($this->option('dry-run') ? 'tìm thấy' : 'đã xoá').": {$orphans}");
 
         return self::SUCCESS;
     }

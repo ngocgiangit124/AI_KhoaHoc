@@ -67,6 +67,21 @@ test('provider: createVideo goi API noi bo kem AccessKey + Host video, timeout <
     });
 });
 
+test('provider: createVideo gui max_bytes = kich thuoc da khai (T12-2); khong khai thi khong gui', function () {
+    vlHttpFake(['*' => Http::response(['guid' => VL_GUID, 'status' => 0, 'length' => 0], 201)]);
+
+    app(InternalVideoProvider::class)->createVideo('a', 5000);
+    app(InternalVideoProvider::class)->createVideo('b');
+
+    $bodies = [];
+    Http::assertSent(function (HttpRequest $r) use (&$bodies) {
+        $bodies[$r['title']] = $r->data();
+
+        return true;
+    });
+    expect($bodies['a']['max_bytes'])->toBe(5000)->and($bodies['b'])->not->toHaveKey('max_bytes');
+});
+
 test('provider: HTTP client dat timeout/connectTimeout <= 10s', function () {
     $captured = null;
     vlHttpFake(function (HttpRequest $r, array $options) use (&$captured) {

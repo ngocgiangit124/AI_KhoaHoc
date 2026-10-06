@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Log;
  */
 class AuditPurgeCommand extends Command
 {
+    /** Đồng bộ với trigger `audit_logs_block_delete` (migration 2026_10_16_100000). */
+    public const MIN_RETENTION_MONTHS = 24;
+
     protected $signature = 'audit:purge {--dry-run : Chỉ đếm, không xoá} {--months= : Ghi đè thời hạn lưu (tháng)}';
 
     protected $description = 'Xoá audit_logs cũ hơn thời hạn lưu (config ops.audit_retention_months)';
@@ -28,6 +31,12 @@ class AuditPurgeCommand extends Command
         $months = $raw !== null ? (int) $raw : (int) config('ops.audit_retention_months');
         if ($months < 1) {
             $this->error('Thời hạn lưu phải >= 1 tháng.');
+
+            return self::FAILURE;
+        }
+        if ($months < self::MIN_RETENTION_MONTHS) {
+            // Trigger `audit_logs_block_delete` (L2) chỉ cho xoá dòng quá 24 tháng; thấp hơn sẽ nổ lỗi DB giữa chừng.
+            $this->error('Thời hạn lưu phải >= '.self::MIN_RETENTION_MONTHS.' tháng (sàn của trigger DB bảo vệ audit_logs).');
 
             return self::FAILURE;
         }

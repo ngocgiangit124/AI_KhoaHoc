@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Admin\Auth;
 
+use App\Support\StaffPassword;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
 class ChangeStaffPasswordRequest extends FormRequest
 {
@@ -19,7 +19,7 @@ class ChangeStaffPasswordRequest extends FormRequest
     {
         return [
             'current_password' => ['required', 'string', 'max:128'],
-            'password' => ['required', 'string', 'max:128', Password::defaults(), 'different:current_password'],
+            'password' => ['required', 'string', 'max:128', ...StaffPassword::rules($this->user()?->email), 'different:current_password'],
             'password_confirmation' => ['required', 'same:password'],
         ];
     }

@@ -15,7 +15,7 @@ class ContactController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        $resendAt = $contact->update($user, $request->validated());
+        $resendAt = $contact->update($user, $request->validated(), $request);
 
         return response()->json(['resend_available_at' => $resendAt?->toIso8601String()]);
     }

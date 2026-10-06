@@ -56,6 +56,8 @@ services:
       - --collation-server=utf8mb4_0900_ai_ci
       - --transaction-isolation=READ-COMMITTED
       - --binlog-format=ROW
+      # L2: migration tạo trigger chặn sửa/xoá audit_logs; user app không có SUPER nên cần cờ này khi binlog bật.
+      - --log-bin-trust-function-creators=1
     environment:
       # M6 (review bảo mật T01/T02) — KHÔNG còn giá trị mặc định "secret": phải
       # đặt trong infra/.env (copy từ infra/.env.example, không commit — đã có

@@ -40,6 +40,8 @@ class UpdateContactRequest extends FormRequest
         $userId = $this->user()?->getKey();
 
         return [
+            // H1: xác thực lại bằng mật khẩu hiện tại (kể cả tài khoản chưa xác thực).
+            'current_password' => ['required', 'string', 'max:128'],
             'email' => [
                 'required_without:phone', 'nullable', 'string', 'email:rfc,strict',
                 'regex:'.RegisterRequest::EMAIL_SAFE_PATTERN, 'max:254',
@@ -58,6 +60,7 @@ class UpdateContactRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'current_password.required' => 'Vui lòng nhập mật khẩu hiện tại.',
             'email.required_without' => 'Vui lòng nhập email hoặc số điện thoại mới.',
             'email.email' => 'Email không đúng định dạng.',
             'email.unique' => 'Email đã được sử dụng.',

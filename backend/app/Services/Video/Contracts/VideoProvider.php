@@ -23,8 +23,13 @@ interface VideoProvider
     /** 'internal' | 'bunny' | 'fake' */
     public function name(): string;
 
-    /** @throws VideoProviderException */
-    public function createVideo(string $title): ProviderVideo;
+    /**
+     * @param  int|null  $maxBytes  Kích thước tệp đã khai (T12-2): nhà cung cấp dùng làm trần upload cho video này
+     *                              (adapter không hỗ trợ có thể bỏ qua; luôn bị kẹp bởi trần chung `video.max_upload_mb`).
+     *
+     * @throws VideoProviderException
+     */
+    public function createVideo(string $title, ?int $maxBytes = null): ProviderVideo;
 
     /** @throws VideoProviderException */
     public function uploadTarget(ProviderVideo $video, int $ttlSeconds): UploadTarget;

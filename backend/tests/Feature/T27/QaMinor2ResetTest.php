@@ -21,7 +21,7 @@ function vvResetSnapshot($r): array
 test('T27-5: reset - ma sai / het 5 luot / khong co ma / khong ton tai / bi khoa: response giong het nhau', function () {
     $sender = vvFakeOtp();
     $issue = function (string $email, string $phone) use ($sender): string {
-        $user = User::factory()->create(['email' => $email, 'phone' => $phone]);
+        $user = User::factory()->create(['email' => $email, 'phone' => $phone, 'email_verified_at' => now()]);
         (new VvPwBrowser)->call('POST', '/auth/password/forgot', ['login' => $email, 'captcha_token' => 'ok'])->assertStatus(202);
         Cache::flush();
 

@@ -351,10 +351,12 @@ class OtpService
             return true;
         } catch (Throwable $e) {
             // Giữ nguyên nhân thật nhưng che mọi chuỗi 6 số; KHÔNG log trace (có đối số chứa mã).
-            Log::warning('Gửi OTP thất bại.', [
+            // Mức error (T27-3): mã không tới người dùng là sự cố vận hành cần cảnh báo, kể cả khi luồng
+            // gọi (forgot) cố ý không báo lỗi ra response.
+            Log::error('Gửi OTP thất bại.', [
                 'channel' => $channel,
                 'exception' => $e::class,
-                'reason' => mb_substr((string) preg_replace('/\d{6}/', '******', $e->getMessage()), 0, 300),
+                'reason' => mb_substr((string) preg_replace(['/\d{6}/', '/[^\s<>"\']+@[^\s<>"\']+/'], ['******', '***@***'], $e->getMessage()), 0, 300),
             ]);
 
             return false;

@@ -26,7 +26,6 @@ function vvWipeCommittedData(): void
         DB::rollBack();
     }
 
-    DB::table('audit_logs')->delete();
     DB::table('otp_codes')->delete();
     DB::table('consents')->delete();
     DB::table('users')->delete();

@@ -40,14 +40,23 @@ class CourseTeacherService
 
             // Chỉ giáo viên MỚI được thêm phải đang hoạt động; người đã gán sẵn được giữ nguyên dù bị khoá
             // (staff gửi lại đủ danh sách cũ không bị 422; muốn gỡ thì bỏ khỏi danh sách).
+            // minor-fixes-3 R4: đọc role/status với `sharedLock` để không chèn `course_teacher` cho người vừa bị đổi vai trò
+            // (`StaffAccountService::changeRoleDetailed` giữ khoá X hàng user tới commit, rồi xoá phân công).
+            // Thứ tự khoá: `courses` (X) → `users` (S) → `course_teacher`; changeRole: `users` (X) → `course_teacher`.
+            // Cùng chiều `users` → `course_teacher`, changeRole không khoá `courses` nên không có chu trình.
             $newIds = array_values(array_diff($teacherIds, $current));
             $validNew = $newIds === [] ? [] : User::query()
                 ->whereIn('id', $newIds)
                 ->where('role', UserRole::Teacher)
                 ->where('status', UserStatus::Active)
+                ->orderBy('id')
+                ->sharedLock()
                 ->pluck('id')->map(fn ($id) => (int) $id)->all();
             $stillTeachers = User::query()->whereIn('id', array_intersect($teacherIds, $current))
-                ->where('role', UserRole::Teacher)->count();
+                ->where('role', UserRole::Teacher)
+                ->orderBy('id')
+                ->sharedLock()
+                ->count();
 
             if (count($validNew) !== count($newIds) || $stillTeachers !== count(array_intersect($teacherIds, $current))) {
                 throw ValidationException::withMessages(['teacher_ids' => 'Chỉ được gán tài khoản giáo viên đang hoạt động.']);

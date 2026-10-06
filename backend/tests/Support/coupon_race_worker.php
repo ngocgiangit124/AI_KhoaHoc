@@ -22,8 +22,8 @@ $args = array_slice($argv, 2);
 
 $out = match ($mode) {
     'setup' => ['admin' => User::factory()->admin()->create()->id],
+    // Không xoá audit_logs: trigger L2 chặn DELETE dòng mới và DB test riêng nên dòng audit không ảnh hưởng assert.
     'cleanup' => (function () use ($args) {
-        DB::table('audit_logs')->where('subject_type', 'coupon')->delete();
         DB::table('coupons')->where('code', $args[1])->delete();
         DB::table('users')->where('id', $args[0])->delete();
 

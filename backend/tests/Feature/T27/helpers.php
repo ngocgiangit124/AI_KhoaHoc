@@ -73,6 +73,8 @@ function vvPwStudent(array $attrs = []): User
         'email' => 'hs@example.com',
         'phone' => '0912345678',
         'password' => Hash::make('mat-khau-cu-1'),
+        // H1: mã đặt lại chỉ gửi/nhận qua email đã xác thực.
+        'email_verified_at' => now(),
     ], $attrs));
 }
 

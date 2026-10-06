@@ -34,12 +34,13 @@ class PasswordService
 
     public const MESSAGE_CHANGED = 'Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất.';
 
-    public const MESSAGE_WRONG_CURRENT = 'Mật khẩu hiện tại không đúng.';
+    public const MESSAGE_WRONG_CURRENT = CurrentPasswordGuard::MESSAGE_WRONG;
 
     public function __construct(
         private readonly OtpService $otp,
         private readonly StudentSessionService $sessions,
         private readonly AuditLogger $audit,
+        private readonly CurrentPasswordGuard $currentPassword,
     ) {}
 
     /** Tài khoản được phép đặt lại mật khẩu: học sinh, không khoá, chưa ẩn danh hoá (BR8). */
@@ -49,7 +50,9 @@ class PasswordService
             && $user->role === UserRole::Student
             && $user->status === UserStatus::Active
             && $user->anonymized_at === null
-            && is_string($user->email) && $user->email !== '';
+            && is_string($user->email) && $user->email !== ''
+            // H1: chỉ gửi/nhận mã đặt lại qua email ĐÃ XÁC THỰC. Email vừa đổi (chưa xác thực) xử lý như không có kênh.
+            && $user->email_verified_at !== null;
     }
 
     /**
@@ -89,7 +92,7 @@ class PasswordService
     }
 
     /**
-     * Gửi OTP `reset_password` qua email (kể cả email chưa xác thực). Chạy SAU khi đã trả response
+     * Gửi OTP `reset_password` qua email ĐÃ XÁC THỰC (email chưa xác thực = không có kênh, H1). Chạy SAU khi đã trả response
      * (controller dùng `defer`) nên thời gian phản hồi và mã trạng thái không lộ tài khoản có tồn tại;
      * mọi lỗi (trần OTP, gửi mail) bị nuốt và chỉ ghi log không chứa mã/PII.
      */
@@ -106,7 +109,11 @@ class PasswordService
         } catch (ThrottleRequestsException) {
             // Vượt trần OTP của tài khoản: không báo ra ngoài (không phân biệt tồn tại/không tồn tại).
         } catch (Throwable $e) {
-            Log::warning('password_reset.send_failed', ['exception' => $e::class]);
+            // T27-3: response vẫn 202 chung (không lộ tài khoản) nhưng lỗi gửi phải thấy được ở log mức error.
+            Log::error('password_reset.send_failed', array_filter([
+                'exception' => $e::class,
+                'code' => $e instanceof DomainException ? $e->code() : null,
+            ]));
         }
     }
 
@@ -181,11 +188,7 @@ class PasswordService
      */
     public function change(User $user, #[\SensitiveParameter] string $current, #[\SensitiveParameter] string $new, Request $request): bool
     {
-        if (! Hash::check($current, $user->password)) {
-            $this->audit->log('account.password_change_failed', $user, ['reason' => 'wrong_current_password']);
-
-            throw ValidationException::withMessages(['current_password' => self::MESSAGE_WRONG_CURRENT]);
-        }
+        $this->currentPassword->assert($user, $current, 'account.password_change_failed');
 
         $deviceId = $user->current_device_id;
 

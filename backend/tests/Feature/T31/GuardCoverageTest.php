@@ -89,6 +89,26 @@ test('TRUSTED_PROXIES: * bi chan (ke ca nam giua danh sach, co khoang trang), IP
         : expect(fn () => qaCheck())->not->toThrow(RuntimeException::class);
 })->with([['*', true], ['10.0.0.1, *', true], [' * ', true], ['10.0.0.1', false], ['', false]]);
 
+test('TRUSTED_PROXIES rong: bi chan khi phuc vu HTTP (R2), console (queue worker) duoc mien', function (string $value, bool $consoleExempt, bool $blocked) {
+    config(['app.trusted_proxies' => $value, 'app.trusted_proxies_console_exempt' => $consoleExempt]);
+    $blocked
+        ? expect(fn () => qaCheck())->toThrow(RuntimeException::class, 'TRUSTED_PROXIES')
+        : expect(fn () => qaCheck())->not->toThrow(RuntimeException::class);
+})->with([
+    ['', false, true],
+    [' , ', false, true],
+    ['10.0.0.1', false, false],
+    ['', true, false],
+]);
+
+test('FEATURE_STAFF_MFA=false bi chan o moi moi truong khong phai local/testing; true qua', function (string $env, bool $mfa, bool $blocked) {
+    app()->detectEnvironment(fn () => $env);
+    config(['features.staff_mfa' => $mfa]);
+    $blocked
+        ? expect(fn () => qaCheck())->toThrow(RuntimeException::class, 'FEATURE_STAFF_MFA')
+        : expect(fn () => qaCheck())->not->toThrow(RuntimeException::class);
+})->with([['production', false, true], ['staging', false, true], ['production', true, false]]);
+
 test('PAYMENT_GATEWAYS: fake bi chan (ke ca viet hoa va kenh kep), momo hoac rong qua', function (array $gateways, bool $blocked) {
     config(['payments.enabled_gateways' => $gateways]);
     $blocked
@@ -170,7 +190,10 @@ test('FEATURE_PAID_CHECKOUT: bat + khong cong bi chan; bat + co cong qua; tat + 
     config(['features.paid_checkout' => true, 'payments.enabled_gateways' => []]);
     expect(fn () => qaCheck())->toThrow(RuntimeException::class, 'FEATURE_PAID_CHECKOUT');
 
-    config(['payments.enabled_gateways' => ['momo']]);
+    // Cụm 3 L1: có cổng nhưng chưa có IPN (ipn_ready=false) vẫn bị chặn; ipn_ready=true thì qua.
+    config(['payments.enabled_gateways' => ['momo'], 'payments.ipn_ready' => false]);
+    expect(fn () => qaCheck())->toThrow(RuntimeException::class, 'ipn_ready');
+    config(['payments.ipn_ready' => true]);
     expect(fn () => qaCheck())->not->toThrow(RuntimeException::class);
 
     config(['features.paid_checkout' => false, 'payments.enabled_gateways' => []]);

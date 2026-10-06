@@ -115,7 +115,7 @@ test('FEATURE_PAID_CHECKOUT bat ma khong co cong thanh toan bi chan', function (
     config(['features.paid_checkout' => true, 'payments.enabled_gateways' => []]);
     expect(fn () => vvGuard())->toThrow(RuntimeException::class, 'FEATURE_PAID_CHECKOUT');
 
-    config(['payments.enabled_gateways' => ['momo']]);
+    config(['payments.enabled_gateways' => ['momo'], 'payments.ipn_ready' => true]);
     expect(fn () => vvGuard())->not->toThrow(RuntimeException::class);
 });
 

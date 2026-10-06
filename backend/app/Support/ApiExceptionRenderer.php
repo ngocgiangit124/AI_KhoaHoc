@@ -110,6 +110,8 @@ class ApiExceptionRenderer
                     return [401, 'SESSION_REPLACED', 'Tài khoản của bạn đã đăng nhập ở thiết bị khác. Nếu không phải bạn, hãy đổi mật khẩu ngay.', null];
                 case StudentSessionService::REASON_PASSWORD_CHANGED:
                     return [401, 'SESSION_REVOKED', 'Mật khẩu đã được thay đổi, vui lòng đăng nhập lại.', null];
+                case StudentSessionService::REASON_CONTACT_CHANGED:
+                    return [401, 'SESSION_REVOKED', 'Email tài khoản đã được thay đổi, vui lòng đăng nhập lại.', null];
                 case StudentSessionService::REASON_LOCKED:
                     return [403, 'ACCOUNT_LOCKED', 'Tài khoản của bạn đã bị khoá.', null];
             }

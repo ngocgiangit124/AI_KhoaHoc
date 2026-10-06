@@ -19,9 +19,11 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 - [ ] `APP_KEY` đặt riêng mỗi môi trường (và riêng cho worker-video); lưu secret manager
 - [ ] `APP_API_HOST`, `APP_ADMIN_API_HOST`, `FRONTEND_URL`, `ADMIN_URL`, `STATIC_URL` đúng tên miền thật (ADR-004 §2.1), tất cả `https`
 - [ ] `SESSION_SECURE_COOKIE=true`, `SESSION_DOMAIN=null` (host-only), `SESSION_DRIVER=redis`
-- [ ] Tên cookie: production `vv_session` / `vv_admin_session`; staging `vvstg_session` / `vvstg_admin_session`
+- [ ] Trigger `audit_logs` (L2, migration `2026_10_16_100000`): `vv_migrate` phải có quyền `TRIGGER` (đã có trong `grants.sql`). MySQL bật binary log (mặc định của 8.4) mà user không có SUPER/SET_USER_ID thì cần `log_bin_trust_function_creators=1` (`SET GLOBAL` bằng tài khoản quản trị trước khi migrate); thiếu thì migrate lỗi 1419. **Production: `log_bin_trust_function_creators` chỉ `SET GLOBAL ... = 1` trong lúc chạy migrate (bằng tài khoản quản trị) rồi trả về `0`; KHÔNG ghi cố định vào `my.cnf`** (bản compose local có ghi cố định là chỉ cho dev). Trigger mang `DEFINER = vv_migrate`: KHÔNG xoá/đổi tên user này, nếu không mọi UPDATE/DELETE trên `audit_logs` (kể cả `audit:purge`) báo lỗi 1449 (fail-closed nhưng purge ngừng); nếu bắt buộc đổi thì tạo lại trigger với DEFINER mới. Kiểm sau migrate: `SHOW TRIGGERS LIKE 'audit_logs'` có `audit_logs_block_update` và `audit_logs_block_delete`; bằng `vv_app`, `UPDATE audit_logs SET action='x' LIMIT 1` phải lỗi. Trigger ghi cứng 24 tháng: đổi `OPS_AUDIT_RETENTION_MONTHS` xuống dưới 24 làm `audit:purge` từ chối chạy
+- [ ] `SUPPORT_EMAIL` (địa chỉ hỗ trợ ghi trong thư báo đổi email tài khoản, H1) đã đặt và có người đọc
+- [ ] Tên cookie có tiền tố `__Host-` (L3, chống cookie tossing từ subdomain cùng site): production `SESSION_COOKIE=__Host-vv_session` / `SESSION_ADMIN_COOKIE=__Host-vv_admin_session`; staging `__Host-vvstg_session` / `__Host-vvstg_admin_session`. Trình duyệt chỉ nhận tiền tố này khi Secure + `Path=/` + không có Domain (đã đúng nhờ `SESSION_SECURE_COOKIE=true`, `SESSION_PATH=/`, `SESSION_DOMAIN=null`). Local/test giữ `vv_session` (http). Sau khi bật: mọi phiên đang mở bị đăng xuất một lần (đổi tên cookie). Kiểm: `curl -sI https://api.<domain>/api/v1/csrf-token -H 'Origin: https://<domain>'` phải có `Set-Cookie: __Host-vv_session=...; secure; path=/` và KHÔNG có `domain=`; tương tự `__Host-vv_admin_session` ở admin-api. Nginx/CDN không được thêm `Domain=` vào Set-Cookie (`proxy_cookie_domain`)
 - [ ] `SANCTUM_STATEFUL_DOMAINS` chỉ chứa host web/admin thật (không `localhost`, không `127.0.0.1`)
-- [ ] `TRUSTED_PROXIES` là danh sách IP cụ thể của load balancer và server Next.js, KHÔNG `*` (sai thì token CDN ràng IP và `Location` của TUS sai scheme)
+- [ ] `TRUSTED_PROXIES` là danh sách IP cụ thể của load balancer và server Next.js, KHÔNG `*`, KHÔNG để rỗng (guard chặn khi rỗng ở tiến trình web; chỉ tiến trình console như `queue:work` của worker-video được để rỗng). Sai/rỗng thì token CDN ràng IP và `Location` của TUS sai scheme, và mọi học sinh dùng chung một IP (proxy) nên trần lần sai theo IP của mã giảm giá/đăng nhập khoá lẫn nhau
 - [ ] `INTERNAL_API_TOKEN` >= 32 ký tự (`openssl rand -hex 32`) (T26-1). `INTERNAL_API_REQUIRED=true` CHỈ bật sau khi frontend đã gửi header (xem mục "FE" ngay dưới); frontend hiện CHƯA gửi `X-Internal-Token`/`X-Client-IP`, bật sớm thì app production không khởi động khi token rỗng, còn để token rỗng thì catalog throttle tính chung một bucket theo IP của Next server (log warning khi boot)
 - [ ] FE (khi làm lại theo design mới) phải gửi `X-Internal-Token` (= `INTERNAL_API_TOKEN`) và `X-Client-IP` (IP khách thật) qua đường NỘI BỘ khi SSR gọi catalog: `http://<IP_NOI_BO_NGINX>:8081/api/v1/...` với `Host: api.<domain>` (server nội bộ trong `infra/production/nginx/conf.d/vitaminvui.conf`); token chỉ ở server Next, không xuống trình duyệt
 - [ ] `DB_*` dùng user `vv_app` (không root), `REDIS_PASSWORD` đã đặt
@@ -47,6 +49,10 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 | `AUTH_OTP_E2E_RELAXED=true` | nới hạn mức OTP (MF1-1) | lớp thứ 2: `config/auth.php` đã ép tắt ngoài local/testing; guard không phủ trường hợp đặt nhầm `APP_ENV=local` (kiểm tay: dòng đầu mục 1.1) |
 | `VIDEOLAB_API_KEY`/`TOKEN_KEY`/`WEBHOOK_SECRET` thiếu hoặc < 32 ký tự | khoá yếu/đoán được | có (T31, khi VideoLab bật) và `VideoLabServiceProvider` |
 | `FEATURE_PAID_CHECKOUT=true` mà `PAYMENT_GATEWAYS` rỗng | checkout lỗi giữa chừng | có (T31) |
+| `FEATURE_PAID_CHECKOUT=true` khi `payments.ipn_ready=false` (chưa có IPN T19/đối soát T20) | HS trả tiền nhưng không được ghi danh | có (cụm 3 L1; T19 đổi hằng `ipn_ready` trong `config/payments.php`) |
+| `FEATURE_STAFF_MFA=false` | bỏ MFA quản trị | có (cụm 1 L1) |
+| `TRUSTED_PROXIES` rỗng ở tiến trình web | mọi người dùng chung IP proxy | có (minor-fixes-3 R2) |
+| (lưu ý R9) Guard miễn kiểm `TRUSTED_PROXIES` cho tiến trình console dựa vào `runningInConsole()` | nếu chuyển web sang Octane/Swoole/RoadRunner (chạy bằng CLI) thì guard bị vô hiệu cho cả web: phải xem lại điều kiện miễn (vd. chỉ miễn `queue:work`, `schedule:*`) trước khi đổi | không (kiểm tay khi đổi runtime) |
 | `MOMO_ENDPOINT` khác `https://payment.momo.vn` | sandbox lọt production | chỉ production (staging được dùng sandbox) |
 | `MOMO_PAY_URL_HOSTS` khác đúng `payment.momo.vn` | chuyển hướng sang host lạ (T17-2) | chỉ production (T31) |
 | `AWS_*` thừa, `FAKE_*`, Telescope/Debugbar cài ở production | bề mặt thừa | không: kiểm tay (`composer install --no-dev`) |
@@ -66,7 +72,7 @@ Guard CHƯA kiểm (kiểm tay, hoặc thêm khi có yêu cầu): `TURNSTILE_SEC
 | `FEATURE_QUIZ_TIME_LIMIT` | true | true | |
 | `FEATURE_ZERO_TOTAL_CHECKOUT` | true | true | Đơn 0đ/khóa miễn phí không phụ thuộc cổng thanh toán |
 | `FEATURE_ENROLLMENT_DECISION_MAIL` | false | true khi SMTP đã chạy | Email báo duyệt/từ chối đăng ký (US-012). Tắt nếu SMTP chưa sẵn sàng |
-| `FEATURE_STAFF_MFA` | true | **true** | Không tắt ở production |
+| `FEATURE_STAFF_MFA` | true | **true** | Không tắt ở production (guard chặn khi false ở mọi môi trường trừ local/testing) |
 | `FEATURE_PARENT_CONSENT_ENFORCED` | false | false | Chờ T29/T34 (pháp lý, V2) |
 | `FEATURE_EXTERNAL_VIDEO_PREVIEW_ONLY` | true | true | Link ngoài chỉ cho bài học thử |
 

@@ -45,7 +45,7 @@ class OperationsServiceProvider extends ServiceProvider
                 '--max' => config('ops.health.queue_backlog_max'),
             ])->everyFiveMinutes()->withoutOverlapping(10)->onOneServer();
             // Cảnh báo (log level error → kênh cảnh báo của hạ tầng) khi worker/scheduler chết hoặc failed_jobs tồn đọng.
-            $schedule->command('ops:health', ['--log' => true])->everyFiveMinutes()->withoutOverlapping(10)->onOneServer();
+            $schedule->command('ops:health --log')->everyFiveMinutes()->withoutOverlapping(10)->onOneServer();
             // Nhịp sống scheduler: KHÔNG onOneServer — mỗi máy chạy scheduler đều tự báo.
             $schedule->call(fn () => Heartbeat::beat('scheduler'))->name('ops-scheduler-heartbeat')->everyMinute();
         });

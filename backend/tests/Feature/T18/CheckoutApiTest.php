@@ -636,3 +636,19 @@ test('QA V2: bật lại cờ sau khi tắt -> đơn pending cũ được dùng 
         ->and(Order::count())->toBe(1)->and(PaymentAttempt::count())->toBe(1)
         ->and(Order::first()->status->value)->toBe('pending');
 });
+
+test('M1 cum 3: PAYMENT_GATEWAYS rong -> don 0d van 201 paid; tong > 0 va co tat -> 503 PAYMENT_DISABLED; co bat -> 422 gateway', function () {
+    config(['payments.enabled_gateways' => [], 'features.paid_checkout' => false]);
+    $coupon = Coupon::factory()->percent(100)->create(['max_uses' => 5, 'valid_until' => now()->addDay()]);
+    vvCoCart($this->student, [vvCoCourse(100000)], $coupon);
+
+    vvCoPost(0)->assertCreated()->assertJsonPath('status', 'paid')->assertJsonPath('payment', null);
+
+    $other = vvActAsStudent(User::factory()->student()->verified()->create());
+    vvCoCart($other, [vvCoCourse(100000)]);
+    vvCoPost(100000)->assertStatus(503)->assertJsonPath('code', 'PAYMENT_DISABLED');
+
+    config(['features.paid_checkout' => true]);
+    vvCoPost(100000)->assertStatus(422)->assertJsonValidationErrors(['gateway']);
+    expect(Order::where('user_id', $other->id)->count())->toBe(0);
+});

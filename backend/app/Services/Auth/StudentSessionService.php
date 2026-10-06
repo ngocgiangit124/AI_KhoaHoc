@@ -29,6 +29,8 @@ class StudentSessionService
 
     public const REASON_LOCKED = 'locked';
 
+    public const REASON_CONTACT_CHANGED = 'contact_changed';
+
     /**
      * `X-Device-Id`/`device_id` chỉ dùng để chọn thông điệp, không cấp quyền: sai định dạng
      * (không phải UUID, > 64 ký tự, không phải chuỗi) thì coi như không có.

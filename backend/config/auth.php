@@ -161,4 +161,13 @@ return [
         'login_max_failures_per_ip' => (int) env('AUTH_STAFF_LOGIN_MAX_FAILURES_IP', 50),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Mật khẩu tài khoản demo (CHỈ local)
+    |--------------------------------------------------------------------------
+    | `UserFactory` (seeder demo) dùng giá trị này ở môi trường local; ở testing dùng `password`. Đạt chính sách staff
+    | (>= 12 ký tự, không nằm trong danh sách phổ biến). Không có hiệu lực ở production.
+    */
+    'demo_password' => env('DEMO_ACCOUNT_PASSWORD', 'Demo-VitaminVui-2026'),
+
 ];

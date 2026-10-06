@@ -46,13 +46,11 @@ test('QA: ten co dau 100 ky tu OK, 101 -> 422, HTML/ky tu dieu khien -> 422, man
 test('QA: audit-logs to la ngay bien (trong ngay), per_page 25/50/100 hop le, ngoai tap -> 422', function () {
     vvT33Login(vvStaffUser('admin'));
 
-    $inside = AuditLog::query()->create(['action' => 'edge.in', 'actor_id' => 1, 'actor_role' => 'admin']);
-    $next = AuditLog::query()->create(['action' => 'edge.next', 'actor_id' => 1, 'actor_role' => 'admin']);
-    $prev = AuditLog::query()->create(['action' => 'edge.prev', 'actor_id' => 1, 'actor_role' => 'admin']);
+    // Trigger L2 chặn UPDATE audit_logs: đặt created_at ngay lúc INSERT.
     $tz = config('app.timezone');
-    AuditLog::query()->whereKey($inside->id)->toBase()->update(['created_at' => '2021-03-10 23:59:59']);
-    AuditLog::query()->whereKey($next->id)->toBase()->update(['created_at' => '2021-03-11 00:00:00']);
-    AuditLog::query()->whereKey($prev->id)->toBase()->update(['created_at' => '2021-03-09 23:59:59']);
+    foreach ([['edge.in', '2021-03-10 23:59:59'], ['edge.next', '2021-03-11 00:00:00'], ['edge.prev', '2021-03-09 23:59:59']] as [$action, $at]) {
+        DB::table('audit_logs')->insert(['action' => $action, 'actor_id' => 1, 'actor_role' => 'admin', 'created_at' => $at]);
+    }
 
     $ids = fn (string $q) => collect(vvAdminGet("/admin/audit-logs?{$q}")->assertOk()->json('data'))->pluck('action')->all();
     expect($ids('from=2021-03-10&to=2021-03-10'))->toBe(['edge.in']);

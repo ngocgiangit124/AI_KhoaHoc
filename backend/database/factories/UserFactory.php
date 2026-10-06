@@ -21,6 +21,23 @@ class UserFactory extends Factory
     protected static ?string $password;
 
     /**
+     * Mật khẩu `password` (quá yếu, nằm trong danh sách chặn) CHỈ dùng ở môi trường testing. Local (seeder demo) dùng
+     * `config('auth.demo_password')`; môi trường khác không được tạo user bằng factory.
+     */
+    public static function defaultPlainPassword(): string
+    {
+        if (app()->environment('testing')) {
+            return 'password';
+        }
+
+        if (app()->environment('local')) {
+            return (string) config('auth.demo_password');
+        }
+
+        throw new \RuntimeException('UserFactory chỉ dùng ở môi trường testing/local.');
+    }
+
+    /**
      * Define the model's default state — học sinh trưởng thành (>= ngưỡng đồng
      * ý phụ huynh), chưa xác thực email/SĐT (giống lúc mới đăng ký thật).
      *
@@ -32,7 +49,7 @@ class UserFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'phone' => '09'.fake()->unique()->numerify('########'),
-            'password' => static::$password ??= Hash::make('password'),
+            'password' => static::$password ??= Hash::make(self::defaultPlainPassword()),
             'role' => UserRole::Student,
             'status' => UserStatus::Active,
             'grade_level' => fake()->numberBetween(6, 12),

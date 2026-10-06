@@ -25,6 +25,12 @@ if v == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
 return v
 LUA;
 
+    private const ADD = <<<'LUA'
+local v = redis.call('INCRBY', KEYS[1], ARGV[1])
+if redis.call('TTL', KEYS[1]) < 0 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end
+return v
+LUA;
+
     private const RELEASE = <<<'LUA'
 local v = tonumber(redis.call('GET', KEYS[1]))
 if v and v > 0 then return redis.call('DECR', KEYS[1]) end
@@ -43,6 +49,26 @@ LUA;
 
         // @phpstan-ignore-next-line (Connection::eval là phương thức Laravel, PHPStan đọc nhầm chữ ký của client Redis thô)
         return (int) self::connection($store)->eval(self::HIT, 1, $store->getPrefix().$key, $decaySeconds);
+    }
+
+    /**
+     * Cộng `$amount` (có thể âm để hoàn) và trả giá trị mới; cửa sổ `$decaySeconds` bắt đầu từ lần cộng đầu tiên.
+     * Store khác Redis (test, 1 tiến trình): dự phòng qua cache của limiter.
+     */
+    public static function add(string $key, int $amount, int $decaySeconds): int
+    {
+        $key = self::clean($key);
+        $store = self::redisStore();
+
+        if ($store === null) {
+            $cache = Cache::store(config('cache.limiter'));
+            $cache->add($key, 0, $decaySeconds);
+
+            return (int) $cache->increment($key, $amount);
+        }
+
+        // @phpstan-ignore-next-line (như hit())
+        return (int) self::connection($store)->eval(self::ADD, 1, $store->getPrefix().$key, $amount, $decaySeconds);
     }
 
     /** Giảm 1, không xuống dưới 0. */

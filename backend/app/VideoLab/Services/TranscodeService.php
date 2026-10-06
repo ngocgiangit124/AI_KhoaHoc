@@ -100,19 +100,25 @@ class TranscodeService
         File::deleteDirectory($final);
         File::ensureDirectoryExists($work, 0775);
 
-        $heights = array_keys((array) config('videolab.ffmpeg.renditions'));
+        $ladder = (array) config('videolab.ffmpeg.renditions');
+        $heights = array_keys($ladder);
         sort($heights);
         $chosen = array_values(array_filter($heights, static fn (int $h) => $h <= $info['height']));
+        $bitrates = $ladder;
 
         if ($chosen === []) {
-            $chosen = [$heights[0]]; // nguồn nhỏ hơn mọi bậc: vẫn có đúng 1 bậc thấp nhất
+            // Cụm 2 L2: nguồn nhỏ hơn mọi bậc thì giữ NGUYÊN chiều cao nguồn (làm chẵn), không phóng to; dùng bitrate
+            // của bậc thấp nhất. `validateProbe` đã đảm bảo chiều cao nguồn >= min_dimension nên đường dẫn `{h}p` đủ 3 chữ số.
+            $native = $info['height'] - ($info['height'] % 2);
+            $chosen = [$native];
+            $bitrates = [$native => $ladder[$heights[0]]];
         }
 
         $out = [];
 
         try {
             foreach ($chosen as $height) {
-                [$videoKbps, $audioKbps] = config('videolab.ffmpeg.renditions')[$height];
+                [$videoKbps, $audioKbps] = $bitrates[$height];
                 $dir = $work.'/'.$height.'p';
                 File::ensureDirectoryExists($dir, 0775);
 

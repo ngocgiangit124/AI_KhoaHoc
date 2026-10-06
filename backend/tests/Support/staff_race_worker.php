@@ -63,8 +63,8 @@ $out = match ($mode) {
     'state' => (function () use ($args) {
         return ['active' => User::query()->whereIn('id', $args)->where('role', UserRole::Admin->value)->where('status', UserStatus::Active->value)->count()];
     })(),
+    // Không xoá audit_logs: trigger L2 chặn DELETE dòng mới và DB test riêng nên dòng audit không ảnh hưởng assert.
     'cleanup' => (function () use ($args) {
-        DB::table('audit_logs')->where('subject_type', User::class)->whereIn('subject_id', $args)->delete();
         DB::table('users')->whereIn('id', $args)->delete();
 
         return ['ok' => true];

@@ -80,7 +80,7 @@ class VideoUploadService
         $guid = null;
 
         try {
-            $video = $provider->createVideo($this->title($lesson));
+            $video = $provider->createVideo($this->title($lesson), $size);
             $guid = $video->guid;
             $target = $provider->uploadTarget($video, (int) config('video.upload_ttl_minutes') * 60);
         } catch (Throwable $e) {

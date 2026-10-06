@@ -37,7 +37,7 @@ R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọ
 
 | Mã | Mức | Nội dung | Trạng thái |
 |---|---|---|---|
-| T04-1 | Medium | `PUT /auth/contact` không yêu cầu mật khẩu hiện tại: kẻ có phiên bị đánh cắp đổi được email/SĐT (và về sau là email nhận mã đặt lại mật khẩu T27). Đề xuất: bắt `current_password` hoặc OTP tới liên hệ cũ khi tài khoản đã xác thực | Hoãn v2 (trước T27) |
+| T04-1 | Medium | `PUT /auth/contact` không yêu cầu mật khẩu hiện tại: kẻ có phiên bị đánh cắp đổi được email/SĐT (và về sau là email nhận mã đặt lại mật khẩu T27). Đề xuất: bắt `current_password` hoặc OTP tới liên hệ cũ khi tài khoản đã xác thực | **Đã sửa 2026-10-06 (Bảo mật cụm 1)** (H1, nâng lên High): `current_password` bắt buộc (cả tài khoản chưa xác thực), bộ đếm lượt sai nguyên tử dùng chung với đổi mật khẩu, thư báo email cũ, huỷ phiên khác, `forgot`/`reset` chỉ qua email đã xác thực. Test `T04/ContactReauthTest`, `T27/ForgotVerifiedChannelTest`. Ý nghĩa đổi SĐT qua `/auth/contact` vẫn hoãn V2 |
 | T04-2 | Low | Mã OTP lưu bcrypt (`Hash::make`) theo data-model: không gian 10^6 nên lộ DB là dò ra mã trong giây lát (chỉ có giá trị trong 10 phút). Đề xuất HMAC-SHA256 với khoá riêng nếu muốn cứng hơn | Hoãn v2 |
 | T04-3 | Low | Đếm verify 5/phút và 20/ngày theo throttle middleware (cache): đếm cả request sai định dạng, khoá hết ngày thay vì "khoá xác thực 24h" có audit như data-model §3.1; trần ngày chưa ghi audit cho verify | Hoãn v2 |
 | T04-4 | Low | `otp-send` throttle đếm cả request 422 (vd. kênh sai) vào cooldown 1/phút | Hoãn v2 |
@@ -51,7 +51,7 @@ R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọ
 | T05-2 | Low | Tombstone nằm ở cache còn session nằm ở store `session`: nếu cache bị `cache:clear`/mất thì thiết bị cũ nhận `UNAUTHENTICATED` thay vì `SESSION_REPLACED` (vẫn bị chặn, chỉ sai thông điệp). Cần Redis DB cache tách riêng đúng ADR-004 §6 | Hoãn v2 (T31) |
 | T05-3 | Low | `device_id` chỉ so sánh để chọn thông điệp (đúng ADR); kẻ biết UUID thiết bị chủ có thể ép thông báo `SESSION_EXPIRED` thay `SESSION_REPLACED` (không cấp quyền) | Chấp nhận |
 | T05-4 | Info | `StudentSessionService::revoke()` đã sẵn cho T27 (đổi/đặt lại mật khẩu) và luồng khoá học sinh; hiện chưa có lệnh/endpoint khoá học sinh nào gọi nó (`staff:lock` chỉ cho staff/GV). Khi có chức năng khoá học sinh (quản trị) phải gọi `revoke($user, 'locked')`; đổi mật khẩu khi đang đăng nhập phải bind lại phiên hiện tại (ADR-003) | Theo dõi ở T27 |
-| T05-5 | Info | Chưa có test song song thật (2 process login cùng lúc) cho `lockForUpdate` của `bind()` | QA bổ sung nếu cần |
+| T05-5 | Info | Chưa có test song song thật (2 process login cùng lúc) cho `lockForUpdate` của `bind()` | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): đã có `T05/BindConcurrencyTest` (20 và 6 tiến trình thật, file store riêng); nay gắn `->group('race')` |
 
 ## T28 (đăng nhập quản trị) — điểm nghi ngờ ghi nhận, không có Critical/High (2026-10-07)
 
@@ -79,7 +79,7 @@ R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọ
 |---|---|---|---|
 | T27-1 | Low | Throttle `otp-verify` cho `reset` theo tài khoản (5/phút, 20/ngày) cho phép kẻ ngoài cố tình khoá việc đặt lại mật khẩu của nạn nhân (DoS nhẹ); chặn dò mã vẫn do giới hạn 5 lần/mã. Chưa có cảnh báo khi chạm ngưỡng | Hoãn v2 |
 | T27-2 | Low | Chưa gửi email cảnh báo "mật khẩu vừa được thay đổi" sau reset/đổi (câu hỏi mở US-015); chưa kiểm N mật khẩu gần nhất (chỉ chặn trùng mật khẩu hiện tại khi đổi) | Hoãn v2 |
-| T27-3 | Low | `forgot` gửi OTP sau response (`defer`) nên timing đồng đều, nhưng queue mail và lỗi gửi bị nuốt (chỉ log): người dùng không biết mã không tới. Cần giám sát tỉ lệ lỗi gửi OTP ở vận hành | Theo dõi |
+| T27-3 | Low | `forgot` gửi OTP sau response (`defer`) nên timing đồng đều, nhưng queue mail và lỗi gửi bị nuốt (chỉ log): người dùng không biết mã không tới. Cần giám sát tỉ lệ lỗi gửi OTP ở vận hành | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): lỗi gửi ghi log mức `error` (`Gửi OTP thất bại.` + `password_reset.send_failed` kèm `code`), che email/số 6 chữ số trong `reason`; response vẫn 202 chung; job mail thất bại đã có log error + `ops:health`. Test `T27/ForgotSendFailureTest` |
 | T27-4 | Low | Reset thành công không xoá bộ đếm đăng nhập sai (`login-fail:*`) của tài khoản | Hoãn v2 |
 | T27-5 | Medium | `reset` (không captcha) còn lộ tài khoản tồn tại qua THÔNG ĐIỆP: tài khoản có mã hiệu lực + mã sai → "Mã OTP không đúng", không tồn tại → "đã hết hạn" (kẻ ngoài gọi `forgot` rồi `reset` mã bậy). Phần TIMING đã sửa (QA BUG-1: `dummyHash()` cache liên request qua `Cache::rememberForever` theo cost, mỗi nhánh đúng 1 lần `Hash::check`, có test đếm băm); còn lại phần thông điệp. Giữ AC3 theo quyết định PO; v2 cân nhắc thông điệp chung hoặc captcha ở reset | **Đã sửa 2026-10-06 ("Sửa lỗi nhỏ 2")**: `PasswordService::reset` đổi mọi lỗi mã (sai, hết lượt 5 lần, thua race) thành 422 `OTP_EXPIRED` + thông điệp "hết hạn", giống tài khoản không tồn tại/bị khoá/không có mã. Contract §1.7 và khối T27 đã cập nhật. Test `T27/QaMinorFixesTest` + `PasswordResetTest`. **Ghi chú FW1:** màn đặt lại mật khẩu không còn phân biệt "mã sai" và "hết hạn"; hiển thị thông điệp hết hạn kèm nút "Gửi lại mã" cho cả hai |
 | T27-6 | Low | R4 review: `StudentSessionService::killSession` (tombstone + destroy) chạy trong transaction của reset/change; commit lỗi sau đó → văng phiên oan. Đề xuất `DB::afterCommit` trong `revoke()` (đụng code T05, chạy lại test T05) | Hoãn v2 |
@@ -89,7 +89,7 @@ R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọ
 
 | Mã | Mức | Nội dung | Trạng thái |
 |---|---|---|---|
-| T10-1 | Low | `CourseDetailResource` trả `description` như đã lưu; api-contract §4 yêu cầu sanitize cả khi trả ra. `HtmlSanitizer` (Purifier) thuộc T08: khi T08 xong, bọc `description` bằng sanitizer ở resource (1 dòng) | Đã đóng: resource lọc bằng HtmlSanitizer khi đọc (review R1) |
+| T10-1 | Low | `CourseDetailResource` trả `description` như đã lưu; api-contract §4 yêu cầu sanitize cả khi trả ra. `HtmlSanitizer` (Purifier) thuộc T08: khi T08 xong, bọc `description` bằng sanitizer ở resource (1 dòng) | Đã đóng: resource lọc bằng HtmlSanitizer khi đọc (review R1); xác nhận lại 026-10-06 (Sửa lỗi nhỏ 3) |
 | T10-2 | Info | `/courses` + `/subjects` + chi tiết chỉ giới hạn `throttle:catalog` 120/phút/IP; không có cache phía Laravel (chỉ HTTP + Data Cache Next). Cân nhắc micro-cache Nginx khi load test FW2 | Theo dõi |
 | T10-3 | Info | `avatar_url`/`bio` giáo viên là dữ liệu công khai của khóa; `bio` là văn bản thuần, FE phải render dạng text (không HTML) | Ghi nhận |
 
@@ -113,7 +113,7 @@ R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọ
 | Mã | Mức | Nội dung | Trạng thái |
 |---|---|---|---|
 | T09-1 | Low | Chưa có throttle riêng cho ghi chương/bài/reorder (chỉ staff/GV đã đăng nhập); reorder cho tối đa 1.000 bài/chương và khoá dòng khóa học trong lúc ghi | Review v2 |
-| T09-2 | Low | Xoá bài/chương chỉ chặn khi đã có `lesson_progress`; T13 phải bỏ qua bài đã xoá mềm khi ghi tiến độ (race xoá bài ↔ heartbeat đầu tiên không khoá được từ phía T09) | Theo dõi ở T13 |
+| T09-2 | Low | Xoá bài/chương chỉ chặn khi đã có `lesson_progress`; T13 phải bỏ qua bài đã xoá mềm khi ghi tiến độ (race xoá bài ↔ heartbeat đầu tiên không khoá được từ phía T09) | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): T13 đã xử lý (`ProgressService::record` khoá S khóa học + bài, bài xoá mềm → 404; test `T13/HeartbeatTest`, `ConcurrentProgressTest` race T09-2) |
 | T09-3 | Info | Link ngoài: whitelist host + ID regex, nhưng chưa kiểm video có thật/ở chế độ riêng tư; không HEAD ra ngoài (tránh SSRF) | Chấp nhận |
 | T09-4 | Info | Review m1: link Vimeo không công khai (có hash) bị từ chối; chỉ hỗ trợ video công khai | Chấp nhận |
 | T09-5 | Low | Review m2: trần payload reorder (đã thêm 500 chương, 1.000 bài/chương); còn thiếu trần tổng số chương/bài mỗi khóa khi tạo (Nit) | Review v2 |
@@ -125,7 +125,7 @@ R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọ
 - Thời gian: so sánh bind Carbon theo `config('app.timezone')` (`now()`), không dùng `NOW()` của MySQL; không truyền Carbon UTC khi app timezone khác UTC (QA T15).
 
 ## T16 (giỏ hàng) — ghi nhận (2026-10-05)
-- T16-1 | Low | Dò mã: `COUPON_EXPIRED`/`COUPON_ALREADY_USED`/`COUPON_NOT_APPLICABLE` cho biết mã tồn tại (chỉ inactive/upcoming/không tồn tại gộp `COUPON_INVALID` theo S18). Bù bằng throttle 10/phút + 60/giờ/IP + trần 30 lần sai/ngày/HS (đếm ở cache, mất khi flush Redis). Cân nhắc đếm thêm theo IP cho lần sai.
+- **Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3)** (T16-1/T16-2: thêm trần 150 lần sai/ngày/IP, `orders.coupon_fails_per_ip_per_day`; không đổi luật US-013; test `T16/CouponIpFailCapTest`). T16-1 | Low | Dò mã: `COUPON_EXPIRED`/`COUPON_ALREADY_USED`/`COUPON_NOT_APPLICABLE` cho biết mã tồn tại (chỉ inactive/upcoming/không tồn tại gộp `COUPON_INVALID` theo S18). Bù bằng throttle 10/phút + 60/giờ/IP + trần 30 lần sai/ngày/HS (đếm ở cache, mất khi flush Redis). Cân nhắc đếm thêm theo IP cho lần sai.
 - T16-2 | Low | Trần "30 lần sai/ngày" tính theo tài khoản; tài khoản mới tạo hàng loạt vẫn dò được theo IP ở mức 60/giờ.
 - T16-3 | Info | `GET /cart` có ghi DB (gỡ mã hết hiệu lực) dưới khoá dòng `carts`; chỉ xảy ra khi giỏ có mã.
 
@@ -161,7 +161,7 @@ R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọ
 | T33-1 | Low | Mật khẩu khởi tạo/đặt lại trả trong response JSON (hiển thị một lần cho admin, `no_store`), không gửi email; đúng CLI. Kênh an toàn hơn (link đặt mật khẩu có hạn) để v2 nếu PO muốn. | v2 |
 | T33-2 | Low | Huỷ phiên dùng "phiên bản huỷ phiên" trong cache (Redis); nếu Redis mất dữ liệu thì phiên cũ của người đã bị huỷ có thể sống lại tới hết idle/12 giờ (người đang khoá vẫn bị chặn bởi `account.active`). | v2 |
 | T33-3 | Low | `audit_logs` chưa có chỉ mục theo `(subject_type, subject_id, created_at)`/`created_at` đã có; lọc kết hợp nhiều điều kiện trên bảng lớn có thể chậm (đã dùng simplePaginate, không đếm tổng). | v2 |
-| T33-4 | Info | Đổi vai trò giáo viên → vai trò khác không gỡ các dòng `course_teacher` của họ (CoursePolicy vẫn cho GV chỉ khóa được gán; vai trò mới có quyền rộng hơn). | — |
+| T33-4 | Info | Đổi vai trò giáo viên → vai trò khác không gỡ các dòng `course_teacher` của họ (CoursePolicy vẫn cho GV chỉ khóa được gán; vai trò mới có quyền rộng hơn). | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): `StaffAccountService::changeRole` gỡ mọi dòng `course_teacher` khi rời vai trò giáo viên, audit `released_course_ids`; test `T33/RoleChangeReleasesCoursesTest` |
 | T33-5 | Info | Khoá/đổi vai trò/đặt lại mật khẩu không vô hiệu hoá mã OTP MFA đang chờ của người bị tác động (mã vẫn cần phiên hợp lệ + mật khẩu mới để dùng). | v2 |
 
 ## Gom sửa lỗi nhỏ 1 — ghi nhận từ review (2026-10-05)
@@ -195,7 +195,7 @@ R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọ
 | # | Mức | Mô tả | Xử lý |
 |---|---|---|---|
 | T12-1 | Low | Đã đóng T11-1/T11-6 phần `internal`: `parseWebhook` kiểm HMAC `X-VideoLab-Signature` (sai → bỏ qua). Chưa throttle webhook theo guid (đã có throttle:webhook theo IP) | Bunny adapter |
-| T12-2 | Low | `max_bytes` của video VideoLab = `video.max_upload_mb` (trần chung), KHÔNG phải kích thước khai ở `video-uploads` (interface `createVideo(title)` không mang `size`). Hạn mức/ngày và kiểm `size` vẫn ở nghiệp vụ. Muốn đúng ADR §3a.5 phải mở rộng interface `VideoProvider` (đụng T11/Fake) | Backlog nếu PO muốn |
+| T12-2 | Low | `max_bytes` của video VideoLab = `video.max_upload_mb` (trần chung), KHÔNG phải kích thước khai ở `video-uploads` (interface `createVideo(title)` không mang `size`). Hạn mức/ngày và kiểm `size` vẫn ở nghiệp vụ. Muốn đúng ADR §3a.5 phải mở rộng interface `VideoProvider` (đụng T11/Fake) | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): `VideoProvider::createVideo(string $title, ?int $maxBytes = null)`; `VideoUploadService` truyền `size` đã khai, `InternalVideoProvider` gửi `max_bytes` (VideoLab vẫn kẹp ≤ `video.max_upload_mb`); test `T11/UploadMaxBytesTest`, `T12/InternalProviderTest` |
 | T12-3 | Low | TUS `PATCH` giữ khoá hàng DB trong lúc ghi chunk (≤ 8 MB) để chặn ghi chồng; đủ cho dev, cần xem lại nếu nhiều upload đồng thời trên 1 hàng (không xảy ra: 1 upload/guid) | Theo dõi |
 | T12-4 | Low | Chưa có Nginx rate-limit riêng cho `/videolab/cdn/` (chỉ `throttle:600,1` ở TUS); production cần `limit_req` + `X-Accel-Redirect` (đã có cấu hình local, bật `VIDEOLAB_ACCEL_REDIRECT`) | Go-live |
 | T12-5 | Low | Allow-list Nginx cho `/videolab/library/*` ở local gồm toàn dải private (Docker publish port nên Nginx thấy IP gateway); production phải thay bằng IP app server cụ thể | Go-live |
@@ -213,7 +213,7 @@ Không có Critical/High. Điểm ghi nhận:
 - **T18-4 (Low):** `link_ttl_minutes`/`min_amount`/`max_amount` của cổng `fake` không có trong config (chỉ MoMo có) nên đơn dùng cổng fake mặc định TTL 30 phút, không kiểm hạn mức; chỉ ảnh hưởng local/testing.
 - **T18-5 (Low):** HS tạo/huỷ đơn pending liên tục (10 lần/phút) để chiếm lượt mã trong `coupon_hold_minutes` (30 phút): đã giới hạn bởi hạn giữ chỗ + throttle `checkout`, chưa có trần số lần/ngày.
 - Nhắc T19/T20: thứ tự khoá `carts → orders → courses → enrollments → coupons` (courses trước coupons); `markPaid` đã có retry deadlock ở mức ngoài.
-| T12-9 | Low | Review R5: xoá video khi worker đang transcode có thể để lại `hls/{guid}`/`.work-{guid}` mồ côi; `videolab:cleanup` chưa quét thư mục không có bản ghi và chưa cứu video kẹt status 1–3 (job mất do flush Redis) | Backlog |
+| T12-9 | Low | Review R5: xoá video khi worker đang transcode có thể để lại `hls/{guid}`/`.work-{guid}` mồ côi; `videolab:cleanup` chưa quét thư mục không có bản ghi và chưa cứu video kẹt status 1–3 (job mất do flush Redis) | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3) (phần mồ côi): đã sửa ở commit 78f8986 (QA T12 BUG-1: kiểm lại bản ghi sau rename, `videolab:cleanup` quét `hls/*`, `source/*` mồ côi). Còn: cứu video kẹt status 1–3 (chưa làm) |
 | T12-10 | Low | Review R2/R7: worker dùng tài khoản DB đầy đủ quyền (đã làm sạch env của ffmpeg); production nên có user MySQL riêng chỉ quyền `vl_videos` + jobs/cache; ffprobe stdout chưa giới hạn kích thước; so `Content-Type` TUS bằng `!==` (không nhận `; charset`) | Go-live |
 | T12-11 | Info | Review R3 đã xử lý: CDN không truy vấn DB mỗi segment (dựa vào sự tồn tại của `hls/{guid}/` sau rename + token), thêm `throttle:1200,1`; ghi chú limit_req/X-Accel vào README | Đã xong |
 
@@ -240,3 +240,63 @@ Không có Critical/High. Điểm ghi nhận:
 | T23-4 | Low | Danh sách tính % theo lô nhưng bài học tiếp tải toàn bộ id bài của các khóa trong trang (tối đa 30 khóa/trang): nếu khóa có hàng nghìn bài cần denormalize `resume_lesson_id` | Hoãn v2 |
 | T23-5 | Low | Review R3: `progress()` đọc `lesson_progress` 2 lần (outline + chi tiết) và `percent` lấy từ `course_percent` còn đếm bài tự cộng (2 nguồn, hiện nhất quán vì xoá chương xoá cả bài); chấp nhận ở MVP | Hoãn v2 |
 | T23-6 | Low | Review R4: `statusList()` lấy `limit*3` dòng rồi loại trùng khóa, HS có >60 dòng bị từ chối mới nhất thuộc ít khóa sẽ thiếu khóa (cực hiếm); sửa bằng subquery `MAX(id)` theo khóa | Hoãn v2 |
+
+
+## Bảo mật cụm 1 (nguồn: `docs/security/review-cum1-auth.md`)
+
+Các mục sau **Đã sửa 2026-10-06 (Bảo mật cụm 1)**:
+
+| Mã | Mức | Nội dung | Cách sửa / test |
+|---|---|---|---|
+| H1 (= T04-1) | High | Chiếm tài khoản qua đổi email không mật khẩu + `forgot` + `reset` | Xem T04-1 ở trên |
+| M1 | Medium | Mật khẩu staff chỉ 8 ký tự, không chặn mật khẩu phổ biến | Staff min 12 + danh sách phổ biến CỤC BỘ (`resources/data/common-passwords.txt`, không gọi HIBP) + không chứa phần trước `@`; học sinh min 8 + chặn danh sách phổ biến. `App\Rules\NotCommonPassword`, `App\Support\StaffPassword`. Test `T28/StaffPasswordPolicyTest` |
+| L2 | Low | `audit_logs` sửa/xoá được ở tầng DB | Trigger MySQL: UPDATE luôn lỗi, DELETE chỉ dòng quá 24 tháng (ghi cứng, +1 ngày đệm). Migration `2026_10_16_100000`. `audit:purge` từ chối `--months` < 24. Test `T30/AuditLogTriggerTest` |
+| L3 | Low | Cookie phiên chưa có tiền tố `__Host-` | `.env.production.example`: `__Host-vv_session`, `__Host-vv_admin_session`. Test `T28/HostPrefixCookieTest` |
+| I3 (I4 trong báo cáo) | Info | `ops:health --log='1'` lỗi mỗi 5 phút | Lịch dùng `command('ops:health --log')`. Test `T30/OpsHealthScheduleTest` |
+
+Chưa làm (giao dev khác): L1 (guard ép `FEATURE_STAFF_MFA`), I1, I2, I5.
+
+## Sửa lỗi nhỏ 3 — review và security cụm 1-3 (2026-10-06)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| MF3-R1 | Medium | Trần mã giảm giá theo IP/HS dùng `RateLimiter::hit/decrement` không nguyên tử | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): `CartService::applyCoupon` dùng `AtomicCounter` (kiểm chỉ-đọc trước, rồi `hit`; vượt do đua thì hoàn lượt đã hit), giữ tên khoá |
+| MF3-R2 | Medium | `TRUSTED_PROXIES` rỗng làm mọi người dùng chung IP proxy | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): `ProductionConfigGuard` chặn khi rỗng ở tiến trình web ngoài local/testing; console (queue worker) được miễn (`app.trusted_proxies_console_exempt`); checklist T31 cập nhật |
+| MF3-R3 | Low | Khoá oan lớp dùng chung NAT khi chạm trần IP | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): log warning `coupon.ip_fail_cap_reached` (IP băm HMAC theo APP_KEY, không có mã); trần chỉnh được bằng env |
+| MF3-R4 | Low | Đua `changeRole` ↔ `CourseTeacherService::sync` | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): `sync` đọc role/status bằng `sharedLock`; thứ tự khoá ghi trong comment (không chu trình) |
+| MF3-R5 | Low | Khóa còn 0 giáo viên sau `changeRole` | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): response `PATCH /admin/staff/{id}/role` trả `released_course_ids`; contract + ghi chú FA10. Việc chặn đổi vai trò giáo viên cuối cùng của khóa đang bán vẫn chờ PO |
+| Cụm 1 L1 | Low | MFA staff có thể tắt ở production | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): guard chặn `FEATURE_STAFF_MFA=false` ngoài local/testing; mẫu env production đã `true` |
+| Cụm 2 L1 | Low | Heartbeat chỉ giới hạn theo bài | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): trần theo người học `max_speed*(window+nhịp heartbeat)+slack` = 165 giây cộng/60 giây (`learning.heartbeat.user_credit_*`, `AtomicCounter::add`), phần vượt cộng 0 |
+| Cụm 2 L2 | Low | Tỉ lệ khung hình bất thường, phóng to nguồn nhỏ | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): `validateProbe` từ chối tỉ lệ > 4:1 hoặc 1:4 và cạnh < 100px; nguồn nhỏ hơn bậc thấp nhất giữ nguyên chiều cao |
+| Cụm 2 L3 | Low | `source` của video lỗi giữ vô thời hạn | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): `videolab:cleanup` xoá `source/{guid}.bin` của status 5 sau `failed_source_retention_hours` (24) |
+| Cụm 2 L4 | Low | `PlainText` cho qua bidi/zero-width | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): chặn U+202A–202E, U+2066–2069, U+200B–200D, U+FEFF, và UTF-8 hỏng |
+| Cụm 2 L5 | Low | (a) VideoLab import `App\Exceptions`; (b) webhook không timestamp/nonce | (a) Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): `VideoInvalidUploadException` riêng + Pest `arch()` `tests/Arch/VideoLabBoundaryTest.php`. (b) Chấp nhận: webhook chỉ kích hoạt pull-verify `getVideo()`, có throttle; thêm timestamp khi tin `Status` |
+| Cụm 3 M1 | Medium | Đơn 0đ hỏng khi `PAYMENT_GATEWAYS` rỗng | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): cổng chỉ kiểm khi tổng > 0 (sau 409 và 503); `CheckoutRequest` bỏ `in` khi danh sách rỗng; contract cập nhật |
+| Cụm 3 L1 | Low | Bật `FEATURE_PAID_CHECKOUT` khi chưa có IPN | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): guard chặn khi `payments.ipn_ready=false`. **T19 phải đổi hằng này thành true (hoặc gỡ điều kiện) khi route IPN + đối soát xong** |
+| Cụm 3 L2 | Low | Giỏ hàng/preview không throttle | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): limiter `cart` 60/phút/người cho 4 route giỏ + `GET /checkout/preview` |
+| Cụm 3 L3 | Low | `ip_hash` SHA-256 thô | Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3): HMAC-SHA256 theo `APP_KEY`, cắt 16 ký tự |
+| Cụm 3 L4, I2 | Low/Info | MoMo: đối chiếu amount/partnerCode/chữ ký phản hồi tạo giao dịch; `CheckoutRequest` so cổng phân biệt hoa thường | Làm cùng T17-1 ở V2 |
+| Cụm 3 I4 | Info | Checklist bắt buộc cho T19/T20 (so `amount` IPN, `/pay` kiểm cờ, `where user_id`, hạn lưu `create_response`, gỡ guard `ipn_ready`) | Làm ở V2 (xem `review-cum3-payment.md` I4) |
+
+## Cụm 4 (cấu hình tổng thể) — từ `docs/security/review-cum4-config.md` (2026-10-06), chờ đợt sửa "Bảo mật cụm 4"
+
+| # | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| C4-M1 | Medium | worker-video có toàn quyền Redis của app (đẩy payload vào `queues:default`, sửa phiên DB 1 khi `SESSION_ENCRYPT=false`). Hướng chọn: Redis ACL user riêng cho worker (chỉ key queue `video`), không đổi ADR-002; bật `SESSION_ENCRYPT=true` | Đợt sửa cụm 4 |
+| C4-M2 | Medium | Env mẫu có chú thích cuối dòng; `docker --env-file`/systemd giữ nguyên → `APP_ENV`/`INTERNAL_API_TOKEN` sai mà guard vẫn qua. Đưa chú thích lên dòng riêng, guard ép `APP_ENV` hợp lệ + chặn giá trị chứa ` #`, token SSR phải hex | Đợt sửa cụm 4 (trước staging nếu nạp env kiểu này) |
+| C4-L1 | Low | `LOG_LEVEL=warning` làm mất log `playback`/`payments` mức info | Đợt sửa cụm 4 |
+| C4-L2 | Low | `/up` công khai (nạp script jsdelivr), chưa giới hạn IP; API chưa có CSP/Permissions-Policy | Đợt sửa cụm 4 |
+| C4-L3 | Low | Image PHP chưa dùng `php.ini-production` (`display_errors`) | Đợt sửa cụm 4 / T35 image |
+| C4-L4 | Low | `APP_DEBUG=true` thì route ngoài `api/*` vẫn render trang debug | Đợt sửa cụm 4 |
+| C4-L5 | Low | Guard kiểm stateful domains kiểu blocklist (`*`, `::1` lọt) | Đợt sửa cụm 4 |
+| C4-L6 | Low | `EnrollmentDecisionMail` chưa `ShouldBeEncrypted` (PII trong `failed_jobs`) | Đợt sửa cụm 4 |
+
+Review vòng 2 (Sửa lỗi nhỏ 3): R6 trần heartbeat theo người học đổi thành `max_speed * (window + first_interval_seconds) + slack` = 165 giây/60 giây (tự tính từ config; R11 nâng từ 125 vì cửa sổ cố định neo ở lần cộng đầu), R7 `PlainText` cho ZWJ giữa hai emoji, R8 `AtomicCounter::add` đặt TTL khi `TTL < 0`, R9 ghi checklist T31, R10 thêm test hai tab và heartbeat dồn: Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3).
+
+### Phát hiện còn lại từ review đợt sửa cụm 1 (`docs/review/security-cum1-fix.md`)
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| R1 | Medium | `ChangeContactForm.tsx` (FE web) chưa gửi `current_password` nên luôn 422 khi backend lên. **Backend bản này BẮT BUỘC phát hành cùng FE có ô mật khẩu hiện tại** (không phát hành backend một mình). Đã ghi ở FW1 trong `tasks.md` | Giao `nextjs-dev`, chặn phát hành |
+| R3 | Low | Đổi SĐT không gửi thư báo và không huỷ phiên khác. Hiện SĐT không phải kênh khôi phục nên không chiếm được tài khoản; khi bật kênh `sms` (hoặc reset qua SMS) phải thêm thư báo email cho đổi SĐT và huỷ phiên khác | Hoãn V2 (cùng ý nghĩa đổi SĐT) |
+| R4 | Low | Khoá lượt sai `current-password-fail:u:{id}` (10/giờ) dùng chung: kẻ cầm phiên đánh cắp có thể đốt hạn mức để chủ tài khoản không đổi được mật khẩu/liên hệ 1 giờ (vẫn dùng được `forgot`, không ảnh hưởng đăng nhập). Chấp nhận đánh đổi | Ghi nhận, không sửa |

@@ -23,7 +23,7 @@ test('AC1/biên: họ tên tiếng Việt có dấu, 150 ký tự được, 151 
 });
 
 test('BR3/biên: mật khẩu 8 ký tự được, 7 bị từ chối, 128 được, 129 bị từ chối', function () {
-    vvRegister(['password' => 'abcd1234', 'password_confirmation' => 'abcd1234'])->assertCreated();
+    vvRegister(['password' => 'xk9m2qvl', 'password_confirmation' => 'xk9m2qvl'])->assertCreated();
     vvResetClient();
 
     vvRegister(['email' => 'b@example.com', 'phone' => '0922222222', 'password' => 'abcd123', 'password_confirmation' => 'abcd123'])

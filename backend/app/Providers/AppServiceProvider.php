@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Rules\NotCommonPassword;
 use App\Services\Auth\Captcha\CaptchaVerifier;
 use App\Services\Auth\Captcha\FakeCaptchaVerifier;
 use App\Services\Auth\Captcha\TurnstileVerifier;
@@ -108,7 +109,9 @@ class AppServiceProvider extends ServiceProvider
 
     private function configurePasswords(): void
     {
-        Password::defaults(fn () => Password::min(8));
+        // Học sinh: tối thiểu 8 ký tự + chặn mật khẩu phổ biến (danh sách cục bộ, không gọi dịch vụ ngoài nước).
+        // Staff dùng `App\Support\StaffPassword` (12 ký tự).
+        Password::defaults(fn () => Password::min(8)->rules([new NotCommonPassword]));
     }
 
     /**
@@ -191,6 +194,8 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
+        // Cụm 3 L2: giỏ hàng + preview checkout (mỗi lần mở transaction, khoá `carts`, đếm `orders`): 60/phút/người.
+        RateLimiter::for('cart', fn (Request $request) => Limit::perMinute(60)->by('cart:'.$this->identity($request)));
         RateLimiter::for('checkout', fn (Request $request) => Limit::perMinute(10)->by($this->identity($request)));
         RateLimiter::for('pay', fn (Request $request) => Limit::perMinute(10)->by($this->identity($request)));
 

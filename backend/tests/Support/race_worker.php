@@ -36,12 +36,12 @@ $out = match ($mode) {
 
         return ['user' => $user->id, 'course' => $course->id, 'creator' => $course->created_by];
     })(),
+    // Không xoá audit_logs: trigger L2 chặn DELETE dòng mới và DB test riêng nên dòng audit không ảnh hưởng assert.
     'cleanup' => (function () use ($args) {
         DB::table('enrollments')->where('user_id', $args[0])->delete();
         DB::table('course_subject')->where('course_id', $args[1])->delete();
         DB::table('courses')->where('id', $args[1])->delete();
         DB::table('subjects')->where('name', 'like', 'RACE-%')->delete();
-        DB::table('audit_logs')->where('action', 'like', 'subject.%')->where('changes', 'like', '%RACE-%')->delete();
         DB::table('users')->whereIn('id', [$args[0], $args[2]])->delete();
 
         return ['ok' => true];

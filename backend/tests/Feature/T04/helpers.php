@@ -72,7 +72,15 @@ function vvOtpVerify(string $code)
 
 function vvContactUpdate(array $payload)
 {
-    return test()->putJson(vvApiUrl('/auth/contact'), $payload, vvWebHeaders());
+    // H1: PUT /auth/contact bắt buộc `current_password` (mật khẩu mặc định của factory); test nào cần thiếu/sai thì truyền đè.
+    $response = test()->putJson(vvApiUrl('/auth/contact'), array_merge(['current_password' => 'password'], $payload), vvWebHeaders());
+
+    // Đổi email xoay phiên (huỷ phiên khác, bind lại): trình duyệt thật nhận cookie mới, nên test cũng phải theo.
+    if ($response->getCookie((string) config('session.cookie')) !== null) {
+        vvFollowSession($response);
+    }
+
+    return $response;
 }
 
 /**

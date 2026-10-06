@@ -144,4 +144,7 @@ return [
     // KHÔNG BAO GIỜ "*". Rỗng ở local (không có proxy phía trước Nginx).
     'trusted_proxies' => env('TRUSTED_PROXIES', ''),
 
+    // ProductionConfigGuard: tiến trình console (queue worker, scheduler) được để TRUSTED_PROXIES rỗng. Chỉ test đổi giá trị này.
+    'trusted_proxies_console_exempt' => true,
+
 ];

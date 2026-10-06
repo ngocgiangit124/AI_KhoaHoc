@@ -117,11 +117,24 @@ class StaffAccountService
      */
     public function changeRole(User $target, UserRole $role, ?User $actor): User
     {
+        return $this->changeRoleDetailed($target, $role, $actor)['user'];
+    }
+
+    /**
+     * Như `changeRole` nhưng trả thêm id các khóa bị gỡ phân công (UI cảnh báo "N khóa không còn giáo viên", R5).
+     * Thứ tự khoá: `users` (hàng admin rồi hàng đích, trong lockTarget) → `course_teacher` (xoá). `sync()` của
+     * CourseTeacherService khoá `courses` → `users` (sharedLock, chỉ đọc role) → `course_teacher`; hai bên chỉ
+     * chung chiều `users` → `course_teacher` nên không có chu trình khoá.
+     *
+     * @return array{user: User, released_course_ids: list<int>}
+     */
+    public function changeRoleDetailed(User $target, UserRole $role, ?User $actor): array
+    {
         if ($role === UserRole::Student) {
             throw ValidationException::withMessages(['role' => 'Vai trò không hợp lệ.']);
         }
 
-        $user = DB::transaction(function () use ($target, $role, $actor): User {
+        [$user, $released] = DB::transaction(function () use ($target, $role, $actor): array {
             $locked = $this->lockTarget($target, $actor, 'đổi vai trò');
 
             if ($locked->role === $role) {
@@ -134,16 +147,27 @@ class StaffAccountService
 
             $from = $locked->role;
             $locked->forceFill(['role' => $role])->save();
-            $this->audit->log('staff.role_change', $locked, [
-                'role' => ['from' => $from->value, 'to' => $role->value],
-            ]);
 
-            return $locked;
+            // T33-4: hết là giáo viên thì gỡ mọi phân công khóa học (không để quyền "khóa được gán" và tên giáo viên
+            // công khai tồn tại theo vai trò cũ). Gán lại thủ công nếu sau này đổi về giáo viên.
+            $released = [];
+            if ($from === UserRole::Teacher) {
+                $released = DB::table('course_teacher')->where('user_id', $locked->getKey())->orderBy('course_id')->pluck('course_id')
+                    ->map(fn ($id) => (int) $id)->all();
+                DB::table('course_teacher')->where('user_id', $locked->getKey())->delete();
+            }
+
+            $this->audit->log('staff.role_change', $locked, array_filter([
+                'role' => ['from' => $from->value, 'to' => $role->value],
+                'released_course_ids' => $released,
+            ], static fn ($v) => $v !== []));
+
+            return [$locked, $released];
         });
 
         StaffSessionRevoker::revokeAll($user->getKey());
 
-        return $user;
+        return ['user' => $user, 'released_course_ids' => $released];
     }
 
     /**

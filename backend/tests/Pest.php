@@ -3,6 +3,11 @@
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+// LƯU Ý `audit_logs`: bảng bất biến ở tầng DB (trigger L2, migration 2026_10_16_100000), test KHÔNG xoá/sửa được dòng đã
+// commit (race worker, test commit thật). Dòng audit tích luỹ trong DB test; muốn sạch thì chạy `migrate:fresh` trên DB test.
+// Test phải đếm theo mức nền (đếm trước rồi so phần tăng) hoặc lọc theo `subject_id`, không đếm tuyệt đối. Đặt `created_at`
+// cũ bằng INSERT, không UPDATE.
+
 /*
 |--------------------------------------------------------------------------
 | Test Case

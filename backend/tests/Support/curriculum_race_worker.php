@@ -48,8 +48,8 @@ $out = match ($mode) {
 
         return ['course' => $course->id, 'c1' => $c1->id, 'c2' => $c2->id, 'l1' => $l1->id, 'l2' => $l2->id, 'creator' => $course->created_by];
     })(),
+    // Không xoá audit_logs: trigger L2 chặn DELETE dòng mới và DB test riêng nên dòng audit không ảnh hưởng assert.
     'cleanup' => (function () use ($args) {
-        DB::table('audit_logs')->where('subject_type', (new Course)->getMorphClass())->where('subject_id', $args[0])->delete();
         DB::table('lessons')->where('course_id', $args[0])->delete();
         DB::table('chapters')->where('course_id', $args[0])->delete();
         DB::table('courses')->where('id', $args[0])->delete();

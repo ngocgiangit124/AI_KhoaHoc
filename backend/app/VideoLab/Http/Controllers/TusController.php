@@ -27,6 +27,8 @@ class TusController extends Controller
         $video = $this->tus->create($request);
 
         return response('', 201, $this->headers($video) + [
+            // Thân rỗng: không để Symfony mặc định `text/html`.
+            'Content-Type' => 'text/plain; charset=UTF-8',
             'Location' => $request->getSchemeAndHttpHost().'/videolab/tus/'.$video->guid,
         ]);
     }

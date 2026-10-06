@@ -20,9 +20,12 @@ class CheckoutRequest extends FormRequest
      */
     public function rules(): array
     {
+        $enabled = (array) config('payments.enabled_gateways');
+
         return [
             'expected_total' => ['required', 'integer', 'min:0', 'max:2000000000'],
-            'gateway' => ['sometimes', 'string', Rule::in((array) config('payments.enabled_gateways'))],
+            // Danh sách rỗng (V1, chưa bật cổng): không ép `in` ở đây — đơn 0đ không cần cổng; CheckoutService kiểm cổng khi tổng > 0.
+            'gateway' => ['sometimes', 'string', ...($enabled === [] ? [] : [Rule::in($enabled)])],
         ];
     }
 

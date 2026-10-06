@@ -48,6 +48,8 @@ return [
     'storage' => [
         'incoming_retention_hours' => 24,
         'source_retention_days' => 7,
+        // Video lỗi (status 5): xoá file gốc sau khoảng này (giờ), kể cả khi keep_source bật.
+        'failed_source_retention_hours' => 24,
         'keep_source' => filter_var(env('VIDEOLAB_KEEP_SOURCE', false), FILTER_VALIDATE_BOOL),
     ],
 
@@ -61,6 +63,9 @@ return [
         'max_duration_minutes' => (int) env('VIDEOLAB_MAX_DURATION_MINUTES', 180),
         'max_width' => 3840,
         'max_height' => 2160,
+        // Từ chối nguồn nhỏ hơn mức này (cạnh ngắn) và tỉ lệ khung hình dài/ngắn vượt mức (0 = tắt).
+        'min_dimension' => 100,
+        'max_aspect_ratio' => 4,
         'segment_seconds' => 6,
         // height => [video_bitrate_k, audio_bitrate_k]
         'renditions' => [360 => [800, 96], 720 => [2800, 128]],

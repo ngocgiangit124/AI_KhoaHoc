@@ -140,7 +140,7 @@ test('S21 grep log sau luong dang ky/gui/verify khong co ma OTP 6 so, khong co S
 
     // Đổi liên hệ.
     vvActAsStudent(User::query()->where('email', 'log@example.com')->firstOrFail());
-    vvContactUpdate(['email' => 'log2@example.com'])->assertOk();
+    vvContactUpdate(['email' => 'log2@example.com', 'current_password' => 'matkhau-123'])->assertOk();
 
     $log = (string) file_get_contents($logFile);
     @unlink($logFile);

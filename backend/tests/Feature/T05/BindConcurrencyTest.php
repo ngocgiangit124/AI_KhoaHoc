@@ -26,7 +26,6 @@ function vvBindWipe(): void
         DB::rollBack();
     }
 
-    DB::table('audit_logs')->delete();
     DB::table('consents')->delete();
     DB::table('users')->delete();
 }
@@ -137,7 +136,7 @@ test('T05-5 20 tien trinh dang nhap song song -> dung 1 phien hien hanh, 19 phie
     // device_id của người thắng phải khớp đúng id phiên hiện hành (không lẫn cặp session/device).
     $winner = collect($logins)->firstWhere('session', $current);
     expect($user->fresh()->current_device_id)->toBe($winner['device']);
-});
+})->group('race');
 
 test('T05-5 double submit song song cung 1 device_id -> 1 phien hien hanh, khong vong lap', function () {
     $user = vvCommittedStudent();
@@ -150,4 +149,4 @@ test('T05-5 double submit song song cung 1 device_id -> 1 phien hien hanh, khong
     $alive = array_values(array_filter($ids, fn (string $id) => is_file($this->bindDir.'/sessions/'.$id)));
     expect($alive)->toHaveCount(1)->and($alive[0])->toBe($user->fresh()->current_session_id)
         ->and($user->fresh()->current_device_id)->toBe($device);
-});
+})->group('race');

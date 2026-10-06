@@ -70,9 +70,8 @@ $out = match ($mode) {
             'count' => (int) DB::table('courses')->where('id', $args[1])->value('enrollments_count'),
         ];
     })(),
+    // Không xoá audit_logs: trigger L2 chặn DELETE dòng mới và DB test riêng nên dòng audit không ảnh hưởng assert.
     'cleanup' => (function () use ($args) {
-        DB::table('audit_logs')->where('subject_type', (new Enrollment)->getMorphClass())
-            ->whereIn('subject_id', DB::table('enrollments')->where('user_id', $args[0])->select('id'))->delete();
         DB::table('enrollments')->where('user_id', $args[0])->delete();
         DB::table('orders')->where('user_id', $args[0])->delete();
         DB::table('courses')->where('id', $args[1])->delete();
