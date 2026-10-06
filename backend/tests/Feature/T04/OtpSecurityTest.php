@@ -86,7 +86,7 @@ test('S9 production: kenh sms duoc bat trong cau hinh -> app khong boot (guard)'
     app()->detectEnvironment(fn () => 'production');
     config([
         'app.debug' => false,
-        'session.secure' => true,
+        'session.secure' => true, 'session.encrypt' => true,
         'captcha.driver' => 'turnstile',
         'sanctum.stateful' => ['vitaminvui.vn'],
         'app.trusted_proxies' => '10.0.0.1',

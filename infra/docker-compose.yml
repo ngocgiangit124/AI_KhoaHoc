@@ -146,6 +146,7 @@ services:
       APP_NAME: VitaminVui
       APP_ENV: local
       APP_DEBUG: "false"
+      APP_TIMEZONE: Asia/Ho_Chi_Minh
       # R1 — PHẢI khớp prefix Redis của app (config/database.php: slug(APP_NAME).'-database-', .env APP_NAME=VitaminVui);
       # lệch prefix thì worker không thấy queue `video` và webhook đẩy vào hàng đợi không ai đọc.
       REDIS_PREFIX: ${VV_REDIS_PREFIX:-vitaminvui-database-}

@@ -19,20 +19,60 @@ class ProductionConfigGuard
 {
     private const VIDEOLAB_KEY_MIN_LENGTH = 32;
 
+    /** C4-M2: tên môi trường hợp lệ (so khớp chính xác, chữ thường, không khoảng trắng/chú thích). */
+    private const VALID_ENVIRONMENTS = ['production', 'staging', 'local', 'testing'];
+
+    /**
+     * C4-M2: biến môi trường quan trọng không được dính chú thích cuối dòng (`KEY=value   # ghi chú`): docker `--env-file`
+     * và systemd `EnvironmentFile` giữ nguyên phần ghi chú trong giá trị, còn phpdotenv thì cắt đi nên lệch nhau.
+     *
+     * @var list<string>
+     */
+    private const ENV_KEYS_NO_INLINE_COMMENT = [
+        'APP_ENV', 'APP_DEBUG', 'APP_URL', 'APP_KEY', 'APP_API_HOST', 'APP_ADMIN_API_HOST', 'FRONTEND_URL', 'ADMIN_URL',
+        'STATIC_URL', 'SANCTUM_STATEFUL_DOMAINS', 'TRUSTED_PROXIES', 'SESSION_DRIVER', 'SESSION_ENCRYPT', 'SESSION_DOMAIN',
+        'SESSION_SECURE_COOKIE', 'SESSION_COOKIE', 'SESSION_ADMIN_COOKIE', 'INTERNAL_API_TOKEN', 'INTERNAL_API_REQUIRED',
+        'CAPTCHA_DRIVER', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET', 'AUTH_OTP_CHANNELS', 'AUTH_OTP_E2E_RELAXED',
+        'PAYMENT_GATEWAYS', 'FEATURE_PAID_CHECKOUT', 'FEATURE_STAFF_MFA', 'MOMO_ENDPOINT', 'MOMO_PAY_URL_HOSTS',
+        'MOMO_ACCESS_KEY', 'MOMO_SECRET_KEY', 'MOMO_PARTNER_CODE', 'VIDEO_PROVIDER', 'VIDEO_ENABLED_PROVIDERS',
+        'VIDEOLAB_ENABLED', 'VIDEOLAB_API_KEY', 'VIDEOLAB_TOKEN_KEY', 'VIDEOLAB_WEBHOOK_SECRET', 'VIDEOLAB_PUBLIC_URL',
+        'VIDEOLAB_ACCEL_REDIRECT', 'DB_CONNECTION', 'DB_HOST', 'DB_USERNAME', 'DB_PASSWORD', 'REDIS_HOST',
+        'REDIS_USERNAME', 'REDIS_PASSWORD', 'REDIS_PREFIX', 'CACHE_PREFIX', 'QUEUE_CONNECTION', 'CACHE_STORE',
+    ];
+
     public function check(): void
     {
-        // T31 (R2 review): áp cho MỌI môi trường trừ local/testing (giống VideoLabServiceProvider), nên `Production`,
-        // `prod`, `stage`, `uat`... đều bị kiểm. Allowlist endpoint/pay_url MoMo chỉ ép ở đúng `production`
-        // (staging dùng sandbox MoMo).
-        if (app()->environment('local', 'testing')) {
+        // C4-L4/R3: ép tắt debug NGAY ĐẦU (trước mọi kiểm, kể cả APP_ENV hợp lệ) để exception handler không render trang
+        // debug (stack trace, tên class, kết nối DB) cho route ngoài `api/*`, ngay cả khi APP_ENV viết sai (`prod`).
+        $environment = app()->environment();
+        $isDev = in_array($environment, ['local', 'testing'], true);
+        $debugWasOn = (bool) config('app.debug');
+
+        if (! $isDev) {
+            config(['app.debug' => false]);
+        }
+
+        // C4-M2: APP_ENV phải đúng một trong 4 giá trị hợp lệ. `prod`, `Production`, `stage`, `uat`, hay giá trị dính chú
+        // thích (`production   # ...`) đều bị chặn thay vì lặng lẽ tắt các kiểm chỉ dành cho `production`.
+        throw_unless(
+            in_array($environment, self::VALID_ENVIRONMENTS, true),
+            RuntimeException::class,
+            'APP_ENV phải đúng "production" hoặc "staging" (chữ thường, không khoảng trắng/chú thích); local/testing chỉ dùng cho máy dev.'
+        );
+
+        // T31 (R2 review): áp cho MỌI môi trường trừ local/testing (giống VideoLabServiceProvider). Allowlist endpoint/
+        // pay_url MoMo chỉ ép ở đúng `production` (staging dùng sandbox MoMo).
+        if ($isDev) {
             return;
         }
 
         throw_if(
-            (bool) config('app.debug'),
+            $debugWasOn,
             RuntimeException::class,
             'APP_DEBUG phải là false ở production/staging (M4).'
         );
+
+        $this->guardEnvWithoutInlineComments();
 
         throw_if(
             ! config('session.secure'),
@@ -40,8 +80,17 @@ class ProductionConfigGuard
             'SESSION_SECURE_COOKIE phải bật (true) ở production/staging (M4).'
         );
 
+        // C4-M1: payload phiên trong Redis phải mã hoá (giảm tác động khi Redis bị đọc; phiên không giả mạo được chỉ bằng
+        // quyền ghi Redis).
+        throw_unless(
+            config('session.encrypt'),
+            RuntimeException::class,
+            'SESSION_ENCRYPT phải bật (true) ở production/staging (C4-M1).'
+        );
+
         $this->guardCaptcha();
         $this->guardOtpChannels();
+        $this->guardUrlsHttps();
         $this->guardStatefulDomains();
         $this->guardTrustedProxies();
         $this->guardPayments();
@@ -51,6 +100,27 @@ class ProductionConfigGuard
         $this->guardVideoLabSecrets();
         $this->guardPaidCheckout();
         $this->guardStaffMfa();
+    }
+
+    /**
+     * C4-M2 — đọc GIÁ TRỊ THÔ của biến môi trường (không qua phpdotenv): nếu còn chú thích cuối dòng hoặc khoảng trắng
+     * thừa thì nơi nạp env (docker/systemd/Supervisor) đã đưa chú thích vào giá trị.
+     */
+    private function guardEnvWithoutInlineComments(): void
+    {
+        foreach (self::ENV_KEYS_NO_INLINE_COMMENT as $key) {
+            $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
+
+            if (! is_string($value) || $value === '') {
+                continue;
+            }
+
+            throw_if(
+                preg_match('/\s#/', $value) === 1 || trim($value) !== $value,
+                RuntimeException::class,
+                "Biến môi trường {$key} chứa chú thích cuối dòng (' #') hoặc khoảng trắng thừa: đưa chú thích lên dòng riêng (C4-M2)."
+            );
+        }
     }
 
     /** Cụm 1 L1 — MFA staff không được tắt ở production/staging (cờ chỉ để e2e local). */
@@ -132,6 +202,13 @@ class ProductionConfigGuard
             RuntimeException::class,
             'INTERNAL_API_TOKEN phải dài tối thiểu '.config('internal.ssr_token_min_length').' ký tự (sinh bằng openssl rand -hex 32).'
         );
+
+        // C4-M2: chỉ chấp nhận hex (đầu ra của `openssl rand -hex 32`): loại chú thích/placeholder lọt vào giá trị.
+        throw_if(
+            is_string($token) && $token !== '' && ! ctype_xdigit($token),
+            RuntimeException::class,
+            'INTERNAL_API_TOKEN phải là chuỗi hex (sinh bằng openssl rand -hex 32), không chứa khoảng trắng/chú thích.'
+        );
     }
 
     private function guardCaptcha(): void
@@ -162,17 +239,81 @@ class ProductionConfigGuard
         );
     }
 
-    private function guardStatefulDomains(): void
+    /** C4-L5 — APP_URL/FRONTEND_URL/ADMIN_URL đã đặt tên miền thật thì phải dùng https (URL local mặc định bị bỏ qua). */
+    private function guardUrlsHttps(): void
     {
-        foreach ((array) config('sanctum.stateful') as $domain) {
-            $normalized = mb_strtolower((string) $domain);
+        foreach (['APP_URL' => 'app.url', 'FRONTEND_URL' => 'app.frontend_url', 'ADMIN_URL' => 'app.admin_url'] as $name => $key) {
+            $url = (string) config($key);
 
             throw_if(
-                str_contains($normalized, 'localhost') || str_contains($normalized, '127.0.0.1'),
+                $this->hostWithPort($url) !== null && ! str_starts_with(mb_strtolower($url), 'https://'),
                 RuntimeException::class,
-                "SANCTUM_STATEFUL_DOMAINS chứa '{$domain}' — không được có localhost/127.0.0.1 ở production (M4)."
+                "{$name} phải dùng https ở production/staging (C4-L5)."
             );
         }
+    }
+
+    /**
+     * C4-L5 — ALLOWLIST: mỗi mục phải là tên miền hợp lệ (không `*`, không `localhost`/IP/`::1`/`0.0.0.0`), và khi
+     * FRONTEND_URL/ADMIN_URL đã đặt tên miền thật thì tập stateful phải KHỚP CHÍNH XÁC host của hai URL đó (loại
+     * `vitaminvui.vn.evil.com`, tên miền staging lạc sang production...).
+     */
+    private function guardStatefulDomains(): void
+    {
+        $domains = [];
+
+        foreach ((array) config('sanctum.stateful') as $domain) {
+            $normalized = mb_strtolower(trim((string) $domain));
+
+            $isHostname = preg_match('/^(?=.{1,253}(:\d{1,5})?$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?(:\d{1,5})?$/', $normalized) === 1;
+            $isLocal = preg_match('/(^|\.)(localhost|local|test|invalid|example)(:\d+)?$/', $normalized) === 1;
+
+            throw_if(
+                ! $isHostname || $isLocal,
+                RuntimeException::class,
+                "SANCTUM_STATEFUL_DOMAINS chứa '{$domain}' — chỉ nhận tên miền thật (không *, localhost, IP, ::1) ở production/staging (M4, C4-L5)."
+            );
+
+            $domains[] = $normalized;
+        }
+
+        $expected = array_map($this->hostWithPort(...), [(string) config('app.frontend_url'), (string) config('app.admin_url')]);
+
+        // Cả hai URL còn là giá trị local mặc định (chưa cấu hình): không có gì để so khớp ở đây (checklist ép
+        // FRONTEND_URL/ADMIN_URL là https). Chỉ một trong hai là local thì cấu hình sai rõ ràng: chặn.
+        if ($expected === [null, null]) {
+            return;
+        }
+
+        throw_if(
+            in_array(null, $expected, true),
+            RuntimeException::class,
+            'FRONTEND_URL và ADMIN_URL phải cùng là tên miền thật ở production/staging (C4-L5).'
+        );
+
+        $expected = array_values(array_unique($expected));
+        sort($expected);
+        $domains = array_values(array_unique($domains));
+        sort($domains);
+
+        throw_if(
+            $domains !== $expected,
+            RuntimeException::class,
+            'SANCTUM_STATEFUL_DOMAINS phải đúng host của FRONTEND_URL và ADMIN_URL ('.implode(',', $expected).'), không thừa không thiếu (C4-L5).'
+        );
+    }
+
+    /** Host (kèm cổng nếu có) của URL; null nếu là loopback/local (chưa cấu hình thật) hoặc không đọc được. */
+    private function hostWithPort(string $url): ?string
+    {
+        $parts = parse_url($url);
+        $host = mb_strtolower((string) ($parts['host'] ?? ''));
+
+        if ($host === '' || preg_match('/(^|\.)(localhost|local|test)$/', $host) === 1 || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return null;
+        }
+
+        return $host.(isset($parts['port']) ? ':'.$parts['port'] : '');
     }
 
     private function guardTrustedProxies(): void

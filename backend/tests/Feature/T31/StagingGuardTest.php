@@ -10,7 +10,7 @@ beforeEach(function () {
 
     config([
         'app.debug' => false,
-        'session.secure' => true,
+        'session.secure' => true, 'session.encrypt' => true,
         'captcha.driver' => 'turnstile',
         'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'],
         'app.trusted_proxies' => '10.0.0.1',
@@ -119,19 +119,18 @@ test('FEATURE_PAID_CHECKOUT bat ma khong co cong thanh toan bi chan', function (
     expect(fn () => vvGuard())->not->toThrow(RuntimeException::class);
 });
 
-test('APP_ENV viet khac chuan (Production, prod, stage, uat) van bi guard kiem', function (string $env) {
+test('APP_ENV viet khac chuan (Production, prod, stage, uat) bi chan ngay (C4-M2), khong con lot qua guard', function (string $env) {
     app()->detectEnvironment(fn () => $env);
-    config(['captcha.driver' => 'fake']);
 
-    expect(fn () => vvGuard())->toThrow(RuntimeException::class, 'CAPTCHA_DRIVER');
-
-    config(['captcha.driver' => 'turnstile', 'app.debug' => true]);
-    expect(fn () => vvGuard())->toThrow(RuntimeException::class);
+    expect(fn () => vvGuard())->toThrow(RuntimeException::class, 'APP_ENV');
 })->with(['Production', 'prod', 'stage', 'uat']);
 
-test('allowlist MoMo chi ep o dung production, APP_ENV la thi khong', function () {
+test('allowlist MoMo chi ep o dung production; staging duoc dung sandbox', function () {
     config(['payments.gateways.momo.endpoint' => 'https://test-payment.momo.vn/x']);
 
-    app()->detectEnvironment(fn () => 'prod');
+    app()->detectEnvironment(fn () => 'staging');
     expect(fn () => vvGuard())->not->toThrow(RuntimeException::class);
+
+    app()->detectEnvironment(fn () => 'production');
+    expect(fn () => vvGuard())->toThrow(RuntimeException::class, 'MOMO_ENDPOINT');
 });

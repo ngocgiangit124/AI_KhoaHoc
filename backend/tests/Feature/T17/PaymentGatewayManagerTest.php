@@ -41,7 +41,7 @@ test('production: driver fake khong duoc dang ky va boot guard cam fake', functi
     expect(fn () => app(PaymentGatewayManager::class)->driver('fake'))->toThrow(InvalidArgumentException::class);
 
     config([
-        'app.debug' => false, 'session.secure' => true, 'captcha.driver' => 'turnstile',
+        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
         'sanctum.stateful' => ['vitaminvui.vn'], 'app.trusted_proxies' => '10.0.0.1',
     ]);
     expect(fn () => (new ProductionConfigGuard)->check())->toThrow(RuntimeException::class);

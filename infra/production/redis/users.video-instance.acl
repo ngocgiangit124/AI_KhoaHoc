@@ -1,0 +1,2 @@
+user default on #<SHA256_MAT_KHAU_APP> ~* &* +@all
+user vv_worker_video on #<SHA256_MAT_KHAU_WORKER> resetkeys resetchannels -@all +eval +lpop +rpush +zadd +zrem +zrangebyscore +zremrangebyrank +llen +zcard +blpop +select +ping ~<PREFIX>queues:video ~<PREFIX>queues:video:delayed ~<PREFIX>queues:video:notify ~<PREFIX>queues:video:reserved

@@ -14,19 +14,23 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 
 ### 1.1 Bắt buộc (thiếu hoặc sai thì app không khởi động hoặc chạy sai)
 
-- [ ] `APP_ENV=production` (hoặc `staging`). Không bao giờ `local`/`testing` trên server thật (`local` nới hạn mức OTP, bật `fake`, suy khoá VideoLab từ `APP_KEY`)
+- [ ] `APP_ENV=production` (hoặc `staging`), đúng chữ thường, không khoảng trắng/chú thích: guard chặn mọi giá trị khác (`prod`, `Production`, `stage`, `uat`... — C4-M2). Không bao giờ `local`/`testing` trên server thật (`local` nới hạn mức OTP, bật `fake`, suy khoá VideoLab từ `APP_KEY`)
 - [ ] `APP_DEBUG=false`
 - [ ] `APP_KEY` đặt riêng mỗi môi trường (và riêng cho worker-video); lưu secret manager
 - [ ] `APP_API_HOST`, `APP_ADMIN_API_HOST`, `FRONTEND_URL`, `ADMIN_URL`, `STATIC_URL` đúng tên miền thật (ADR-004 §2.1), tất cả `https`
 - [ ] `SESSION_SECURE_COOKIE=true`, `SESSION_DOMAIN=null` (host-only), `SESSION_DRIVER=redis`
+- [ ] `SESSION_ENCRYPT=true` (C4-M1; guard chặn khi false ngoài local/testing). **Bật/đổi giá trị này làm mọi phiên đang mở không giải mã được: người dùng (học sinh và staff) bị đăng xuất một lần** (Laravel coi payload phiên hỏng như phiên mới, không lỗi 500). Làm ngoài giờ cao điểm; ghi vào thông báo bảo trì. Kiểm sau khi bật: đăng nhập thử, rồi `redis-cli -n 1 --scan | head -1` + `GET` một khoá phiên phải ra chuỗi mã hoá (JSON base64 có `iv`, `value`, `mac`), không thấy `login_web_` rõ
+- [ ] Mật khẩu/secret sinh ngẫu nhiên (`openssl rand`), KHÔNG có khoảng trắng ở đầu/cuối và KHÔNG có dấu cách đứng trước `#` (guard chặn ` #` và khoảng trắng đầu/cuối); ký tự `#` được phép nếu dính liền chữ (`ab#cd`, `#abc`)
+- [ ] File env/Supervisor/systemd KHÔNG có chú thích cuối dòng `KEY=value # ghi chú` (C4-M2): `docker --env-file` và systemd `EnvironmentFile` giữ nguyên phần ghi chú trong giá trị. Guard chặn giá trị env quan trọng chứa ` #` hoặc khoảng trắng đầu/cuối; kiểm tay: `docker run --rm --env-file <file> <image> php -r 'var_dump(getenv("APP_ENV"));'` phải ra đúng `production`/`staging`
 - [ ] Trigger `audit_logs` (L2, migration `2026_10_16_100000`): `vv_migrate` phải có quyền `TRIGGER` (đã có trong `grants.sql`). MySQL bật binary log (mặc định của 8.4) mà user không có SUPER/SET_USER_ID thì cần `log_bin_trust_function_creators=1` (`SET GLOBAL` bằng tài khoản quản trị trước khi migrate); thiếu thì migrate lỗi 1419. **Production: `log_bin_trust_function_creators` chỉ `SET GLOBAL ... = 1` trong lúc chạy migrate (bằng tài khoản quản trị) rồi trả về `0`; KHÔNG ghi cố định vào `my.cnf`** (bản compose local có ghi cố định là chỉ cho dev). Trigger mang `DEFINER = vv_migrate`: KHÔNG xoá/đổi tên user này, nếu không mọi UPDATE/DELETE trên `audit_logs` (kể cả `audit:purge`) báo lỗi 1449 (fail-closed nhưng purge ngừng); nếu bắt buộc đổi thì tạo lại trigger với DEFINER mới. Kiểm sau migrate: `SHOW TRIGGERS LIKE 'audit_logs'` có `audit_logs_block_update` và `audit_logs_block_delete`; bằng `vv_app`, `UPDATE audit_logs SET action='x' LIMIT 1` phải lỗi. Trigger ghi cứng 24 tháng: đổi `OPS_AUDIT_RETENTION_MONTHS` xuống dưới 24 làm `audit:purge` từ chối chạy
 - [ ] `SUPPORT_EMAIL` (địa chỉ hỗ trợ ghi trong thư báo đổi email tài khoản, H1) đã đặt và có người đọc
 - [ ] Tên cookie có tiền tố `__Host-` (L3, chống cookie tossing từ subdomain cùng site): production `SESSION_COOKIE=__Host-vv_session` / `SESSION_ADMIN_COOKIE=__Host-vv_admin_session`; staging `__Host-vvstg_session` / `__Host-vvstg_admin_session`. Trình duyệt chỉ nhận tiền tố này khi Secure + `Path=/` + không có Domain (đã đúng nhờ `SESSION_SECURE_COOKIE=true`, `SESSION_PATH=/`, `SESSION_DOMAIN=null`). Local/test giữ `vv_session` (http). Sau khi bật: mọi phiên đang mở bị đăng xuất một lần (đổi tên cookie). Kiểm: `curl -sI https://api.<domain>/api/v1/csrf-token -H 'Origin: https://<domain>'` phải có `Set-Cookie: __Host-vv_session=...; secure; path=/` và KHÔNG có `domain=`; tương tự `__Host-vv_admin_session` ở admin-api. Nginx/CDN không được thêm `Domain=` vào Set-Cookie (`proxy_cookie_domain`)
-- [ ] `SANCTUM_STATEFUL_DOMAINS` chỉ chứa host web/admin thật (không `localhost`, không `127.0.0.1`)
+- [ ] `SANCTUM_STATEFUL_DOMAINS` đúng bằng host của `FRONTEND_URL` và `ADMIN_URL`, không thừa không thiếu (guard so khớp chính xác; chặn `*`, `localhost`, `127.0.0.1`, `::1`, `0.0.0.0`, tên miền lạ). `APP_URL`/`FRONTEND_URL`/`ADMIN_URL` phải `https` (C4-L5). Env worker-video cũng phải có `FRONTEND_URL`/`ADMIN_URL` (xem mẫu)
 - [ ] `TRUSTED_PROXIES` là danh sách IP cụ thể của load balancer và server Next.js, KHÔNG `*`, KHÔNG để rỗng (guard chặn khi rỗng ở tiến trình web; chỉ tiến trình console như `queue:work` của worker-video được để rỗng). Sai/rỗng thì token CDN ràng IP và `Location` của TUS sai scheme, và mọi học sinh dùng chung một IP (proxy) nên trần lần sai theo IP của mã giảm giá/đăng nhập khoá lẫn nhau
-- [ ] `INTERNAL_API_TOKEN` >= 32 ký tự (`openssl rand -hex 32`) (T26-1). `INTERNAL_API_REQUIRED=true` CHỈ bật sau khi frontend đã gửi header (xem mục "FE" ngay dưới); frontend hiện CHƯA gửi `X-Internal-Token`/`X-Client-IP`, bật sớm thì app production không khởi động khi token rỗng, còn để token rỗng thì catalog throttle tính chung một bucket theo IP của Next server (log warning khi boot)
+- [ ] `INTERNAL_API_TOKEN` là chuỗi hex >= 32 ký tự (`openssl rand -hex 32`; guard chặn giá trị không phải hex, C4-M2) (T26-1). `INTERNAL_API_REQUIRED=true` CHỈ bật sau khi frontend đã gửi header (xem mục "FE" ngay dưới); frontend hiện CHƯA gửi `X-Internal-Token`/`X-Client-IP`, bật sớm thì app production không khởi động khi token rỗng, còn để token rỗng thì catalog throttle tính chung một bucket theo IP của Next server (log warning khi boot)
 - [ ] FE (khi làm lại theo design mới) phải gửi `X-Internal-Token` (= `INTERNAL_API_TOKEN`) và `X-Client-IP` (IP khách thật) qua đường NỘI BỘ khi SSR gọi catalog: `http://<IP_NOI_BO_NGINX>:8081/api/v1/...` với `Host: api.<domain>` (server nội bộ trong `infra/production/nginx/conf.d/vitaminvui.conf`); token chỉ ở server Next, không xuống trình duyệt
-- [ ] `DB_*` dùng user `vv_app` (không root), `REDIS_PASSWORD` đã đặt
+- [ ] `DB_*` dùng user `vv_app` (không root), `REDIS_PASSWORD` đã đặt (app dùng user Redis `default` trong `redis/users.acl`)
+- [ ] PHP: `php -i | grep -E '^(display_errors|display_startup_errors|log_errors|expose_php)'` ra `Off`, `Off`, `On`, `Off` trên CẢ CLI và FPM (`php-fpm -i`) (C4-L3). Image build từ `infra/php/Dockerfile` (có `php.ini-production`); nếu dựng PHP kiểu khác thì tự làm tương đương. Lỗi trước khi Laravel boot (vendor hỏng khi đổi symlink release, lỗi cú pháp) phải chỉ vào log, không vào response
 - [ ] `MAIL_*` là SMTP thật; gửi thử một OTP về hộp thư thật
 - [ ] `CAPTCHA_DRIVER=turnstile`, `TURNSTILE_SITE_KEY` và `TURNSTILE_SECRET` là key thật của Cloudflare (không phải key test `1x0000...`). Guard chưa kiểm secret rỗng (L4): kiểm tay bằng đăng ký thử
 - [ ] `AUTH_OTP_CHANNELS=email`
@@ -38,13 +42,17 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 
 | Biến/giá trị | Lý do | Guard |
 |---|---|---|
-| `APP_DEBUG=true` | lộ stack trace, secret | có |
+| `APP_DEBUG=true` | lộ stack trace, secret | có; guard ép `app.debug=false` trước khi ném lỗi nên route ngoài `api/*` cũng không render trang debug (C4-L4) |
 | `SESSION_SECURE_COOKIE=false` | cookie phiên đi qua HTTP | có |
 | `CAPTCHA_DRIVER=fake` (mọi kiểu viết hoa) | bỏ qua chống bot | có (T31: thêm staging) |
 | `PAYMENT_GATEWAYS` chứa `fake` | cổng giả | có |
 | `AUTH_OTP_CHANNELS` chứa `sms` | chưa có nhà cung cấp SMS (S9) | có |
 | `TRUSTED_PROXIES=*` | giả mạo IP | có |
-| `SANCTUM_STATEFUL_DOMAINS` chứa `localhost`/`127.0.0.1` | mở CSRF cho host local | có |
+| `SANCTUM_STATEFUL_DOMAINS` khác tập {host `FRONTEND_URL`, host `ADMIN_URL`} (kể cả `*`, `localhost`, `127.0.0.1`, `::1`, tên miền lạ); `APP_URL`/`FRONTEND_URL`/`ADMIN_URL` tên miền thật mà `http` | mở CSRF cho host lạ/local | có (C4-L5) |
+| `APP_ENV` ngoài `production`/`staging`/`local`/`testing` (`prod`, `Production`, `uat`, giá trị dính chú thích) | tắt các kiểm chỉ dành cho production | có (C4-M2) |
+| Biến env quan trọng chứa ` #` hoặc khoảng trắng đầu/cuối (chú thích cuối dòng bị nạp vào giá trị) | `APP_ENV`/token sai mà không báo | có (C4-M2) |
+| `INTERNAL_API_TOKEN` không phải hex | placeholder/chú thích lọt vào token | có (C4-M2) |
+| `SESSION_ENCRYPT=false` | phiên đọc/giả mạo được khi Redis bị đọc | có (C4-M1) |
 | `VIDEO_PROVIDER`/`VIDEO_ENABLED_PROVIDERS` chứa `fake` | video giả | có |
 | `AUTH_OTP_E2E_RELAXED=true` | nới hạn mức OTP (MF1-1) | lớp thứ 2: `config/auth.php` đã ép tắt ngoài local/testing; guard không phủ trường hợp đặt nhầm `APP_ENV=local` (kiểm tay: dòng đầu mục 1.1) |
 | `VIDEOLAB_API_KEY`/`TOKEN_KEY`/`WEBHOOK_SECRET` thiếu hoặc < 32 ký tự | khoá yếu/đoán được | có (T31, khi VideoLab bật) và `VideoLabServiceProvider` |
@@ -99,7 +107,8 @@ Mẫu: `infra/production/nginx/`. Sáu server block: 4 host ứng dụng (web, a
 - [ ] `/index.php/...` trả 404; chỉ đúng `/index.php` chạy PHP; mọi `.php` khác trả 404
 - [ ] Disk `exports`, `videolab`, `uploads` nằm ngoài `storage/app/public`
 - [ ] `client_max_body_size`: 16k cho `/api/v1/webhooks/*`; 5m mặc định (ảnh đại diện khoá học tối đa 2 MB theo `CourseRules::thumbnail`, `max:2048`; `upload_max_filesize`/`post_max_size` của PHP phải ≥ 3M); TUS 9m (chunk 8 MB + dư 1 MB); `/videolab/library/` 16k; `/videolab/cdn/` 1k
-- [ ] Header API do Laravel đặt: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`. Kiểm bằng `curl -sI https://api.<domain>/api/v1/config/public` và `https://admin-api.<domain>/...`; mỗi header xuất hiện đúng 1 lần (Nginx không thêm)
+- [ ] Header API do Laravel đặt: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'`, `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()` (C4-L2). Kiểm bằng `curl -sI https://api.<domain>/api/v1/config/public` và `https://admin-api.<domain>/...`; mỗi header xuất hiện đúng 1 lần (Nginx không thêm)
+- [ ] `/up` (C4-L2): đặt `<IP_MONITOR_LB>` trong `vv-api-common.conf`; `curl -sI https://api.<domain>/up` từ IP ngoài trả 403, từ IP giám sát trả 200 JSON `{"status":"ok"}`; cả host admin-api
 - [ ] Web và admin (Next.js): CSP có nonce và header bảo mật do Next đặt; kiểm `curl -sI`
 - [ ] Tên miền tĩnh (`STATIC_URL`) trả đủ 3 header: `Content-Security-Policy: default-src 'none'; img-src 'self'; sandbox`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline`; KHÔNG có `Set-Cookie`; chỉ GET/HEAD; không PHP; không liệt kê thư mục
 - [ ] Tên miền tĩnh là tên miền đăng ký riêng (không dùng subdomain của `vitaminvui.vn`) để không nhận cookie (S2) — PO mua tên miền
@@ -119,7 +128,10 @@ Mẫu: `infra/production/nginx/`. Sáu server block: 4 host ứng dụng (web, a
 
 ## 4. Redis
 
-- [ ] Redis có `requirepass` (mật khẩu mạnh), chỉ nghe mạng nội bộ (`bind` IP nội bộ, firewall chặn 6379 từ ngoài), `protected-mode yes`
+- [ ] KHUYẾN NGHỊ (R2): Redis RIÊNG (instance nhỏ) cho queue `video`; app và worker đặt `REDIS_VIDEO_HOST/PORT/USERNAME/PASSWORD` (connection `video`, mẫu ACL `redis/users.video-instance.acl`), worker đặt `CACHE_STORE=array` và không có thông tin Redis chính. Lý do: user worker có `+eval` nên worker bị chiếm có thể chạy script vòng lặp vô hạn làm Redis ngừng phục vụ; nếu dùng chung Redis thì rủi ro còn lại là mất sẵn sàng toàn site (không phải rò dữ liệu): giám sát độ trễ Redis (`redis-cli --latency`) và chấp nhận có ghi nhận. Không đặt `REDIS_VIDEO_*` thì queue `video` dùng Redis chính (local)
+- [ ] Redis >= 7.0 dùng ACL file (`aclfile`), mẫu `infra/production/redis/users.acl` (C4-M1; file ACL KHÔNG được có comment `#`, giải thích ở `redis/README.md`): user `default` cho app, user `vv_worker_video` riêng cho worker-video (hash SHA-256, không ghi mật khẩu rõ; không dùng cùng `requirepass`). Thay `<PREFIX>`, `<CACHE_PREFIX>` (tên key thật = `<REDIS_PREFIX><CACHE_PREFIX>illuminate:...`, không có `:` ở giữa). Nạp lại: `ACL LOAD`
+- [ ] Chạy `infra/production/redis/check-acl.sh <host> <port> <PREFIX> <CACHE_PREFIX> vv_worker_video "$MAT_KHAU_WORKER"` (`SKIP_SIGNALS=1` với instance riêng): phải in `ACL đạt.`. Nội dung kiểm: user worker bị `NOPERM`: `GET`/`SCAN` ở DB 1 (phiên), `LPUSH`/`RPUSH <PREFIX>queues:default x`, `EVAL "return redis.call('rpush','<PREFIX>queues:default','x')" 0`, `SET` hay `DEL` bất kỳ. Và chạy được: `queue:work redis_video` (pop, release, delete, đọc 3 key tín hiệu restart/pause). Sau mỗi lần nâng cấp Laravel (đổi Lua queue hoặc khoá tín hiệu) chạy lại kiểm này
+- [ ] Redis có `requirepass` (mật khẩu mạnh) hoặc ACL ở trên, chỉ nghe mạng nội bộ (`bind` IP nội bộ, firewall chặn 6379 từ ngoài), `protected-mode yes`
 - [ ] DB tách: session=1, cache=2, queue=3, limiter=4 (`REDIS_DB_SESSION`, `REDIS_CACHE_DB`, `REDIS_QUEUE_DB`, `REDIS_LIMITER_DB`); `cache:clear` không làm mất phiên (T05-2)
 - [ ] Staging và production KHÔNG chung một instance Redis; nếu bắt buộc chung thì `REDIS_PREFIX` và số DB khác nhau
 - [ ] `REDIS_PREFIX` của app và worker-video giống nhau trong cùng môi trường
@@ -146,7 +158,7 @@ Mẫu: `infra/production/supervisor/vitaminvui.conf`.
 - [ ] Worker `worker-video` (`queue:work redis_video --queue=video --timeout=3600`) chạy tách máy/container với image build sẵn (mục 7); `retry_after` (3900) > `--timeout` (3600)
 - [ ] Scheduler: một tiến trình `schedule:work` (hoặc cron `* * * * * php artisan schedule:run`) mỗi máy; các lệnh đã `onOneServer`, cần cache Redis dùng chung
 - [ ] Deploy xong chạy `php artisan queue:restart`
-- [ ] `php artisan schedule:list` có đủ: `counters:recount`, `videos:check-stuck`, `videos:prune-orphans`, `videolab:cleanup`, `quizzes:auto-submit-expired`, `otp:prune`, `audit:purge`, `users:purge-unverified`, `queue:prune-failed`, `queue:monitor`, `ops:health`
+- [ ] `php artisan schedule:list` có đủ: `counters:recount`, `videos:check-stuck`, `videos:prune-orphans`, `videolab:notify` (mỗi phút, C4-M1), `videolab:cleanup`, `quizzes:auto-submit-expired`, `otp:prune`, `audit:purge`, `users:purge-unverified`, `queue:prune-failed`, `queue:monitor`, `ops:health`
 - [ ] `php artisan ops:health` báo worker và scheduler còn sống; cảnh báo của kênh log lỗi được nối vào kênh thông báo của hạ tầng (email/chat)
 - [ ] `failed_jobs` trống hoặc dưới ngưỡng `OPS_FAILED_JOBS_MAX`; có người xem hằng ngày
 
@@ -157,10 +169,12 @@ Mẫu: `infra/production/supervisor/vitaminvui.conf`.
 - [ ] Không có `.env` của app trong image/container; biến môi trường nạp từ file riêng (`infra/production/.env.worker-video.example`)
 - [ ] `APP_ENV`, `APP_KEY`, `REDIS_PREFIX` đặt riêng cho worker (prefix giống app, `APP_KEY` khác)
 - [ ] Worker đặt `VIDEOLAB_ENABLED=false` nên KHÔNG có khoá `VIDEOLAB_*` của app; ProductionConfigGuard chạy cả trong `queue:work` nên env worker vẫn phải có `SESSION_SECURE_COOKIE=true`, `SANCTUM_STATEFUL_DOMAINS` hợp lệ (đã có trong mẫu). Test `tests/Feature/T31/WorkerVideoEnvTest.php` bị Skipped trong container `php` (không mount `infra/`); trước khi lên staging kiểm tay: nạp env worker rồi chạy `php artisan about` trong container worker, không được ném lỗi `ProductionConfigGuard`
-- [ ] DB user `vv_worker_video` (mục 5); mạng chỉ tới Redis/MySQL nội bộ, không ra Internet (webhook do worker `queue` của app gửi, worker-video không gọi webhook)
+- [ ] DB user `vv_worker_video` (mục 5) và Redis user `vv_worker_video` (mục 4, `REDIS_USERNAME`/`REDIS_PASSWORD` trong env worker); mạng chỉ tới Redis/MySQL nội bộ, không ra Internet. Worker KHÔNG dispatch/gọi webhook: video xong/lỗi thì `videolab:notify` (scheduler của app, mỗi phút) dispatch `SendVideoLabWebhookJob` vào queue `default` và worker `queue` của app gửi (C4-M1). Env worker không có `REDIS_DB_SESSION`/`REDIS_LIMITER_DB`. Worker không ghi nhịp `ops:health` (listener `Looping` bỏ qua connection `redis_video`)
 - [ ] Chỉ mount volume `videolab` (đọc/ghi)
-- [ ] Gửi thử một video nhỏ: upload TUS, transcode xong, phát được, webhook về app
+- [ ] Gửi thử một video nhỏ: upload TUS, transcode xong, phát được, webhook về app trong ~1 phút (qua `videolab:notify`); `vl_videos.notified_at` được điền; `redis-cli` bằng user app: `LLEN <PREFIX>queues:default` không tăng do worker
 - [ ] `videolab:cleanup` chạy (scheduler) và dung lượng đĩa `videolab` được giám sát
+- [ ] (R8 review cụm 4) Nếu tách Redis riêng cho `video`: app và worker PHẢI cùng trỏ một Redis video (cùng `REDIS_VIDEO_HOST/PORT/DB`, cùng `REDIS_PREFIX`). Lệch cấu hình thì job kẹt âm thầm, không có lỗi. Sau khi gửi thử video: `redis-cli -h <redis-video> --user vv_worker_video ... LLEN <PREFIX>queues:video` phải về `0` và video có `status=4`; giám sát định kỳ `LLEN` queue `video` (cảnh báo nếu > 0 quá 15 phút)
+- [ ] (R9 review cụm 4) Deploy worker-video: worker dùng `CACHE_STORE=array` nên `php artisan queue:restart`/`queue:pause` KHÔNG tới được worker. Quy trình: (1) dừng nhận job mới bằng cách dừng container/Supervisor program `worker-video` với tín hiệu `SIGTERM` (worker xử lý xong job hiện tại rồi thoát; đặt `stopwaitsecs`/`stop_grace_period` ≥ `encode_timeout` + 60 giây), (2) chạy migrate nếu có, (3) khởi động image mới. Job ffmpeg bị cắt ngang (quá hạn chờ) sẽ được thử lại 1 lần khi worker mới lên (`tries`), video không mất. Worker cũng tự thoát sau `--max-time=3600`
 
 ## 8. Chính sách lưu log
 
@@ -174,7 +188,7 @@ Mẫu: `infra/production/supervisor/vitaminvui.conf`.
 | `failed_jobs` | 720 giờ | `OPS_FAILED_JOBS_RETENTION_HOURS` | `queue:prune-failed` |
 | Tài khoản chưa xác thực | 7 ngày | `OPS_UNVERIFIED_ACCOUNT_DAYS` | `users:purge-unverified`; pháp chế xác nhận xoá cả `consents` |
 
-- [ ] `LOG_STACK=daily` (không `single`), `LOG_LEVEL=warning` hoặc cao hơn ở production
+- [ ] `LOG_STACK=daily` (không `single`), `LOG_LEVEL=warning` hoặc cao hơn ở production. Kênh `payments`, `playback`, `learning` cố định mức `info` (không bị `LOG_LEVEL` làm mất, C4-L1); kiểm: phát một bài rồi `storage/logs/playback-*.log` có dòng mới
 - [ ] `logrotate`/`max_files` đã áp; thư mục `storage/logs` quyền 0750; log không gửi sang dịch vụ ngoài chưa được duyệt
 - [ ] Không log body `/auth/*`, không log mật khẩu/OTP/token/chữ ký (kiểm lại bằng một lượt đăng ký + đăng nhập ở staging, đọc log)
 - [ ] Tài liệu chính sách lưu log (có IP) đã công bố nội bộ; bản công khai thuộc T34 (V2)

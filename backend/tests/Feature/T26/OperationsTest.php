@@ -79,7 +79,7 @@ test('token dung nhung X-Client-IP rac: roi ve IP ket noi; token chua cau hinh t
 
 test('ProductionConfigGuard: token qua ngan bi chan, de trong hoac du dai thi qua', function () {
     config([
-        'app.debug' => false, 'session.secure' => true, 'captcha.driver' => 'turnstile',
+        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
         'internal.ssr_token' => 'ngan',
     ]);
     app()->detectEnvironment(fn () => 'production');

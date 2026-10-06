@@ -10,11 +10,14 @@ beforeEach(function () {
 
     config([
         'app.debug' => false,
-        'session.secure' => true,
+        'session.secure' => true, 'session.encrypt' => true,
         'captcha.driver' => 'turnstile',
         'auth.otp.channels' => ['email'],
         'auth.otp.e2e_relaxed' => false,
         'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'],
+        'app.url' => 'https://api.vitaminvui.vn',
+        'app.frontend_url' => 'https://vitaminvui.vn',
+        'app.admin_url' => 'https://admin.vitaminvui.vn',
         'app.trusted_proxies' => '10.0.0.1,10.0.0.2',
         'payments.enabled_gateways' => ['momo'],
         'payments.gateways.momo.endpoint' => 'https://payment.momo.vn/v2/gateway/api/create',
@@ -22,7 +25,7 @@ beforeEach(function () {
         'video.provider' => 'internal',
         'video.enabled_providers' => ['internal'],
         'internal.required' => true,
-        'internal.ssr_token' => str_repeat('t', 64),
+        'internal.ssr_token' => str_repeat('a', 64),
         'internal.ssr_token_min_length' => 32,
         'features.paid_checkout' => false,
         'videolab.enabled' => true,
@@ -40,7 +43,12 @@ function qaCheck(): void
 test('AC-nen: bo env hop le qua guard o moi moi truong khong phai local/testing', function (string $env) {
     app()->detectEnvironment(fn () => $env);
     expect(fn () => qaCheck())->not->toThrow(RuntimeException::class);
-})->with(['production', 'staging', 'Production', 'prod', 'stage']);
+})->with(['production', 'staging']);
+
+test('APP_ENV khong thuoc production/staging/local/testing bi chan (C4-M2)', function (string $env) {
+    app()->detectEnvironment(fn () => $env);
+    expect(fn () => qaCheck())->toThrow(RuntimeException::class, 'APP_ENV');
+})->with(['Production', 'prod', 'stage', 'uat', 'production # x', ' production', '']);
 
 test('APP_DEBUG: true bi chan, false qua', function (string $env) {
     app()->detectEnvironment(fn () => $env);
@@ -69,7 +77,7 @@ test('AUTH_OTP_CHANNELS: sms bi chan (ke ca viet hoa va kenh kep), email qua', f
         : expect(fn () => qaCheck())->not->toThrow(RuntimeException::class);
 })->with([[['sms'], true], [['SMS'], true], [['email', 'sms'], true], [['email'], false], [[], false]]);
 
-test('SANCTUM_STATEFUL_DOMAINS: localhost/127.0.0.1 bi chan, ten mien that qua', function (array $domains, bool $blocked) {
+test('SANCTUM_STATEFUL_DOMAINS: allowlist khop host FRONTEND_URL/ADMIN_URL; *, ::1, localhost, IP, ten mien la bi chan (C4-L5)', function (array $domains, bool $blocked) {
     config(['sanctum.stateful' => $domains]);
     $blocked
         ? expect(fn () => qaCheck())->toThrow(RuntimeException::class, 'SANCTUM_STATEFUL_DOMAINS')
@@ -79,7 +87,26 @@ test('SANCTUM_STATEFUL_DOMAINS: localhost/127.0.0.1 bi chan, ten mien that qua',
     [['LOCALHOST:3000'], true],
     [['vitaminvui.vn', '127.0.0.1'], true],
     [['127.0.0.1:8000'], true],
-    [['vitaminvui.vn'], false],
+    [['*'], true],
+    [['::1'], true],
+    [['0.0.0.0'], true],
+    [['evil.com'], true],
+    [['vitaminvui.vn.evil.com', 'admin.vitaminvui.vn'], true],
+    [['vitaminvui.vn', 'admin.vitaminvui.vn', 'evil.com'], true],
+    [['vitaminvui.vn'], true],
+    [['vitaminvui-staging.vn', 'admin.vitaminvui-staging.vn'], true],
+    [['vitaminvui.vn', 'admin.vitaminvui.vn'], false],
+    [['ADMIN.vitaminvui.vn', 'vitaminvui.vn'], false],
+]);
+
+test('APP_URL/FRONTEND_URL/ADMIN_URL ten mien that ma http bi chan; chi mot URL local bi chan (C4-L5)', function (string $key, string $value) {
+    config([$key => $value]);
+    expect(fn () => qaCheck())->toThrow(RuntimeException::class);
+})->with([
+    ['app.url', 'http://api.vitaminvui.vn'],
+    ['app.frontend_url', 'http://vitaminvui.vn'],
+    ['app.admin_url', 'http://admin.vitaminvui.vn'],
+    ['app.admin_url', 'http://localhost:3001'],
 ]);
 
 test('TRUSTED_PROXIES: * bi chan (ke ca nam giua danh sach, co khoang trang), IP cu the hoac rong qua', function (string $value, bool $blocked) {
@@ -170,7 +197,10 @@ test('INTERNAL_API_TOKEN: bat buoc khi REQUIRED, >= 32 ky tu, de trong khi khong
     'required, rong' => [true, '', true],
     'required, 31 ky tu' => [true, str_repeat('x', 31), true],
     'khong required, 31 ky tu' => [false, str_repeat('x', 31), true],
-    'required, 32 ky tu' => [true, str_repeat('x', 32), false],
+    'required, 32 ky tu hex' => [true, str_repeat('a1', 16), false],
+    'required, 32 ky tu khong phai hex (C4-M2)' => [true, str_repeat('x', 32), true],
+    'required, placeholder dinh chu thich (C4-M2)' => [true, '                # openssl rand -hex 32 (>= 32 ky tu)', true],
+    'khong required, khong phai hex' => [false, str_repeat('z', 40), true],
     'khong required, null' => [false, null, false],
     'khong required, rong' => [false, '', false],
 ]);

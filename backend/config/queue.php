@@ -76,7 +76,8 @@ return [
         // T12 — queue `video` (transcode ffmpeg): retry_after PHẢI > timeout job (3600s) để job dài không bị nhận lại.
         'redis_video' => [
             'driver' => 'redis',
-            'connection' => env('REDIS_QUEUE_CONNECTION', 'queue'),
+            // R2: connection Redis `video` (mặc định cùng Redis/DB với `queue`; tách bằng REDIS_VIDEO_*).
+            'connection' => env('VIDEOLAB_REDIS_CONNECTION', 'video'),
             'queue' => 'video',
             'retry_after' => (int) env('VIDEOLAB_QUEUE_RETRY_AFTER', 3900),
             'block_for' => null,

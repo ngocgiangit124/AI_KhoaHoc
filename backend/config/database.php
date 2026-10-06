@@ -204,6 +204,17 @@ return [
             'database' => env('REDIS_QUEUE_DB', '3'),
         ],
 
+        // C4-M1/R2: connection riêng cho queue `video` (worker-video không tin cậy). Không đặt REDIS_VIDEO_* thì dùng Redis
+        // chính (local không đổi). Production nên trỏ sang một Redis nhỏ riêng để worker bị chiếm không treo Redis của site.
+        'video' => [
+            'url' => env('REDIS_VIDEO_URL', env('REDIS_URL')),
+            'host' => env('REDIS_VIDEO_HOST', env('REDIS_HOST', '127.0.0.1')),
+            'username' => env('REDIS_VIDEO_USERNAME', env('REDIS_USERNAME')),
+            'password' => env('REDIS_VIDEO_PASSWORD', env('REDIS_PASSWORD')),
+            'port' => env('REDIS_VIDEO_PORT', env('REDIS_PORT', '6379')),
+            'database' => env('REDIS_VIDEO_DB', env('REDIS_QUEUE_DB', '3')),
+        ],
+
         'limiter' => [
             'url' => env('REDIS_URL'),
             'host' => env('REDIS_HOST', '127.0.0.1'),

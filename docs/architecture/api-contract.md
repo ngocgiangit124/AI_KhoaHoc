@@ -46,6 +46,8 @@ Ngoại lệ duy nhất: `POST /auth/logout` và `POST /admin/auth/logout` chỉ
 - API Resource, `snake_case`. Thời gian dạng ISO 8601 có offset (`2026-09-25T14:30:00+07:00`). Tiền là số nguyên VNĐ.
 - Mọi response có header `X-Request-Id`; lỗi 5xx kèm `request_id` trong body.
 - Response đã xác thực luôn có `Cache-Control: no-store, private` và `Vary: Cookie, Origin` (S16).
+- **Header bảo mật (middleware `SecurityHeaders`, mọi response của Laravel, kể cả lỗi HTML):** `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'`, `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()`, và `Strict-Transport-Security: max-age=31536000; includeSubDomains` khi request là HTTPS (cụm 4 C4-L2). CSP này chỉ cho API; Next.js (web/admin) có CSP riêng.
+- **`GET /up` (health check hạ tầng, cụm 4 C4-L2):** trả JSON tối giản `{"status":"ok"}` (200) hoặc `{"status":"error"}` (500), không có trang HTML. Không thuộc `/api/v1`, không throttle ở Laravel, **Nginx chỉ cho IP giám sát/load balancer** (`allow <IP_MONITOR_LB>; deny all`), IP khác nhận 403. Không dùng cho frontend. Probe sâu hơn (DB, Redis) dùng `ops:health`.
 
 ### 1.5 Phân trang
 - **Length-aware** (`paginate()`) cho danh mục (25/trang), "Khóa học của tôi" (12), "Đơn hàng của tôi" (10), danh sách quản trị nhỏ (chuyên đề, mã giảm giá, yêu cầu duyệt: 25):

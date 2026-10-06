@@ -1,0 +1,13 @@
+# Override dev (C4-L3): bật display_errors cho các container PHP local. Image PHP dùng php.ini-production (display_errors=Off).
+# Dùng: cd infra && docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d php queue scheduler
+# (lệnh `up` này tạo lại container PHP nên chỉ chạy khi chủ động muốn debug). Không dùng cho staging/production.
+services:
+  php:
+    volumes:
+      - ./php/dev/zz-dev-debug.ini:/usr/local/etc/php/conf.d/zz-zdev-debug.ini:ro
+  queue:
+    volumes:
+      - ./php/dev/zz-dev-debug.ini:/usr/local/etc/php/conf.d/zz-zdev-debug.ini:ro
+  scheduler:
+    volumes:
+      - ./php/dev/zz-dev-debug.ini:/usr/local/etc/php/conf.d/zz-zdev-debug.ini:ro

@@ -3,6 +3,7 @@
 namespace App\VideoLab;
 
 use App\VideoLab\Console\VideoLabCleanupCommand;
+use App\VideoLab\Console\VideoLabNotifyCommand;
 use App\VideoLab\Http\Middleware\ForceJson;
 use App\VideoLab\Services\MediaToolkit;
 use App\VideoLab\Support\VideoLabStorage;
@@ -23,7 +24,7 @@ class VideoLabServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        $this->commands([VideoLabCleanupCommand::class]);
+        $this->commands([VideoLabCleanupCommand::class, VideoLabNotifyCommand::class]);
 
         if (! config('videolab.enabled')) {
             return;

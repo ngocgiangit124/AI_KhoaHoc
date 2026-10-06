@@ -33,6 +33,7 @@ class OperationsServiceProvider extends ServiceProvider
             $schedule->command('counters:recount')->dailyAt('03:30')->withoutOverlapping(180)->onOneServer();
             $schedule->command('videos:check-stuck')->everyFifteenMinutes()->withoutOverlapping(30)->onOneServer();
             $schedule->command('videos:prune-orphans')->hourly()->withoutOverlapping(120)->onOneServer();
+            $schedule->command('videolab:notify')->everyMinute()->withoutOverlapping(5)->onOneServer();
             $schedule->command('videolab:cleanup')->dailyAt('03:20')->withoutOverlapping(30)->onOneServer();
             $schedule->command('quizzes:auto-submit-expired')->everyMinute()->withoutOverlapping(5)->onOneServer();
             $schedule->command('otp:prune')->dailyAt('03:00')->withoutOverlapping(30)->onOneServer();
@@ -50,7 +51,13 @@ class OperationsServiceProvider extends ServiceProvider
             $schedule->call(fn () => Heartbeat::beat('scheduler'))->name('ops-scheduler-heartbeat')->everyMinute();
         });
 
-        Event::listen(Looping::class, fn () => Heartbeat::workerBeat());
+        // Cụm 4 M1: worker-video (connection `redis_video`) không có quyền ghi cache Redis và không được che việc worker
+        // `default` chết (chung khoá nhịp `worker`): chỉ worker của app mới báo nhịp.
+        Event::listen(Looping::class, function (Looping $e): void {
+            if ($e->connectionName !== 'redis_video') {
+                Heartbeat::workerBeat();
+            }
+        });
         Event::listen(JobFailed::class, fn (JobFailed $e) => Log::error('Job queue thất bại', [
             'job' => $e->job->resolveName(),
             'queue' => $e->job->getQueue(),

@@ -14,7 +14,7 @@ beforeEach(function () {
     // Baseline hợp lệ — mỗi test chỉ phá đúng 1 điều kiện.
     config([
         'app.debug' => false,
-        'session.secure' => true,
+        'session.secure' => true, 'session.encrypt' => true,
         'captcha.driver' => 'turnstile',
         'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'],
         'app.trusted_proxies' => '10.0.0.1,10.0.0.2',

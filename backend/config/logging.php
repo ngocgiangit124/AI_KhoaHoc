@@ -140,7 +140,9 @@ return [
         'payments' => [
             'driver' => 'daily',
             'path' => storage_path('logs/payments.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            // C4-L1: cố định info (giống `learning`): log lượt phát/giao dịch phải giữ đủ 90 ngày, không để
+            // LOG_LEVEL=warning của production làm mất.
+            'level' => 'info',
             'max_files' => env('LOG_DAILY_DAYS', 90),
             'replace_placeholders' => true,
         ],
@@ -156,7 +158,9 @@ return [
         'playback' => [
             'driver' => 'daily',
             'path' => storage_path('logs/playback.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            // C4-L1: cố định info (giống `learning`): log lượt phát/giao dịch phải giữ đủ 90 ngày, không để
+            // LOG_LEVEL=warning của production làm mất.
+            'level' => 'info',
             'max_files' => env('LOG_DAILY_DAYS', 90),
             'replace_placeholders' => true,
         ],

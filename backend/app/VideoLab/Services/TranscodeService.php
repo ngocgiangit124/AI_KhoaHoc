@@ -3,7 +3,6 @@
 namespace App\VideoLab\Services;
 
 use App\VideoLab\Exceptions\VideoRejectedException;
-use App\VideoLab\Jobs\SendVideoLabWebhookJob;
 use App\VideoLab\Models\Video;
 use App\VideoLab\Support\MagicBytes;
 use App\VideoLab\Support\VideoLabStorage;
@@ -62,16 +61,18 @@ class TranscodeService
                 'renditions' => $renditions,
                 'error' => null,
                 'finished_at' => now(),
+                'notified_at' => null,
             ])->save();
 
             // File gốc được giữ `source_retention_days` ngày rồi `videolab:cleanup` xoá (trừ khi keep_source).
-            SendVideoLabWebhookJob::dispatch($guid);
+            // Cụm 4 M1: KHÔNG dispatch webhook ở đây (worker không được ghi vào queue `default` của app). Scheduler của
+            // app chạy `videolab:notify` để báo video xong/lỗi.
         } catch (VideoRejectedException $e) {
             $this->markFailed($guid, $e->getMessage(), Video::ERROR);
         }
     }
 
-    /** Đánh dấu lỗi cuối cùng (không ghi đè video đã xong) và báo webhook. */
+    /** Đánh dấu lỗi cuối cùng (không ghi đè video đã xong) và báo webhook (qua `videolab:notify`). */
     public function markFailed(string $guid, string $message, int $status = Video::ERROR): void
     {
         $video = Video::query()->where('guid', $guid)->first();
@@ -83,8 +84,7 @@ class TranscodeService
         File::deleteDirectory($this->storage->hlsWorkDir($guid));
         File::deleteDirectory($this->storage->hlsDir($guid));
 
-        $video->forceFill(['status' => $status, 'error' => mb_substr($message, 0, 500)])->save();
-        SendVideoLabWebhookJob::dispatch($guid);
+        $video->forceFill(['status' => $status, 'error' => mb_substr($message, 0, 500), 'notified_at' => null])->save();
     }
 
     /**

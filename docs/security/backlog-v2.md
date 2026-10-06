@@ -278,18 +278,22 @@ Chưa làm (giao dev khác): L1 (guard ép `FEATURE_STAFF_MFA`), I1, I2, I5.
 | Cụm 3 L4, I2 | Low/Info | MoMo: đối chiếu amount/partnerCode/chữ ký phản hồi tạo giao dịch; `CheckoutRequest` so cổng phân biệt hoa thường | Làm cùng T17-1 ở V2 |
 | Cụm 3 I4 | Info | Checklist bắt buộc cho T19/T20 (so `amount` IPN, `/pay` kiểm cờ, `where user_id`, hạn lưu `create_response`, gỡ guard `ipn_ready`) | Làm ở V2 (xem `review-cum3-payment.md` I4) |
 
-## Cụm 4 (cấu hình tổng thể) — từ `docs/security/review-cum4-config.md` (2026-10-06), chờ đợt sửa "Bảo mật cụm 4"
+## Cụm 4 (cấu hình tổng thể) — từ `docs/security/review-cum4-config.md` (2026-10-06); đã sửa trong đợt "Bảo mật cụm 4" (2026-10-06)
 
 | # | Mức | Nội dung | Trạng thái |
 |---|---|---|---|
-| C4-M1 | Medium | worker-video có toàn quyền Redis của app (đẩy payload vào `queues:default`, sửa phiên DB 1 khi `SESSION_ENCRYPT=false`). Hướng chọn: Redis ACL user riêng cho worker (chỉ key queue `video`), không đổi ADR-002; bật `SESSION_ENCRYPT=true` | Đợt sửa cụm 4 |
-| C4-M2 | Medium | Env mẫu có chú thích cuối dòng; `docker --env-file`/systemd giữ nguyên → `APP_ENV`/`INTERNAL_API_TOKEN` sai mà guard vẫn qua. Đưa chú thích lên dòng riêng, guard ép `APP_ENV` hợp lệ + chặn giá trị chứa ` #`, token SSR phải hex | Đợt sửa cụm 4 (trước staging nếu nạp env kiểu này) |
-| C4-L1 | Low | `LOG_LEVEL=warning` làm mất log `playback`/`payments` mức info | Đợt sửa cụm 4 |
-| C4-L2 | Low | `/up` công khai (nạp script jsdelivr), chưa giới hạn IP; API chưa có CSP/Permissions-Policy | Đợt sửa cụm 4 |
-| C4-L3 | Low | Image PHP chưa dùng `php.ini-production` (`display_errors`) | Đợt sửa cụm 4 / T35 image |
-| C4-L4 | Low | `APP_DEBUG=true` thì route ngoài `api/*` vẫn render trang debug | Đợt sửa cụm 4 |
-| C4-L5 | Low | Guard kiểm stateful domains kiểu blocklist (`*`, `::1` lọt) | Đợt sửa cụm 4 |
-| C4-L6 | Low | `EnrollmentDecisionMail` chưa `ShouldBeEncrypted` (PII trong `failed_jobs`) | Đợt sửa cụm 4 |
+| C4-M1 | Medium | worker-video có toàn quyền Redis của app (đẩy payload vào `queues:default`, sửa phiên DB 1 khi `SESSION_ENCRYPT=false`) | **Đã sửa 2026-10-06** (không đổi ADR): Redis ACL user `vv_worker_video` (`infra/production/redis/users.acl`) chỉ đụng 4 key queue `video` + đọc 3 key tín hiệu `queue:work`; worker không còn dispatch webhook vào `queues:default` (scheduler app chạy `videolab:notify`, cột `vl_videos.notified_at`); `SESSION_ENCRYPT=true` trong env mẫu và guard; heartbeat worker bỏ qua connection `redis_video`. Đã chạy thật trên `redis:7` tạm. Còn lại khi dựng staging: tạo file ACL thật, kiểm lại bằng `redis-cli` (checklist §4) |
+| C4-M2 | Medium | Env mẫu có chú thích cuối dòng; `docker --env-file`/systemd giữ nguyên → `APP_ENV`/`INTERNAL_API_TOKEN` sai mà guard vẫn qua | **Đã sửa 2026-10-06**: chú thích lên dòng riêng ở cả 2 env mẫu; guard ép `APP_ENV ∈ {production, staging, local, testing}`, chặn giá trị env quan trọng chứa ` #` hoặc khoảng trắng đầu/cuối, token SSR phải hex ≥ 32; bỏ gợi ý `env $(cat\|xargs)` ở Supervisor |
+| C4-L1 | Low | `LOG_LEVEL=warning` làm mất log `playback`/`payments` mức info | **Đã sửa 2026-10-06**: hai kênh cố định `level => 'info'` |
+| C4-L2 | Low | `/up` công khai (nạp script jsdelivr), chưa giới hạn IP; API chưa có CSP/Permissions-Policy | **Đã sửa 2026-10-06**: `/up` trả JSON; Nginx mẫu `allow <IP_MONITOR_LB>; deny all`; `SecurityHeaders` thêm CSP `default-src 'none'; frame-ancestors 'none'; base-uri 'none'` và `Permissions-Policy` |
+| C4-L3 | Low | Image PHP chưa dùng `php.ini-production` (`display_errors`) | **Đã sửa 2026-10-06** trong `infra/php/Dockerfile` (cần rebuild image; chưa rebuild trên máy dev). Debug local: `infra/docker-compose.debug.yml`. Ghi chú cho T35 |
+| C4-L4 | Low | `APP_DEBUG=true` thì route ngoài `api/*` vẫn render trang debug | **Đã sửa 2026-10-06**: guard `config(['app.debug' => false])` trước khi ném lỗi |
+| C4-L5 | Low | Guard kiểm stateful domains kiểu blocklist (`*`, `::1` lọt) | **Đã sửa 2026-10-06**: allowlist (tên miền hợp lệ, khớp đúng host `FRONTEND_URL`/`ADMIN_URL`), `APP_URL`/`FRONTEND_URL`/`ADMIN_URL` tên miền thật phải https |
+| C4-L6 | Low | `EnrollmentDecisionMail` chưa `ShouldBeEncrypted` (PII trong `failed_jobs`) | **Đã sửa 2026-10-06** + test kiến trúc `tests/Arch/QueuedPiiEncryptedTest.php` (`ContactChangedMail` đã mã hoá sẵn) |
+
+Sau review đợt sửa cụm 4 (`docs/review/security-cum4-fix.md`): R1 (file ACL không còn comment, thêm `check-acl.sh`, test tĩnh và nạp thật bằng `redis:7`), R2 (connection `video` đọc `REDIS_VIDEO_*`, khuyến nghị Redis riêng), R3 (ép tắt debug ngay đầu guard), R4, R5, R6, R7 (bỏ `+evalsha`) đã sửa 2026-10-06. **Việc cho Architect:** cập nhật ADR-002 §3a: (a) worker-video không dispatch webhook, `videolab:notify` của scheduler app thay (cột `vl_videos.notified_at`); (b) worker dùng Redis ACL, khuyến nghị Redis riêng cho queue `video` (rủi ro còn lại khi dùng chung: worker bị chiếm có thể treo Redis bằng Lua `+eval`, tác động mất sẵn sàng); (c) Redis riêng thì worker `CACHE_STORE=array`, `queue:restart`/`queue:pause` không tác động worker. Chưa sửa ADR theo yêu cầu.
+
+Ghi chú còn lại của cụm 4 (không sửa đợt này): Info I1–I5 trong báo cáo (quyền 0640 cho log, header trên response do Nginx tự trả, `/api/v1/health` không kiểm DB, HSTS `preload`, ngoại lệ console của `TRUSTED_PROXIES` với Octane). Guard vẫn chưa kiểm `TURNSTILE_SECRET` rỗng, `MAIL_MAILER=log`, `REDIS_PASSWORD` rỗng; baseline guard khi `FRONTEND_URL`/`ADMIN_URL` còn giá trị local mặc định thì bỏ qua khớp stateful (checklist ép đặt).
 
 Review vòng 2 (Sửa lỗi nhỏ 3): R6 trần heartbeat theo người học đổi thành `max_speed * (window + first_interval_seconds) + slack` = 165 giây/60 giây (tự tính từ config; R11 nâng từ 125 vì cửa sổ cố định neo ở lần cộng đầu), R7 `PlainText` cho ZWJ giữa hai emoji, R8 `AtomicCounter::add` đặt TTL khi `TTL < 0`, R9 ghi checklist T31, R10 thêm test hai tab và heartbeat dồn: Đã sửa 2026-10-06 (Sửa lỗi nhỏ 3).
 

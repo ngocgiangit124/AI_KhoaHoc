@@ -21,16 +21,31 @@ use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
-        health: '/up',
         then: function (): void {
+            // C4-L2: thay trang `/up` mặc định của Laravel (HTML nạp script từ CDN bên thứ ba ngay trong origin API) bằng
+            // JSON tối giản. Vẫn bắn DiagnosingHealth như bản gốc. Nginx mẫu giới hạn IP truy cập `/up`.
+            Route::get('/up', function () {
+                try {
+                    Event::dispatch(new DiagnosingHealth);
+                } catch (Throwable $e) {
+                    report($e);
+
+                    return response()->json(['status' => 'error'], 500);
+                }
+
+                return response()->json(['status' => 'ok']);
+            });
+
             // routes/admin.php tự bọc Route::domain(config('app.admin_api_host'))
             // + prefix('api/v1') bên trong file (route quản trị chỉ tồn tại trên
             // host admin-api — ADR-004 §2.1).

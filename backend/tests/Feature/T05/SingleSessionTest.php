@@ -421,3 +421,23 @@ test('tombstone chi luu hash sha256 cua session id, khong luu id tho', function 
     expect(StudentSessionService::tombstoneKey($a->cookie))->toBe('session_replaced:'.hash('sha256', $a->cookie))
         ->and(StudentSessionService::tombstoneKey($a->cookie))->not->toContain($a->cookie);
 });
+
+test('R6 (cum 4): SESSION_ENCRYPT=true: hoc sinh dang nhap, A bi thay bang B (getHandler read/write/destroy van dung)', function () {
+    config(['session.encrypt' => true]);
+    $user = vvSessionStudent();
+    $a = new VvBrowser;
+    $b = new VvBrowser;
+
+    $a->login()->assertOk();
+    $a->me()->assertOk()->assertJsonPath('id', $user->id);
+    $oldSession = $a->cookie;
+
+    // Payload trong store là chuỗi đã mã hoá, không phải JSON/serialize rõ.
+    $raw = Session::getHandler()->read($oldSession);
+    expect($raw)->not->toBe('')->and($raw)->not->toContain('login_web_');
+
+    $b->login()->assertOk();
+    expect(Session::getHandler()->read($oldSession))->toBe('');
+    $a->me()->assertStatus(401)->assertJsonPath('code', 'SESSION_REPLACED');
+    $b->me()->assertOk();
+});

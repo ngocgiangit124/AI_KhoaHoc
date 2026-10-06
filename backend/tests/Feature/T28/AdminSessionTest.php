@@ -255,3 +255,13 @@ test('hoc sinh khong co phien tren admin-api: cookie vv_session khong co tac dun
 
     vvAdminGet('/admin/auth/me')->assertStatus(403)->assertJson(['code' => 'FORBIDDEN']);
 });
+
+test('R6 (cum 4): SESSION_ENCRYPT=true: staff dang nhap (Sanctum SPA) va /me van hoat dong, dang xuat huy phien', function () {
+    config(['session.encrypt' => true]);
+    $admin = vvStaffUser('admin');
+
+    vvStaffLogin($admin);
+
+    vvAdminGet('/admin/auth/me')->assertOk()->assertJsonPath('id', $admin->id);
+    test()->postJson(vvAdminUrl('/admin/auth/logout'), [], vvAdminHeaders())->assertNoContent();
+});

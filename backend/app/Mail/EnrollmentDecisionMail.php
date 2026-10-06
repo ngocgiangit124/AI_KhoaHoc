@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -12,8 +13,9 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Báo kết quả duyệt/từ chối đăng ký học khóa miễn phí (US-012 AC2/AC3). Chạy qua queue; chỉ được đẩy vào
  * queue SAU khi transaction duyệt/từ chối commit (`afterCommit()` + `DB::afterCommit` ở EnrollmentService).
+ * C4-L6: `ShouldBeEncrypted` — email, tên học sinh và lý do từ chối (giáo viên nhập tự do) không nằm rõ trong Redis/`failed_jobs`.
  */
-class EnrollmentDecisionMail extends Mailable implements ShouldQueue
+class EnrollmentDecisionMail extends Mailable implements ShouldBeEncrypted, ShouldQueue
 {
     use Queueable, SerializesModels;
 

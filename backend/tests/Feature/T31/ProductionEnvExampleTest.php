@@ -44,7 +44,7 @@ function qaRunGuardWithEnv(array $overrides, string $appEnv): array
     $valid = [
         'APP_KEY' => 'base64:'.base64_encode(str_repeat('k', 32)),
         'TRUSTED_PROXIES' => '10.0.0.1,10.0.0.2',
-        'INTERNAL_API_TOKEN' => str_repeat('t', 64),
+        'INTERNAL_API_TOKEN' => str_repeat('a', 64),
         'VIDEOLAB_API_KEY' => str_repeat('a', 64),
         'VIDEOLAB_TOKEN_KEY' => str_repeat('b', 64),
         'VIDEOLAB_WEBHOOK_SECRET' => str_repeat('c', 64),

@@ -13,5 +13,6 @@ bằng giá trị thật trước khi dùng; không commit giá trị thật. Qu
 | `nginx/snippets/vv-real-ip.conf` | `real_ip` sau load balancer (điền IP LB) |
 | `supervisor/vitaminvui.conf` | queue `default,exports`, `worker-video` (máy riêng), scheduler |
 | `mysql/grants.sql` | User DB: app, worker-video, migrate |
+| `redis/users.acl` | Redis ACL: user `default` (app) và `vv_worker_video` (chỉ queue `video`), cụm 4 M1 |
 | `.env.production.example` | Biến môi trường app (không có secret thật) |
 | `.env.worker-video.example` | Biến môi trường riêng cho worker-video |

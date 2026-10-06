@@ -8,6 +8,7 @@ use App\VideoLab\Services\MediaToolkit;
 use App\VideoLab\Services\TranscodeService;
 use App\VideoLab\Support\MagicBytes;
 use App\VideoLab\Support\VideoLabStorage;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Queue;
 use Symfony\Component\Process\Process;
 
@@ -46,7 +47,9 @@ test('transcode: thanh cong -> HLS 360p+720p, master playlist, status 4, do dai,
         ->and(is_dir(app(VideoLabStorage::class)->hlsWorkDir($guid)))->toBeFalse();
     // file gốc vẫn còn (xoá bởi videolab:cleanup sau 7 ngày) và nằm ngoài thư mục hls
     expect(is_file($this->vlDir.'/source/'.$guid.'.bin'))->toBeTrue();
-    Queue::assertPushed(SendVideoLabWebhookJob::class, fn ($j) => $j->guid === $guid);
+    // Cụm 4 M1: worker không dispatch vào queue của app; `videolab:notify` (scheduler) báo sau.
+    Queue::assertNotPushed(SendVideoLabWebhookJob::class);
+    expect($video->notified_at)->toBeNull();
 });
 
 test('transcode: nguon thap hon 720p chi co bac 360; nguon rat nho van co 1 bac', function () {
@@ -76,7 +79,7 @@ test('transcode: bi tu choi (ffprobe/gioi han) -> status 5, KHONG nem (khong ret
     $video = vlVideo($guid);
     expect($video->status)->toBe(Video::ERROR)->and($video->error)->toBe('Video dài quá 180 phút.')
         ->and($this->toolkit->encodeCalls)->toBe(0)->and(is_dir(app(VideoLabStorage::class)->hlsDir($guid)))->toBeFalse();
-    Queue::assertPushed(SendVideoLabWebhookJob::class);
+    Queue::assertNotPushed(SendVideoLabWebhookJob::class);
 });
 
 test('transcode: magic bytes duoc kiem lai truoc ffprobe (file nguon bi thay bang #EXTM3U)', function () {
@@ -210,6 +213,9 @@ test('ffmpeg THAT (bo qua neu may khong co ffmpeg): mp4 sinh bang lavfi -> HLS p
 });
 
 test('toolkit: Process cua ffmpeg/ffprobe co env sach (khong ke thua mat khau DB/Redis)', function () {
+    // Lưu giá trị gốc để khôi phục: CI nạp DB_PASSWORD/REDIS_PASSWORD qua biến môi trường thật,
+    // gỡ hẳn sẽ làm các test đọc lại config sau đó kết nối với mật khẩu rỗng.
+    $old = [getenv('DB_PASSWORD'), getenv('REDIS_PASSWORD'), $_SERVER['DB_PASSWORD'] ?? null];
     putenv('DB_PASSWORD=sieu-bi-mat');
     putenv('REDIS_PASSWORD=sieu-bi-mat-2');
     $_SERVER['DB_PASSWORD'] = 'sieu-bi-mat';
@@ -224,8 +230,38 @@ test('toolkit: Process cua ffmpeg/ffprobe co env sach (khong ke thua mat khau DB
         $p->run();
         expect(trim($p->getOutput()))->toBe('[][][/tmp]');
     } finally {
-        putenv('DB_PASSWORD');
-        putenv('REDIS_PASSWORD');
-        unset($_SERVER['DB_PASSWORD']);
+        $old[0] === false ? putenv('DB_PASSWORD') : putenv('DB_PASSWORD='.$old[0]);
+        $old[1] === false ? putenv('REDIS_PASSWORD') : putenv('REDIS_PASSWORD='.$old[1]);
+        if ($old[2] === null) {
+            unset($_SERVER['DB_PASSWORD']);
+        } else {
+            $_SERVER['DB_PASSWORD'] = $old[2];
+        }
     }
+});
+
+test('videolab:notify: dispatch webhook cho video xong/loi chua bao, danh dau notified_at, khong bao lai', function () {
+    $done = Video::factory()->finished()->create();
+    $failed = Video::factory()->create(['status' => Video::ERROR, 'error' => 'x']);
+    $already = Video::factory()->finished()->create(['notified_at' => now()]);
+    $uploading = Video::factory()->create(['status' => Video::TRANSCODING]);
+
+    test()->artisan('videolab:notify')->assertSuccessful();
+
+    Queue::assertPushed(SendVideoLabWebhookJob::class, 2);
+    Queue::assertPushed(SendVideoLabWebhookJob::class, fn ($j) => $j->guid === $done->guid);
+    Queue::assertPushed(SendVideoLabWebhookJob::class, fn ($j) => $j->guid === $failed->guid);
+    expect($done->fresh()->notified_at)->not->toBeNull()
+        ->and($failed->fresh()->notified_at)->not->toBeNull()
+        ->and($already->fresh()->notified_at)->not->toBeNull()
+        ->and($uploading->fresh()->notified_at)->toBeNull();
+
+    test()->artisan('videolab:notify')->assertSuccessful();
+    Queue::assertPushed(SendVideoLabWebhookJob::class, 2);
+});
+
+test('videolab:notify duoc dang ky trong scheduler moi phut', function () {
+    $events = collect(app(Schedule::class)->events())->filter(fn ($e) => str_contains($e->command, 'videolab:notify'));
+
+    expect($events)->toHaveCount(1)->and($events->first()->expression)->toBe('* * * * *');
 });
