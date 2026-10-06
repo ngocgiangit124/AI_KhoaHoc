@@ -1,16 +1,16 @@
 # Báo cáo task VitaminVui
 
-Cập nhật: 2026-10-05 (tối, sau T09, T15). Nguồn định nghĩa task: `docs/architecture/tasks.md`. Trạng thái chi tiết và quy tắc làm việc: `docs/board.md`.
+Cập nhật: 2026-10-06 (sau T18, khoá thanh toán + T30, T23). Nguồn định nghĩa task: `docs/architecture/tasks.md`. Trạng thái chi tiết và quy tắc làm việc: `docs/board.md`.
 Ngày công là ước lượng của tài liệu, chưa tính thời gian chờ PO duyệt và sửa sau review/QA.
 
 ## Tóm tắt
 
-| Nhóm | Tổng | Đã xong | Đang làm | Chưa làm | Ngày công còn lại |
+| Nhóm | Tổng | Đã xong | Đang làm | Chưa làm (MVP) | Hoãn V2 |
 |---|---|---|---|---|---|
-| Backend (T01–T34, không có T32) | 33 | 15 | 3 | 15 | ~32 |
-| Frontend (FE0, FW1–FW7, FA1–FA10) | 18 | 3 | 3 | 12 | ~29 |
+| Backend (T01–T34, không có T32) | 33 | 24 (+ T30 phần không thanh toán) | 1 (T12) | 1 (T31) | 6 (T19, T20, T24, T25, T29, T34) + phần thanh toán của T30 |
+| Frontend (FE0, FW1–FW7, FA1–FA10) | 18 | 3 | 0 (FW2, FA3 tạm dừng) | 15 | FW3 (thanh toán), FW7 (pháp lý), FA8, FA9 |
 
-Ghi chú: mọi task đã xong đều đã commit local (chưa push, PO tự push). Cổng `laravel-security` tạm dừng theo quyết định PO; nợ bảo mật ở `docs/security/backlog-v2.md`.
+Ghi chú: thanh toán tạm khoá (cờ `FEATURE_PAID_CHECKOUT=false`, PO 2026-10-06, chờ kết nối MoMo) — checkout tổng > 0 trả 503 `PAYMENT_DISABLED`, khóa miễn phí/đơn 0đ vẫn chạy. Đội frontend tạm dừng từ 2026-10-05 chờ design mới. Mọi task đã xong đều đã commit local (chưa push). Cổng `laravel-security` tạm dừng theo quyết định PO; nợ bảo mật ở `docs/security/backlog-v2.md`.
 
 ## 1. Đã xong
 
@@ -23,51 +23,49 @@ Ghi chú: mọi task đã xong đều đã commit local (chưa push, PO tự pus
 | T05 | Một phiên học sinh (ADR-003) | Review, QA |
 | T06 | Chuyên đề CRUD | Review, QA |
 | T07 | Schema nội dung + ghi danh | Review (kiêm DBA), QA |
-| T17 | Thanh toán: abstraction + MoMo | Review, QA; chưa kiểm sandbox MoMo (bắt buộc trước T20) |
+| T08 | Quản trị khóa học | Review, QA |
+| T09 | Chương/bài | Review, QA |
+| T10 | Danh mục công khai + chi tiết | Review, QA |
+| T11 | Contract video | Review, QA |
+| T13 | Học & tiến độ (playback, heartbeat) | Review, QA |
+| T14 | EnrollmentService | Review, QA |
+| T15 | Mã giảm giá quản trị | Review, QA |
+| T16 | Giỏ hàng | Review, QA |
+| T17 | Thanh toán: abstraction + MoMo | Review, QA; chưa kiểm sandbox MoMo (V2) |
+| T18 | Checkout | Review, QA; phần tính tiền đang khoá bằng cờ (V2) |
+| T21 | Soạn quiz | Review, QA |
+| T22 | Làm quiz | Review, QA |
+| T23 | Khóa học của tôi + tiến độ | Review, QA |
+| T26 | Vận hành queue/scheduler | Review, QA |
 | T27 | Quên/đổi mật khẩu học sinh | Review, QA |
 | T28 | Đăng nhập quản trị (MFA, idle, đổi mật khẩu) | Review, QA |
-| T08 | Quản trị khóa học | Review, QA |
-| T10 | Danh mục công khai + chi tiết | Review, QA |
-| T14 | EnrollmentService | Review, QA |
+| T33 | Tài khoản staff + nhật ký thao tác | Review, QA |
+| T30 (một phần) | `audit:purge` (24 tháng), `users:purge-unverified` (7 ngày) | Review, QA; phần dọn dữ liệu thanh toán để V2 |
+| Sửa lỗi nhỏ 1 | validation tiếng Việt, T28 BUG-1/2, mã lỗi OTP, email duyệt đăng ký | Review, QA |
 | FE0 | Khởi tạo frontend Next.js 16 | Review |
 | FA1 | Layout quản trị, đăng nhập, MFA, đổi mật khẩu lần đầu, menu theo vai trò | Review, QA cùng T28 |
 | FA2 | Quản lý chuyên đề (admin) | Review, QA; 2 lỗi Minor chuyển FA3 sửa |
-| T09 | Chương/bài | Review, QA |
-| T15 | Mã giảm giá quản trị | Review, QA |
 
 ## 2. Đang làm
 
 | Task | Tên | Bước hiện tại | Ngày công |
 |---|---|---|---|
-| T11 | Contract video | Dev đang làm | 1,5 |
-| T16 | Giỏ hàng | Dev đang làm | 1,5 |
-| Sửa lỗi nhỏ | validation tiếng Việt, T28 BUG-1/2, mã lỗi OTP, email duyệt đăng ký | Dev đang làm | ~1 |
-| FW2 | Danh mục web `/khoa-hoc`, `/lop-{grade}`, chi tiết khóa | Dev đang làm | 3,5 |
-| FA3 | Khóa học (admin), kèm sửa 2 lỗi Minor của FA2 | Dev đang làm | 2 |
-| FW1 | Đăng ký, đăng nhập, OTP đã xong; còn màn quên/đổi mật khẩu | Chờ làm phần còn lại (API T27 đã có) | còn ~0,5 |
+| T12 | Module VideoLab | QA (e2e webhook/playback/sandbox) | còn ~0,5 |
+| FW2 | Danh mục web | TẠM DỪNG chờ design mới (dev xong, chưa review) | 3,5 |
+| FA3 | Khóa học (admin) | TẠM DỪNG chờ design mới (dev dở) | 2 |
+| FW1 | Còn màn quên/đổi mật khẩu | TẠM DỪNG chờ design mới | còn ~0,5 |
 
 ## 3. Chưa làm — Backend
 
-| Task | Tên | Ngày công | Phụ thuộc | Cờ |
-|---|---|---|---|---|
-| T12 | Module VideoLab (task dài và rủi ro nhất) | 4 | T11 | SEC |
-| T13 | Học & tiến độ | 2 | T11, T05 | DBA, SEC |
-| T18 | Checkout | 2 | T16, T17 | SEC, DBA |
-| T19 | IPN & fulfillment | 2 | T18, T14 | SEC, DBA |
-| T20 | Đối soát + huỷ 12h + `/pay` + đơn của tôi | 2 | T19 | SEC, DBA |
-| T21 | Soạn quiz | 1,5 | T09 | SEC |
-| T22 | Làm quiz | 2 | T21, T13 | DBA |
-| T23 | Khóa học của tôi + tiến độ | 1 | T13, T22 | |
-| T24 | Admin đơn hàng | 2 | T19, T28 | SEC, DBA |
-| T25 | Xuất CSV/XLSX | 2 | T24 | SEC, DBA |
-| T29 | Đồng ý của phụ huynh (nội dung pháp lý chờ pháp chế) | 2 | T03, T04 | SEC |
-| T30 | Job dọn dữ liệu & bộ đếm | 1 | T19, T04, T25 | DBA |
-| T34 | Quyền dữ liệu cá nhân | 2 | T29 | SEC |
-| T33 | Quản lý tài khoản staff | 1,5 | T28 | SEC |
-| T26 | Vận hành queue/scheduler | 1 | — | |
-| T31 | Checklist production & DNS | 1 | — | SEC |
-
-Tổng backend còn lại (kể cả T11, T16 đang làm): ~32 ngày công. T32 (nâng cấp sau go-live) nằm ngoài MVP.
+| Task | Tên | Ngày công | Ghi chú |
+|---|---|---|---|
+| T31 | Checklist production & DNS | 1 | Làm cuối |
+| T19 | IPN & fulfillment | 2 | V2 (chờ MoMo) |
+| T20 | Đối soát + huỷ 12h + `/pay` + đơn của tôi | 2 | V2; `/pay` phải kiểm cờ `paid_checkout` |
+| T24 | Admin đơn hàng | 2 | V2 |
+| T25 | Xuất CSV/XLSX | 2 | V2 |
+| T29 | Đồng ý của phụ huynh | 2 | V2 (pháp chế) |
+| T34 | Quyền dữ liệu cá nhân | 2 | V2 (pháp chế) |
 
 ## 4. Chưa làm — Frontend
 
@@ -96,7 +94,8 @@ Tổng backend còn lại (kể cả T11, T16 đang làm): ~32 ngày công. T32 
 
 ## 6. Đang chờ quyết định
 
-- PO: thông tin sandbox MoMo (bắt buộc trước T20); các mặc định trong mục "Chờ PO xác nhận" của `docs/board.md`.
+- PO: kết nối MoMo (V2); các mặc định trong mục "Chờ PO xác nhận" của `docs/board.md`.
+- Production: user DB cần quyền DELETE trên `audit_logs` (cho `audit:purge`). Pháp chế (V2) xác nhận giữ audit 24 tháng và xoá `consents` khi xoá tài khoản chưa xác thực.
 - Nợ kỹ thuật: e2e web 7/21 chạy lại sau khi FW2 xong (FW2 đang dùng cổng 3000).
 
 ## 7. Để sang V2 (PO quyết định 2026-10-05)

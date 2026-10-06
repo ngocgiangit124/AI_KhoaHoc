@@ -27,18 +27,35 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | FA2 | Màn chuyên đề admin | Xong | ✅ Review, QA (khoá giữa phiên thật, hai tab, 31 chuyên đề); Minor: ẩn/hiện gặp 404 không tải lại, overlay khoá còn lộ khung phía sau | — | 2026-10-05 |
 | T09 | Chương/bài (CRUD, sắp xếp, link ngoài) | Xong | ✅ Review (M1 khóa published không xoá được bài cuối), QA (69 test, có race) | — | 2026-10-05 |
 | T15 | Mã giảm giá quản trị | Xong | ✅ Review (thêm CHECK DB), QA (48 test, race tạo trùng mã). T16/T18 dùng `Coupon::state()`, `normalizeCode()`; `coupon_usages` do T18 tạo | — | 2026-10-05 |
+| T11 | Contract video (upload TUS, webhook, đồng bộ, dọn mồ côi) | Xong | ✅ Review (R1 gọi provider ngoài transaction), QA (35 test, race hạn mức). Chưa có adapter thật: VideoLab ở T12, Bunny chờ tài khoản | — | 2026-10-05 |
+| T21 | Soạn quiz (admin) | Xong | ✅ Review, QA (32 test, race). `x<y` bị chặn, dùng `\lt` (ghi vào hướng dẫn FA5) | — | 2026-10-05 |
+| Sửa lỗi nhỏ 1 | validation tiếng Việt, T28 BUG-1/2, OTP_INVALID/OTP_EXPIRED, nới OTP e2e, email duyệt đăng ký | Xong | ✅ Review, QA (456 test) | — | 2026-10-05 |
+| T16 | Giỏ hàng | Xong | ✅ Review (M1 theo US-013 BR6), QA (59 test, race). T18 phải xử lý đơn 0đ | — | 2026-10-05 |
+| T26 | Vận hành queue/scheduler + throttle catalog SSR | Xong | ✅ Review, QA (commit 1ed4c44). Kiểm Nginx xoá header nội bộ trên staging: T31 | — | 2026-10-06 |
+| T33 | Tài khoản staff + nhật ký thao tác | Xong | ✅ Review, QA (commit 49d867e). Race test cần chạy lại khi máy rảnh (sửa assert `others`) | — | 2026-10-06 |
+| T13 | Học & tiến độ | Xong | ✅ Review, QA (commit b8a5ddb, sửa PHPStan + deadlock heartbeat↔revoke ở 7c72589) | — | 2026-10-06 |
+| T12 | VideoLab | QA | Review đã sửa; e2e: worker nhận job, transcode xong; còn kiểm webhook/playback/sandbox | — | 2026-10-06 |
+| T18 | Checkout | Xong | ✅ Review, QA (commit 297a527 + 744c8be Pint). CI worktree sạch: test + race xanh | — | 2026-10-06 |
+| Khoá thanh toán + T30 (phần lẻ) | Cờ `FEATURE_PAID_CHECKOUT` (tắt, 503 PAYMENT_DISABLED), `audit:purge` 24 tháng, `users:purge-unverified` 7 ngày | Xong | ✅ Review (M1 khoá ứng viên, M2 cô lập user lỗi), QA (60 test + 5 race). Commit edca8ad | — | 2026-10-06 |
+| T23 | Khóa học của tôi + tiến độ | Xong | ✅ Review APPROVE (R1 quiz xoá mềm, R2 test quyền), QA (27 test T23, IDOR). Commit 9ad3765 | — | 2026-10-06 |
+| T22 | Làm quiz | Xong | ✅ Review, QA (commit 7919cab) | — | 2026-10-06 |
 
 ## Việc tiếp theo (theo thứ tự)
 
-1. Đang chạy: **FA3** Khóa học admin (kèm 2 Minor của FA2), **FW2** Danh mục web.
-2. Backend chạy song song với frontend (PO 2026-10-05): **T11** Contract video, **T16** Giỏ hàng, **gom sửa lỗi nhỏ** (mục 3). Mỗi dev backend dùng DB test riêng `backend/phpunit.local-a|b|c.xml`.
+1. **Frontend TẠM DỪNG (PO 2026-10-05) chờ design mới.** Code dở chưa commit, giữ nguyên trong working tree: FW2 (dev xong, e2e 24/24, chưa review; load test cache ấm chưa đạt) và FA3 (dev dở). Khi có design mới: rà lại FW2/FA3 theo design rồi mới review/QA.
+2. **Backend làm xong toàn bộ API trước (PO 2026-10-05)**, sau đó PO gửi design cho frontend. Chạy tối đa 4 dev backend song song, mỗi dev một DB test riêng `backend/phpunit.local-a|b|c|d.xml`. Thứ tự:
+   - Đang chạy: QA T12 VideoLab (e2e webhook/playback/sandbox, video tí hon).
+   - Production cần: user DB có quyền DELETE trên `audit_logs` (cho `audit:purge`); pháp chế (V2) xác nhận giữ audit 24 tháng và xoá `consents` khi xoá tài khoản chưa xác thực. T20 (V2): `/orders/{code}/pay` phải kiểm cờ `paid_checkout`.
+   - Kế tiếp: T31 checklist production (cuối). T29, T34 (pháp chế) và nhóm thanh toán: V2.
 3. Gom sửa lỗi nhỏ (một task riêng): file `lang/vi/validation.php` cho toàn dự án; T28 BUG-1 (csrf 419 sau khi phiên bị huỷ) và BUG-2 (thiếu Accept JSON → 500); mã lỗi OTP riêng `OTP_INVALID`/`OTP_EXPIRED`; nới hạn mức OTP cho môi trường e2e; email báo duyệt/từ chối đăng ký (US-012 AC2/AC3).
-4. Sau đó: T12 ∥ T13 (sau T11); T18 → T19 → T20 (sau T16); T21; FW1 còn lại; FA4, FA6, FA7.
+4. Frontend (sau khi có design mới): FW1 còn lại, FW2, FA3, FA4, FA6, FA7 và các màn còn lại.
 5. **Trước T20**: kiểm phản hồi query của sandbox MoMo (cần tài khoản sandbox từ PO).
 6. Mỗi task: dev → `laravel-reviewer` → sửa → `laravel-qa` → tự commit (không push).
 
 ## Chờ PO xác nhận (đã chọn mặc định để không chặn)
 
+- T16: mã giảm tiền cố định lớn hơn tổng giá các khóa được áp dụng → giảm tối đa bằng tổng đó (theo US-013 BR6); riêng trường hợp đơn về 0đ thì mã phải có giới hạn lượt dùng và ngày hết hạn. Hết lượt dùng báo COUPON_EXPIRED. Giỏ hàng không yêu cầu xác thực OTP, chỉ chặn ở checkout.
+- T21: một chương/bài gắn được nhiều quiz; chưa có API đổi thứ tự quiz/câu; xoá quiz không bị chặn dù đã có lượt làm; công thức dùng `\lt`, `\gt` thay cho `<`, `>` sát chữ.
 - T09: xoá chương/bài chỉ bị chặn khi đã có tiến độ học (lesson_progress), không xét học sinh đã ghi danh; xoá bài/chương cuối của khóa đang xuất bản → 409 COURSE_LAST_LESSON. Link ngoài chỉ cho bài học thử, chỉ Vimeo công khai.
 - T15: thêm thao tác bật lại mã; trần mã giảm tiền 100.000.000đ; phạm vi mã = khóa chọn ∪ khóa thuộc chuyên đề chọn; xoá chuyên đề thì mã tự thu hẹp; "giá khóa rẻ nhất" (ràng buộc mã 100%) tính trên mọi khóa đang bán.
 - T14 R3: duyệt yêu cầu miễn phí khi khóa đã đổi sang có phí → 422 COURSE_NOT_FREE (mặc định).
@@ -57,6 +74,11 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - Không tự bịa field ngoài api-contract. Thấy thiếu hoặc mâu thuẫn thì dừng và hỏi Architect.
 
 ## Việc đã hoãn (có người phụ trách)
+
+- **V2 — Thanh toán (PO quyết định 2026-10-06, chờ PO kết nối MoMo):** T19 IPN & fulfillment, T20 đối soát/`/pay`/đơn của tôi, T24 admin đơn hàng, T25 xuất file đơn, phần `payments:purge-webhook-events` của T30, FW3, FA8, FA9. Checkout có tính tiền bị khoá bằng cờ `FEATURE_PAID_CHECKOUT` (mặc định tắt); giỏ hàng, preview, đơn 0đ và đăng ký khóa miễn phí vẫn chạy. Code T18 giữ nguyên, bật cờ khi làm V2.
+
+- Môi trường (2026-10-06): máy host 16 GB thiếu RAM (swap 5/6 GB, VM Docker 8 GB) → load 100–200, agent treo, race test timeout. Chạy tuần tự tối đa 1–2 việc test cùng lúc cho tới khi PO giảm tải máy.
+- Nợ kỹ thuật test: các race test dùng tiến trình con có timeout 60s/tiến trình, fail khi máy quá tải (T16 CartRaceTest ở load ~240). Nâng timeout (vd 180s) và chạy nhóm `race` tách riêng trong CI.
 
 - V2 (PO quyết định 2026-10-05): cách khoá đăng nhập chống khoá tài khoản người khác (M1 backlog), ngưỡng AC6; ý nghĩa đổi SĐT qua `/auth/contact`; trang `/dieu-khoan`, `/chinh-sach-du-lieu`; pháp chế (thời hạn lưu IP/UA trong `consents`, quy tắc tuổi/phụ huynh của T29).
 
@@ -80,6 +102,10 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - 2026-10-05 · T03, FW1 · Dev + Reviewer + Security + QA · Review APPROVE; Security PASS có điều kiện (hoãn v2); QA tìm BUG-1..5, đã sửa, PASS có điều kiện; host local đổi thành api.localhost:3000 và admin-api.localhost:3001; csrf throttle 120/phút
 - 2026-10-05 · T04, FW1 (OTP) · Dev + Reviewer + QA · Review APPROVE; QA tìm BUG-1..4 (mã OTP rò vào log, Retry-After chưa expose CORS...), đã sửa, PASS
 - 2026-10-05 · T05 · Dev + Reviewer · Một phiên học sinh (ADR-003): bind/tombstone/middleware thật; login bỏ `guest`, register `guest.student`; Review APPROVE, đã sửa R1 (không destroy trước bind), R2 (register 201 không phiên khi bind lỗi), R3, R4, R6; R5 ghi vào T27; chờ QA
+- 2026-10-06 · T18, khoá thanh toán + T30, T23 · Dev + Reviewer + QA · PASS; commit 297a527, 744c8be, edca8ad, 9ad3765 (CI worktree sạch)
+- 2026-10-05 · T21, sửa lỗi nhỏ 1, T16 · Dev + Reviewer + QA · PASS; commit cc14b43, 3366d60, b17c69b (mỗi commit chỉ phần của task)
+- 2026-10-05 · T11 · Dev + Reviewer + QA · PASS; commit d9575f7 (chỉ phần T11, CI chạy trên worktree sạch: 982 test, 0 fail)
+- 2026-10-05 · Frontend · PO · Tạm dừng đội frontend chờ design mới; dừng FA3 (dev dở), review FW2, e2e web
 - 2026-10-05 · T09, T15 · Dev + Reviewer + QA · PASS; composer ci 945 test xanh; thêm DB test riêng cho từng dev (vitaminvui_testing_a|b|c)
 - 2026-10-05 · Hạ tầng · Orchestrator · Push origin/main đến 0367da2; sửa frontend/scripts/pnpm.sh và playwright.sh chạy được trên macOS
 - 2026-10-05 · T06, T07, T17, T27, T28, FA1 · Dev + Reviewer + QA (chạy song song) · tất cả PASS; composer ci 667 test xanh; queue worker thêm restart: unless-stopped
