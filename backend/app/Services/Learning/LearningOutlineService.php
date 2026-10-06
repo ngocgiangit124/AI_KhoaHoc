@@ -153,7 +153,7 @@ class LearningOutlineService
             ->where('course_id', $courseId)
             ->get(['lesson_id', 'status', 'last_accessed_at'])
             ->each(function (LessonProgress $p) use (&$map): void {
-                $map[(int) $p->lesson_id] = ['status' => $p->status->value, 'accessed' => (int) $p->last_accessed_at?->getTimestamp()];
+                $map[(int) $p->lesson_id] = ['status' => $p->status->value, 'accessed' => $p->last_accessed_at->getTimestamp()];
             });
 
         return $map;

@@ -9,7 +9,9 @@ use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Ghi tiến độ học (ADR-002 §5, DBA 2.5). Không tin client:
@@ -130,16 +132,28 @@ class ProgressService
         return LessonProgressStatus::from((string) ($changes['status'] ?? $row->status->value));
     }
 
-    /** `enrollments.last_accessed_at`: tối đa 1 lần/5 phút (UPDATE có điều kiện, không khoá đọc). */
+    /**
+     * `enrollments.last_accessed_at`: tối đa 1 lần/5 phút. Chỉ là thống kê nên "best effort": tìm ID bằng đọc thường rồi
+     * UPDATE theo khoá chính (cùng thứ tự khoá PK -> chỉ mục phụ như EnrollmentService, tránh deadlock khi thu hồi
+     * đồng thời) và nuốt lỗi khoá nếu vẫn xảy ra (heartbeat đã ghi tiến độ xong, không được trả 500 vì việc này).
+     */
     private function touchEnrollment(int $userId, int $courseId): void
     {
         $threshold = now()->subMinutes((int) config('learning.heartbeat.enrollment_touch_minutes'));
 
-        DB::table('enrollments')
-            ->where('user_id', $userId)
-            ->where('course_id', $courseId)
-            ->where('status', EnrollmentStatus::Active->value)
-            ->where(fn ($q) => $q->whereNull('last_accessed_at')->orWhere('last_accessed_at', '<', $threshold))
-            ->update(['last_accessed_at' => now()]);
+        try {
+            $id = DB::table('enrollments')
+                ->where('user_id', $userId)
+                ->where('course_id', $courseId)
+                ->where('status', EnrollmentStatus::Active->value)
+                ->where(fn ($q) => $q->whereNull('last_accessed_at')->orWhere('last_accessed_at', '<', $threshold))
+                ->value('id');
+
+            if ($id !== null) {
+                DB::table('enrollments')->where('id', $id)->where('status', EnrollmentStatus::Active->value)->update(['last_accessed_at' => now()]);
+            }
+        } catch (QueryException $e) {
+            Log::debug('learning.touch_enrollment_skipped', ['user_id' => $userId, 'course_id' => $courseId, 'error' => $e->getCode()]);
+        }
     }
 }

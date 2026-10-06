@@ -28,7 +28,18 @@ function vvProgOnce(array $args): array
     $p = vvProgWorker($args);
     $p->mustRun();
 
-    return json_decode(trim($p->getOutput()), true, flags: JSON_THROW_ON_ERROR);
+    return vvProgDecode($p);
+}
+
+/** Lấy dòng JSON cuối của worker; lỗi thì in nguyên stdout/stderr để biết nguyên nhân. */
+function vvProgDecode(Process $p): array
+{
+    $lines = array_values(array_filter(array_map('trim', explode("\n", $p->getOutput())), fn ($l) => $l !== ''));
+    $last = $lines === [] ? '' : $lines[array_key_last($lines)];
+    $data = json_decode($last, true);
+    expect(is_array($data))->toBeTrue('Worker output: '.$p->getOutput().' | stderr: '.$p->getErrorOutput());
+
+    return $data;
 }
 
 /** @return list<array<string, mixed>> */
@@ -42,7 +53,7 @@ function vvProgParallel(array $sets): array
     foreach ($procs as $p) {
         $p->wait();
         expect($p->getExitCode())->toBe(0, $p->getErrorOutput().$p->getOutput());
-        $res[] = json_decode(trim($p->getOutput()), true, flags: JSON_THROW_ON_ERROR);
+        $res[] = vvProgDecode($p);
     }
 
     return $res;
