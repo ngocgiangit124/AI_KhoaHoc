@@ -17,22 +17,27 @@ use RuntimeException;
  */
 class ProductionConfigGuard
 {
+    private const VIDEOLAB_KEY_MIN_LENGTH = 32;
+
     public function check(): void
     {
-        if (! app()->isProduction()) {
+        // T31 (R2 review): áp cho MỌI môi trường trừ local/testing (giống VideoLabServiceProvider), nên `Production`,
+        // `prod`, `stage`, `uat`... đều bị kiểm. Allowlist endpoint/pay_url MoMo chỉ ép ở đúng `production`
+        // (staging dùng sandbox MoMo).
+        if (app()->environment('local', 'testing')) {
             return;
         }
 
         throw_if(
             (bool) config('app.debug'),
             RuntimeException::class,
-            'APP_DEBUG phải là false ở production (M4).'
+            'APP_DEBUG phải là false ở production/staging (M4).'
         );
 
         throw_if(
             ! config('session.secure'),
             RuntimeException::class,
-            'SESSION_SECURE_COOKIE phải bật (true) ở production (M4).'
+            'SESSION_SECURE_COOKIE phải bật (true) ở production/staging (M4).'
         );
 
         $this->guardCaptcha();
@@ -42,6 +47,53 @@ class ProductionConfigGuard
         $this->guardPayments();
         $this->guardVideo();
         $this->guardInternalToken();
+        $this->guardOtpRelaxed();
+        $this->guardVideoLabSecrets();
+        $this->guardPaidCheckout();
+    }
+
+    /**
+     * MF1-1 — lớp thứ 2: `config/auth.php` đã ép e2e_relaxed=false ngoài local/testing; guard phòng khi config đó bị đổi.
+     * Không phủ được trường hợp đặt nhầm APP_ENV=local trên server thật (kiểm tay trong checklist).
+     */
+    private function guardOtpRelaxed(): void
+    {
+        throw_if(
+            (bool) config('auth.otp.e2e_relaxed'),
+            RuntimeException::class,
+            'AUTH_OTP_E2E_RELAXED phải là false ở production/staging (MF1-1).'
+        );
+    }
+
+    /**
+     * T31 (review T12 R7) — khoá VideoLab phải đặt riêng, ≥ 32 ký tự, khi VideoLab bật. Config trả null khi
+     * thiếu khoá ngoài local/testing (không suy từ APP_KEY).  Lớp thứ 2 ngoài VideoLabServiceProvider (provider đó còn ép VIDEOLAB_PUBLIC_URL https).
+     */
+    private function guardVideoLabSecrets(): void
+    {
+        if (! config('videolab.enabled')) {
+            return;
+        }
+
+        foreach (['api_key', 'token_key', 'webhook_secret'] as $key) {
+            $value = config("videolab.{$key}");
+
+            throw_if(
+                ! is_string($value) || mb_strlen($value) < self::VIDEOLAB_KEY_MIN_LENGTH,
+                RuntimeException::class,
+                'VIDEOLAB_'.mb_strtoupper($key).' phải đặt riêng và dài tối thiểu '.self::VIDEOLAB_KEY_MIN_LENGTH.' ký tự (openssl rand -hex 32).'
+            );
+        }
+    }
+
+    /** Bật thanh toán có tiền mà không có cổng nào bật = checkout lỗi giữa chừng: chặn sớm. */
+    private function guardPaidCheckout(): void
+    {
+        throw_if(
+            config('features.paid_checkout') && (array) config('payments.enabled_gateways', []) === [],
+            RuntimeException::class,
+            'FEATURE_PAID_CHECKOUT=true nhưng PAYMENT_GATEWAYS rỗng.'
+        );
     }
 
     /** Token SSR (nếu bật) phải đủ dài; để trống = tắt (catalog throttle theo IP kết nối). */
@@ -69,7 +121,7 @@ class ProductionConfigGuard
         throw_if(
             $driver === 'fake',
             RuntimeException::class,
-            'CAPTCHA_DRIVER=fake bị cấm ở production (M4).'
+            'CAPTCHA_DRIVER=fake bị cấm ở production/staging (M4, T31).'
         );
     }
 
@@ -132,7 +184,8 @@ class ProductionConfigGuard
             'FakeGateway bị cấm ở production (S4).'
         );
 
-        if (! in_array('momo', $gateways, true)) {
+        // Staging được dùng sandbox MoMo; chỉ production bị ép endpoint thật.
+        if (! app()->isProduction() || ! in_array('momo', $gateways, true)) {
             return;
         }
 
@@ -145,6 +198,13 @@ class ProductionConfigGuard
             ! $isAllowedMomoEndpoint,
             RuntimeException::class,
             'MOMO_ENDPOINT phải đúng https://payment.momo.vn ở production (S4, M4).'
+        );
+
+        // T17-2 — pay_url chỉ được trỏ tới host MoMo thật ở production.
+        throw_if(
+            array_map('mb_strtolower', (array) config('payments.gateways.momo.pay_url_hosts', ['payment.momo.vn'])) !== ['payment.momo.vn'],
+            RuntimeException::class,
+            'MOMO_PAY_URL_HOSTS chỉ được là payment.momo.vn ở production (S23, T17-2).'
         );
     }
 

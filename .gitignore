@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Mẫu env production (T31): chỉ placeholder, không chứa secret.
+!infra/production/.env.*.example
 *.pem
 *.key
 
