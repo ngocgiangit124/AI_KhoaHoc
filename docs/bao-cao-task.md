@@ -1,13 +1,13 @@
 # Báo cáo task VitaminVui
 
-Cập nhật: 2026-10-06 (sau T18, khoá thanh toán + T30, T23). Nguồn định nghĩa task: `docs/architecture/tasks.md`. Trạng thái chi tiết và quy tắc làm việc: `docs/board.md`.
+Cập nhật: 2026-10-06 (backend MVP xong: thêm T12, T31, Sửa lỗi nhỏ 2). Nguồn định nghĩa task: `docs/architecture/tasks.md`. Trạng thái chi tiết và quy tắc làm việc: `docs/board.md`.
 Ngày công là ước lượng của tài liệu, chưa tính thời gian chờ PO duyệt và sửa sau review/QA.
 
 ## Tóm tắt
 
 | Nhóm | Tổng | Đã xong | Đang làm | Chưa làm (MVP) | Hoãn V2 |
 |---|---|---|---|---|---|
-| Backend (T01–T34, không có T32) | 33 | 24 (+ T30 phần không thanh toán) | 1 (T12) | 1 (T31) | 6 (T19, T20, T24, T25, T29, T34) + phần thanh toán của T30 |
+| Backend (T01–T34, không có T32) | 33 | 26 (+ T30 phần không thanh toán) | 0 | 0 | 6 (T19, T20, T24, T25, T29, T34) + phần thanh toán của T30 |
 | Frontend (FE0, FW1–FW7, FA1–FA10) | 18 | 3 | 0 (FW2, FA3 tạm dừng) | 15 | FW3 (thanh toán), FW7 (pháp lý), FA8, FA9 |
 
 Ghi chú: thanh toán tạm khoá (cờ `FEATURE_PAID_CHECKOUT=false`, PO 2026-10-06, chờ kết nối MoMo) — checkout tổng > 0 trả 503 `PAYMENT_DISABLED`, khóa miễn phí/đơn 0đ vẫn chạy. Đội frontend tạm dừng từ 2026-10-05 chờ design mới. Mọi task đã xong đều đã commit local (chưa push). Cổng `laravel-security` tạm dừng theo quyết định PO; nợ bảo mật ở `docs/security/backlog-v2.md`.
@@ -40,6 +40,9 @@ Ghi chú: thanh toán tạm khoá (cờ `FEATURE_PAID_CHECKOUT=false`, PO 2026-1
 | T27 | Quên/đổi mật khẩu học sinh | Review, QA |
 | T28 | Đăng nhập quản trị (MFA, idle, đổi mật khẩu) | Review, QA |
 | T33 | Tài khoản staff + nhật ký thao tác | Review, QA |
+| T12 | Module VideoLab | Review, QA e2e + sandbox |
+| T31 | Checklist production & mẫu cấu hình | Review, QA; chờ PO/hạ tầng điền giá trị thật khi dựng staging |
+| Sửa lỗi nhỏ 2 | Bộ đếm đăng nhập nguyên tử, reset không lộ tài khoản | Review, QA (race) |
 | T30 (một phần) | `audit:purge` (24 tháng), `users:purge-unverified` (7 ngày) | Review, QA; phần dọn dữ liệu thanh toán để V2 |
 | Sửa lỗi nhỏ 1 | validation tiếng Việt, T28 BUG-1/2, mã lỗi OTP, email duyệt đăng ký | Review, QA |
 | FE0 | Khởi tạo frontend Next.js 16 | Review |
@@ -50,7 +53,6 @@ Ghi chú: thanh toán tạm khoá (cờ `FEATURE_PAID_CHECKOUT=false`, PO 2026-1
 
 | Task | Tên | Bước hiện tại | Ngày công |
 |---|---|---|---|
-| T12 | Module VideoLab | QA (e2e webhook/playback/sandbox) | còn ~0,5 |
 | FW2 | Danh mục web | TẠM DỪNG chờ design mới (dev xong, chưa review) | 3,5 |
 | FA3 | Khóa học (admin) | TẠM DỪNG chờ design mới (dev dở) | 2 |
 | FW1 | Còn màn quên/đổi mật khẩu | TẠM DỪNG chờ design mới | còn ~0,5 |
@@ -59,7 +61,6 @@ Ghi chú: thanh toán tạm khoá (cờ `FEATURE_PAID_CHECKOUT=false`, PO 2026-1
 
 | Task | Tên | Ngày công | Ghi chú |
 |---|---|---|---|
-| T31 | Checklist production & DNS | 1 | Làm cuối |
 | T19 | IPN & fulfillment | 2 | V2 (chờ MoMo) |
 | T20 | Đối soát + huỷ 12h + `/pay` + đơn của tôi | 2 | V2; `/pay` phải kiểm cờ `paid_checkout` |
 | T24 | Admin đơn hàng | 2 | V2 |
@@ -94,6 +95,7 @@ Ghi chú: thanh toán tạm khoá (cờ `FEATURE_PAID_CHECKOUT=false`, PO 2026-1
 
 ## 6. Đang chờ quyết định
 
+- PO/hạ tầng (cho T31, trước staging): tên miền + DNS, Turnstile key, SMTP, IP LB/app/Next, TLS, MySQL/Redis, backup; quyết định giữ log `learning` 14 hay 90 ngày, giới hạn IP admin, bật mail kết quả duyệt.
 - PO: kết nối MoMo (V2); các mặc định trong mục "Chờ PO xác nhận" của `docs/board.md`.
 - Production: user DB cần quyền DELETE trên `audit_logs` (cho `audit:purge`). Pháp chế (V2) xác nhận giữ audit 24 tháng và xoá `consents` khi xoá tài khoản chưa xác thực.
 - Nợ kỹ thuật: e2e web 7/21 chạy lại sau khi FW2 xong (FW2 đang dùng cổng 3000).

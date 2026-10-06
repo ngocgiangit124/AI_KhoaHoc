@@ -34,7 +34,9 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 | T26 | Vận hành queue/scheduler + throttle catalog SSR | Xong | ✅ Review, QA (commit 1ed4c44). Kiểm Nginx xoá header nội bộ trên staging: T31 | — | 2026-10-06 |
 | T33 | Tài khoản staff + nhật ký thao tác | Xong | ✅ Review, QA (commit 49d867e). Race test cần chạy lại khi máy rảnh (sửa assert `others`) | — | 2026-10-06 |
 | T13 | Học & tiến độ | Xong | ✅ Review, QA (commit b8a5ddb, sửa PHPStan + deadlock heartbeat↔revoke ở 7c72589) | — | 2026-10-06 |
-| T12 | VideoLab | QA | Review đã sửa; e2e: worker nhận job, transcode xong; còn kiểm webhook/playback/sandbox | — | 2026-10-06 |
+| T12 | VideoLab | Xong | ✅ Review, QA e2e (upload TUS → transcode → webhook → HLS, sandbox 5/5), sửa BUG-1 xoá giữa transcode. Commit 78f8986 | — | 2026-10-06 |
+| T31 | Checklist production & mẫu cấu hình | Xong (chờ giá trị thật) | ✅ Review 2 vòng, QA (Nginx dựng thật, grants.sql). Commit a0ebac1. Còn điền tên miền/SMTP/Turnstile/IP khi dựng staging | — | 2026-10-06 |
+| Sửa lỗi nhỏ 2 | T03 M2/M3 (bộ đếm đăng nhập nguyên tử), T27-5 (reset không lộ tài khoản), timeout race 180s | Xong | ✅ Review (R1 khoá oan NAT), QA (race 15 tiến trình 12/12 xanh). Commit 0701cff | — | 2026-10-06 |
 | T18 | Checkout | Xong | ✅ Review, QA (commit 297a527 + 744c8be Pint). CI worktree sạch: test + race xanh | — | 2026-10-06 |
 | Khoá thanh toán + T30 (phần lẻ) | Cờ `FEATURE_PAID_CHECKOUT` (tắt, 503 PAYMENT_DISABLED), `audit:purge` 24 tháng, `users:purge-unverified` 7 ngày | Xong | ✅ Review (M1 khoá ứng viên, M2 cô lập user lỗi), QA (60 test + 5 race). Commit edca8ad | — | 2026-10-06 |
 | T23 | Khóa học của tôi + tiến độ | Xong | ✅ Review APPROVE (R1 quiz xoá mềm, R2 test quyền), QA (27 test T23, IDOR). Commit 9ad3765 | — | 2026-10-06 |
@@ -44,9 +46,8 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 
 1. **Frontend TẠM DỪNG (PO 2026-10-05) chờ design mới.** Code dở chưa commit, giữ nguyên trong working tree: FW2 (dev xong, e2e 24/24, chưa review; load test cache ấm chưa đạt) và FA3 (dev dở). Khi có design mới: rà lại FW2/FA3 theo design rồi mới review/QA.
 2. **Backend làm xong toàn bộ API trước (PO 2026-10-05)**, sau đó PO gửi design cho frontend. Chạy tối đa 4 dev backend song song, mỗi dev một DB test riêng `backend/phpunit.local-a|b|c|d.xml`. Thứ tự:
-   - Đang chạy: QA T12 VideoLab (e2e webhook/playback/sandbox, video tí hon).
+   - **Backend MVP đã xong toàn bộ** (2026-10-06). Còn: V2 (thanh toán, pháp lý) và điền giá trị thật cho T31 khi dựng staging (xem `docs/ops/production-checklist.md` mục cuối).
    - Production cần: user DB có quyền DELETE trên `audit_logs` (cho `audit:purge`); pháp chế (V2) xác nhận giữ audit 24 tháng và xoá `consents` khi xoá tài khoản chưa xác thực. T20 (V2): `/orders/{code}/pay` phải kiểm cờ `paid_checkout`.
-   - Kế tiếp: T31 checklist production (cuối). T29, T34 (pháp chế) và nhóm thanh toán: V2.
 3. Gom sửa lỗi nhỏ (một task riêng): file `lang/vi/validation.php` cho toàn dự án; T28 BUG-1 (csrf 419 sau khi phiên bị huỷ) và BUG-2 (thiếu Accept JSON → 500); mã lỗi OTP riêng `OTP_INVALID`/`OTP_EXPIRED`; nới hạn mức OTP cho môi trường e2e; email báo duyệt/từ chối đăng ký (US-012 AC2/AC3).
 4. Frontend (sau khi có design mới): FW1 còn lại, FW2, FA3, FA4, FA6, FA7 và các màn còn lại.
 5. **Trước T20**: kiểm phản hồi query của sandbox MoMo (cần tài khoản sandbox từ PO).
@@ -102,6 +103,7 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - 2026-10-05 · T03, FW1 · Dev + Reviewer + Security + QA · Review APPROVE; Security PASS có điều kiện (hoãn v2); QA tìm BUG-1..5, đã sửa, PASS có điều kiện; host local đổi thành api.localhost:3000 và admin-api.localhost:3001; csrf throttle 120/phút
 - 2026-10-05 · T04, FW1 (OTP) · Dev + Reviewer + QA · Review APPROVE; QA tìm BUG-1..4 (mã OTP rò vào log, Retry-After chưa expose CORS...), đã sửa, PASS
 - 2026-10-05 · T05 · Dev + Reviewer · Một phiên học sinh (ADR-003): bind/tombstone/middleware thật; login bỏ `guest`, register `guest.student`; Review APPROVE, đã sửa R1 (không destroy trước bind), R2 (register 201 không phiên khi bind lỗi), R3, R4, R6; R5 ghi vào T27; chờ QA
+- 2026-10-06 · T12, T31, Sửa lỗi nhỏ 2 · Dev + Reviewer + QA · PASS; commit 78f8986, a0ebac1, 0701cff (CI worktree sạch, gồm race)
 - 2026-10-06 · T18, khoá thanh toán + T30, T23 · Dev + Reviewer + QA · PASS; commit 297a527, 744c8be, edca8ad, 9ad3765 (CI worktree sạch)
 - 2026-10-05 · T21, sửa lỗi nhỏ 1, T16 · Dev + Reviewer + QA · PASS; commit cc14b43, 3366d60, b17c69b (mỗi commit chỉ phần của task)
 - 2026-10-05 · T11 · Dev + Reviewer + QA · PASS; commit d9575f7 (chỉ phần T11, CI chạy trên worktree sạch: 982 test, 0 fail)
