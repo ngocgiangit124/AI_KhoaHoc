@@ -7,6 +7,7 @@ import { z } from "zod";
  * {
  *   "referral_code_enabled": true,
  *   "quiz_time_limit_enabled": true,
+ *   "paid_checkout_enabled": false,
  *   "otp": { "ttl_minutes": 10, "resend_cooldown_seconds": 60 },
  *   "grades": [6, 7, 8, 9, 10, 11, 12],
  *   "captcha_site_key": null,
@@ -19,6 +20,8 @@ import { z } from "zod";
 export const publicConfigSchema = z.object({
   referral_code_enabled: z.boolean(),
   quiz_time_limit_enabled: z.boolean(),
+  /** `false` (cờ FEATURE_PAID_CHECKOUT tắt, V2): khóa có phí hiện giá + "Sắp mở bán", không có lối mua. Thiếu khoá → coi là tắt. */
+  paid_checkout_enabled: z.boolean().default(false),
   otp: z.object({
     ttl_minutes: z.number(),
     resend_cooldown_seconds: z.number(),

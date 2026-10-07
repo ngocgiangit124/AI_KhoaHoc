@@ -47,6 +47,10 @@ if [ "$MODE" = "--real-backend" ]; then
     NETWORK_ARGS+=(--network host)
   fi
   ENV_ARGS+=(-e E2E_REAL_BACKEND=1)
+  if [ "$(uname -s)" = "Darwin" ]; then
+    # Mailpit (cổng 8025 trên host): trong container Docker Desktop 127.0.0.1 không tới được host.
+    ENV_ARGS+=(-e E2E_MAILPIT_URL="${E2E_MAILPIT_URL:-http://host.docker.internal:8025}" -e MAILPIT_URL="${MAILPIT_URL:-http://host.docker.internal:8025}")
+  fi
 fi
 
 # Không dùng corepack (cần ghi vào /usr/bin, không được phép khi chạy --user non-root).

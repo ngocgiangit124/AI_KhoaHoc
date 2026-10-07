@@ -42,7 +42,8 @@ export default defineConfig({
     {
       // Gọi thẳng binary local (không qua "pnpm run dev") để chạy được trong ảnh
       // mcr.microsoft.com/playwright (không có pnpm/corepack sẵn — xem scripts/playwright.sh).
-      command: "./node_modules/.bin/next dev --port 3000",
+      // E2E_WEB_COMMAND: ghi đè để chạy bản build production (`next start`) hoặc kèm tiến trình phụ.
+      command: process.env.E2E_WEB_COMMAND ?? "./node_modules/.bin/next dev --port 3000",
       url: "http://api.localhost:3000",
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,

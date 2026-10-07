@@ -25,6 +25,10 @@ services:
       HOME: /home/node
     env_file:
       - apps/web/.env.local
+    # SSR gọi API bằng API_INTERNAL_URL=http://api.localhost:8000: hostname chính là Host gửi tới
+    # Nginx (FW2), nên trỏ api.localhost về máy host thay vì dùng host.docker.internal.
+    extra_hosts:
+      - "api.localhost:host-gateway"
     volumes:
       - .:/workspace
 

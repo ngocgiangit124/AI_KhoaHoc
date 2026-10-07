@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { Be_Vietnam_Pro, Mali } from "next/font/google";
 import { V2Providers } from "@/components/v2/V2Providers";
 
@@ -26,6 +27,8 @@ export const metadata: Metadata = {
 };
 
 export default function V2Layout({ children }: LayoutProps<"/v2">) {
+  // Production: bản xem trước KHÔNG được mở ra công khai (trừ khi bật rõ ràng bằng V2_PREVIEW=1, ví dụ trên staging).
+  if (process.env.NODE_ENV === "production" && process.env.V2_PREVIEW !== "1") notFound();
   return (
     <div
       data-theme="light"

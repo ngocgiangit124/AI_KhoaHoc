@@ -2,39 +2,35 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button } from "@vitaminvui/ui";
+import { Button, useToast } from "@vitaminvui/ui/v2";
 import { logoutStudent } from "@/lib/auth/api";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 
-/** Đăng xuất: POST /auth/logout rồi về /dang-nhap. Lỗi → giữ nguyên trang, báo lỗi. */
-export function LogoutButton() {
+/** Đăng xuất: POST /auth/logout rồi về /dang-nhap. Lỗi → giữ nguyên trang, báo bằng toast. */
+export function LogoutButton({ block = false }: { block?: boolean }) {
   const router = useRouter();
+  const toast = useToast();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function onClick() {
     setPending(true);
-    setError(null);
     try {
       await logoutStudent();
       router.replace("/dang-nhap");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : UNKNOWN_ERROR_MESSAGE);
+      toast.show({
+        tone: "danger",
+        title: "Không đăng xuất được",
+        description: err instanceof Error && err.message ? err.message : UNKNOWN_ERROR_MESSAGE,
+      });
       setPending(false);
     }
   }
 
   return (
-    <div>
-      <Button variant="outline" size="md" loading={pending} onClick={onClick}>
-        Đăng xuất
-      </Button>
-      {error ? (
-        <Alert variant="danger" className="mt-2">
-          {error}
-        </Alert>
-      ) : null}
-    </div>
+    <Button variant="secondary" size="md" block={block} loading={pending} loadingText="Đang đăng xuất…" onClick={onClick}>
+      Đăng xuất
+    </Button>
   );
 }

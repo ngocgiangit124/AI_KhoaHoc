@@ -152,10 +152,12 @@ export async function verifyOtp(code: string): Promise<AuthUser | null> {
 export interface ContactPayload {
   email?: string;
   phone?: string;
+  /** Bắt buộc từ Bảo mật cụm 1 (H1): thiếu/sai -> 422 field `current_password`, sai nhiều lần -> 429. */
+  current_password?: string;
 }
 
 /**
- * `PUT /auth/contact` — body `{email?, phone?}` (≥ 1 field) → 200 `{ resend_available_at }`;
+ * `PUT /auth/contact` — body `{email?, phone?, current_password}` (≥ 1 trong email/phone) → 200 `{ resend_available_at }`;
  * `null` nghĩa là server KHÔNG gửi mã mới (ví dụ chỉ đổi SĐT, hoặc giá trị không đổi).
  */
 export async function updateContact(payload: ContactPayload): Promise<{ resendAvailableAt: string | null }> {

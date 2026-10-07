@@ -1,9 +1,11 @@
-import { EmptyState } from "@vitaminvui/ui";
+import { NotFoundView } from "@/components/shell/NotFoundView";
+import { SiteShell } from "@/components/shell/SiteShell";
 
+/** 404 cho URL không thuộc nhóm route nào: tự dựng khung trang (vì nằm ngoài layout của `(site)`). */
 export default function NotFound() {
   return (
-    <main className="mx-auto max-w-xl px-4 py-16">
-      <EmptyState title="Không tìm thấy trang" description="Trang bạn tìm không tồn tại hoặc đã bị xoá." />
-    </main>
+    <SiteShell>
+      <NotFoundView />
+    </SiteShell>
   );
 }

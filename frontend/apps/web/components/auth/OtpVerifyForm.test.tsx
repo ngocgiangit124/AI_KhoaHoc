@@ -122,8 +122,9 @@ describe("OtpVerifyForm", () => {
     const email = screen.getByLabelText(/^Email/);
     await u.clear(email);
     await u.type(email, "moi@example.com");
+    await u.type(screen.getByLabelText(/^Mật khẩu hiện tại/), "matkhau-123");
     await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
-    await waitFor(() => expect(updateContact).toHaveBeenCalledWith({ email: "moi@example.com" }));
+    await waitFor(() => expect(updateContact).toHaveBeenCalledWith({ email: "moi@example.com", current_password: "matkhau-123" }));
     expect(refreshAuth).toHaveBeenCalled();
     expect(await screen.findByText(/gửi mã xác thực mới/)).toBeInTheDocument();
   });
@@ -136,8 +137,40 @@ describe("OtpVerifyForm", () => {
     const email = screen.getByLabelText(/^Email/);
     await u.clear(email);
     await u.type(email, "trung@example.com");
+    await u.type(screen.getByLabelText(/^Mật khẩu hiện tại/), "matkhau-123");
     await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
     expect(await screen.findByText("Email đã được sử dụng")).toBeInTheDocument();
+  });
+
+  it("đổi liên hệ: thiếu mật khẩu hiện tại -> lỗi tại ô, không gọi API", async () => {
+    const u = userEvent.setup();
+    render(<OtpVerifyForm {...props} />);
+    await u.click(screen.getByRole("button", { name: "Đổi email/SĐT" }));
+    const email = screen.getByLabelText(/^Email/);
+    await u.clear(email);
+    await u.type(email, "moi@example.com");
+    await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
+    expect(await screen.findByText("Vui lòng nhập mật khẩu hiện tại để xác nhận thay đổi.")).toBeInTheDocument();
+    expect(updateContact).not.toHaveBeenCalled();
+  });
+
+  it("đổi liên hệ: 422 current_password -> lỗi dưới ô mật khẩu và xoá ô; 429 -> thông báo chờ", async () => {
+    updateContact.mockRejectedValueOnce(new ApiError(422, { message: "x", errors: { current_password: ["Mật khẩu hiện tại không đúng."] } }));
+    const u = userEvent.setup();
+    render(<OtpVerifyForm {...props} />);
+    await u.click(screen.getByRole("button", { name: "Đổi email/SĐT" }));
+    const email = screen.getByLabelText(/^Email/);
+    await u.clear(email);
+    await u.type(email, "moi@example.com");
+    const pw = screen.getByLabelText(/^Mật khẩu hiện tại/);
+    await u.type(pw, "sai-roi-1234");
+    await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
+    expect(await screen.findByText("Mật khẩu hiện tại không đúng.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Mật khẩu hiện tại/)).toHaveValue("");
+    updateContact.mockRejectedValueOnce(new ApiError(429, { message: "x" }, 120));
+    await u.type(screen.getByLabelText(/^Mật khẩu hiện tại/), "lai-sai-1234");
+    await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
+    expect(await screen.findByText(/sai mật khẩu quá nhiều lần.*2 phút/)).toBeInTheDocument();
   });
 
   it("/auth/me lỗi tạm thời → nút Thử lại, KHÔNG chuyển sang đăng nhập", async () => {
@@ -183,6 +216,7 @@ describe("OtpVerifyForm", () => {
     const phone = screen.getByLabelText(/^Số điện thoại/);
     await u.clear(phone);
     await u.type(phone, "0987654321");
+    await u.type(screen.getByLabelText(/^Mật khẩu hiện tại/), "matkhau-123");
     await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
     expect(await screen.findByText("Đã cập nhật thông tin liên hệ.")).toBeInTheDocument();
     expect(screen.queryByText(/gửi mã xác thực mới/)).not.toBeInTheDocument();

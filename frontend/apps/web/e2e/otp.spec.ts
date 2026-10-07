@@ -100,7 +100,7 @@ test.describe("OTP e2e", () => {
 
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByText("Vui lòng xác thực tài khoản để có thể mua khóa học")).toBeVisible();
-    await expect(page.getByText("Xin chào, Trần Thị Ánh Tuyết")).toBeVisible();
+    await expect(page.getByRole("banner").getByText("Trần Thị Ánh Tuyết").first()).toBeVisible();
 
     const code = await waitForCode(email);
     await page.getByRole("link", { name: "Xác thực ngay" }).click();
@@ -185,11 +185,13 @@ test.describe("OTP e2e", () => {
 
     // trùng với tài khoản khác (user seed số 5)
     await page.getByLabel("Email", { exact: true }).fill(seeded(5));
+    await page.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
     await page.getByRole("button", { name: "Lưu và gửi mã mới" }).click();
     await expect(page.getByText("Email đã được sử dụng.")).toBeVisible();
 
     const newEmail = `otp-e2e-4-moi-${Date.now().toString(36)}@example.com`;
     await page.getByLabel("Email", { exact: true }).fill(newEmail);
+    await page.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
     await page.getByRole("button", { name: "Lưu và gửi mã mới" }).click();
     await expect(page.getByText("Đã cập nhật thông tin liên hệ và gửi mã xác thực mới")).toBeVisible();
     const newCode = await waitForCode(newEmail);
@@ -270,6 +272,7 @@ test.describe("OTP e2e", () => {
     const code = await loginAndRequestCode(page, 10);
     await page.getByRole("button", { name: "Đổi email/SĐT" }).click();
     await page.getByLabel("Số điện thoại").fill("0966123456");
+    await page.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
     await page.getByRole("button", { name: "Lưu và gửi mã mới" }).click();
     await expect(page.getByText("Đã cập nhật thông tin liên hệ.", { exact: true })).toBeVisible();
     await expect(page.getByText(/gửi mã xác thực mới/)).toHaveCount(0);

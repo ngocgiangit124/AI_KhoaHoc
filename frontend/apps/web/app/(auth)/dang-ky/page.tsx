@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { env } from "@/env";
 import { RegisterForm } from "@/components/auth/RegisterForm";
-import { publicFetchServer } from "@/lib/api.server";
-import { parsePublicConfig } from "@/lib/types/config";
+import { CatalogBusy } from "@/components/catalog/CatalogBusy";
+import { fetchPublicConfig } from "@/lib/catalog/api";
+import { isUpstreamBusy } from "@/lib/catalog/busy";
 
 export const metadata: Metadata = { title: "Tạo tài khoản học sinh — VitaminVui" };
 
@@ -10,15 +11,18 @@ export const metadata: Metadata = { title: "Tạo tài khoản học sinh — Vi
 export const dynamic = "force-dynamic";
 
 export default async function RegisterPage() {
-  const config = parsePublicConfig(
-    await publicFetchServer<unknown>("/api/v1/config/public", { revalidate: 60 }),
-  );
+  let config;
+  try {
+    config = await fetchPublicConfig();
+  } catch (err) {
+    if (isUpstreamBusy(err)) return <CatalogBusy href="/dang-ky" />;
+    throw err;
+  }
 
   return (
-    <main className="mx-auto w-full max-w-[480px] px-4 py-8">
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <p className="text-lg font-bold text-indigo-600">VitaminVui</p>
-        <h1 className="mt-2 mb-6 text-2xl font-bold text-gray-900">Tạo tài khoản học sinh</h1>
+    <div className="mx-auto w-full max-w-[480px] px-4 py-8">
+      <div className="rounded-card border border-line bg-surface p-6">
+        <h1 className="mb-6 text-title font-extrabold tracking-heading text-ink">Tạo tài khoản học sinh</h1>
         <RegisterForm
           grades={config.grades}
           parentConsentAge={config.parent_consent_age}
@@ -27,6 +31,6 @@ export default async function RegisterPage() {
           captchaSiteKey={config.captcha_site_key || env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || null}
         />
       </div>
-    </main>
+    </div>
   );
 }

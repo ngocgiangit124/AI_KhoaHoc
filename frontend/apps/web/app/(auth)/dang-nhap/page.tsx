@@ -9,12 +9,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/dang-nhap"
   const { next } = await searchParams;
 
   return (
-    <main className="mx-auto w-full max-w-[480px] px-4 py-8">
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <p className="text-lg font-bold text-indigo-600">VitaminVui</p>
-        <h1 className="mt-2 mb-6 text-2xl font-bold text-gray-900">Đăng nhập</h1>
+    <div className="mx-auto w-full max-w-[480px] px-4 py-8">
+      <div className="rounded-card border border-line bg-surface p-6">
+        <h1 className="mb-6 text-title font-extrabold tracking-heading text-ink">Đăng nhập</h1>
         <LoginForm next={typeof next === "string" ? next : null} />
       </div>
-    </main>
+    </div>
   );
 }

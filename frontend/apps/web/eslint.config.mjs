@@ -10,6 +10,10 @@ const eslintConfig = defineConfig([
   // component render courses.description qua DOMPurify, thêm 1 block ở đây:
   //   { files: ["app/**/CourseDescription.tsx"], rules: { "no-restricted-syntax": "off" } }
   dangerouslySetInnerHtmlBan,
+  // Allowlist (S8): đúng 1 component render courses.description (qua DOMPurify) ...
+  { files: ["components/catalog/CourseDescription.tsx"], rules: { "no-restricted-syntax": "off" } },
+  // ... và JsonLd (chỉ nhận object, serialize bằng jsonLd() có escape "<"; không nhận chuỗi HTML).
+  { files: ["components/seo/JsonLd.tsx"], rules: { "no-restricted-syntax": "off" } },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
@@ -20,6 +24,8 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
     "coverage/**",
+    // Script k6 (không phải code ứng dụng; dùng global của k6: __ENV, __ITER, open).
+    "loadtest/**",
   ]),
 ]);
 

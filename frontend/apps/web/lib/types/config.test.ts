@@ -4,6 +4,7 @@ import { parsePublicConfig } from "./config";
 const VALID_RESPONSE = {
   referral_code_enabled: true,
   quiz_time_limit_enabled: true,
+  paid_checkout_enabled: false,
   otp: { ttl_minutes: 10, resend_cooldown_seconds: 60 },
   grades: [6, 7, 8, 9, 10, 11, 12],
   captcha_site_key: null,
@@ -14,6 +15,12 @@ const VALID_RESPONSE = {
 describe("parsePublicConfig — validate GET /api/v1/config/public (api-contract §2.1)", () => {
   it("parse thành công đúng ví dụ JSON trong api-contract.md", () => {
     expect(parsePublicConfig(VALID_RESPONSE)).toEqual(VALID_RESPONSE);
+  });
+
+  it("thiếu paid_checkout_enabled (backend cũ) -> coi là tắt, không vỡ trang", () => {
+    const { paid_checkout_enabled: _omit, ...legacy } = VALID_RESPONSE;
+    void _omit;
+    expect(parsePublicConfig(legacy).paid_checkout_enabled).toBe(false);
   });
 
   it("chấp nhận captcha_site_key là string (Turnstile đã cấu hình)", () => {

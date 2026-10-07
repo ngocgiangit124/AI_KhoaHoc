@@ -17,8 +17,8 @@ export interface NavItem {
 export interface SiteHeaderProps {
   homeHref: string;
   nav: NavItem[];
-  /** null = khách. */
-  viewer: { name: string; accountHref: string } | null;
+  /** null = khách. `accountHref` bỏ trống (trang tài khoản chưa có) → tên hiển thị dạng chữ, không phải liên kết. */
+  viewer: { name: string; accountHref?: string } | null;
   loginHref: string;
   registerHref: string;
   /** Form tìm kiếm GET tới danh mục (`?q=`). */
@@ -31,13 +31,32 @@ export interface SiteHeaderProps {
   cart?: { href: string; count: number } | null;
   /** Ẩn ô tìm kiếm (trang đăng nhập/đăng ký). */
   minimal?: boolean;
+  /**
+   * Hành động cạnh tên người dùng (ví dụ nút "Đăng xuất"): hiện ở header (md trở lên) và cuối ngăn kéo (mobile).
+   * Chỉ dùng khi `viewer` có giá trị.
+   */
+  viewerActions?: ReactNode;
+  /** Đang hỏi `/auth/me`: giữ chỗ thay cho nút Đăng nhập/Đăng ký để header không nhảy. */
+  authPending?: boolean;
 }
 
 /**
  * Header công khai/học sinh: logo · điều hướng · tìm kiếm · tài khoản. Dính trên cùng, nền `surface`.
  * Mobile: logo + tìm kiếm + nút menu (ngăn kéo); thao tác chính ở bottom-nav khi đã đăng nhập.
  */
-export function SiteHeader({ homeHref, nav, viewer, loginHref, registerHref, searchAction, searchDefault, cart, minimal = false }: SiteHeaderProps) {
+export function SiteHeader({
+  homeHref,
+  nav,
+  viewer,
+  loginHref,
+  registerHref,
+  searchAction,
+  searchDefault,
+  cart,
+  minimal = false,
+  viewerActions,
+  authPending = false,
+}: SiteHeaderProps) {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6">
@@ -106,13 +125,25 @@ export function SiteHeader({ homeHref, nav, viewer, loginHref, registerHref, sea
             </UiLink>
           ) : null}
           {viewer ? (
-            <UiLink
-              href={viewer.accountHref}
-              className="focus-ring hidden items-center gap-2 rounded-control py-1 pl-1 pr-3 text-base font-semibold text-ink hover:bg-primary-soft md:inline-flex"
-            >
-              <Avatar name={viewer.name} size="sm" />
-              <span className="max-w-32 truncate">{viewer.name}</span>
-            </UiLink>
+            <div className="hidden items-center gap-1 md:flex">
+              {viewer.accountHref ? (
+                <UiLink
+                  href={viewer.accountHref}
+                  className="focus-ring inline-flex items-center gap-2 rounded-control py-1 pl-1 pr-3 text-base font-semibold text-ink hover:bg-primary-soft"
+                >
+                  <Avatar name={viewer.name} size="sm" />
+                  <span className="max-w-32 truncate">{viewer.name}</span>
+                </UiLink>
+              ) : (
+                <span className="inline-flex items-center gap-2 py-1 pl-1 pr-2 text-base font-semibold text-ink">
+                  <Avatar name={viewer.name} size="sm" />
+                  <span className="max-w-32 truncate">{viewer.name}</span>
+                </span>
+              )}
+              {viewerActions}
+            </div>
+          ) : authPending ? (
+            <div aria-hidden="true" className="hidden h-11 w-44 sm:block" />
           ) : (
             <div className="hidden items-center gap-2 sm:flex">
               <ButtonLink href={loginHref} variant="ghost">
@@ -140,7 +171,17 @@ export function SiteHeader({ homeHref, nav, viewer, loginHref, registerHref, sea
                     </UiLink>
                   ))}
                 </nav>
-                {viewer ? null : (
+                {viewer ? (
+                  viewerActions ? (
+                    <div className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
+                      <p className="flex items-center gap-2 text-base font-semibold text-ink">
+                        <Avatar name={viewer.name} size="sm" />
+                        <span className="truncate">{viewer.name}</span>
+                      </p>
+                      {viewerActions}
+                    </div>
+                  ) : null
+                ) : authPending ? null : (
                   <div className="mt-4 grid grid-cols-2 gap-2 border-t border-line pt-4">
                     <ButtonLink href={loginHref} variant="secondary">
                       Đăng nhập

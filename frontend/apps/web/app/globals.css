@@ -18,16 +18,17 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   /* font-sans, primary, primary-hover, accent, success, danger, warning, info: khai báo trong
      packages/ui/src/v2/tokens.css (fallback = giá trị v1 cũ). */
 
   --color-primary-subtle: var(--color-indigo-50);
 }
 
+/* Token v2 (`--vv-*`) có trên <html class="theme-v2">; --background/--foreground là phương án dự phòng. */
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--vv-paper, var(--background));
+  color: var(--vv-ink, var(--foreground));
 }
 
 /* Vùng chạm tối thiểu 44x44px trên mobile (design-system.md §1). */

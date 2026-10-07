@@ -49,3 +49,8 @@ export function useAuth(): AuthContextValue {
   if (!ctx) throw new Error("useAuth phải nằm trong <AuthProvider>");
   return ctx;
 }
+
+/** Như `useAuth` nhưng trả `null` khi không có `<AuthProvider>` (khung trang tối giản của đăng nhập/đăng ký). */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
+}

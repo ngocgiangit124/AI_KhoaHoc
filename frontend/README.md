@@ -140,6 +140,7 @@ Next.js ném lỗi rõ ràng ngay khi thiếu/sai biến (chạy lúc `next dev`
 | web | `API_INTERNAL_URL` **(server-only)** | Laravel gọi từ SSR (`lib/api.server.ts`). Trong Docker Compose dùng `host.docker.internal:8000`; chạy `next dev` thẳng trên máy (không qua Docker) thì đổi lại `http://api.localhost:8000` |
 | admin | `NEXT_PUBLIC_ADMIN_API_URL`, `NEXT_PUBLIC_ADMIN_URL` | |
 | admin | `NEXT_PUBLIC_STATIC_URL`, `NEXT_PUBLIC_VIDEO_UPLOAD_URL` | |
+| admin | `V2_PREVIEW` **(server-only)** | Bản xem trước design v2 `/v2/...` (nhóm route `(v2-preview)`) trả 404 ở production (`NODE_ENV=production`) trừ khi đặt `V2_PREVIEW=1`. `next dev` luôn xem được. Đọc lúc chạy (layout gọi `connection()`), không cần build lại |
 
 Biến mới thêm sau này: cập nhật `.env.example` tương ứng + báo PO/Architect (không bao
 giờ đặt secret vào biến `NEXT_PUBLIC_*`).
@@ -169,8 +170,9 @@ giờ đặt secret vào biến `NEXT_PUBLIC_*`).
   chống open redirect / chỉ mở MoMo đúng host / escape JSON-LD (S23).
 - ESLint cấm `dangerouslySetInnerHTML` toàn workspace
   (`packages/config/eslint/base.mjs`) trừ file được allowlist tường minh trong
-  `eslint.config.mjs` của app — chưa có allowlist nào ở FE0 (sẽ thêm ở FW2 cho
-  component render `courses.description` qua DOMPurify).
+  `eslint.config.mjs` của app. `apps/web` có 2 allowlist (FW2): `CourseDescription.tsx`
+  (render `courses.description` qua DOMPurify — `lib/catalog/sanitize.ts`) và `seo/JsonLd.tsx`
+  (JSON-LD có nonce; chỉ nhận object rồi serialize bằng `jsonLd()`).
 - Route cần đăng nhập phải tự đặt `export const dynamic = 'force-dynamic'` và dùng
   `authFetch`; chỉ `publicFetch` được dùng `revalidate`/ISR (S16) — quy ước ghi trong
   comment `apps/web/lib/api.ts` / `apps/web/lib/api.server.ts`.
@@ -224,8 +226,10 @@ Dev: `eslint` 9.39.5 + `eslint-config-next` 16.3.6, `prettier` 3.9.9, `vitest` 3
 `@vitejs/plugin-react`, `jsdom`), `@testing-library/react` + `dom` + `jest-dom` +
 `user-event`, `@playwright/test` 1.63.0.
 
-**Chưa cài** (đúng theo tasks.md — cài ở task dùng tới): `react-hook-form` +
-`@hookform/resolvers`, `isomorphic-dompurify`, `katex`, `hls.js`, `tus-js-client`,
+Đã cài ở task sau: `react-hook-form` + `@hookform/resolvers` (FW1), `isomorphic-dompurify`
+4.4.0 (FW2 — mô tả khóa; kéo theo `jsdom` + `dompurify`, chỉ `apps/web`).
+
+**Chưa cài** (đúng theo tasks.md — cài ở task dùng tới): `katex`, `hls.js`, `tus-js-client`,
 `@dnd-kit/core` + `@dnd-kit/sortable`. Widget Turnstile dùng script chính thức, không
 cần package.
 
@@ -262,3 +266,89 @@ test có ý nghĩa): `Pagination`, `CursorPagination`, `ProgressBar`, `FormField
   --tailwind --eslint --app`), alias `@/*` trỏ vào root app đó.
 - Route quản trị đặt trong `apps/admin`; route học sinh trong `apps/web` — không dùng
   chung layout/cookie giữa 2 app (ADR-004 §2.2).
+
+## FW-V2 — Nền design v2 cho `apps/web` (thật)
+
+- `app/layout.tsx`: `<html class="theme-v2" data-theme="light">` + font Be Vietnam Pro/Mali (`next/font`), `AppProviders`
+  (`UiLinkProvider` dùng `next/link` + `ToastProvider` v2). Giao diện tối chưa bật (chờ PO, §13).
+- Khung trang thật: `components/shell/SiteShell` (header/footer dựng từ `SiteHeader`/`SiteFooter` v2; trạng thái đăng nhập từ
+  `/auth/me` qua `AuthProvider`). Route group `(site)` (trang chủ, danh mục, lớp, chi tiết) dùng khung đầy đủ; `(auth)`
+  (đăng nhập/đăng ký/OTP) dùng khung `minimal`. Đường dẫn thật ở `lib/routes.ts`; chưa có "Khóa học của tôi"/tài khoản/giỏ hàng
+  nên chưa có trong header/footer/bottom-nav (thêm khi FW3–FW5 xong).
+- Màn xác thực FW1 giữ nguyên logic/test, chỉ đổi khung/token; làm lại giao diện chi tiết sau khi designer xong.
+- **`/v2` (bản xem trước) bị chặn ở production** bằng `proxy.ts` + `lib/previewGate.ts`: khi `NODE_ENV=production` và không có
+  `V2_PREVIEW=1` (đọc lúc chạy) proxy rewrite sang route không tồn tại -> 404 thật, response vẫn mang CSP + header bảo mật. Cổng
+  chuẩn hoá đường dẫn (giải mã phần trăm `/%76%32`, gộp `//`, không phân biệt hoa thường) và matcher có entry riêng `/v2`,
+  `/v2/:path*` KHÔNG có `missing` nên request prefetch cũng bị chặn. `(v2-preview)/v2/layout.tsx` gọi `notFound()` chỉ là lớp phụ
+  (khi đã stream thì trả 200 và payload RSC còn nội dung xem trước, nên không đủ một mình). Test: `lib/previewGate.test.ts`, `proxy.test.ts`.
+  Kiểm tay trên `next start`: `curl -i /v2`, `/%76%32/khoa-hoc`, `//v2/khoa-hoc`, kèm `-H 'next-router-prefetch: 1' -H 'purpose: prefetch'`
+  đều phải 404 và có `Content-Security-Policy`; `V2_PREVIEW=1` -> 200.
+- SSR gọi Laravel: xem `API_INTERNAL_URL` trong `.env.example` (ADR-004 §2.8).
+
+## FW2 — Danh mục và chi tiết khóa học (`apps/web`)
+
+Route: `/khoa-hoc` (danh mục), `/lop-{6..12}` (segment động ở gốc `app/[lopSlug]` vì App Router
+không có segment tiền tố; `lop-99`/`lop-09`/`lop-abc` -> `notFound()`), `/khoa-hoc/{slug}`,
+`/robots.txt` (tĩnh, prerender), `/sitemap.xml` (route handler `force-dynamic`, không prerender lúc build; dữ liệu qua Data Cache `revalidate: 3600` tag `catalog`; `Cache-Control: public, s-maxage=3600, stale-while-revalidate=600`).
+
+- Giao diện theo màn của designer (`(v2-preview)/v2/khoa-hoc`) với dữ liệu thật, tái dùng `CourseCard`/`CourseCover`/
+  `Pagination`/`Breadcrumb`/`EmptyState` của `@vitaminvui/ui/v2`. `paid_checkout_enabled=false` (`/config/public`): thẻ và trang
+  chi tiết hiện giá + "Sắp mở bán", không có nút mua (`lib/catalog/cta.ts`). Bài học thử mới chỉ có nhãn (phát video: FW4).
+- SSR nội bộ: `publicFetchServer` gắn `X-Internal-Token` (`INTERNAL_API_TOKEN`) cho mọi request catalog; `X-Client-IP` chỉ gắn
+  cho tìm kiếm `q` vì Next đưa HEADER vào khoá Data Cache (gắn IP cho mọi request sẽ tách cache theo từng IP và phình đĩa).
+  Đã chốt ở ADR-004 §2.8 (production: `API_INTERNAL_URL=http://<IP_NOI_BO_NGINX>:8081`; local: `http://api.localhost:8000`).
+- API trả 429/5xx/mất kết nối: trang chủ, đăng ký, OTP, danh mục, lớp, chi tiết hiện "Hệ thống đang bận" (`lib/catalog/busy.ts`,
+  `CatalogBusy`, có `noindex`), không lộ 500 trần; response không-200 không vào Data Cache (Next chỉ ghi status 200 — có test khoá).
+  Sitemap khi API lỗi trả 503 + `Retry-After` + `no-store`. Phân trang chỉ dựa `meta.current_page/last_page`, không dùng `links`/`meta.path`.
+- Khóa đã sở hữu: nút "Tiếp tục học" vô hiệu ("Sắp mở trang học") và bài trong outline là hàng tĩnh cho tới khi FW4 có route `/hoc/...`
+  (`TODO(FW4)` trong `CourseAction.tsx`, `CourseOutline.tsx`).
+- Render động + CSP nonce (ADR-004 §2.7); dữ liệu qua `publicFetchServer` với `revalidate: 60`,
+  `tags: ['catalog']` (`lib/catalog/api.ts`). Ghi/đổi dữ liệu catalog ở nơi khác có thể gọi
+  `revalidateTag('catalog', 'max')`.
+- Bộ lọc/trang/sắp xếp nằm trên URL (`grade`, `subject_ids` lặp key, `q`, `sort`, `page`); giá trị sai
+  bị bỏ qua êm. `/lop-{grade}` cố định lớp trong đường dẫn.
+- HTTP 404 thật cho `/lop-99` và slug không tồn tại: kiểm ở `layout.tsx` (ngoài ranh giới
+  `loading.tsx`). Vì vậy đã BỎ `app/loading.tsx` gốc (nó làm mọi `notFound()` trả 200 + noindex).
+  Nếu cần skeleton cho trang khác, đặt `loading.tsx` trong segment của trang đó.
+- `viewer-state` gọi phía client bằng `authFetch`, chỉ khi `/auth/me` báo đã đăng nhập
+  (`components/catalog/CourseCtaProvider.tsx`). Mua/giỏ hàng: nút chờ T16/FW3.
+- `instrumentation.ts` nạp sẵn `isomorphic-dompurify` lúc khởi động: `require('jsdom')` tốn vài giây
+  (đo được 15 s trên máy dev), nếu không người xem đầu tiên của trang chi tiết sẽ gánh.
+  Readiness check của deploy nên gọi 1 request (vd. `/khoa-hoc`) trước khi nhận tải.
+- E2E thật: `e2e/danh-muc-real.spec.ts` + `e2e/seed-e2e-catalog.sh` (`--clean` để dọn).
+  Chạy với bản build: đặt `E2E_WEB_COMMAND` (xem `playwright.config.ts`).
+
+### Load test (ADR-004 §2.7) — kết quả 2026-10-05
+
+Công cụ: k6 (`loadtest/catalog.k6.js`), bản build production (`next start`), 1 tiến trình Node, trong
+Docker Desktop (Intel i5-1038NG7, 6 vCPU) khi máy đang chạy nhiều container khác (load average ~19 trên 4
+nhân, php ~100-150% CPU) — nên số liệu bên dưới là cận xấu, KHÔNG phải kết luận cuối. Dữ liệu: 32 khóa
+đã publish, mix 50% chi tiết / 50% danh mục.
+
+| Kịch bản | Mục tiêu | Kết quả |
+|---|---|---|
+| Cache lạnh (mỗi request là MISS Data Cache, 1,5 req/s, 90 request, đã warm-up jsdom) | p95 TTFB <= 1,2 s | ĐẠT: p95 TTFB 330 ms, p95 tổng 601 ms, max 1,09 s |
+| Cache ấm, 50 req/s, 1 instance | p95 TTFB <= 500 ms | KHÔNG ĐẠT: máy chỉ chịu ~26 req/s (p95 > 40 s do xếp hàng) |
+| Cache ấm, 50 req/s, 3 instance cùng máy | p95 TTFB <= 500 ms | KHÔNG ĐẠT: ~40 req/s, p95 6,3 s (CPU máy bão hoà) |
+| Cache ấm, 10 req/s / 25 req/s, 1 instance | tham khảo | p95 117 ms / 852 ms |
+
+Năng lực 1 instance (k6 50 req/s từng route): `/robots.txt` 50 req/s; `/lop-99` (404) 40; `/khoa-hoc`
+(25 thẻ) 30; chi tiết khóa 39; `/lop-12` 48. Chi phí cơ bản mỗi trang động (~25 ms CPU ở môi trường này) chiếm
+phần lớn, không riêng FW2. Chưa kết luận được mục tiêu ấm 50 req/s: cần chạy lại trên máy/CI Linux yên
+tĩnh với số instance cố định (ADR §2.7: không đạt thì mở rộng instance Next.js trước). Khuyến nghị tối thiểu
+3–4 instance sau Nginx cho 50 req/s.
+
+**RỦI RO MỞ (R11):** mục tiêu ADR-004 §2.7 "cache ấm 50 req/s, p95 TTFB <= 500 ms" CHƯA đạt trên máy dev (1 instance ~26 req/s, 3 instance
+cùng máy ~40 req/s); chỉ cache lạnh đạt. Quyết định: không chạy lại ở máy dev; chạy lại trên staging/CI Linux yên tĩnh với số instance
+cố định, không đạt thì mở rộng instance Next.js trước (ADR §2.7), khuyến nghị 3–4 instance sau Nginx.
+
+Throttle `catalog`: SSR nay gửi `X-Internal-Token` nên Laravel tính nhóm SSR riêng (ADR-004 §2.8), không còn gộp với người dùng; chi tiết
+ở mục SSR nội bộ phía trên.
+
+### Backlog FW2 (ghi nhận, chưa làm)
+
+- R13: slug đúng định dạng nhưng không tồn tại gọi API mỗi lần (404 không vào Data Cache); bot dò slug ăn hạn mức `ssr-total`. Thêm kịch
+  bản slug lạ vào `loadtest/catalog.k6.js`.
+- R14: QA kiểm `isomorphic-dompurify`/jsdom trên bản `next build` (không cảnh báo `default-stylesheet.css`, trang chi tiết có mô tả vẫn
+  render ở production). `instrumentation.ts` đã nạp sẵn module.
+- R8: `(v2-preview)/v2/layout.tsx` còn nạp lại font Be Vietnam Pro/Mali (trùng layout gốc) — file của designer, bỏ khi xoá nhóm `(v2-preview)`.

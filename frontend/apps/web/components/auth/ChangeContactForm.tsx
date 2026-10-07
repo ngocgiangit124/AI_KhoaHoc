@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { ApiError } from "@vitaminvui/api-client";
-import { Alert, Button, FormField, TextInput } from "@vitaminvui/ui";
+import { Alert, Button, FormField, PasswordInput, TextInput } from "@vitaminvui/ui";
 import { updateContact, type ContactPayload } from "@/lib/auth/api";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 import { VN_PHONE_RE } from "@/lib/auth/schemas";
@@ -21,8 +21,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Đổi email/SĐT liên hệ khi chưa xác thực (`PUT /auth/contact`). Chỉ gửi field thực sự thay đổi. */
 export function ChangeContactForm({ email, phone, onCancel, onDone }: ChangeContactFormProps) {
   const [values, setValues] = useState({ email, phone });
-  const [errors, setErrors] = useState<{ email?: string; phone?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; phone?: string; current_password?: string }>({});
   const [banner, setBanner] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [pending, setPending] = useState(false);
 
   async function onSubmit(e: FormEvent) {
@@ -39,17 +40,22 @@ export function ChangeContactForm({ email, phone, onCancel, onDone }: ChangeCont
       setBanner("Bạn chưa thay đổi email hoặc số điện thoại.");
       return;
     }
+    if (!currentPassword) next.current_password = "Vui lòng nhập mật khẩu hiện tại để xác nhận thay đổi.";
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
     setPending(true);
     try {
-      const { resendAvailableAt } = await updateContact(payload);
+      const { resendAvailableAt } = await updateContact({ ...payload, current_password: currentPassword });
       await onDone(resendAvailableAt);
     } catch (err) {
+      setCurrentPassword(""); // không giữ mật khẩu sau khi lỗi — nhập lại
       if (err instanceof ApiError && err.status === 422 && err.errors) {
-        setErrors({ email: err.errors.email?.[0], phone: err.errors.phone?.[0] });
-        if (!err.errors.email && !err.errors.phone) setBanner(err.message || UNKNOWN_ERROR_MESSAGE);
+        setErrors({ email: err.errors.email?.[0], phone: err.errors.phone?.[0], current_password: err.errors.current_password?.[0] });
+        if (!err.errors.email && !err.errors.phone && !err.errors.current_password) setBanner(err.message || UNKNOWN_ERROR_MESSAGE);
+      } else if (err instanceof ApiError && err.status === 429) {
+        const wait = err.retryAfterSeconds ? ` Vui lòng thử lại sau ${Math.ceil(err.retryAfterSeconds / 60)} phút.` : " Vui lòng thử lại sau ít phút.";
+        setBanner(`Bạn đã nhập sai mật khẩu quá nhiều lần.${wait}`);
       } else {
         setBanner(err instanceof Error && err.message ? err.message : UNKNOWN_ERROR_MESSAGE);
       }
@@ -79,6 +85,14 @@ export function ChangeContactForm({ email, phone, onCancel, onDone }: ChangeCont
           value={values.phone}
           disabled={pending}
           onChange={(e) => setValues((v) => ({ ...v, phone: e.target.value }))}
+        />
+      </FormField>
+      <FormField label="Mật khẩu hiện tại" required error={errors.current_password} hint="Để bảo vệ tài khoản, nhập mật khẩu hiện tại để xác nhận thay đổi.">
+        <PasswordInput
+          autoComplete="current-password"
+          value={currentPassword}
+          disabled={pending}
+          onChange={(e) => setCurrentPassword(e.target.value)}
         />
       </FormField>
       <div className="flex gap-3">
