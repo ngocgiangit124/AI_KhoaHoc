@@ -7,6 +7,7 @@ import {
   IconUser,
   SiteFooter,
   SiteHeader,
+  cx,
 } from "@vitaminvui/ui/v2";
 import { publicConfig } from "@/lib/mock/v2/catalog";
 import { routes, sampleStudent } from "@/lib/v2/routes";
@@ -26,10 +27,25 @@ export interface StudentShellProps {
   paidCheckoutEnabled?: boolean;
   /** Trang có thanh hành động dính đáy (chi tiết khóa học) thì không hiện bottom-nav. */
   hideBottomNav?: boolean;
+  /**
+   * Nền vùng nội dung: `oly` (mặc định) = vở ô ly nhạt chủ đạo của trang khách (`bg-oly-page`, §3.1);
+   * `plain` = giấy trơn (dùng khi cả trang là một bảng/form dày đặc).
+   */
+  background?: "oly" | "plain";
 }
 
 /** Khung trang học sinh: header + nội dung + footer (+ bottom-nav mobile khi đã đăng nhập). */
-export function StudentShell({ current, loggedIn, children, preview, minimal = false, searchDefault, paidCheckoutEnabled, hideBottomNav = false }: StudentShellProps) {
+export function StudentShell({
+  current,
+  loggedIn,
+  children,
+  preview,
+  minimal = false,
+  searchDefault,
+  paidCheckoutEnabled,
+  hideBottomNav = false,
+  background = "oly",
+}: StudentShellProps) {
   const showBottomNav = loggedIn && !minimal && !hideBottomNav;
   const paid = paidCheckoutEnabled ?? publicConfig.paid_checkout_enabled;
   const nav = [
@@ -56,7 +72,7 @@ export function StudentShell({ current, loggedIn, children, preview, minimal = f
         cart={paid && loggedIn ? { href: routes.cart, count: 1 } : null}
         minimal={minimal}
       />
-      <main id="noi-dung" className={showBottomNav ? "flex-1 pb-20 md:pb-0" : "flex-1"}>
+      <main id="noi-dung" className={cx("flex-1", minimal && "flex flex-col", background === "oly" ? "bg-oly-page" : "bg-paper", showBottomNav && "pb-20 md:pb-0")}>
         {children}
       </main>
       {/* Footer không có liên kết Điều khoản/Chính sách cho tới khi có trang (V2) — US-019 "không liên kết chết". */}

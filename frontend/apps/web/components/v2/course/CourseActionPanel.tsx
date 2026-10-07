@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ButtonLink, IconCheckCircle, IconHourglass, IconInfo, IconPlay, formatPrice } from "@vitaminvui/ui/v2";
 import type { CourseDetail, ViewerState } from "@/lib/mock/v2/types";
 import { routes } from "@/lib/v2/routes";
+import type { GateKind } from "@/components/v2/auth/AccountGate";
 import { RegisterFreeButton } from "./RegisterFreeButton";
 
 export type Viewer = ViewerState | "guest";
@@ -31,12 +32,15 @@ export function CourseAction({
   paidEnabled,
   resumeLessonId,
   compact = false,
+  gate,
 }: {
   course: CourseDetail;
   viewer: Viewer;
   paidEnabled: boolean;
   resumeLessonId: number | null;
   compact?: boolean;
+  /** Bản xem trước: giả lập 403 khi bấm "Đăng ký học miễn phí". */
+  gate?: GateKind;
 }) {
   const loginNext = `${routes.login}?next=${encodeURIComponent(routes.course(course.slug))}`;
   const previewLink = course.has_preview ? (
@@ -81,7 +85,7 @@ export function CourseAction({
             Đăng ký học miễn phí
           </ButtonLink>
         ) : (
-          <RegisterFreeButton />
+          <RegisterFreeButton gate={gate} />
         )}
         {!compact ? <p className="text-sm text-ink-soft">Khóa miễn phí cần giáo viên duyệt. Bạn sẽ nhận email khi được duyệt.</p> : null}
       </div>

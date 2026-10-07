@@ -13,6 +13,7 @@ const NOTICES: Array<{ key?: LoginNotice; label: string }> = [
   { key: "khoa", label: "Bị khoá" },
   { key: "thiet-bi", label: "Bị đăng xuất do thiết bị khác" },
   { key: "het-phien", label: "Hết phiên" },
+  { key: "dat-lai-xong", label: "Vừa đặt lại mật khẩu" },
 ];
 
 export default async function LoginPreview({ searchParams }: PageProps<"/v2/dang-nhap">) {

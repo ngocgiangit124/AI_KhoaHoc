@@ -129,7 +129,7 @@ export default async function CatalogPreview({ searchParams }: PageProps<"/v2/kh
 
         <div className="mt-6 grid gap-8 lg:grid-cols-[220px_1fr]">
           <aside aria-label="Lọc theo chuyên đề" className="hidden lg:block">
-            <div className="sticky top-24">
+            <div className="sticky top-24 rounded-card border border-line bg-surface p-4">
               <CatalogFilters subjects={subjects} query={query} variant="sidebar" />
             </div>
           </aside>

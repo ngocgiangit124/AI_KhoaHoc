@@ -10,10 +10,15 @@ import { Alert, Button, Field, PasswordInput, TextInput, useToast } from "@vitam
  * - Đổi email thành công → mã OTP gửi tới email mới, các thiết bị khác bị đăng xuất (báo trước trong mô tả).
  * TODO(dev): nối API; sau khi đổi email gọi lại /auth/me (cookie phiên được xoay).
  */
-export function ChangeContactForm({ email, phone, demoError }: { email: string; phone: string; demoError?: "sai-mat-khau" | "qua-nhieu" }) {
+export type ContactDemoError = "sai-mat-khau" | "qua-nhieu" | "email-trung";
+
+export function ChangeContactForm({ email, phone, demoError }: { email: string; phone: string; demoError?: ContactDemoError }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | undefined>(demoError === "sai-mat-khau" ? "Mật khẩu hiện tại không đúng." : undefined);
+  // 422 field `email` (unique) — lỗi dưới ô email; mật khẩu hiện tại phải nhập lại (không giữ trong state).
+  const emailErr = demoError === "email-trung" ? "Email đã được sử dụng." : undefined;
+  const throttled = demoError === "qua-nhieu";
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -33,13 +38,13 @@ export function ChangeContactForm({ email, phone, demoError }: { email: string; 
 
   return (
     <form noValidate onSubmit={onSubmit} className="flex flex-col gap-5">
-      {demoError === "qua-nhieu" ? (
+      {throttled ? (
         <Alert tone="warning" title="Bạn đã nhập sai mật khẩu nhiều lần">
-          Vui lòng thử lại sau 15 phút.
+          Vui lòng thử lại sau 15 phút. Trong thời gian này bạn cũng chưa đổi được mật khẩu.
         </Alert>
       ) : null}
-      <Field label="Email" hint="Đổi email: bạn cần xác thực lại bằng mã gửi tới email mới, và các thiết bị khác sẽ bị đăng xuất.">
-        <TextInput name="email" type="email" defaultValue={email} autoComplete="email" />
+      <Field label="Email" error={emailErr} hint="Đổi email: bạn cần xác thực lại bằng mã gửi tới email mới, và các thiết bị khác sẽ bị đăng xuất.">
+        <TextInput name="email" type="email" defaultValue={demoError === "email-trung" ? "hoa.tran@gmail.com" : email} autoComplete="email" />
       </Field>
       <Field label="Số điện thoại">
         <TextInput name="phone" type="tel" defaultValue={phone} autoComplete="tel" />
@@ -48,7 +53,7 @@ export function ChangeContactForm({ email, phone, demoError }: { email: string; 
         <PasswordInput name="current_password" autoComplete="current-password" />
       </Field>
       <div>
-        <Button type="submit" loading={loading} loadingText="Đang lưu…">
+        <Button type="submit" loading={loading} loadingText="Đang lưu…" disabled={throttled}>
           Lưu thay đổi
         </Button>
       </div>

@@ -2,6 +2,7 @@
 
 **Trạng thái:** Bản hoàn chỉnh — chờ PO duyệt (cổng PO #2)
 **Người lập:** `nextjs-designer` (skill `ui-ux-pro-max`), 2026-10-06. Thay bản đề xuất 2026-10-05.
+**Cập nhật 2026-10-07:** dựng các màn còn thiếu ở §1.4 (§12.8, §14.1), đề xuất nền vở ô ly chủ đạo cho trang khách (§3.1 — **chờ PO duyệt**, đã áp vào bản xem trước).
 **Cập nhật 2026-10-06 (chiều):** trang chủ theo US-019, khu vực giáo viên + hồ sơ giáo viên theo US-020 (§12.6), đủ các màn quản trị (§14.1), không còn liên kết `/v2` nào ra 404.
 **Phạm vi:** toàn bộ lớp giao diện của web học sinh (`apps/web`) và trang quản trị (`apps/admin`). Khi PO duyệt, gộp vào [design-system.md](design-system.md) và bỏ các mục v1 bị thay thế (§2 màu, §3 chữ, §5.1 component dùng chung). Sitemap §7 và bảng "chờ PO" §8–9 của v1 giữ nguyên.
 
@@ -77,7 +78,9 @@
 
 Bổ sung chiều 2026-10-06: quên mật khẩu (bước 1), trang giữ chỗ giỏ hàng/điều khoản/chính sách; quản trị: tạo khóa học, chuyên đề, duyệt đăng ký, giáo viên trang chủ, hồ sơ giáo viên, mã giảm giá (danh sách, tạo, sửa), tài khoản staff, nhật ký, trang giữ chỗ đơn hàng.
 
-Vẫn còn thiếu (dùng cùng hệ, chưa dựng): xác thực OTP, bước đặt lại mật khẩu (OTP + mật khẩu mới), màn chặn "Cần xác thực tài khoản"/"Chờ phụ huynh", trang công khai xác nhận phụ huynh, quyền dữ liệu cá nhân (US-017/018, hiện là mục "Sắp có" trong Tài khoản), overlay phiên bị thay thế (US-014, đã có component v1); quản trị: đăng nhập + MFA + đổi mật khẩu lần đầu (staff tối thiểu 12 ký tự), soạn quiz (xem trước công thức). Giỏ hàng/checkout/đơn hàng thuộc V2.
+Bổ sung 2026-10-07 (§12.8): ~~xác thực OTP~~, ~~đặt lại mật khẩu bước 2~~, ~~màn chặn "Cần xác thực tài khoản"/"Chờ phụ huynh"~~ (trang + hộp thoại), ~~hộp thoại phiên bị thay thế/thu hồi~~ (US-014), ~~đổi email/SĐT: email trùng, vừa đổi email (chưa xác thực)~~; quản trị: ~~soạn quiz~~ (tab "Bài tập", danh sách câu, soạn câu + xem trước công thức).
+
+Vẫn còn thiếu: trang công khai xác nhận phụ huynh và quyền dữ liệu cá nhân (US-017/018) — **chỉ có bố cục ngắn ở §12.9, chưa dựng** (thuộc V2). Đăng nhập + MFA + đổi mật khẩu lần đầu của admin do `nextjs-dev` áp v2 trực tiếp lên route thật (không dựng bản xem trước). Giỏ hàng/checkout/đơn hàng thuộc V2.
 
 ### 1.5 Kết luận
 
@@ -100,7 +103,7 @@ Vẫn còn thiếu (dùng cùng hệ, chưa dựng): xác thực OTP, bước đ
 
 - **Mực tím** (`primary`) là màu hành động: nút chính, liên kết, bài đang học, tiến độ.
 - **Cam vitamin** (`accent`) dùng tiết kiệm: nhãn "Miễn phí", số việc chờ, vạch đánh dấu trong hình minh hoạ.
-- **Trang vở ô ly + lề đỏ + chú thích viết tay** là điểm nhấn duy nhất: hero trang chủ, nửa trái trang đăng nhập/đăng ký, bìa khóa học dựng sẵn, ô minh hoạ trạng thái rỗng. Không bao giờ đặt sau đoạn văn dài.
+- **Trang vở ô ly + lề đỏ + chú thích viết tay** là điểm nhấn: lưới **đậm** (`bg-oly`) ở hero trang chủ, nửa trái trang đăng nhập/đăng ký, bìa khóa học dựng sẵn, ô minh hoạ trạng thái rỗng; lưới **nhạt** (`bg-oly-page`) làm nền chủ đạo của trang khách (§3.1, đề xuất chờ PO duyệt).
 - **Màn học yên tĩnh**: trang học video và làm quiz bỏ header site, footer, bottom-nav; chỉ còn đường quay lại, tiến độ và nội dung.
 
 Nguyên tắc riêng của sản phẩm:
@@ -109,6 +112,41 @@ Nguyên tắc riêng của sản phẩm:
 3. Công thức Toán là nội dung chính, không phải chú thích: cỡ to hơn chữ thường, không bị cắt, không làm vỡ bố cục trên 375px.
 4. Không có lối đi vào ngõ cụt: tính năng đang khoá thì ẩn hoặc giải thích ngay tại chỗ, không để học sinh bấm rồi mới báo lỗi.
 5. Quản trị dày thông tin nhưng cùng một hệ: cùng màu, cùng component, chỉ khác cỡ và khoảng cách.
+
+### 3.1 Nền vở ô ly chủ đạo cho trang khách (đề xuất 2026-10-07, chờ PO duyệt — §18 mục 12)
+
+**Quy tắc đổi:** trước đây "chỉ một điểm nhấn ô ly, không bao giờ đặt lưới sau đoạn văn/form/bảng" (§3, §17). Nay tách làm **hai mức lưới**:
+
+| Mức | Utility | Ở đâu | Quy tắc chữ |
+|---|---|---|---|
+| Lưới đậm | `bg-oly` (`grid` `#DCD2F7`, ô 32px + dòng kẻ 8px) | Hero, nửa trái đăng nhập, bìa khóa dựng sẵn, ô minh hoạ rỗng (như cũ) | Không đặt đoạn văn, form, bảng lên trên (giữ nguyên) |
+| Lưới nhạt — **mới** | `bg-oly-page` (`grid-faint` `#ECE6FA` sáng / `#1F1A2B` tối) | Nền vùng `main` của mọi trang dùng `StudentShell`: trang chủ, danh mục, chi tiết khóa, giỏ hàng, điều khoản/chính sách, đăng nhập/đăng ký/OTP/quên + đặt lại mật khẩu, màn chặn, **Khóa học của tôi, Tài khoản** (đề xuất áp luôn — PO quyết) | Tiêu đề, nhãn, meta, đoạn ≤ 3 dòng được nằm thẳng trên lưới. **Đoạn văn > 3 dòng, form, bảng, danh sách dài, công thức nằm trên "tờ giấy trơn"** (`Sheet` hoặc thẻ `surface` có viền `line`) |
+
+Không áp: trang học video, làm quiz (giữ nền `paper` trơn — "màn học yên tĩnh", §12.3–12.4), toàn bộ quản trị (§14).
+
+**Tương phản đo được (WCAG 2.1, chữ đặt ngay trên vạch kẻ — trường hợp xấu nhất):**
+
+| Chữ | Trên `grid-faint` sáng `#ECE6FA` | Trên `grid-faint` tối `#1F1A2B` |
+|---|---|---|
+| `ink` | 14,2:1 | 14,3:1 |
+| `ink-soft` | 5,9:1 | 7,9:1 |
+| `primary` (liên kết) | 6,6:1 | 6,3:1 |
+| `danger` / `warning` / `info` / `accent-ink` | 4,6 / 4,8 / 5,0 / 5,0:1 | 6,9 / 9,2 / 7,6 / 9,9:1 |
+| `success` | **4,4:1 — không đạt** cho chữ nhỏ | 7,7:1 |
+
+→ Chữ màu `success` (giá "Miễn phí", "Đã hoàn thành") chỉ đặt trên `surface`/nền `-soft`, không thẳng trên lưới (thực tế đã vậy: luôn nằm trong thẻ/badge). Vạch kẻ chỉ chênh 1,17:1 với `paper` nên không cạnh tranh với chữ.
+
+**Mật độ theo cỡ màn:** < 640px ô 24px, chỉ đường ô (lề trang 16px, bỏ dòng kẻ mảnh để bớt rối cạnh chữ); ≥ 640px ô 32px + dòng kẻ mảnh 8px như vở thật. **Lề đỏ** (`margin` 40%, 2px) chỉ hiện khi màn ≥ ~1232px, nằm trong khoảng trống bên trái khung `max-w-6xl` (cách mép chữ ≥ 48px), màn hẹp hơn tự ra ngoài khung nhìn — không bao giờ chạy dưới chữ.
+
+**Hiệu năng:** chỉ là `linear-gradient` CSS (0 byte ảnh, không request mới), không `background-attachment: fixed`, không chuyển động → không ảnh hưởng `prefers-reduced-motion`; đo 375px không cuộn ngang. Trạng thái tải/rỗng/lỗi (§11.2) không đổi: skeleton và `Alert` vẫn nền đặc của chúng.
+
+**Cách áp (cho `nextjs-dev`, nhận tự động khi dùng component dùng chung):**
+- Token `--color-grid-faint`, `--vv-grid-faint`, `--vv-margin-faint` và utility `bg-oly-page` trong `packages/ui/src/v2/tokens.css`.
+- Component mới `Sheet` (`@vitaminvui/ui/v2`) = "tờ giấy trơn": `surface` + viền `line` + `rounded-sheet`, không bóng.
+- Bản xem trước: `StudentShell` (prop `background="oly"|"plain"`, mặc định `oly`), `AuthFrame` (form nằm trong `Sheet`; trang tối giản `main` là cột flex để nửa trái lưới đậm cao hết màn), chi tiết khóa (Giới thiệu + Giáo viên trong `Sheet`), bộ lọc chuyên đề (thẻ `surface`), trang giữ chỗ (`Sheet`), dải "Khóa học nổi bật" trang chủ bỏ nền `surface` để lưới chạy liền.
+- App thật: thêm `bg-oly-page` vào `<main>` của `components/shell/SiteShell.tsx` (một dòng), bọc form/đoạn dài theo bảng trên. Không sửa route thật trong đợt này.
+
+Ảnh trước/sau (375 + 1280): trước = ảnh đã có `web-trang-chu-{375,1280}.png`, `web-danh-muc-375.png`, `web-chi-tiet-khach-1280.png`, `web-dang-nhap-{375,1280}.png`; sau = `oly-sau-trang-chu-{375,1280}.png`, `oly-sau-danh-muc-375.png`, `oly-sau-chi-tiet-1280.png`, `oly-sau-dang-nhap-{375,1280}.png`, tối: `oly-sau-chi-tiet-toi-1280.png`, `oly-sau-dang-nhap-toi-375.png`. Ở giao diện tối lưới rất kín đáo (1,1:1) — cố ý, để không chói buổi tối.
 
 ## 4. Màu
 
@@ -125,7 +163,8 @@ Tỉ lệ tương phản tính theo WCAG 2.1 (script trong quá trình làm, k�
 | `ink-soft` | `#5B5378` | Chữ phụ, meta, placeholder | 6,9:1 `paper`; 7,1:1 `surface`; 6,4:1 `sunken` |
 | `line` | `#E6E1F2` | Viền tách lớp (thẻ, đường chia) — trang trí | 1,3:1 (không dùng cho viền điều khiển) |
 | `line-strong` | `#8A82A6` | **Viền ô nhập, checkbox, nút phụ** | 3,6:1 `surface`; 3,5:1 `paper` |
-| `grid` / `margin` | `#DCD2F7` / `#E5484D` | Lưới ô ly / lề đỏ — chỉ trang trí | — |
+| `grid` / `margin` | `#DCD2F7` / `#E5484D` | Lưới ô ly đậm / lề đỏ — chỉ trang trí | — |
+| `grid-faint` / `margin-faint` | `#ECE6FA` / `margin` 40% | Lưới nhạt nền trang khách (`bg-oly-page`, §3.1) / lề đỏ nhạt; tối `#1F1A2B` | `ink` 14,2:1, `ink-soft` 5,9:1 ngay trên vạch |
 | `primary` | `#5B2EC4` | Mực tím: nút chính, liên kết, đang chọn | Chữ trắng 8,0:1; trên `paper` 7,7:1 |
 | `primary-hover` | `#4A21A8` | Hover/nhấn nút chính | Chữ trắng 10,1:1 |
 | `primary-soft` | `#EFE9FD` | Nền mục đang chọn, bài đang học | `primary` 6,7:1; `ink` 14,6:1 |
@@ -279,10 +318,14 @@ Skill gợi ý Libre Bodoni + Public Sans (phong cách tạp chí) và trước 
 | `Pagination`, `Breadcrumb`, `Avatar`, `Logo`, `Spinner`, `ThemeSwitch` | |
 | `TeacherCard`, `formatGrades` | Thẻ giáo viên trang chủ (US-020 BR1); ảnh vuông, chữ cái đầu khi không có ảnh |
 | `Switch` | Công tắc `role=switch`, có chữ "Bật/Tắt" đi kèm |
+| `OtpInput` (mới 2026-10-07) | **Một** `<input>` thật vẽ thành 6 ô: một nhãn/lỗi qua `Field`, dán cả mã, `autocomplete="one-time-code"`, không chặn dán (WCAG 3.3.8); `onComplete` tự gửi, `busy`, `focusSignal`. API giống v1 nên `MfaForm` admin dùng được (test 9/9 qua) |
+| `ResendCode` (mới) | Nút "Gửi lại mã" đếm ngược theo `waitSeconds` (`resend_available_at`/`Retry-After`), chữ nói rõ "Gửi lại mã sau 0:45"; `emphasis` khi mã hết hạn (thành nút chính); `lockedReason` khi hết lượt trong ngày; `label` đổi được ("Gửi lại email cho phụ huynh") |
+| `SessionEndedDialog` (mới) | Hộp thoại chặn không đóng được cho 401 `SESSION_REPLACED` (`replaced`, icon thiết bị, nền `warning-soft`, có "Không phải bạn? Đặt lại mật khẩu") và `SESSION_REVOKED` (`revoked`, icon thông tin, giọng bình thường); `context` lesson/quiz thêm câu "tiến độ/bài làm đã được lưu" |
+| `Sheet` (mới) | "Tờ giấy trơn" trên nền ô ly (§3.1) |
 | `SiteHeader`, `SiteFooter`, `BottomNav`, `AdminFrame`, `NavDrawer` | Khung trang |
 | `UiLink`/`UiLinkProvider` | Cho component dùng chung dùng `next/link` mà `packages/ui` không phụ thuộc `next` |
 
-Component nghiệp vụ dựng trong app (xem trước): web — `CatalogFilters`, `CourseAction` (CTA), `CourseOutlinePublic`, `PreviewLessonButton`, `VideoFrame`, `LessonOutline`, `QuizRunner`, `ResultQuestion`/`ScoreRing`, `MyCourseCard`, `LoginForm`, `RegisterForm`, `ChangeContactForm`, `ChangePasswordForm`; admin — `CourseStatusBadge`, `VideoStatusBadge`, `CourseInfoForm`, `CurriculumTree`, `LessonEditor`.
+Component nghiệp vụ dựng trong app (xem trước): web — `CatalogFilters`, `CourseAction` (CTA), `CourseOutlinePublic`, `PreviewLessonButton`, `VideoFrame`, `LessonOutline`, `QuizRunner`, `ResultQuestion`/`ScoreRing`, `MyCourseCard`, `LoginForm`, `RegisterForm`, `ChangeContactForm`, `ChangePasswordForm`, `OtpVerifyForm`, `ResetPasswordForm`, `AccountGateDialog`/`AccountGatePage`; admin — `CourseStatusBadge`, `VideoStatusBadge`, `CourseInfoForm`, `CurriculumTree`, `LessonEditor`, `QuizList`, `QuizSettingsDialog`, `QuizQuestionEditor`.
 
 ### 11.2 Bảng trạng thái chuẩn
 
@@ -302,6 +345,7 @@ Component nghiệp vụ dựng trong app (xem trước): web — `CatalogFilters
 
 ### 12.1 Khung và điều hướng (web)
 
+- Nền vùng nội dung trang khách: vở ô ly nhạt `bg-oly-page` (§3.1); form, đoạn dài, bảng đặt trên `Sheet`/thẻ `surface`. Trang học/quiz giữ nền trơn.
 - Header dính: logo · "Khóa học" · ("Khóa học của tôi" khi đăng nhập) · tìm kiếm · tài khoản. Mobile: logo + tìm kiếm + menu (ngăn kéo).
 - Bottom-nav (mobile, đã đăng nhập): Trang chủ · Khóa học · Học của tôi · Tài khoản. Không có Giỏ hàng khi thanh toán tạm khoá.
 - Trang học video và làm quiz: không header site, không footer, không bottom-nav — header gọn (quay lại khóa học, tiến độ, avatar / thoát, đồng hồ, nộp bài).
@@ -400,6 +444,33 @@ Nội dung **cố định trong frontend** (ảnh tĩnh trong `apps/web/public/`
 
 Bàn giao `nextjs-dev`: đặt ảnh vào `apps/web/public/trang-chu/` (vd. `nguoi-sang-lap.webp`), thay giá trị trong hằng số nội dung; chưa có nội dung thì truyền `null` để khối ẩn. Bản xem trước: `/v2` (có nút), `?nsl=khong-nut`, `?nsl=dai` (câu dài), `?nsl=an` (ẩn).
 
+### 12.8 Xác thực, phiên và màn chặn (dựng 2026-10-07)
+
+**Xác thực OTP** (`/xac-thuc-otp`, US-001 §2.2, AC8) — học sinh đã đăng nhập, chưa xác thực. Bố cục `AuthFrame`; phụ đề nói gửi tới email đã che + "xác thực xong bạn có thể đăng ký khóa học".
+- `OtpInput` 6 ô; nhập đủ 6 số tự gửi, vẫn có nút "Xác nhận". Gợi ý dưới ô: hiệu lực `otp.ttl_minutes` phút + "xem mục Thư rác".
+- Dưới đường kẻ: "Chưa nhận được mã?" + `ResendCode` (đếm theo `resend_available_at`). Gửi lại xong: `Alert info` "Đã gửi mã mới tới … Mã cũ không còn dùng được", focus về ô mã.
+- Lỗi: `OTP_INVALID` → dưới ô "Mã OTP không đúng, vui lòng thử lại.", xoá mã, focus lại. `OTP_EXPIRED` → dưới ô thông điệp hết hạn, ô mã khoá, **`ResendCode` thành nút chính rộng hết** (việc duy nhất làm được), ẩn "Xác nhận". 429 của **mã** (sai 5 lần) → như hết hạn, câu "Bạn đã nhập sai mã này 5 lần". 429 throttle (`Retry-After`, khoá 24h khi quá 20 lần/ngày) → `Alert warning` + khoá ô và nút. 503 `OTP_DELIVERY_FAILED` → `Alert danger` "Chưa gửi được mã", gửi lại được ngay. 429 khi gửi (trần 5/giờ, 10/ngày) → nút gửi lại khoá + câu "thử lại vào ngày mai".
+- Lối thoát: "Sai email? Đổi email" (→ Tài khoản `#doi-lien-he`) · "Để sau" (→ trang chủ). Thành công: về trang chủ + toast "Xác thực tài khoản thành công".
+
+**Đặt lại mật khẩu bước 2** (`/quen-mat-khau/dat-lai`, US-015 §2.2). Bước 1 luôn chuyển sang đây (không lộ tài khoản); `login` giữ trong sessionStorage (không đặt lên URL), hiện "Tài khoản: … · Đổi".
+- Mã (6 ô) + Mật khẩu mới (gợi ý "Tối thiểu 8 ký tự. Tránh mật khẩu dễ đoán như 12345678") + Nhập lại + câu "mọi thiết bị đang đăng nhập sẽ bị đăng xuất".
+- **Mọi lỗi mã** (422 `OTP_EXPIRED` — kể cả sai mã, hết lượt, tài khoản không tồn tại) hiện một thông điệp "Mã OTP đã hết hạn hoặc không còn hiệu lực. Bấm 'Gửi lại mã'…", ô mã khoá, `ResendCode` nổi bật ngay dưới; **mật khẩu đã nhập được giữ**. Gửi lại = gọi lại `POST /auth/password/forgot` nên cần captcha Turnstile (chế độ ẩn/managed).
+- 422 `password` (mật khẩu phổ biến) → hiện nguyên `errors.password[0]` dưới ô; `password_confirmation` → dưới ô nhập lại; 429 throttle → `Alert warning`, khoá nút. Thành công → `/dang-nhap` với `Alert success` "Đặt lại mật khẩu thành công…".
+
+**Màn chặn** (403 khi đăng ký học miễn phí; sau này checkout). Không dùng màu đỏ (không phải lỗi của học sinh); luôn có một việc làm tiếp + một lối thoát.
+- Ở trang chi tiết khóa: **hộp thoại** (bottom-sheet trên mobile) mở tại chỗ, giữ ngữ cảnh khóa. Mở thẳng trang cần điều kiện: **trang đầy đủ** (`Sheet` giữa trang, `h1`).
+- `ACCOUNT_NOT_VERIFIED`: ô vở + icon thư, "Xác thực email để tiếp tục", email đã che; "Gửi mã xác nhận" (gửi rồi sang `/xac-thuc-otp`) + "Tôi đã có mã".
+- `PARENT_CONSENT_REQUIRED` (chỉ khi bật `FEATURE_PARENT_CONSENT_ENFORCED`): "Đang chờ phụ huynh xác nhận" + email phụ huynh đã che; `ResendCode` "Gửi lại email cho phụ huynh" (3 lần/ngày, hết lượt → khoá + giải thích); Alert info "vẫn xem danh mục và học thử"; biến thể `revoked` "Phụ huynh đã rút lại đồng ý". Không hứa gì về khóa đã có (câu hỏi mở US-017).
+
+**Phiên kết thúc** (US-014 §2.1): `SessionEndedDialog` không đóng được, phủ lên trang học/quiz (video dừng). `SESSION_REPLACED` → "Tài khoản vừa đăng nhập trên thiết bị khác" (warning) + "Không phải bạn? Đặt lại mật khẩu"; `SESSION_REVOKED` → "Bạn cần đăng nhập lại" vì mật khẩu/email vừa đổi (info). Có câu "tiến độ/bài làm đã được lưu". Nút duy nhất "Đăng nhập lại" → `/dang-nhap?next=`. `SESSION_EXPIRED`/`UNAUTHENTICATED` giữ cách hiện tại (chuyển thẳng đăng nhập + Alert info).
+
+**Tài khoản — đổi email/SĐT** bổ sung: 422 `email` trùng → dưới ô email; 429 → Alert + khoá nút "Lưu thay đổi"; vừa đổi email → Alert info "Đã đổi email… cần xác thực lại" + nút "Xác thực ngay", badge email đổi sang "Chưa xác thực".
+
+### 12.9 Chỉ bố cục (V2, chưa dựng): quyền dữ liệu cá nhân và trang phụ huynh
+
+- **Tài khoản › Dữ liệu cá nhân** (US-017/018): một `Sheet` với 3 hàng danh sách (icon + tiêu đề + mô tả 1 dòng + hành động bên phải): (1) "Trạng thái đồng ý" — phiên bản chính sách, ngày đồng ý, trạng thái phụ huynh (badge chữ: Không cần / Đang chờ / Đã đồng ý / Đã rút) + "Gửi lại email cho phụ huynh" (`ResendCode`); (2) "Tải dữ liệu của tôi" — nút phụ, tạo tệp bất đồng bộ, trạng thái "Đang chuẩn bị… / Tải về (hết hạn sau N giờ)"; (3) "Xoá tài khoản" — vùng viền `danger` cuối trang, nói rõ hệ quả (ẩn danh hoá, giữ đơn hàng), bấm → hộp thoại xác nhận bằng **mã OTP** (`OtpInput`) + gõ lại "XOÁ"? (chờ PO), không hoàn tác.
+- **Trang công khai `/xac-nhan-phu-huynh/{token}`** (không cần đăng nhập, không header site đầy đủ — chỉ logo): `Sheet` giữa trang max 560px trên nền ô ly nhạt; tiêu đề "Xác nhận cho con học tại VitaminVui", tên học sinh đã che + lớp, tóm tắt dữ liệu thu thập (danh sách 3–4 ý, liên kết chính sách), 2 nút: "Tôi đồng ý" (chính) / "Tôi không đồng ý" (phụ). Biến thể: đã xác nhận (success + "Rút lại đồng ý" có hộp xác nhận), liên kết hết hạn/đã dùng (EmptyState, hướng dẫn nhờ con gửi lại), lỗi tải. Chữ ≥ 16px, ngôn ngữ cho phụ huynh, không thuật ngữ kỹ thuật.
+
 ## 13. Dark mode
 
 - Token tối đã có đủ (§4.2), component không cần class `dark:` — chỉ đổi `data-theme` trên phần tử `.theme-v2` (`light` / `dark` / `system`).
@@ -437,6 +508,7 @@ Bàn giao `nextjs-dev`: đặt ảnh vào `apps/web/public/trang-chu/` (vd. `ngu
 | Tài khoản staff | Lọc vai trò/trạng thái/tìm; tạo tài khoản → hộp "Mật khẩu khởi tạo" không đóng bằng Esc, hiện một lần, nút sao chép, cảnh báo + "đặt mật khẩu mới tối thiểu 12 ký tự"; khoá/mở khoá/đặt lại có xác nhận; dòng của chính mình và Admin hoạt động cuối có chữ giải thích vì sao không khoá/đổi vai trò; đổi vai trò giáo viên → cảnh báo trước trong hộp thoại và Alert sau khi đổi "N khóa không còn giáo viên phụ trách, hãy gán lại" kèm liên kết từng khóa (`released_course_ids`) |
 | Nhật ký thao tác | Huy hiệu "Chỉ đọc"; lọc từ ngày/đến ngày/hành động/người (form GET); hành động hiện tên tiếng Việt + mã; chi tiết `changes` mở bằng `<details>`; chỉ "Trang trước/Trang sau" (simplePaginate); QLT/GV → trang 403 |
 | Đơn hàng | Mục menu khoá, dòng giải thích "Mở khi bật thanh toán trực tuyến" ngay dưới; mở thẳng URL → trang "Đơn hàng sẽ có ở V2" |
+| Soạn quiz (FA5, 2026-10-07) | Tab "Bài tập" trong màn sửa khóa: bảng quiz (tên, gắn với chương/bài, số câu — 0 câu là badge "Chưa có câu" + Alert "học sinh sẽ thấy 'chưa sẵn sàng'", thời gian), "Tạo bài tập"/"Sửa thông tin" trong hộp thoại (ô "Gắn với" gộp chương + bài bằng `optgroup` vì API cần đúng 1; thời gian 1–300 hoặc "Không giới hạn"; ẩn khi `quiz_time_limit_enabled=false`). Trang quiz: danh sách câu theo thứ tự (nội dung có công thức, "Đáp án đúng B: …", có/chưa có lời giải, "Sửa"), đếm "8/200 câu", đủ 200 → nút thêm khoá + giải thích; ghi rõ chưa đổi được thứ tự câu. Soạn câu `?cau=`: dãy số câu để nhảy nhanh + "Câu mới"; trái là form (thanh **chèn nhanh** `$x$`, `$$x$$`, phân số, căn, mũ, độ, π, ≠, ≤, ≥, `\lt`, `\gt` vào ô đang soạn; ghi chú "dấu < > sát chữ phải dùng `\lt`, `\gt`"; nội dung /5.000; 4 đáp án, mỗi đáp án một radio "Là đáp án đúng" — đáp án đúng nền `success-soft` + chữ "Đáp án đúng"; lời giải tuỳ chọn), phải là **xem trước dính** đúng như học sinh thấy, cập nhật theo phím. Kiểm tại chỗ như server (dạng thẻ HTML, thiếu `$` đóng, ô trống, chưa chọn đáp án đúng). 422 → hộp tóm tắt lỗi có liên kết tới ô + lỗi dưới từng ô; đang lưu → khoá form, "Đang lưu…"; lưu xong "Đã lưu lúc 20:15" (`aria-live`); PUT trả `id` mới (copy-on-write) → Alert info "Đã lưu thành bản mới…". Xoá câu có xác nhận |
 
 ## 15. Token và cài đặt (Tailwind v4)
 
@@ -477,8 +549,16 @@ Chạy: `HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f frontend/docker-c
 | Quản trị: giáo viên trang chủ, hồ sơ | `/v2/quan-tri/giao-vien`, `…/giao-vien/17`, `/v2/quan-tri/ho-so` | chờ Architect |
 | Quản trị: mã giảm giá | `/v2/quan-tri/ma-giam-gia`, `…/tao`, `…/32` | `/quan-tri/ma-giam-gia…` |
 | Quản trị: tài khoản staff, nhật ký, đơn hàng | `/v2/quan-tri/tai-khoan`, `/v2/quan-tri/nhat-ky`, `/v2/quan-tri/don-hang` | `/quan-tri/…` |
+| Xác thực OTP (mới) | `/v2/xac-thuc-otp?trang-thai=sai\|het-han\|het-luot\|qua-nhieu\|gui-loi\|het-luot-gui` | `/xac-thuc-otp` |
+| Đặt lại mật khẩu bước 2 (mới) | `/v2/quen-mat-khau/dat-lai?trang-thai=het-han\|pho-bien\|khong-khop\|qua-nhieu` | `/quen-mat-khau/dat-lai` |
+| Màn chặn (mới) | `/v2/can-xac-thuc`, `/v2/cho-phu-huynh?trang-thai=het-luot\|rut-lai`; hộp thoại: `/v2/khoa-hoc/can-bac-hai-can-bac-ba?viewer=can_register_free&chan=xac-thuc\|phu-huynh` (bấm "Đăng ký học miễn phí") | trong luồng đăng ký học / checkout |
+| Phiên kết thúc (mới) | `/v2/hoc/101/bai/307?trang-thai=phien-thay-the\|phien-thu-hoi` | mọi trang học sinh |
+| Tài khoản — biến thể mới | `/v2/tai-khoan?trang-thai=email-trung\|vua-doi-email`; đăng nhập `?trang-thai=dat-lai-xong` | |
+| Quản trị: bài tập, soạn quiz (mới) | `/v2/quan-tri/khoa-hoc/101/sua?tab=bai-tap`, `/v2/quan-tri/khoa-hoc/101/bai-tap/502` (`?trang-thai=dang-tai\|rong\|day\|loi`), `…/502?cau=9006` (`&trang-thai=loi-luu\|dang-luu\|ban-moi`), `…/502?cau=moi` | `/quan-tri/khoa-hoc/{id}/bai-tap/{quiz}` |
 
-Kiểm liên kết: script dò mọi `href` thuộc `/v2` (BFS từ các trang gốc) trên dev server web và admin — 460 URL (web 247, admin 213) đều trả 200 (2026-10-06).
+Kiểm liên kết: script dò mọi `href` thuộc `/v2` (BFS từ các trang gốc) trên dev server web và admin — 460 URL (web 247, admin 213) đều trả 200 (2026-10-06); 2026-10-07: web 391 URL, admin 400 URL (giới hạn dò), không URL nào lỗi.
+
+Ảnh 2026-10-07: `web-xac-thuc-otp-375`, `web-xac-thuc-otp-het-han-1280`, `web-dat-lai-mat-khau-het-han-375`, `web-chan-xac-thuc-hop-thoai-375`, `web-can-xac-thuc-1280`, `web-phien-thay-the-375`, `web-tai-khoan-vua-doi-email-375`, `admin-bai-tap-1280`, `admin-soan-quiz-cau-1280`, `admin-soan-quiz-loi-luu-1280`, và bộ `oly-sau-*` (§3.1).
 
 Ảnh chụp (Playwright, `prefers-reduced-motion`): [mockups/v2/preview/](mockups/v2/preview/) — `web-*-375.png`, `web-*-1280.png`, `admin-*`, `*-toi-*` (giao diện tối). Poster người sáng lập (2026-10-06): `web-trang-chu-nguoi-sang-lap-{375,768,1280}.png`, `…-cau-dai-{768,1280}`, `…-khong-nut-375`, `…-focus-1280`, `…-toi-1280`, `web-trang-chu-an-nguoi-sang-lap-375.png`; `web-trang-chu-{375,1280}.png` và `web-trang-chu-toi-375.png` đã chụp lại kèm khối mới. Ảnh của bản nháp HTML cũ chuyển vào `preview/ban-nhap-html-2026-10-05/`; các file HTML `mockups/v2/*.html` là bản nháp cũ, **không còn là chuẩn**.
 
@@ -508,11 +588,14 @@ Hai truy vấn về công thức và đồng hồ quiz không có kết quả tr
 | Bảng rộng: cuộn ngang hoặc thẻ trên mobile | Giữ | `DataTable` cuộn ngang trong khung + ẩn cột theo breakpoint |
 | `loading.tsx`, skeleton đúng tỉ lệ (Next.js) | Giữ | Danh mục có `loading.tsx`; mọi skeleton đúng kích thước |
 | Không emoji, focus thấy được, tôn trọng reduced-motion, 375–1440px | Giữ | Checklist |
+| (2026-10-07) PO: nền ô ly chủ đạo trang khách | Đổi quy tắc "lưới chỉ là điểm nhấn" | Tách lưới đậm / lưới nhạt (§3.1); đo tương phản trên vạch kẻ; chữ dài/form/bảng lên `Sheet` |
+| (2026-10-07) Skill: cho dán mã, không chặn (accessible authentication) | Giữ | `OtpInput` một ô thật, `one-time-code` |
 
 Rà "giao diện AI": không nền kem + serif + đất nung; không nền đen + neon; thẻ chỉ dùng cho thứ thật sự là đối tượng (khóa học, câu hỏi), còn lại là danh sách/hàng; không nhãn VIẾT HOA giãn chữ; không gradient trang trí (gradient duy nhất là lớp mờ dưới thanh điều khiển video để chữ đọc được); đánh số 1-2-3 chỉ ở các bước học thật sự nối tiếp.
 
 **Không làm**
-- Không đặt lưới ô ly sau đoạn văn, form, bảng.
+- Không đặt lưới ô ly **đậm** (`bg-oly`) sau đoạn văn, form, bảng. Lưới **nhạt** (`bg-oly-page`) làm nền trang khách được, nhưng đoạn > 3 dòng, form, bảng, công thức phải nằm trên `Sheet`/thẻ `surface` (§3.1). Không đặt chữ màu `success` thẳng trên lưới.
+- Không đặt lưới (đậm hay nhạt) ở trang học video, làm quiz, quản trị.
 - Không dùng tooltip làm nơi duy nhất giải thích trạng thái.
 - Không dùng màu là tín hiệu duy nhất (đúng/sai, trạng thái, tiến độ).
 - Không dùng chữ trắng trên `accent`; không dùng `accent` cho chữ trên nền trắng.
@@ -534,3 +617,25 @@ Rà "giao diện AI": không nền kem + serif + đất nung; không nền đen 
 9. Tốc độ phát video 0,75–2× và nút toàn màn hình: đồng ý đưa vào FW4? (Phụ đề chưa có dữ liệu trong API nên không thiết kế.)
 10. Mã giảm giá: API cho phép phạm vi = khóa chọn ∪ chuyên đề chọn, nhưng màn (US-013) chỉ cho chọn một kiểu. Có cần chọn đồng thời cả hai không?
 11. US-020: tên trường API khu giáo viên và hồ sơ đang dùng tạm — cần Architect chốt; bản xem trước chưa có ảnh giáo viên thật (thẻ hiện chữ cái đầu).
+12. **Yêu cầu của PO (2026-10-06): nền vở ô ly làm chủ đạo trên các trang khách (web học sinh).** PO muốn nền vở ô ly là nét nhận diện chủ đạo xuyên suốt web học sinh, không chỉ hero trang chủ, nửa trái đăng nhập/đăng ký và bìa khóa học như §3 đang giới hạn. Việc của `nextjs-designer`: đề xuất cách áp, chụp ảnh bản xem trước 375 và 1280 px, để PO duyệt. BA không thiết kế. Ràng buộc nghiệp vụ phải giữ:
+    - **Chữ đọc được (WCAG AA):** mọi chữ trên nền có lưới vẫn đạt tương phản ≥ 4,5:1 (chữ lớn ≥ 3:1) ở cả giao diện sáng và tối; lưới và lề đỏ chỉ là trang trí, không mang thông tin. Kiểm bằng số đo, không bằng mắt.
+    - **Trang học video và làm quiz vẫn yên tĩnh** (§3, §12.3, §12.4): không để lưới làm xao nhãng khi tập trung. Công thức Toán, câu hỏi và khung video không đặt trên lưới đậm.
+    - **Trang quản trị không áp** (§14): quản trị giữ nền phẳng, mật độ cao.
+    - **Phạm vi "trang khách":** gồm trang chủ, danh mục, chi tiết khóa, giỏ hàng, đăng nhập/đăng ký/OTP/quên mật khẩu, điều khoản; "Khóa học của tôi" (đã đăng nhập) designer đề xuất, PO duyệt.
+    - **Tự phát hiện mâu thuẫn:** yêu cầu này trái quy tắc "không đặt lưới sau đoạn văn, form, bảng" (§3 và §17 "Không làm"). Designer phải nêu rõ quy tắc nào đổi, và cách giữ form/bảng/đoạn văn dài dễ đọc (ví dụ nền chữ đặc, lưới nhạt ở lề).
+    - **Không làm chậm và không làm giật:** không tải thêm ảnh nền nặng, 375 px không cuộn ngang, tôn trọng `prefers-reduced-motion`, không thêm package khi chưa hỏi PO.
+    - **Mô tả đủ trạng thái:** sáng/tối, trạng thái tải/rỗng/lỗi vẫn đúng §11.2; không dùng màu làm tín hiệu duy nhất.
+    - Sau khi PO duyệt, cập nhật §3, §12 và §17 cho khớp (hiện chưa sửa).
+    - **Designer trả lời (2026-10-07):** đề xuất ở §3.1 (đã áp vào bản xem trước, ảnh `oly-sau-*`); §3, §4, §12.1, §17 đã ghi phiên bản đề xuất, đánh dấu chờ duyệt. PO cần chọn: (a) duyệt như ảnh; (b) có áp cho "Khóa học của tôi" và "Tài khoản" không (đang áp); (c) lưới ở giao diện tối có cần rõ hơn không (đang rất nhạt, 1,1:1).
+13. **OTP**: đồng ý dùng một ô nhập vẽ thành 6 ô (`OtpInput` v2, dán được, đọc màn hình là một ô) thay cho 6 ô rời của v1? (Admin MFA đã dùng.)
+14. **Đặt lại mật khẩu**: "Gửi lại mã" ở bước 2 phải qua captcha (gọi lại `forgot`) — chấp nhận Turnstile chế độ ẩn/managed, hay cho bước 2 một endpoint gửi lại không captcha (cần Architect)?
+15. **Màn chặn**: hiện ở trang chi tiết khóa dạng **hộp thoại** (giữ ngữ cảnh) và dạng trang đầy đủ khi vào thẳng checkout — đồng ý? Học sinh chỉ khai SĐT phụ huynh (không email) thì không gửi được email xác nhận — cần câu chữ/luồng riêng (chờ US-017).
+16. **Phiên**: `SESSION_REVOKED` (đổi mật khẩu/email) hiện **hộp thoại chặn** giống `SESSION_REPLACED` khi đang học/làm quiz (bản xem trước), hay giữ cách hiện tại của app thật là chuyển thẳng trang đăng nhập? Và có gửi email cảnh báo khi bị thay phiên không (câu hỏi mở US-014)?
+17. **Soạn quiz**: API câu hỏi không cho biết câu đã có lượt làm hay chưa — có muốn Architect thêm `attempts_count`/`has_attempts` vào `QuizQuestionResource` để báo **trước khi lưu** "sửa sẽ tạo bản mới" (hiện chỉ báo sau khi lưu, dựa vào `id` đổi)? Có cần API đổi thứ tự câu (ngoài MVP T21)?
+
+### Quyết định PO 2026-10-07
+- Mục 12 (nền ô ly chủ đạo): **duyệt** theo §3.1 và ảnh `oly-sau-*`, áp cho mọi trang khách kể cả "Khóa học của tôi" và "Tài khoản"; không áp trang học video, làm quiz, quản trị.
+- Mục 13 (OTP): **đồng ý** một ô nhập vẽ thành 6 ô (`OtpInput` v2).
+- Mục 14 (gửi lại mã ở bước 2 đặt lại mật khẩu): **Turnstile chế độ ẩn**, không thêm endpoint.
+- Mục 16 (phiên): `SESSION_REPLACED` và `SESSION_REVOKED` đều hiện **hộp thoại báo lý do** kèm nút "Đăng nhập lại" (thay cho chuyển thẳng trang đăng nhập).
+- Mục 15, 17 và câu hỏi email cảnh báo khi bị thay phiên: chưa quyết, dùng mặc định của bản xem trước.

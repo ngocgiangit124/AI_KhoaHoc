@@ -8,9 +8,11 @@ import {
   IconListChecks,
   IconPlayCircle,
   IconUsers,
+  Sheet,
   formatCount,
   formatDurationLong,
 } from "@vitaminvui/ui/v2";
+import type { GateKind } from "@/components/v2/auth/AccountGate";
 import { CourseAction, PriceLine, type Viewer } from "@/components/v2/course/CourseActionPanel";
 import { CourseOutlinePublic } from "@/components/v2/course/CourseOutlinePublic";
 import { PreviewBar } from "@/components/v2/PreviewBar";
@@ -42,6 +44,8 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
   const viewer: Viewer = viewerRaw && VIEWERS.includes(viewerRaw) ? viewerRaw : "guest";
   const paidEnabled = one(sp["thanh-toan"]) === "bat" ? true : publicConfig.paid_checkout_enabled;
   const loggedIn = viewer !== "guest";
+  const chan = one(sp.chan);
+  const gate: GateKind | undefined = chan === "xac-thuc" ? "verify" : chan === "phu-huynh" ? "parent-pending" : undefined;
   const resumeLessonId = viewer === "owned" ? (getLearnCourse(course.id)?.resume_lesson_id ?? null) : null;
 
   const href = (s: string, v: Viewer, paid = false) => `${routes.course(s)}?viewer=${v}${paid ? "&thanh-toan=bat" : ""}`;
@@ -53,7 +57,9 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
     { label: "Đã sở hữu", href: href(paidSlug, "owned"), current: isCur(paidSlug, "owned") },
     { label: "Có phí – thanh toán bật", href: href(paidSlug, "can_buy", true), current: isCur(paidSlug, "can_buy", true) },
     { label: "Trong giỏ – thanh toán bật", href: href(paidSlug, "in_cart", true), current: isCur(paidSlug, "in_cart", true) },
-    { label: "Miễn phí", href: href(freeSlug, "can_register_free"), current: isCur(freeSlug, "can_register_free") },
+    { label: "Miễn phí", href: href(freeSlug, "can_register_free"), current: isCur(freeSlug, "can_register_free") && !chan },
+    { label: "Miễn phí – chưa xác thực (403)", href: `${href(freeSlug, "can_register_free")}&chan=xac-thuc`, current: slug === freeSlug && chan === "xac-thuc" },
+    { label: "Miễn phí – chờ phụ huynh (403)", href: `${href(freeSlug, "can_register_free")}&chan=phu-huynh`, current: slug === freeSlug && chan === "phu-huynh" },
     { label: "Miễn phí – chờ duyệt", href: href(freeSlug, "pending_approval"), current: isCur(freeSlug, "pending_approval") },
     { label: "Chưa có bài", href: routes.course("khoa-moi-chua-co-bai"), current: slug === "khoa-moi-chua-co-bai" },
     { label: "Không tồn tại (404)", href: routes.course("khong-co-khoa-nay") },
@@ -111,11 +117,11 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
               {/* Mobile: giá + hành động ngay dưới tiêu đề; thanh dính đáy lặp lại khi cuộn. */}
               <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 lg:hidden">
                 <PriceLine course={course} />
-                <CourseAction course={course} viewer={viewer} paidEnabled={paidEnabled} resumeLessonId={resumeLessonId} />
+                <CourseAction course={course} viewer={viewer} paidEnabled={paidEnabled} resumeLessonId={resumeLessonId} gate={gate} />
               </div>
             </header>
 
-            <section aria-labelledby="mo-ta">
+            <Sheet as="section" aria-labelledby="mo-ta">
               <h2 id="mo-ta" className="text-heading font-extrabold tracking-heading text-ink">
                 Giới thiệu khóa học
               </h2>
@@ -125,7 +131,7 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
                   <p key={i}>{p}</p>
                 ))}
               </div>
-            </section>
+            </Sheet>
 
             <section aria-labelledby="hoc-thu">
               <h2 id="hoc-thu" className="scroll-mt-24 text-heading font-extrabold tracking-heading text-ink">
@@ -139,7 +145,7 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
               </div>
             </section>
 
-            <section aria-labelledby="giao-vien">
+            <Sheet as="section" aria-labelledby="giao-vien">
               <h2 id="giao-vien" className="text-heading font-extrabold tracking-heading text-ink">
                 Giáo viên
               </h2>
@@ -154,7 +160,7 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
                   </li>
                 ))}
               </ul>
-            </section>
+            </Sheet>
           </div>
 
           {/* Desktop: thẻ dính bên phải. */}
@@ -163,7 +169,7 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
               <CourseCover title={course.title} gradeLevel={course.grade_level} subjectSlug={course.subjects[0]?.slug} />
               <div className="flex flex-col gap-4 px-5 pb-5">
                 <PriceLine course={course} />
-                <CourseAction course={course} viewer={viewer} paidEnabled={paidEnabled} resumeLessonId={resumeLessonId} />
+                <CourseAction course={course} viewer={viewer} paidEnabled={paidEnabled} resumeLessonId={resumeLessonId} gate={gate} />
                 <p className="flex items-center gap-2 border-t border-line pt-4 text-sm text-ink-soft">
                   <IconClock size={16} />
                   Học trên điện thoại hoặc máy tính, mỗi lúc một thiết bị.
@@ -179,7 +185,7 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
         <div className="mx-auto flex max-w-xl items-center gap-4">
           <PriceLine course={course} size="md" />
           <div className="flex-1">
-            <CourseAction course={course} viewer={viewer} paidEnabled={paidEnabled} resumeLessonId={resumeLessonId} compact />
+            <CourseAction course={course} viewer={viewer} paidEnabled={paidEnabled} resumeLessonId={resumeLessonId} gate={gate} compact />
           </div>
         </div>
       </div>

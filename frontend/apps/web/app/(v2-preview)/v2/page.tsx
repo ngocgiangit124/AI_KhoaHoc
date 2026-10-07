@@ -172,7 +172,7 @@ export default async function HomePreview({ searchParams }: PageProps<"/v2">) {
         </ul>
       </section>
 
-      <section aria-labelledby="featured-title" className="border-y border-line bg-surface">
+      <section aria-labelledby="featured-title">
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>

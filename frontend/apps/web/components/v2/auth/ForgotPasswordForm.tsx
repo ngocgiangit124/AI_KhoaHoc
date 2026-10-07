@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { Alert, Button, Field, TextInput } from "@vitaminvui/ui/v2";
+import { Alert, Button, ButtonLink, Field, TextInput } from "@vitaminvui/ui/v2";
 import { routes } from "@/lib/v2/routes";
 
 /**
  * POST /auth/password/forgot. Phản hồi luôn giống nhau (không lộ tài khoản có tồn tại hay không):
- * giữ nguyên `message` của server. TODO(dev): Turnstile, `resend_available_at`, sang bước đặt lại.
+ * giữ nguyên `message` của server, rồi LUÔN sang bước 2 (`/quen-mat-khau/dat-lai`) dù tài khoản có tồn tại
+ * hay không (US-015 §1). TODO(dev): Turnstile, `resend_available_at`, giữ `login` trong sessionStorage cho bước 2.
  */
 export function ForgotPasswordForm() {
   const [sent, setSent] = useState(false);
@@ -35,6 +36,9 @@ export function ForgotPasswordForm() {
         <Alert tone="info" title="Nếu thông tin tồn tại, chúng tôi đã gửi mã xác nhận đến email của bạn.">
           Mã có hiệu lực 10 phút. Chỉ email đã xác thực mới nhận được mã.
         </Alert>
+        <ButtonLink href={routes.resetPassword} size="lg" block>
+          Nhập mã và đặt mật khẩu mới
+        </ButtonLink>
         <Link href={routes.login} className="focus-ring w-fit rounded font-semibold text-primary hover:underline">
           Quay lại đăng nhập
         </Link>

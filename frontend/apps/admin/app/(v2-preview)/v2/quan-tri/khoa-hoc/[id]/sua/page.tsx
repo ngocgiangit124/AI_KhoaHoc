@@ -15,7 +15,9 @@ import { CourseInfoForm } from "@/components/v2/CourseInfoForm";
 import { CourseStatusBadge } from "@/components/v2/CourseStatusBadge";
 import { CurriculumTree } from "@/components/v2/CurriculumTree";
 import { LessonEditor } from "@/components/v2/LessonEditor";
+import { QuizList } from "@/components/v2/QuizList";
 import { ADMIN_COURSES, CHAPTERS } from "@/lib/mock/v2/data";
+import { QUIZZES } from "@/lib/mock/v2/quizzes";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +33,10 @@ export default async function AdminCourseEditPreview({ params, searchParams }: P
   if (!course) notFound();
   const role = roleFrom(sp["vai-tro"]);
   const isStaff = role !== "giao_vien";
-  const tab = one(sp.tab) === "chuong-bai" ? "chuong-bai" : "thong-tin";
+  const tabRaw = one(sp.tab);
+  const tab = tabRaw === "chuong-bai" || tabRaw === "bai-tap" ? tabRaw : "thong-tin";
+  const quizState = tab === "bai-tap" ? one(sp["trang-thai"]) : undefined;
+  const quizzes = course.id === 101 && quizState !== "rong" ? QUIZZES : [];
   const selectedId = Number(one(sp.bai)) || undefined;
   const chapters = course.id === 101 ? CHAPTERS : [];
   const lessons = chapters.flatMap((c) => c.lessons);
@@ -47,7 +52,14 @@ export default async function AdminCourseEditPreview({ params, searchParams }: P
   const listHref = `/v2/quan-tri/khoa-hoc${role !== "admin" ? `?vai-tro=${role}` : ""}`;
 
   return (
-    <AdminPreviewShell role={role} current="courses" basePath={`/v2/quan-tri/khoa-hoc/${course.id}/sua`} extraQuery={tab === "chuong-bai" ? `tab=chuong-bai${selectedId ? `&bai=${selectedId}` : ""}` : ""}>
+    <AdminPreviewShell
+      role={role}
+      current="courses"
+      basePath={`/v2/quan-tri/khoa-hoc/${course.id}/sua`}
+      extraQuery={tab === "chuong-bai" ? `tab=chuong-bai${selectedId ? `&bai=${selectedId}` : ""}` : tab === "bai-tap" ? "tab=bai-tap" : ""}
+      states={tab === "bai-tap" ? [{ label: "Có dữ liệu" }, { key: "dang-tai", label: "Đang tải" }, { key: "rong", label: "Chưa có bài tập" }, { key: "loi", label: "Lỗi tải" }] : []}
+      state={quizState}
+    >
       <Breadcrumb items={[{ label: isStaff ? "Khóa học" : "Khóa học của tôi", href: listHref }, { label: course.title }]} />
       <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
@@ -89,11 +101,20 @@ export default async function AdminCourseEditPreview({ params, searchParams }: P
         items={[
           { href: qs({}), label: "Thông tin chung", current: tab === "thong-tin" },
           { href: qs({ tab: "chuong-bai" }), label: "Chương & bài", count: lessons.length, current: tab === "chuong-bai" },
+          { href: qs({ tab: "bai-tap" }), label: "Bài tập", count: course.id === 101 ? QUIZZES.length : 0, current: tab === "bai-tap" },
         ]}
       />
 
       <div className="mt-5">
-        {tab === "thong-tin" ? (
+        {tab === "bai-tap" ? (
+          <QuizList
+            courseId={course.id}
+            quizzes={quizzes}
+            parents={chapters.map((c) => ({ id: c.id, title: c.title, lessons: c.lessons.map((l) => ({ id: l.id, title: l.title })) }))}
+            roleQuery={role !== "admin" ? `?vai-tro=${role}` : ""}
+            state={quizState === "dang-tai" || quizState === "loi" ? quizState : undefined}
+          />
+        ) : tab === "thong-tin" ? (
           <>
             <CourseInfoForm course={course} role={role} />
             {isStaff ? (

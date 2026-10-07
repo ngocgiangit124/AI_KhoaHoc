@@ -28,6 +28,7 @@
   --color-line: var(--vv-line);
   --color-line-strong: var(--vv-line-strong);
   --color-grid: var(--vv-grid);
+  --color-grid-faint: var(--vv-grid-faint);
   --color-margin: var(--vv-margin);
   --color-scrim: var(--vv-scrim);
 
@@ -129,7 +130,10 @@
     --vv-line: #e6e1f2;
     --vv-line-strong: #8a82a6;
     --vv-grid: #dcd2f7;
+    /* Lưới nhạt cho nền trang khách (bg-oly-page): chữ ink 14,2:1, ink-soft 5,9:1, primary 6,6:1 ngay trên vạch kẻ. */
+    --vv-grid-faint: #ece6fa;
     --vv-margin: #e5484d;
+    --vv-margin-faint: color-mix(in oklab, var(--vv-margin) 40%, transparent);
     --vv-scrim: rgb(18 12 36 / 0.55);
 
     --vv-primary: #5b2ec4;
@@ -172,6 +176,7 @@
     --vv-line: #2d2740;
     --vv-line-strong: #6f6789;
     --vv-grid: #2a2340;
+    --vv-grid-faint: #1f1a2b;
     --vv-margin: #8c3a3e;
     --vv-scrim: rgb(0 0 0 / 0.65);
 
@@ -215,6 +220,7 @@
       --vv-line: #2d2740;
       --vv-line-strong: #6f6789;
       --vv-grid: #2a2340;
+      --vv-grid-faint: #1f1a2b;
       --vv-margin: #8c3a3e;
       --vv-scrim: rgb(0 0 0 / 0.65);
       --vv-primary: #a98bff;
@@ -277,4 +283,42 @@
     32px 32px,
     32px 32px,
     100% 8px;
+}
+
+/* Nền trang khách "vở ô ly" chủ đạo (PO 2026-10-06, design-system-v2 §3.1): lưới NHẠT `grid-faint` phủ cả vùng
+   nội dung, tự đổi theo sáng/tối. Mobile < 640px: ô 24px, chỉ đường ô (bớt rối cạnh chữ, lề trang chỉ 16px).
+   Từ 640px: ô 32px + dòng kẻ mảnh 8px như vở thật. Từ ~1232px: thêm lề đỏ nhạt nằm trong khoảng trống bên trái
+   khung nội dung `max-w-6xl` (không bao giờ chạy dưới chữ; màn hẹp hơn thì tự ra ngoài khung nhìn).
+   Chỉ là trang trí: đoạn văn > 3 dòng, form, bảng, danh sách dài đặt trên khối nền đặc (`Sheet`/thẻ `surface`).
+   Không dùng cho trang học video, làm quiz, quản trị. Không có ảnh nền, không chuyển động. */
+@utility bg-oly-page {
+  background-color: var(--vv-paper);
+  background-image:
+    linear-gradient(var(--vv-grid-faint) 1px, transparent 1px),
+    linear-gradient(90deg, var(--vv-grid-faint) 1px, transparent 1px);
+  background-size:
+    24px 24px,
+    24px 24px;
+  background-position:
+    center top,
+    center top;
+
+  @media (width >= 40rem) {
+    background-image:
+      linear-gradient(90deg, var(--vv-margin-faint) 2px, transparent 2px),
+      linear-gradient(var(--vv-grid-faint) 1px, transparent 1px),
+      linear-gradient(90deg, var(--vv-grid-faint) 1px, transparent 1px),
+      linear-gradient(color-mix(in oklab, var(--vv-grid-faint) 55%, transparent) 1px, transparent 1px);
+    background-size:
+      2px 100%,
+      32px 32px,
+      32px 32px,
+      100% 8px;
+    background-repeat: no-repeat, repeat, repeat, repeat;
+    background-position:
+      calc(50% - 37.5rem) 0,
+      center top,
+      center top,
+      0 0;
+  }
 }

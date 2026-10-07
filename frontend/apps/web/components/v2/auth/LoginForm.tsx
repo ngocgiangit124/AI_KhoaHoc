@@ -5,9 +5,9 @@ import { useState, type FormEvent } from "react";
 import { Alert, Button, Field, PasswordInput, TextInput, useToast } from "@vitaminvui/ui/v2";
 import { routes } from "@/lib/v2/routes";
 
-export type LoginNotice = "sai" | "qua-nhieu" | "khoa" | "thiet-bi" | "het-phien";
+export type LoginNotice = "sai" | "qua-nhieu" | "khoa" | "thiet-bi" | "het-phien" | "dat-lai-xong";
 
-const NOTICES: Record<LoginNotice, { tone: "danger" | "warning" | "info"; title: string; body?: string }> = {
+const NOTICES: Record<LoginNotice, { tone: "danger" | "warning" | "info" | "success"; title: string; body?: string }> = {
   // 422 VALIDATION_ERROR (field login) — thông điệp chung, không nói ô nào sai (US-001 BR5).
   sai: { tone: "danger", title: "Thông tin đăng nhập hoặc mật khẩu không đúng." },
   // 429 TOO_MANY_ATTEMPTS + Retry-After.
@@ -18,6 +18,8 @@ const NOTICES: Record<LoginNotice, { tone: "danger" | "warning" | "info"; title:
   "thiet-bi": { tone: "info", title: "Bạn đã đăng nhập trên một thiết bị khác.", body: "Mỗi tài khoản chỉ học trên một thiết bị cùng lúc. Đăng nhập lại để tiếp tục học ở đây." },
   // login-required (SESSION_EXPIRED/REVOKED): êm hơn, không báo động.
   "het-phien": { tone: "info", title: "Phiên đăng nhập đã hết hạn.", body: "Đăng nhập lại để tiếp tục — bạn sẽ quay về đúng trang đang xem." },
+  // Sau POST /auth/password/reset 200 (không tự đăng nhập — US-015 AC2).
+  "dat-lai-xong": { tone: "success", title: "Đặt lại mật khẩu thành công.", body: "Đăng nhập bằng mật khẩu mới. Các thiết bị khác đã được đăng xuất." },
 };
 
 /** Form đăng nhập học sinh (POST /auth/login). TODO(dev): nối api, giữ `?next=` qua safeRedirect. */

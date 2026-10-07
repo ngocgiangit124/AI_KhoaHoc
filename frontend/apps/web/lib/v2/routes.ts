@@ -32,7 +32,19 @@ export const routes = {
   terms: `${P}/dieu-khoan`,
   privacy: `${P}/chinh-sach-du-lieu`,
   forgot: `${P}/quen-mat-khau`,
+  resetPassword: `${P}/quen-mat-khau/dat-lai`,
+  verifyOtp: `${P}/xac-thuc-otp`,
+  needVerify: `${P}/can-xac-thuc`,
+  parentPending: `${P}/cho-phu-huynh`,
 } as const;
+
+/** Che email kiểu `m*****1@gmail.com` (giữ ký tự đầu, cuối phần tên và tên miền). */
+export function maskEmail(email: string): string {
+  const at = email.lastIndexOf("@");
+  if (at <= 1) return email;
+  const local = email.slice(0, at);
+  return `${local[0]}${"*".repeat(Math.min(6, Math.max(2, local.length - 2)))}${local[local.length - 1]}${email.slice(at)}`;
+}
 
 /** Học sinh mẫu đang đăng nhập. */
 export const sampleStudent = { name: "Minh Anh", email: "minhanh.2011@gmail.com", phone: "0912345678", grade_level: 9 };

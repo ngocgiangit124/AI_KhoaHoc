@@ -1,5 +1,5 @@
-import { Badge, ButtonLink, IconFileText, IconLogOut } from "@vitaminvui/ui/v2";
-import { ChangeContactForm, ChangePasswordForm } from "@/components/v2/my/AccountForms";
+import { Alert, Badge, ButtonLink, IconFileText, IconLogOut } from "@vitaminvui/ui/v2";
+import { ChangeContactForm, ChangePasswordForm, type ContactDemoError } from "@/components/v2/my/AccountForms";
 import { PreviewBar } from "@/components/v2/PreviewBar";
 import { StudentShell } from "@/components/v2/StudentShell";
 import { one, routes, sampleStudent } from "@/lib/v2/routes";
@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 /** Tài khoản học sinh: thông tin, đổi liên hệ (cần mật khẩu hiện tại), đổi mật khẩu, quyền dữ liệu. */
 export default async function AccountPreview({ searchParams }: PageProps<"/v2/tai-khoan">) {
   const sp = await searchParams;
-  const state = one(sp["trang-thai"]) as "sai-mat-khau" | "qua-nhieu" | undefined;
+  const raw = one(sp["trang-thai"]);
+  const changedEmail = raw === "vua-doi-email";
+  const state = raw === "sai-mat-khau" || raw === "qua-nhieu" || raw === "email-trung" ? (raw as ContactDemoError) : undefined;
+  const email = changedEmail ? "minhanh.hoc@gmail.com" : sampleStudent.email;
   const section = "rounded-sheet border border-line bg-surface p-5 sm:p-6";
   return (
     <StudentShell
@@ -21,12 +24,19 @@ export default async function AccountPreview({ searchParams }: PageProps<"/v2/ta
             { label: "Mặc định", href: routes.account, current: !state },
             { label: "Sai mật khẩu hiện tại", href: `${routes.account}?trang-thai=sai-mat-khau`, current: state === "sai-mat-khau" },
             { label: "Sai nhiều lần (429)", href: `${routes.account}?trang-thai=qua-nhieu`, current: state === "qua-nhieu" },
+            { label: "Email đã được dùng", href: `${routes.account}?trang-thai=email-trung`, current: state === "email-trung" },
+            { label: "Vừa đổi email (chưa xác thực)", href: `${routes.account}?trang-thai=vua-doi-email`, current: changedEmail },
           ]}
         />
       }
     >
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 pb-14 pt-6 sm:px-6">
         <h1 className="text-title font-extrabold tracking-heading text-ink">Tài khoản</h1>
+        {changedEmail ? (
+          <Alert tone="info" title="Đã đổi email" action={<ButtonLink href={routes.verifyOtp} size="md">Xác thực ngay</ButtonLink>}>
+            Mã xác thực đã gửi tới email mới. Các thiết bị khác đã được đăng xuất. Bạn cần xác thực lại trước khi đăng ký khóa học.
+          </Alert>
+        ) : null}
 
         <section aria-labelledby="ho-so" className={section}>
           <h2 id="ho-so" className="text-heading font-extrabold tracking-heading text-ink">
@@ -37,10 +47,16 @@ export default async function AccountPreview({ searchParams }: PageProps<"/v2/ta
             <dd className="text-ink">Lớp {sampleStudent.grade_level}</dd>
             <dt className="text-ink-soft">Email</dt>
             <dd className="flex flex-wrap items-center gap-2 text-ink">
-              {sampleStudent.email}
-              <Badge tone="success" size="sm">
-                Đã xác thực
-              </Badge>
+              {email}
+              {changedEmail ? (
+                <Badge tone="warning" size="sm">
+                  Chưa xác thực
+                </Badge>
+              ) : (
+                <Badge tone="success" size="sm">
+                  Đã xác thực
+                </Badge>
+              )}
             </dd>
             <dt className="text-ink-soft">Số điện thoại</dt>
             <dd className="text-ink">{sampleStudent.phone}</dd>
@@ -52,7 +68,7 @@ export default async function AccountPreview({ searchParams }: PageProps<"/v2/ta
             Đổi email hoặc số điện thoại
           </h2>
           <div className="mt-4">
-            <ChangeContactForm key={state ?? "x"} email={sampleStudent.email} phone={sampleStudent.phone} demoError={state} />
+            <ChangeContactForm key={raw ?? "x"} email={email} phone={sampleStudent.phone} demoError={state} />
           </div>
         </section>
 

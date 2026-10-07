@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { IconCheck } from "@vitaminvui/ui/v2";
+import { IconCheck, Sheet } from "@vitaminvui/ui/v2";
 
 /**
- * Bố cục trang đăng nhập/đăng ký: desktop chia 2 — trái là trang vở (ô ly + lề đỏ + ghi chú viết tay,
+ * Bố cục trang đăng nhập/đăng ký: desktop chia 2 — trái là trang vở (ô ly đậm + lề đỏ + ghi chú viết tay,
  * trang trí), phải là form. Mobile chỉ còn form, không có gì đẩy form xuống dưới màn hình.
+ * Nền vùng form là vở ô ly nhạt (StudentShell); form nằm trên "tờ giấy trơn" `Sheet` để lưới không chạy sau ô nhập.
  */
 export function AuthFrame({ title, subtitle, children, aside }: { title: string; subtitle?: ReactNode; children: ReactNode; aside?: ReactNode }) {
   return (
@@ -26,12 +27,12 @@ export function AuthFrame({ title, subtitle, children, aside }: { title: string;
           </ul>
         </div>
       </div>
-      <div className="flex flex-1 justify-center px-4 py-8 sm:py-12">
-        <div className="w-full max-w-md">
+      <div className="flex flex-1 justify-center px-4 py-6 sm:py-12">
+        <Sheet className="h-fit w-full max-w-md sm:max-w-lg sm:p-8">
           <h1 className="text-title font-extrabold tracking-heading text-ink">{title}</h1>
           {subtitle ? <div className="mt-2 text-base text-ink-soft">{subtitle}</div> : null}
           <div className="mt-6">{children}</div>
-        </div>
+        </Sheet>
       </div>
     </div>
   );

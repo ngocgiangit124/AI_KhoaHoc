@@ -5,7 +5,7 @@ import { StudentShell } from "@/components/v2/StudentShell";
 
 export const dynamic = "force-dynamic";
 
-/** Quên mật khẩu (US-015 bước 1). Bước đặt lại (OTP + mật khẩu mới) dùng cùng component, chưa dựng. */
+/** Quên mật khẩu (US-015 bước 1). Bước 2 (mã + mật khẩu mới): `/v2/quen-mat-khau/dat-lai`. */
 export default function ForgotPreview() {
   return (
     <StudentShell current="auth" loggedIn={false} minimal preview={<PreviewBar note="Bấm “Gửi mã” để xem màn đã gửi" />}>

@@ -9,6 +9,7 @@ import {
   IconInfo,
   IconListChecks,
   ProgressBar,
+  SessionEndedDialog,
   formatClock,
 } from "@vitaminvui/ui/v2";
 import { CompletionNotice } from "@/components/v2/learn/CompletionNotice";
@@ -26,6 +27,8 @@ const STATES: Array<{ key?: string; label: string }> = [
   { key: "loi", label: "Lỗi tải video" },
   { key: "dang-xu-ly", label: "Video đang xử lý" },
   { key: "hoan-thanh", label: "Vừa hoàn thành" },
+  { key: "phien-thay-the", label: "Đăng nhập ở thiết bị khác (401)" },
+  { key: "phien-thu-hoi", label: "Mật khẩu/email vừa đổi (401)" },
 ];
 
 /** Trang học video (US-006). Không có header/footer/bottom-nav của site: chỉ còn đường quay lại khóa học. */
@@ -45,6 +48,16 @@ export default async function LessonPreview({ params, searchParams }: PageProps<
     <>
       <PreviewBar variants={STATES.map((s) => ({ label: s.label, href: s.key ? `${base}?trang-thai=${s.key}` : base, current: s.key === state }))} />
       {state === "hoan-thanh" ? <CompletionNotice lessonTitle={lesson.title} coursePercent={44} /> : null}
+      {/* US-014: 401 SESSION_REPLACED / SESSION_REVOKED khi đang học → hộp thoại chặn, không đóng được. */}
+      {state === "phien-thay-the" || state === "phien-thu-hoi" ? (
+        <SessionEndedDialog
+          open
+          reason={state === "phien-thay-the" ? "replaced" : "revoked"}
+          context="lesson"
+          loginHref={`${routes.login}?next=${encodeURIComponent(base)}`}
+          forgotHref={routes.forgot}
+        />
+      ) : null}
 
       <header className="sticky top-0 z-30 border-b border-line bg-surface">
         <div className="flex h-14 items-center gap-2 px-2 sm:px-4">
