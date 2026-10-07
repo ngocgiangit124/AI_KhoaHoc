@@ -233,7 +233,7 @@ export function EnrollmentRequestsScreen() {
       <div>
         <h1 className="text-title font-extrabold tracking-heading text-ink">Duyệt đăng ký khóa miễn phí</h1>
         <p className="mt-1 max-w-3xl text-sm text-ink-soft">
-          {isStaff ? "Yêu cầu của học sinh đăng ký các khóa miễn phí, cũ nhất trước." : "Yêu cầu đăng ký các khóa miễn phí do bạn phụ trách, cũ nhất trước."} Học sinh nhận email kết quả (kèm lý do nếu bị từ chối).
+          {isStaff ? "Yêu cầu của học sinh đăng ký các khóa miễn phí, cũ nhất trước." : "Yêu cầu đăng ký các khóa miễn phí do bạn phụ trách, cũ nhất trước."} Học sinh đã xác thực email sẽ nhận email kết quả (kèm lý do nếu bị từ chối).
         </p>
       </div>
 
