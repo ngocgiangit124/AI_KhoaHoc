@@ -189,7 +189,7 @@ export function SubjectsScreen() {
     {
       key: "name",
       header: "Tên chuyên đề",
-      className: "min-w-40",
+      className: "min-w-32 sm:min-w-40",
       cell: (s) => (
         <div className="min-w-0">
           <p className="break-words font-semibold text-ink">{s.name}</p>
@@ -207,7 +207,16 @@ export function SubjectsScreen() {
       { key: "courses_count", header: "Khóa học đang gán", align: "right", hideBelow: "md", cell: (s) => s.courses_count ?? 0 },
       {
         key: "status",
-        header: "Hiển thị công khai",
+        // Tiêu đề dài làm cột rộng ~150px ở 375px đẩy "Thao tác" ra ngoài khung (QA FA-V2 BUG-2): rút gọn dưới `sm`.
+        header: (
+          <>
+            <span className="max-sm:hidden">Hiển thị công khai</span>
+            <span className="sm:hidden" aria-hidden="true">
+              Hiện
+            </span>
+            <span className="sr-only sm:hidden">Hiển thị công khai</span>
+          </>
+        ),
         className: "whitespace-nowrap",
         cell: (s) => (
           <div className="flex items-center gap-1">

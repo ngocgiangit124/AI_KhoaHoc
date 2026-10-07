@@ -104,6 +104,17 @@ export function OtpInput({
         spellCheck={false}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
+        onPaste={(e) => {
+          // `maxLength` cắt chuỗi dán TRƯỚC khi `onChange` chạy ("633 723" → "63372"): tự lọc chữ số rồi mới cắt.
+          const text = e.clipboardData.getData("text");
+          if (!text) return;
+          e.preventDefault();
+          if (busy) return;
+          const clean = onlyDigits(text).slice(0, length);
+          if (clean === "") return;
+          onChange(clean);
+          if (clean.length === length && clean !== value) onComplete?.(clean);
+        }}
         onChange={(e) => {
           if (busy) return;
           const clean = onlyDigits(e.target.value).slice(0, length);

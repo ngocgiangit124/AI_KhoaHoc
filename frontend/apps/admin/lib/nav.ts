@@ -32,8 +32,7 @@ export const DEFAULT_LANDING = "/quan-tri";
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/quan-tri", label: "Tổng quan", group: "content", icon: "home", roles: ALL, ready: true },
-  // TODO(FA3): bật `ready: true` khi màn Khóa học (app/quan-tri/khoa-hoc) được commit; đổi DEFAULT_LANDING nếu PO muốn.
-  { href: "/quan-tri/khoa-hoc", label: "Khóa học", group: "content", icon: "book", roles: ALL, ready: false },
+  { href: "/quan-tri/khoa-hoc", label: "Khóa học", group: "content", icon: "book", roles: ALL, ready: true },
   { href: "/quan-tri/chuyen-de", permission: "manage_subjects", label: "Chuyên đề", group: "content", icon: "shapes", roles: STAFF, ready: true },
   { href: "/quan-tri/ma-giam-gia", permission: "manage_coupons", label: "Mã giảm giá", group: "sales", icon: "ticket", roles: STAFF, ready: false },
   {

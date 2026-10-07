@@ -69,12 +69,12 @@ describe("AuthGate", () => {
 });
 
 describe("AdminShell menu theo vai trò", () => {
-  it("giáo viên không thấy mục Tài khoản staff / Nhật ký; Khóa học chưa có màn nên không phải link (FA3)", () => {
+  it("giáo viên không thấy mục Tài khoản staff / Nhật ký; thấy Khóa học (FA3) như một link", () => {
     render(<AdminShell user={user("giao_vien")}>x</AdminShell>);
     expect(screen.queryByText("Tài khoản staff")).toBeNull();
     expect(screen.queryByText("Nhật ký thao tác")).toBeNull();
     expect(screen.getByRole("link", { name: "Tổng quan" })).toHaveAttribute("href", "/quan-tri");
-    expect(screen.queryByRole("link", { name: /Khóa học/ })).toBeNull();
+    expect(screen.getAllByRole("link", { name: "Khóa học" })[0]).toHaveAttribute("href", "/quan-tri/khoa-hoc");
   });
   it("admin thấy đủ mục", () => {
     render(<AdminShell user={user("admin")}>x</AdminShell>);
@@ -90,7 +90,9 @@ describe("navGroups (menu v2)", () => {
     expect(groups.map((g) => g.label)).toEqual(["Nội dung", "Bán hàng", "Hệ thống"]);
     const items = groups.flatMap((g) => g.items);
     expect(items.find((i) => i.label === "Chuyên đề")).toMatchObject({ href: "/quan-tri/chuyen-de", current: true });
-    expect(items.find((i) => i.label === "Khóa học")?.disabledNote).toBe("Sắp có");
+    const courses = items.find((i) => i.label === "Khóa học");
+    expect(courses).toMatchObject({ href: "/quan-tri/khoa-hoc", current: false });
+    expect(courses).not.toHaveProperty("disabledNote");
     expect(items.find((i) => i.label === "Đơn hàng")).toMatchObject({ disabledNote: "V2", disabledReason: "Mở khi bật thanh toán trực tuyến" });
     expect(items.find((i) => i.label === "Mã giảm giá")?.disabledNote).toBe("Sắp có");
   });
