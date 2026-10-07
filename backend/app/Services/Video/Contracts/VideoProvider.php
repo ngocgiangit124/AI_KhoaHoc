@@ -24,6 +24,13 @@ interface VideoProvider
     public function name(): string;
 
     /**
+     * Mã thư viện của nhà cung cấp, ghi vào `video_assets.provider_library_id` (mỗi nhà cung cấp một nguồn cấu hình).
+     *
+     * @throws VideoProviderException chưa cấu hình
+     */
+    public function libraryId(): string;
+
+    /**
      * @param  int|null  $maxBytes  Kích thước tệp đã khai (T12-2): nhà cung cấp dùng làm trần upload cho video này
      *                              (adapter không hỗ trợ có thể bỏ qua; luôn bị kẹp bởi trần chung `video.max_upload_mb`).
      *

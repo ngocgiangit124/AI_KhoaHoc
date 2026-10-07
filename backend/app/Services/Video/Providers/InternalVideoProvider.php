@@ -34,6 +34,11 @@ class InternalVideoProvider implements VideoProvider
         return 'internal';
     }
 
+    public function libraryId(): string
+    {
+        return (string) config('video.library_id');
+    }
+
     public function createVideo(string $title, ?int $maxBytes = null): ProviderVideo
     {
         $response = $this->send(fn (PendingRequest $http) => $http->post($this->videosUrl(), array_filter([

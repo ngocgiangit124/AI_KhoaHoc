@@ -25,5 +25,6 @@ Thiết kế MVP (US-001 → US-014) được viết tập trung ở `docs/archi
 | US-018 Quyền dữ liệu cá nhân (chờ BA) | data-model §7; api-contract §2.8 | T30, T34 |
 | US-019 Trang chủ | tasks.md "Sau MVP" (FW8); không có API mới | FW8 |
 | US-020 Hồ sơ giáo viên công khai | **[US-020.md](US-020.md)**; **ADR-005**; api-contract §2.9; data-model `teacher_profiles` | T36, FW9, FA11 |
+| US-021 Kết nối Bunny Stream | **[US-021.md](US-021.md)**; ADR-002; api-contract §2.7 | T37 |
 
 Danh sách task đầy đủ (kể cả T01, T02, FE0 chi tiết): `docs/architecture/tasks.md`. Truy vết review Security/DBA: `docs/architecture/review-traceability.md`.

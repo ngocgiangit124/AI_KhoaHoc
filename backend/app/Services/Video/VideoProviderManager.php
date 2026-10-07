@@ -4,6 +4,7 @@ namespace App\Services\Video;
 
 use App\Services\Video\Contracts\VideoProvider;
 use App\Services\Video\Exceptions\VideoProviderException;
+use App\Services\Video\Providers\BunnyStreamProvider;
 use App\Services\Video\Providers\InternalVideoProvider;
 use Illuminate\Support\Manager;
 use InvalidArgumentException;
@@ -11,7 +12,7 @@ use InvalidArgumentException;
 /**
  * Resolve adapter theo tên, CHỈ trong allowlist `config('video.enabled_providers')` (ADR-002 §1).
  * `fake` do VideoServiceProvider `extend` ở local/testing. `internal` (VideoLab, T12) cần `videolab.enabled`;
- * `bunny` chưa có adapter: resolve sẽ ném VideoProviderException (→ 503).
+ * `bunny` (US-021) cần đủ BUNNY_*: thiếu thì resolve ném VideoProviderException (→ 503).
  *
  * @method VideoProvider driver(?string $driver = null)
  */
@@ -60,6 +61,10 @@ class VideoProviderManager extends Manager
 
     protected function createBunnyDriver(): VideoProvider
     {
-        throw new VideoProviderException('BunnyStreamProvider chưa được cài đặt/cấu hình (chờ tài khoản Bunny).');
+        // Thiếu BUNNY_* → ném VideoProviderException nêu tên biến (không in giá trị) → upload 503, webhook 404.
+        $provider = $this->container->make(BunnyStreamProvider::class);
+        $provider->assertConfigured();
+
+        return $provider;
     }
 }

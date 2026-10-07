@@ -170,3 +170,26 @@ test('S4-N6 host web co real_ip de limit_req theo IP khach that; host admin khon
     expect(ngxServerByName('vitaminvui.vn'))->toContain('include /etc/nginx/snippets/vv-real-ip.conf');
     expect(ngxServerByName('admin.vitaminvui.vn'))->not->toContain('vv_web');
 })->skip(ngxMissing(), 'Can mount infra/production.');
+
+test('R-1 T37: webhook Bunny log theo $uri (khong query), thang ^~ webhooks, giu xu ly header/fastcgi', function () {
+    $conf = ngxStrip((string) file_get_contents(ngxPath()));
+    $snippet = ngxStrip((string) file_get_contents(dirname(ngxPath(), 2).'/snippets/vv-api-common.conf'));
+
+    // log_format khong chua query ($request, $args, $query_string, $request_uri) va dung $uri
+    expect($conf)->toMatch('/^log_format\s+vv_noargs\s+\'([^\']*)\'\s*;/m');
+    preg_match('/^log_format\s+vv_noargs\s+\'([^\']*)\'\s*;/m', $conf, $m);
+    expect($m[1])->toContain('$uri')->not->toContain('$request ')->not->toContain('$request"')->not->toContain('$args')
+        ->not->toContain('$query_string')->not->toContain('$request_uri');
+
+    $pos = strpos($snippet, 'location = /api/v1/webhooks/video/bunny');
+    expect($pos)->not->toBeFalse();
+    $body = ngxBlockAt($snippet, strpos($snippet, '{', $pos));
+    expect($body)->toMatch('/access_log\s+\S+\s+vv_noargs\s*;/')
+        ->toContain('client_max_body_size 16k')
+        ->toMatch('/fastcgi_param\s+HTTP_X_INTERNAL_TOKEN\s+""\s*;/')
+        ->toMatch('/fastcgi_param\s+HTTP_X_CLIENT_IP\s+""\s*;/')
+        ->toContain('fastcgi_pass php_fpm');
+
+    // Khong con access_log mac dinh o cap server cho host api (se ghi query)
+    expect(ngxServerByName('api.vitaminvui.vn'))->not->toMatch('/access_log\s+\S+\s+(combined|main)/');
+})->skip(ngxMissing(), 'Can mount infra/production.');

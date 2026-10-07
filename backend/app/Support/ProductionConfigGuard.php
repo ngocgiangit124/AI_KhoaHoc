@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\Video\Providers\BunnyStreamProvider;
 use RuntimeException;
 
 /**
@@ -36,7 +37,8 @@ class ProductionConfigGuard
         'PAYMENT_GATEWAYS', 'FEATURE_PAID_CHECKOUT', 'FEATURE_STAFF_MFA', 'MOMO_ENDPOINT', 'MOMO_PAY_URL_HOSTS',
         'MOMO_ACCESS_KEY', 'MOMO_SECRET_KEY', 'MOMO_PARTNER_CODE', 'VIDEO_PROVIDER', 'VIDEO_ENABLED_PROVIDERS',
         'VIDEOLAB_ENABLED', 'VIDEOLAB_API_KEY', 'VIDEOLAB_TOKEN_KEY', 'VIDEOLAB_WEBHOOK_SECRET', 'VIDEOLAB_PUBLIC_URL',
-        'VIDEOLAB_ACCEL_REDIRECT', 'DB_CONNECTION', 'DB_HOST', 'DB_USERNAME', 'DB_PASSWORD', 'REDIS_HOST',
+        'VIDEOLAB_ACCEL_REDIRECT', 'BUNNY_LIBRARY_ID', 'BUNNY_API_KEY', 'BUNNY_CDN_HOST', 'BUNNY_TOKEN_KEY', 'BUNNY_WEBHOOK_TOKEN', 'BUNNY_API_BASE',
+        'BUNNY_TUS_ENDPOINT', 'DB_CONNECTION', 'DB_HOST', 'DB_USERNAME', 'DB_PASSWORD', 'REDIS_HOST',
         'REDIS_USERNAME', 'REDIS_PASSWORD', 'REDIS_PREFIX', 'CACHE_PREFIX', 'QUEUE_CONNECTION', 'CACHE_STORE',
     ];
 
@@ -96,6 +98,7 @@ class ProductionConfigGuard
         $this->guardTrustedProxies();
         $this->guardPayments();
         $this->guardVideo();
+        $this->guardBunny();
         $this->guardInternalToken();
         $this->guardOtpRelaxed();
         $this->guardVideoLabSecrets();
@@ -501,6 +504,90 @@ class ProductionConfigGuard
             array_map('mb_strtolower', (array) config('payments.gateways.momo.pay_url_hosts', ['payment.momo.vn'])) !== ['payment.momo.vn'],
             RuntimeException::class,
             'MOMO_PAY_URL_HOSTS chỉ được là payment.momo.vn ở production (S23, T17-2).'
+        );
+    }
+
+    /**
+     * US-021 BR11 — khi Bunny đang bật (mặc định hoặc trong allowlist) phải đủ BUNNY_LIBRARY_ID/API_KEY/CDN_HOST/TOKEN_KEY;
+     * CDN host là https, là tên miền (không IP, không đường dẫn), KHÁC host của app/web/admin/api/admin-api và không nằm
+     * dưới SESSION_DOMAIN (cookie phiên không được gửi sang CDN); api_base/tus_endpoint là https (khoá API đi trong header).
+     * Thông báo chỉ nêu TÊN biến, không bao giờ in giá trị.
+     */
+    private function guardBunny(): void
+    {
+        $providers = array_map(
+            static fn ($provider) => mb_strtolower((string) $provider),
+            [...(array) config('video.enabled_providers', []), (string) config('video.provider')]
+        );
+
+        if (! in_array('bunny', $providers, true)) {
+            return;
+        }
+
+        foreach (BunnyStreamProvider::REQUIRED as $key => $env) {
+            $value = config("video.providers.bunny.{$key}");
+
+            throw_if(
+                ! is_string($value) || trim($value) === '',
+                RuntimeException::class,
+                "{$env} phải được đặt khi nhà cung cấp video bunny đang bật (US-021, BR11)."
+            );
+        }
+
+        $webhookToken = config('video.providers.bunny.webhook_token');
+
+        throw_if(
+            ! is_string($webhookToken) || mb_strlen($webhookToken) < self::VIDEOLAB_KEY_MIN_LENGTH,
+            RuntimeException::class,
+            'BUNNY_WEBHOOK_TOKEN phải đặt và dài tối thiểu '.self::VIDEOLAB_KEY_MIN_LENGTH.' ký tự khi bunny bật (openssl rand -hex 32; S1 review T37).'
+        );
+
+        foreach (['api_base' => 'BUNNY_API_BASE', 'tus_endpoint' => 'BUNNY_TUS_ENDPOINT'] as $key => $env) {
+            throw_unless(
+                str_starts_with(mb_strtolower(trim((string) config("video.providers.bunny.{$key}"))), 'https://'),
+                RuntimeException::class,
+                "{$env} phải dùng https (US-021)."
+            );
+        }
+
+        $raw = trim((string) config('video.providers.bunny.cdn_host'));
+
+        throw_if(
+            preg_match('#^[a-z][a-z0-9+.-]*://#i', $raw) === 1 && ! str_starts_with(mb_strtolower($raw), 'https://'),
+            RuntimeException::class,
+            'BUNNY_CDN_HOST phải dùng https (US-021, BR11).'
+        );
+
+        $host = $this->normalizeHost((string) (str_starts_with(mb_strtolower($raw), 'https://') ? parse_url($raw, PHP_URL_HOST) : $raw));
+
+        throw_if(
+            $host === '' || preg_match('/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/', $host) !== 1 || filter_var($host, FILTER_VALIDATE_IP) !== false,
+            RuntimeException::class,
+            'BUNNY_CDN_HOST phải là tên miền (không IP, không đường dẫn, không cổng) (US-021, BR11).'
+        );
+
+        $others = [
+            'APP_URL' => (string) parse_url((string) config('app.url'), PHP_URL_HOST),
+            'FRONTEND_URL' => (string) parse_url((string) config('app.frontend_url'), PHP_URL_HOST),
+            'ADMIN_URL' => (string) parse_url((string) config('app.admin_url'), PHP_URL_HOST),
+            'APP_API_HOST' => (string) config('app.api_host'),
+            'APP_ADMIN_API_HOST' => (string) config('app.admin_api_host'),
+        ];
+
+        foreach ($others as $name => $other) {
+            throw_if(
+                $other !== '' && $host === $this->normalizeHost($other),
+                RuntimeException::class,
+                "BUNNY_CDN_HOST không được trùng host của {$name} (US-021, BR11)."
+            );
+        }
+
+        $cookieDomain = $this->normalizeHost((string) config('session.domain'));
+
+        throw_if(
+            $cookieDomain !== '' && $cookieDomain !== 'null' && ($host === $cookieDomain || str_ends_with($host, '.'.$cookieDomain)),
+            RuntimeException::class,
+            'SESSION_DOMAIN đang phủ cả BUNNY_CDN_HOST: cookie phiên sẽ gửi sang CDN video (US-021).'
         );
     }
 

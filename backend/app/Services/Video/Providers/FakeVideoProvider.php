@@ -39,6 +39,11 @@ class FakeVideoProvider implements VideoProvider
         return 'fake';
     }
 
+    public function libraryId(): string
+    {
+        return (string) config('video.library_id');
+    }
+
     public function createVideo(string $title, ?int $maxBytes = null): ProviderVideo
     {
         $this->guard();

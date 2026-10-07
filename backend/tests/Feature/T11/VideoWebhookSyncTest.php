@@ -6,6 +6,7 @@ use App\Models\VideoAsset;
 use App\Services\Video\Exceptions\VideoProviderException;
 use App\Services\Video\VideoAssetSyncService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Support\Facades\Cache;
 
 require_once __DIR__.'/helpers.php';
 
@@ -36,6 +37,7 @@ test('webhook: processing, failed co error_message; ready/failed la trang thai c
     vvWebhook('fake', ['VideoGuid' => $guid])->assertNoContent();
     expect($asset->fresh()->status)->toBe(VideoAssetStatus::Processing);
 
+    Cache::flush(); // T37 S1: webhook trùng của cùng asset trong cửa sổ ngắn được gom
     $fake->setStatus($guid, VideoAssetStatus::Failed, null, '<b>Định dạng không hỗ trợ</b>');
     vvWebhook('fake', ['VideoGuid' => $guid])->assertNoContent();
     expect($asset->fresh()->status)->toBe(VideoAssetStatus::Failed)->and($asset->fresh()->error_message)->toBe('Định dạng không hỗ trợ');

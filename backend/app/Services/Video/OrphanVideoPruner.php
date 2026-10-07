@@ -3,6 +3,7 @@
 namespace App\Services\Video;
 
 use App\Models\VideoAsset;
+use App\Services\Video\Providers\BunnyStreamProvider;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -63,7 +64,20 @@ class OrphanVideoPruner
             // Asset giữ chỗ hạn mức chưa từng có video ở nhà cung cấp: chỉ xoá dòng.
             if (! str_starts_with($locked->provider_video_id, VideoUploadService::PENDING_PREFIX)) {
                 try {
-                    $this->providers->driver($locked->provider)->deleteVideo($locked->provider_video_id);
+                    $provider = $this->providers->driver($locked->provider);
+
+                    // S8: video thuộc thư viện Bunny khác thư viện hiện hành → gọi xoá sẽ nhận 404 và để video nằm lại ở
+                    // thư viện cũ mà DB mất dấu. Giữ dòng + cảnh báo để vận hành xử lý tay.
+                    if ($provider instanceof BunnyStreamProvider && (string) $locked->provider_library_id !== $provider->libraryId()) {
+                        Log::warning('Không xoá video mồ côi: thư viện Bunny của asset khác thư viện hiện hành', [
+                            'asset_id' => $locked->getKey(),
+                            'asset_library_id' => $locked->provider_library_id,
+                        ]);
+
+                        return 'failed';
+                    }
+
+                    $provider->deleteVideo($locked->provider_video_id);
                 } catch (Throwable $e) {
                     Log::warning('Không xoá được video mồ côi ở nhà cung cấp', ['asset_id' => $locked->getKey(), 'provider' => $locked->provider, 'error' => $e->getMessage()]);
 

@@ -38,6 +38,7 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 - [ ] `QUEUE_CONNECTION=redis`, `CACHE_STORE=redis`
 - [ ] `VIDEO_PROVIDER=internal`, `VIDEO_ENABLED_PROVIDERS=internal`
 - [ ] `VIDEOLAB_*`: xem mục 2
+- [ ] Dùng Bunny (US-021/T37): `VIDEO_PROVIDER=bunny`, `VIDEO_ENABLED_PROVIDERS=bunny,internal` (bỏ `internal` khi hết video VideoLab cũ), đủ `BUNNY_LIBRARY_ID`, `BUNNY_API_KEY`, `BUNNY_CDN_HOST`, `BUNNY_TOKEN_KEY`: xem mục 2.1
 
 ### 1.2 Cấm ở staging và production (guard ném lỗi khi khởi động, trừ khi ghi chú khác)
 
@@ -56,6 +57,7 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 | `SESSION_ENCRYPT=false` | phiên đọc/giả mạo được khi Redis bị đọc | có (C4-M1) |
 | `VIDEO_PROVIDER`/`VIDEO_ENABLED_PROVIDERS` chứa `fake` | video giả | có |
 | `AUTH_OTP_E2E_RELAXED=true` | nới hạn mức OTP (MF1-1) | lớp thứ 2: `config/auth.php` đã ép tắt ngoài local/testing; guard không phủ trường hợp đặt nhầm `APP_ENV=local` (kiểm tay: dòng đầu mục 1.1) |
+| Bunny đang bật mà thiếu `BUNNY_LIBRARY_ID`/`API_KEY`/`CDN_HOST`/`TOKEN_KEY`, hoặc `BUNNY_WEBHOOK_TOKEN` thiếu/ngắn hơn 32 ký tự; `BUNNY_CDN_HOST` http, IP, trùng host app/web/admin/api, hoặc nằm dưới `SESSION_DOMAIN`; `BUNNY_API_BASE`/`BUNNY_TUS_ENDPOINT` không https | không khởi động / cookie phiên gửi sang CDN | có (US-021 BR11); thông báo chỉ nêu tên biến |
 | `VIDEOLAB_API_KEY`/`TOKEN_KEY`/`WEBHOOK_SECRET` thiếu hoặc < 32 ký tự | khoá yếu/đoán được | có (T31, khi VideoLab bật) và `VideoLabServiceProvider` |
 | `FEATURE_PAID_CHECKOUT=true` mà `PAYMENT_GATEWAYS` rỗng | checkout lỗi giữa chừng | có (T31) |
 | `FEATURE_PAID_CHECKOUT=true` khi `payments.ipn_ready=false` (chưa có IPN T19/đối soát T20) | HS trả tiền nhưng không được ghi danh | có (cụm 3 L1; T19 đổi hằng `ipn_ready` trong `config/payments.php`) |
@@ -97,6 +99,22 @@ Guard CHƯA kiểm (kiểm tay, hoặc thêm khi có yêu cầu): `TURNSTILE_SEC
 - [ ] Quy trình xoay `VIDEOLAB_TOKEN_KEY`: đổi khoá làm mọi link phát đang dùng hết hiệu lực (tối đa 15 phút theo `VIDEO_PLAYBACK_TTL_MINUTES`); thực hiện ngoài giờ cao điểm
 - [ ] Phiên bản mã không chứa secret: `git log -p -S'VIDEOLAB_' -- .` không thấy giá trị thật
 
+### 2.1 Bunny Stream (US-021/T37)
+
+Làm một lần trên trang Bunny cho mỗi thư viện (production và staging riêng), rồi ghi người làm + ngày vào báo cáo QA. Công thức chữ ký/token trong `BunnySigner` PHẢI được đối chiếu tài liệu Bunny hiện hành và thử URL thật trước khi mở bán (`docs/tech/US-021.md`). Guid video không phải bí mật (nằm trong mọi URL phát, bài preview còn công khai) và `LibraryId` cũng không: toàn bộ kiểm soát truy cập dựa vào cấu hình dưới đây, sót một công tắc là video trả phí xem được vĩnh viễn (review security T37, S3).
+- [ ] Tạo Video Library riêng cho production và staging; ghi `BUNNY_LIBRARY_ID`, `BUNNY_API_KEY` (API key của thư viện), `BUNNY_CDN_HOST` (hostname, https), `BUNNY_TOKEN_KEY` (Token Authentication key) vào secret manager; KHÁC nhau giữa hai môi trường. Không đổi `BUNNY_LIBRARY_ID` khi còn video trong thư viện cũ (pruner không xoá dòng asset thuộc thư viện khác, nhưng video sẽ nằm lại ở Bunny)
+- [ ] Library > Security: bật **CDN Token Authentication** VÀ **Embed View Token Authentication** (hai cơ chế độc lập: một cho `https://{cdn}/{guid}/...`, một cho `iframe.mediadelivery.net/embed/{LIB}/{GUID}`); chặn truy cập trực tiếp (Block Direct URL File Access); TẮT MP4 Fallback; TẮT Direct Play/embed công khai; TẮT "Keep original files" hoặc xác nhận tệp gốc không truy cập được qua CDN
+- [ ] Allowed Referrers gồm host của `FRONTEND_URL` VÀ `ADMIN_URL` (admin cần xem thử bài ở `/admin/.../playback`); đừng bỏ hẳn Referrer
+- [ ] Webhook (Library > Webhooks): `https://api.<tên-miền-thật>/api/v1/webhooks/video/bunny?k=<BUNNY_WEBHOOK_TOKEN>`. Bunny không ký webhook nên bí mật nằm trên URL (>= 32 ký tự, `openssl rand -hex 32`, khác giữa các môi trường); app so `hash_equals`, sai/thiếu thì 404. Mẫu Nginx ghi log webhook này theo `$uri` (không có query) vào `/var/log/nginx/vv-webhook.access.log` (`log_format vv_noargs`); kiểm staging: `grep 'k=' /var/log/nginx/*.log` không thấy token. `error_log` Nginx vẫn có thể chép dòng request đầy đủ khi upstream lỗi: log quyền 0640, xoay token (đổi `.env` và URL ở Bunny cùng lúc) khi nghi lộ. Webhook sát nhau bị gom 10 giây sẽ được đồng bộ lại bằng job trễ 15 giây
+- [ ] Cảnh báo băng thông/chi phí hằng tháng trên Bunny (ngưỡng do PO chốt, câu hỏi A4) và cảnh báo dung lượng lưu (kích thước thật tệp tải lên không bị ép, chỉ dựa trên khai báo, S2a)
+- [ ] CDN host không cùng host với app/web/admin/api và không nằm dưới `SESSION_DOMAIN` (guard chặn) để cookie phiên không gửi sang CDN
+- [ ] CSP frontend: admin `NEXT_PUBLIC_VIDEO_UPLOAD_URL=https://video.bunnycdn.com` (`connect-src`); web `NEXT_PUBLIC_VIDEO_HOSTS` thêm CDN hostname (`connect-src`/`media-src`); `chunkSize` TUS <= 8 MB
+- [ ] `VIDEO_PLAYBACK_TTL_MINUTES` mặc định 15; config tự kẹp 1-60 phút
+- [ ] Kiểm tay phủ định (AC9/AC16, BẮT BUỘC trước go-live; chỉ kiểm "URL hợp lệ phát được" thì PASS cả khi Token Authentication chưa bật). Lấy một `<GUID>` của video `ready`, KHÔNG token, mỗi URL phải trả 403: `https://<cdn>/<GUID>/playlist.m3u8`, một segment `.ts`/`.m4s`, `https://<cdn>/<GUID>/thumbnail.jpg`, `https://<cdn>/<GUID>/play_720p.mp4`, `https://iframe.mediadelivery.net/embed/<LIB>/<GUID>`. Thêm: token hết hạn 403; token đúng nhưng từ IP khác (khi `VIDEO_BIND_IP`) 403; từ tên miền lạ (Referrer) 403; URL hợp lệ ở trình duyệt học sinh phát được, kể cả máy dual-stack IPv4/IPv6
+- [ ] Xoay `BUNNY_TOKEN_KEY`: đổi khoá ở Bunny và `.env`, link phát cũ hết hiệu lực (tối đa 15 phút), video không hỏng. Xoay `BUNNY_API_KEY`: đổi ở Bunny và `.env` cùng lúc; chữ ký upload đã cấp (tối đa 6 giờ) sẽ vô hiệu (đây là cách duy nhất thu hồi chữ ký TUS đã cấp, S5)
+- [ ] Log không chứa khoá: `grep` log app sau khi thử, không thấy giá trị `BUNNY_API_KEY`/`BUNNY_TOKEN_KEY`/`BUNNY_WEBHOOK_TOKEN`. Log chỉ có dòng "Bunny từ chối khoá API" khi khoá sai
+- [ ] `php artisan config:show video` và `tinker` in khoá dạng rõ: chỉ cấp quyền SSH production cho người cần thiết
+
 ## 3. Nginx
 
 Mẫu: `infra/production/nginx/`. Sáu server block: 4 host ứng dụng (web, admin, api, admin-api) + `video` + tên miền tĩnh; thêm khối mặc định đóng kết nối.
@@ -117,6 +135,7 @@ Mẫu: `infra/production/nginx/`. Sáu server block: 4 host ứng dụng (web, a
 - [ ] Header nội bộ `X-Internal-Token` và `X-Client-IP` bị xoá ở mọi host công khai (T26-3); kiểm bằng `curl -H 'X-Client-IP: 1.2.3.4' ...` không đổi IP trong log
 - [ ] Server nội bộ `:8081` (mẫu có sẵn): chỉ nghe IP mạng nội bộ, `allow` đúng IP Next server + `deny all`, chỉ GET/HEAD `/api/v1/`, ép `HTTP_HOST` = host api (ADR-004 §2.8), có `access_log` riêng. Kiểm: từ máy khác Next server → 403. Từ Next server, kèm token đúng: có `X-Client-IP` thì request thứ 121/phút cùng IP → 429; KHÔNG có `X-Client-IP` thì 200 request/phút vẫn 200 (chỉ trần tổng `CATALOG_SSR_TOTAL_PER_MINUTE`)
 - [ ] Firewall chặn cổng 8081 từ ngoài mạng nội bộ
+- [ ] Host web `vitaminvui.vn` có `limit_req` zone `vv_web` theo IP khách thật (ADR-004 §2.8; khởi điểm 10r/s, burst 200). `/_next/static/` không bị giới hạn. Trên staging, thử một lớp học chung NAT (hoặc k6 ~40 người dùng từ 1 IP): không bị 429. Theo dõi số 429 ở access log của host web và của listener `:8081`; 429 ở `:8081` khi không có `X-Client-IP` nghĩa là trần tổng SSR bị cạn (bot phân tán), cần báo Architect xem lại phương án (c) của §2.8
 
 ### 3.1 VideoLab (T12-4, T12-5, review T12 R7)
 
@@ -132,7 +151,6 @@ Mẫu: `infra/production/nginx/`. Sáu server block: 4 host ứng dụng (web, a
 
 - [ ] KHUYẾN NGHỊ (R2): Redis RIÊNG (instance nhỏ) cho queue `video`; app và worker đặt `REDIS_VIDEO_HOST/PORT/USERNAME/PASSWORD` (connection `video`, mẫu ACL `redis/users.video-instance.acl`), worker đặt `CACHE_STORE=array` và không có thông tin Redis chính. Lý do: user worker có `+eval` nên worker bị chiếm có thể chạy script vòng lặp vô hạn làm Redis ngừng phục vụ; nếu dùng chung Redis thì rủi ro còn lại là mất sẵn sàng toàn site (không phải rò dữ liệu): giám sát độ trễ Redis (`redis-cli --latency`) và chấp nhận có ghi nhận. Không đặt `REDIS_VIDEO_*` thì queue `video` dùng Redis chính (local)
 - [ ] Redis >= 7.0 dùng ACL file (`aclfile`), mẫu `infra/production/redis/users.acl` (C4-M1; file ACL KHÔNG được có comment `#`, giải thích ở `redis/README.md`): user `default` cho app, user `vv_worker_video` riêng cho worker-video (hash SHA-256, không ghi mật khẩu rõ; không dùng cùng `requirepass`). Thay `<PREFIX>`, `<CACHE_PREFIX>` (tên key thật = `<REDIS_PREFIX><CACHE_PREFIX>illuminate:...`, không có `:` ở giữa). Nạp lại: `ACL LOAD`
-- [ ] Host web `vitaminvui.vn` có `limit_req` zone `vv_web` theo IP khách thật (ADR-004 §2.8; khởi điểm 10r/s, burst 200). `/_next/static/` không bị giới hạn. Trên staging, thử một lớp học chung NAT (hoặc k6 ~40 người dùng từ 1 IP): không bị 429. Theo dõi số 429 ở access log của host web và của listener `:8081`; 429 ở `:8081` khi không có `X-Client-IP` nghĩa là trần tổng SSR bị cạn (bot phân tán), cần báo Architect xem lại phương án (c) của §2.8
 - [ ] Chạy `infra/production/redis/check-acl.sh <host> <port> <PREFIX> <CACHE_PREFIX> vv_worker_video "$MAT_KHAU_WORKER"` (`SKIP_SIGNALS=1` với instance riêng): phải in `ACL đạt.`. Nội dung kiểm: user worker bị `NOPERM`: `GET`/`SCAN` ở DB 1 (phiên), `LPUSH`/`RPUSH <PREFIX>queues:default x`, `EVAL "return redis.call('rpush','<PREFIX>queues:default','x')" 0`, `SET` hay `DEL` bất kỳ. Và chạy được: `queue:work redis_video` (pop, release, delete, đọc 3 key tín hiệu restart/pause). Sau mỗi lần nâng cấp Laravel (đổi Lua queue hoặc khoá tín hiệu) chạy lại kiểm này
 - [ ] Redis có `requirepass` (mật khẩu mạnh) hoặc ACL ở trên, chỉ nghe mạng nội bộ (`bind` IP nội bộ, firewall chặn 6379 từ ngoài), `protected-mode yes`
 - [ ] DB tách: session=1, cache=2, queue=3, limiter=4 (`REDIS_DB_SESSION`, `REDIS_CACHE_DB`, `REDIS_QUEUE_DB`, `REDIS_LIMITER_DB`); `cache:clear` không làm mất phiên (T05-2)

@@ -323,3 +323,16 @@ Còn lại (không sửa trong T36):
 | R7-SQL | Low | `TeacherProfileReader::managedQuery` có `OR` chéo bảng nên danh sách admin quét bảng `users` (khoảng 150k dòng sau 3 năm; chỉ admin gọi) | Chấp nhận; nếu chậm: `users.id IN (SELECT user_id FROM teacher_profiles)` |
 | L3-PSL | Info | `guardStaticUrl` dùng heuristic registrable domain (2 nhãn cuối, hoặc 3 nhãn với `com/net/org/edu/gov/ac/info/biz/name/pro/health/int/co` dưới ccTLD 2 chữ), không dùng Public Suffix List (không cài package). Đuôi lạ bị coi là 2 nhãn cuối | Chấp nhận. Đổi sang `php-domain-parser` nếu có tên miền dưới đuôi lạ |
 | Pháp chế | — | Thời hạn giữ IP/User-Agent trong `consents` sau khi rút đồng ý hoặc ẩn danh hoá (như I4 của T03); nội dung đồng ý có bao gồm nội dung do Admin/QLT sửa hộ không (email báo đã giảm rủi ro) | Chờ pháp chế (V2) |
+
+## T37 (Bunny Stream, US-021) — từ `docs/security/review-T37.md` (2026-10-07)
+
+Đã sửa: S1 (webhook: bí mật `?k=`, bỏ qua asset đã cuối, gom trùng), S2b (sổ hạn mức `video_upload_usages`), S4 (`withoutRedirecting`), S7 (kẹp TTL phát 1–60), S8 (pruner không xoá dòng khác thư viện), S9 (`SensitiveParameter`); checklist §2.1 theo S3.
+
+| Mã | Mức | Nội dung | Trạng thái |
+|---|---|---|---|
+| S2a | Medium | Kích thước thật của tệp tải thẳng lên Bunny không bị ép (chỉ số khai báo); đối chiếu `storageSize` khi `ready` nếu PO muốn; cảnh báo dung lượng/chi phí trên Bunny | PO quyết (chấp nhận rủi ro hoặc làm đối chiếu) |
+| S3 | Medium (cổng go-live) | Kiểm soát truy cập dựa cấu hình Bunny: bật CDN Token Auth + Embed View Token Auth, kiểm phủ định 403 (checklist §2.1). Cân nhắc lệnh `videos:bunny-selfcheck` sau deploy | Làm tay ở QA staging (AC16); lệnh tự kiểm để V2 |
+| S5 | Low | Chữ ký TUS 6 giờ dùng lại được sau khi gỡ quyền/khi video đã `ready`; kiểm staging xem Bunny có từ chối TUS vào video đã có nội dung; cân nhắc TTL theo kích thước khai báo; ghi vào ADR-002 là chỉ thu hồi bằng xoay `BUNNY_API_KEY` | Hoãn V2 |
+| S6 | Low | Ràng IP dễ hỏng: dual-stack, IPv6 không chuẩn hoá (`inet_ntop(inet_pton())`), ràng /64 nếu Bunny hỗ trợ; FE phải gọi playback từ trình duyệt và làm mới URL trước `expires_at` (ghi ở FW4); QA thử dual-stack. Không tắt `VIDEO_BIND_IP` để chữa cháy | Hoãn V2 (phần FE ở FW4) |
+| S10 | Info | Không có DRM: người có quyền xem tải được HLS trong 15 phút; MediaCage DRM của Bunny tính phí | PO quyết |
+| Pháp chế | — | Video bài giảng (hình ảnh/giọng GV, có thể HS) lưu ở Bunny (EU) và phát qua CDN toàn cầu, IP học sinh tới edge Bunny: cần DPA với Bunny và xác định nghĩa vụ chuyển dữ liệu xuyên biên giới theo Luật BVDLCN 2025 / NĐ 356/2025/NĐ-CP; thời hạn Bunny giữ bản sao/backup sau `DELETE` | Chờ pháp chế |

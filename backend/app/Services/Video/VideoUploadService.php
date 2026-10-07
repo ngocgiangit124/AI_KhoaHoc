@@ -52,8 +52,16 @@ class VideoUploadService
             throw new DomainException('VIDEO_PROVIDER_UNAVAILABLE', 'Dịch vụ video hiện chưa sẵn sàng. Vui lòng thử lại sau.', 503);
         }
 
+        try {
+            $libraryId = $provider->libraryId();
+        } catch (VideoProviderException $e) {
+            Log::error('Video provider chưa cấu hình thư viện', ['error' => $e->getMessage()]);
+
+            throw new DomainException('VIDEO_PROVIDER_UNAVAILABLE', 'Dịch vụ video hiện chưa sẵn sàng. Vui lòng thử lại sau.', 503);
+        }
+
         // Pha 1 (tx ngắn): giữ chỗ hạn mức bằng asset `created` (provider_video_id tạm). Không gọi provider ở đây.
-        $asset = DB::transaction(function () use ($actor, $course, $lesson, $filename, $size, $provider): VideoAsset {
+        $asset = DB::transaction(function () use ($actor, $course, $lesson, $filename, $size, $provider, $libraryId): VideoAsset {
             Course::query()->whereKey($course->getKey())->lockForUpdate()->firstOrFail();
             User::query()->whereKey($actor->getKey())->lockForUpdate()->firstOrFail();
 
@@ -64,7 +72,7 @@ class VideoUploadService
             $asset = new VideoAsset;
             $asset->forceFill([
                 'provider' => $provider->name(),
-                'provider_library_id' => (string) config('video.library_id'),
+                'provider_library_id' => $libraryId,
                 'provider_video_id' => self::PENDING_PREFIX.Str::uuid(),
                 'status' => VideoAssetStatus::Created,
                 'original_filename' => $this->displayName($filename),
@@ -143,16 +151,30 @@ class VideoUploadService
             // bỏ qua: pruner/check-stuck sẽ dọn
         }
 
+        // Phiên chưa gắn được vào bài (provider_video_id còn là `pending-`): trả lại hạn mức đã giữ chỗ.
+        $this->refundQuota($asset);
+
         $this->discard($provider, $guid);
     }
 
+    /**
+     * Hạn mức = max(sổ `video_upload_usages`, tổng asset còn lại trong ngày): sổ không bị pruner xoá nên upload/đè lặp
+     * không lách được; tổng asset vẫn đúng với asset tạo ngoài luồng này. Gọi trong pha 1, dưới khoá hàng người tạo.
+     */
     private function enforceDailyQuota(User $actor, int $size): void
     {
         $quota = (int) config('video.daily_quota_gb') * 1024 * 1024 * 1024;
-        $used = (int) VideoAsset::query()
+        $date = now()->toDateString();
+
+        $fromAssets = (int) VideoAsset::query()
             ->where('created_by', $actor->getKey())
             ->where('created_at', '>=', now()->startOfDay())
+            // Phiên đã bị bỏ dở vì nhà cung cấp lỗi (failed và chưa từng có video ở nhà cung cấp) không tính vào hạn mức (US-021 AC11).
+            ->where(fn ($q) => $q->where('status', '!=', VideoAssetStatus::Failed->value)
+                ->orWhere('provider_video_id', 'not like', self::PENDING_PREFIX.'%'))
             ->sum('declared_size_bytes');
+        $fromLedger = (int) DB::table('video_upload_usages')->where('user_id', $actor->getKey())->where('usage_date', $date)->value('bytes');
+        $used = max($fromAssets, $fromLedger);
 
         if ($used + $size > $quota) {
             throw new DomainException(
@@ -161,6 +183,26 @@ class VideoUploadService
                 422,
                 ['remaining_bytes' => max(0, $quota - $used)],
             );
+        }
+
+        // Ghi sổ: mới = max(sổ, tổng asset) + size (cùng giá trị `used` đã kiểm).
+        DB::table('video_upload_usages')->upsert(
+            [['user_id' => $actor->getKey(), 'usage_date' => $date, 'bytes' => $used + $size, 'created_at' => now(), 'updated_at' => now()]],
+            ['user_id', 'usage_date'],
+            ['bytes', 'updated_at'],
+        );
+    }
+
+    /** Hoàn hạn mức của phiên bị bỏ dở (chưa từng có video ở nhà cung cấp). */
+    private function refundQuota(VideoAsset $asset): void
+    {
+        try {
+            DB::table('video_upload_usages')
+                ->where('user_id', $asset->created_by)
+                ->where('usage_date', $asset->created_at?->toDateString() ?? now()->toDateString())
+                ->update(['bytes' => DB::raw('GREATEST(bytes - '.(int) $asset->declared_size_bytes.', 0)')]);
+        } catch (Throwable) {
+            // bỏ qua: chỉ làm hạn mức chặt hơn một chút
         }
     }
 
