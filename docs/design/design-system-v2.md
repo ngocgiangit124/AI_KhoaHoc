@@ -405,9 +405,27 @@ Component nghiệp vụ dựng trong app (xem trước): web — `CatalogFilters
 - **Hồ sơ của tôi** (giáo viên): ảnh (chọn → hộp thoại cắt vuông 1:1: kéo, phím mũi tên, thanh phóng to; xem trước bằng data URL vì CSP admin không có `blob:`), chuyên môn (đếm /120), giới thiệu (đếm /600, văn bản thuần), ô đồng ý với đúng câu BR4 + phiên bản; đã đồng ý → thời điểm + nút "Rút đồng ý" (xác nhận, nói rõ ẩn trong tối đa 1 phút). Cột phải: checklist 6 điều kiện hiển thị (đạt/chưa đạt bằng icon + chữ) và xem trước thẻ trang chủ theo nội dung đang nhập. Khi Admin/QLT sửa hộ: Alert "Chỉnh sửa gần nhất bởi…".
 - **Giáo viên trên trang chủ** (Admin/QLT): nhãn "Đang bật N/6"; danh sách "Đang bật" theo thứ tự với nút Lên/Xuống (không cần kéo-thả), công tắc, "Sửa hồ sơ"; badge "Đã đồng ý/Chưa đồng ý" và "Đang hiện"/"Chưa hiện: lý do". Bật người thứ 7 → Alert "Trang chủ chỉ hiển thị tối đa 6 giáo viên. Hãy tắt bớt một người trước." và không đổi gì. Màn sửa hộ: ô đồng ý bị khoá + "Chỉ giáo viên được đồng ý công khai…".
 
-### 12.7 Trang chủ: poster người sáng lập (quyết định PO 2026-10-06)
+### 12.7 Trang chủ: poster người sáng lập (quyết định PO 2026-10-06, nội dung tạm 2026-10-07)
 
-Nội dung **cố định trong frontend** (ảnh tĩnh trong `apps/web/public/`, họ tên, vai trò, câu thông điệp, nút tuỳ chọn) — không API, không màn quản trị, không liên quan hồ sơ giáo viên (US-020). Vị trí: khối riêng ngay sau "Khóa học nổi bật", hero giữ nguyên. Component `FounderPoster` (`apps/web/components/v2/home/FounderPoster.tsx`, Server Component), dữ liệu mẫu `apps/web/lib/mock/v2/founder.ts`.
+Nội dung **cố định trong frontend** (ảnh tĩnh trong `apps/web/public/`, họ tên, vai trò, câu thông điệp, nút tuỳ chọn) — không API, không màn quản trị, không liên quan hồ sơ giáo viên (US-020). Vị trí: khối riêng ngay sau "Khóa học nổi bật", hero giữ nguyên. Component `FounderPoster` (`apps/web/components/v2/home/FounderPoster.tsx`, Server Component). Nội dung dùng cho app thật: hằng số `founderPoster` trong `apps/web/lib/home/founder.ts` (biến thể xem trước `apps/web/lib/mock/v2/founder.ts` lấy lại hằng số này).
+
+**Nội dung tạm (quyết định PO 2026-10-07)** — chưa có ảnh/tên/câu thật của người sáng lập; PO cho hiển thị nội dung tạm ở trang chủ thật tới khi gửi nội dung thật:
+
+| Mục | Giá trị tạm |
+|---|---|
+| Ảnh | `public/trang-chu/nguoi-sang-lap-minh-hoa.svg` (1600×2000, ~10 KB) — minh hoạ tự vẽ: giáo viên cách điệu (kính tròn, áo len mực tím) đứng bên bảng kẻ ô ly có lề đỏ, cầm bút cam chỉ vào lời giải $x^2 - 5x + 6 = 0$ (Δ = 1, x₁ = 3, x₂ = 2, dấu tích), đồ thị parabol cắt trục tại 2 và 3, tam giác vuông; bàn phía trước có vở ô ly mở, chồng sách, cốc nước; ánh sáng ấm (cam nhạt) chiếu chéo từ trên phải. Không phải ảnh người thật, không giống ai cụ thể, không chữ "ảnh mẫu"/khung nét đứt. Không có tím bão hoà ở mép ảnh tiếp giáp khối tím |
+| `focus` | `50% 32%` |
+| Alt | "Hình minh hoạ: giáo viên cách điệu đứng bên bảng kẻ ô ly, cầm bút chỉ vào lời giải phương trình bậc hai, bên cạnh là đồ thị parabol" |
+| Họ tên (chủ thể) | "Đội ngũ sáng lập VitaminVui" — chủ thể chung, không đặt họ tên người thật |
+| Vai trò | "Những người làm VitaminVui" |
+| Câu thông điệp (115 ký tự, cỡ chữ lớn) | "Toán dễ hiểu hơn khi được giảng chậm, rõ từng bước. Chúng tôi làm VitaminVui để đi cùng các em từ lớp 6 đến lớp 12." |
+| Nút | "Xem khóa học" → `/khoa-hoc` |
+| Tiêu đề ẩn (`h2` sr-only) | "Lời nhắn từ đội ngũ sáng lập" (prop `heading`) |
+
+- Câu viết theo BR5: không số liệu, không hứa kết quả, không danh hiệu; xưng "chúng tôi" vì chủ thể là đội ngũ.
+- Ảnh minh hoạ là SVG: Next để `unoptimized` (không `srcset`), không ảnh hưởng vì file ~10 KB và vẽ vector nét ở mọi cỡ. Chữ công thức trong SVG dùng font hệ thống có chân nghiêng (Times/Noto Serif/DejaVu Serif) vì `<img>` SVG không tải được web font — hình chữ có thể khác nhẹ giữa hệ điều hành, là trang trí (nội dung đã nằm trong `alt`).
+- Nội dung chính đặt trong 10–90% bề ngang → khung cắt ở 768–1023px chỉ mất phần mép bảng và một phần cốc nước.
+- Khi PO gửi ảnh/tên/câu thật: chỉ sửa `lib/home/founder.ts` (+ đặt ảnh 4:5 vào `public/trang-chu/`), xoá file minh hoạ nếu không dùng nữa; một người thì bỏ `heading` để về "Lời nhắn từ người sáng lập".
 
 **Bố cục đã chọn: chia đôi — ảnh tràn mép một bên, thông điệp trên nền mực tím một bên.** Không chọn "ảnh tràn nền + lớp phủ" vì:
 1. Tương phản chữ phụ thuộc ảnh PO gửi (áo sáng, phông sáng → chữ trắng không đạt AA); muốn chắc phải phủ gradient đậm, trái quy tắc "không gradient trang trí" (§17) và làm tối mặt người.
@@ -426,7 +444,7 @@ Nội dung **cố định trong frontend** (ảnh tĩnh trong `apps/web/public/`
 - Focus bàn phím trong khối đổi sang màu `on-primary` (`[--vv-focus:var(--vv-on-primary)]`) vì viền tím mặc định không thấy trên nền tím.
 - Ngữ nghĩa: `section` có `h2` ẩn ("Lời nhắn từ người sáng lập", đọc được bằng trình đọc màn hình); câu là `figure > blockquote + figcaption` (họ tên, vai trò); dấu ngoặc kép SVG `aria-hidden`.
 - Ảnh: `next/image` có `width`/`height` theo file gốc, khung giữ chỗ bằng `aspect-[4/5]` → không CLS; `loading="lazy"` (khối nằm dưới màn đầu); `sizes="(min-width: 1152px) 552px, (min-width: 1024px) 50vw, (min-width: 768px) 42vw, 100vw"`; `object-cover` + `object-position` mặc định `50% 30%` (prop `image.focus` để chỉnh khi mặt lệch). Ảnh SVG được Next tự để `unoptimized` (bản mẫu); ảnh JPG/WebP thật được tối ưu và có `srcset`.
-- Chưa có nội dung (thiếu ảnh, họ tên hoặc câu) → **không render gì**: không tiêu đề, không khoảng trắng; khoảng cách khóa nổi bật → giáo viên vẫn là 48px.
+- Hằng số `founderPoster = null` hoặc thiếu ảnh, họ tên hoặc câu → **không render gì**: không tiêu đề, không khoảng trắng; khoảng cách khóa nổi bật → giáo viên vẫn là 48px.
 - Không chuyển động, không parallax, không phóng to ảnh khi hover.
 - Giao diện tối (chờ PO, §13): dấu ngoặc cam trên nền tím sáng chỉ còn 1,3:1 (trang trí, không bắt buộc); nếu PO bật dark mode, đổi dấu sang `on-primary` hoặc thêm token riêng.
 
@@ -442,7 +460,7 @@ Nội dung **cố định trong frontend** (ảnh tĩnh trong `apps/web/public/`
 | Kèm theo | Họ tên đầy đủ, vai trò (vd. "Người sáng lập VitaminVui"), câu thông điệp **≤ 160 ký tự** (đẹp nhất ≤ 120), nhãn + đích của nút nếu muốn có nút, và câu mô tả ảnh (alt), vd. "Ảnh chân dung {họ tên}, người sáng lập VitaminVui" |
 | Quyền | Ảnh của chính người sáng lập, có đồng ý đăng công khai |
 
-Bàn giao `nextjs-dev`: đặt ảnh vào `apps/web/public/trang-chu/` (vd. `nguoi-sang-lap.webp`), thay giá trị trong hằng số nội dung; chưa có nội dung thì truyền `null` để khối ẩn. Bản xem trước: `/v2` (có nút), `?nsl=khong-nut`, `?nsl=dai` (câu dài), `?nsl=an` (ẩn).
+Bàn giao `nextjs-dev` (FW8): trang `/` thật render `founderPoster` từ `lib/home/founder.ts` (nội dung tạm đã được PO cho hiển thị); khi có nội dung thật, đặt ảnh vào `apps/web/public/trang-chu/` (vd. `nguoi-sang-lap.webp`) và thay giá trị trong hằng số; muốn ẩn khối thì đặt `null`. Bản xem trước: `/v2` (nội dung tạm, có nút), `?nsl=khong-nut`, `?nsl=dai` (câu dài 155 ký tự), `?nsl=anh-mau` (ảnh mẫu có khung vùng an toàn — chỉ để đối chiếu ảnh chân dung thật), `?nsl=an` (ẩn).
 
 ### 12.8 Xác thực, phiên và màn chặn (dựng 2026-10-07)
 

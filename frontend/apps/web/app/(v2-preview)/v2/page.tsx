@@ -17,7 +17,7 @@ import { TeacherSection } from "@/components/v2/home/TeacherSection";
 import { PreviewBar } from "@/components/v2/PreviewBar";
 import { StudentShell } from "@/components/v2/StudentShell";
 import { catalogCourses, publicConfig } from "@/lib/mock/v2/catalog";
-import { founderSample, founderSampleLong } from "@/lib/mock/v2/founder";
+import { founderSafeZoneGuide, founderSample, founderSampleLong } from "@/lib/mock/v2/founder";
 import { homeTeachers } from "@/lib/mock/v2/teachers";
 import { one, routes } from "@/lib/v2/routes";
 
@@ -54,10 +54,11 @@ const STEPS = [
 
 type FeaturedState = "mac-dinh" | "it" | "rong" | "loi" | "dang-tai";
 type TeacherState = "nhieu" | "mot" | "an";
-type FounderState = "mac-dinh" | "khong-nut" | "dai" | "an";
+type FounderState = "mac-dinh" | "khong-nut" | "dai" | "anh-mau" | "an";
 
 /**
- * Trang chủ (US-019). Khối "Người sáng lập" (nội dung tĩnh, PO 2026-10-06) ngay sau khóa nổi bật, ẩn khi chưa có nội dung.
+ * Trang chủ (US-019). Khối "Người sáng lập" (nội dung tĩnh, PO 2026-10-06) ngay sau khóa nổi bật; mặc định là nội dung tạm
+ * của app thật (`lib/home/founder.ts`, PO 2026-10-07), ẩn khi hằng số rỗng.
  * Khu vực giáo viên theo US-020, tự ẩn khi không có ai.
  */
 export default async function HomePreview({ searchParams }: PageProps<"/v2">) {
@@ -70,7 +71,7 @@ export default async function HomePreview({ searchParams }: PageProps<"/v2">) {
   const all = [catalogCourses[2], catalogCourses[0], catalogCourses[3], catalogCourses[8]].filter((c) => c !== undefined);
   const featured = featuredState === "it" ? all.slice(0, 2) : featuredState === "rong" ? [] : all;
   const teachers = teacherState === "an" ? [] : teacherState === "mot" ? homeTeachers.slice(0, 1) : homeTeachers;
-  // TODO(dev): bản thật là hằng số tĩnh trong frontend (không API); chưa có nội dung từ PO → `null` để khối ẩn.
+  // Bản thật: `founderPoster` trong `lib/home/founder.ts` (hằng số tĩnh, không API); `null` → khối ẩn.
   const founder =
     founderState === "an"
       ? null
@@ -78,7 +79,9 @@ export default async function HomePreview({ searchParams }: PageProps<"/v2">) {
         ? { ...founderSample, action: undefined }
         : founderState === "dai"
           ? founderSampleLong
-          : founderSample;
+          : founderState === "anh-mau"
+            ? founderSafeZoneGuide
+            : founderSample;
 
   const href = (k: string, g: string, n: string = founderState) => {
     const p = new URLSearchParams();
@@ -120,6 +123,7 @@ export default async function HomePreview({ searchParams }: PageProps<"/v2">) {
                 { label: "Có nút", href: href(featuredState, teacherState, "mac-dinh"), current: founderState === "mac-dinh" },
                 { label: "Không nút", href: href(featuredState, teacherState, "khong-nut"), current: founderState === "khong-nut" },
                 { label: "Câu dài", href: href(featuredState, teacherState, "dai"), current: founderState === "dai" },
+                { label: "Ảnh mẫu vùng an toàn", href: href(featuredState, teacherState, "anh-mau"), current: founderState === "anh-mau" },
                 { label: "Ẩn (chưa có nội dung)", href: href(featuredState, teacherState, "an"), current: founderState === "an" },
               ],
             },

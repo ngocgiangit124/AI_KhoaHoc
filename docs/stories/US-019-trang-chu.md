@@ -20,6 +20,13 @@ Là khách hoặc học sinh vào `vitaminvui.vn`, tôi muốn thấy ngay websi
   2. Vị trí: khối riêng, nằm ngay sau khu vực "Khóa học nổi bật"; giữ nguyên hero hiện tại.
   3. Không liên quan hồ sơ giáo viên (US-020): không lấy dữ liệu từ `teacher_profiles`, không áp quy tắc consent giáo viên. Chỉ cần người sáng lập đồng ý cho dùng ảnh/tên (ghi nhận ngoài hệ thống, PO chịu trách nhiệm).
 
+## Quyết định PO 2026-10-07
+- Poster người sáng lập: CHƯA có ảnh, họ tên, câu thật của người sáng lập. PO cho **tạm hiển thị ở trang chủ thật** một nội dung tạm (thay quy tắc cũ "chưa có nội dung thì ẩn khối") tới khi PO gửi nội dung thật:
+  - Ảnh minh hoạ tự vẽ (giáo viên cách điệu bên bảng ô ly với lời giải Toán), không phải ảnh người thật, không giống người thật cụ thể: `frontend/apps/web/public/trang-chu/nguoi-sang-lap-minh-hoa.svg`.
+  - Chủ thể chung, không bịa danh tính: "Đội ngũ sáng lập VitaminVui" / "Những người làm VitaminVui"; câu "Toán dễ hiểu hơn khi được giảng chậm, rõ từng bước. Chúng tôi làm VitaminVui để đi cùng các em từ lớp 6 đến lớp 12."; nút "Xem khóa học" → `/khoa-hoc`.
+  - Một file hằng số duy nhất `frontend/apps/web/lib/home/founder.ts` (`founderPoster`); thay nội dung thật chỉ cần sửa file này + ảnh. Chi tiết: `docs/design/design-system-v2.md` §12.7.
+  - Q15 vẫn mở cho nội dung thật; không chặn FW8 nữa.
+
 ## Business rules
 - BR1: Trang chủ công khai, không cần đăng nhập, có SEO (title, description, đúng một `h1`); nội dung chính render phía server để máy tìm kiếm đọc được. Khách và học sinh đã đăng nhập thấy cùng nội dung; học sinh đã đăng nhập thêm "Khóa học của tôi" ở header (theo design), không có khu vực riêng.
 - BR2: Dữ liệu khóa học trên trang chủ chỉ lấy từ API công khai (bản chạy thật không dùng dữ liệu mẫu). Khóa `draft`/`unpublished`/đã xóa không bao giờ xuất hiện.
@@ -33,7 +40,8 @@ Là khách hoặc học sinh vào `vitaminvui.vn`, tôi muốn thấy ngay websi
 - BR10: Khối "poster người sáng lập" nằm ngay sau "Khóa học nổi bật", là khối riêng, không thay đổi hero.
   - Nội dung gồm: ảnh khổ lớn của người sáng lập; họ tên; vai trò (vd. "Người sáng lập"); một câu trích/thông điệp ngắn, tối đa 200 ký tự (đề xuất, PO xác nhận ở Q15); tuỳ chọn một nút dẫn tới `/khoa-hoc` (có hay không do PO chốt ở Q15).
   - Nội dung là hằng số trong code cùng asset tĩnh của frontend; không đọc từ API, DB, `teacher_profiles` hay `config/public`.
-  - Chưa có đủ ảnh và chữ thật (ảnh, họ tên, vai trò, câu thông điệp) thì KHÔNG render khối. Không dùng ảnh mẫu, ảnh stock hay chữ giữ chỗ ở production. Thiếu bất kỳ mục bắt buộc nào cũng coi là chưa cấu hình.
+  - Khi chưa có nội dung thật, được hiển thị **nội dung tạm do PO duyệt** (PO 2026-10-07): ảnh minh hoạ tự vẽ (không phải ảnh người thật, không ảnh stock), chủ thể chung "Đội ngũ sáng lập VitaminVui", câu không số liệu/không hứa kết quả. Không dùng ảnh có khung "ảnh mẫu"/vùng an toàn, ảnh người thật lấy từ Internet hay chữ giữ chỗ kiểu "(tên mẫu)" ở production.
+  - Hằng số nội dung đặt `null`, hoặc thiếu bất kỳ mục bắt buộc nào (ảnh, họ tên/chủ thể, vai trò, câu thông điệp) → coi là chưa cấu hình và KHÔNG render khối.
   - Chỉ đưa vào lời khẳng định đúng sự thật và do PO duyệt (BR5); không kèm số liệu bịa (số học sinh, thành tích, danh hiệu) nếu PO không cung cấp.
   - Không áp quy tắc consent giáo viên của US-020. Việc người sáng lập đồng ý cho dùng ảnh/tên do PO chịu trách nhiệm, ghi nhận ngoài hệ thống.
   - Khối không phụ thuộc API nên không bị ảnh hưởng khi API khóa học lỗi (BR8).
@@ -56,7 +64,7 @@ Là khách hoặc học sinh vào `vitaminvui.vn`, tôi muốn thấy ngay websi
 - AC15: Given khối poster nằm dưới màn hình đầu tiên, When tải trang, Then ảnh poster tải lười (`loading="lazy"` hoặc tương đương), không có `priority`/preload, không nằm trong phần tử LCP của trang (LCP vẫn là hero) và không chặn việc hiển thị hero.
 - AC16: Given ảnh poster chưa tải xong, When trang đang tải và khi ảnh hiện ra, Then khung ảnh đã được giữ chỗ đúng tỉ lệ (`width`/`height` hoặc `aspect-ratio` khai báo), ảnh không bị méo (không kéo giãn khác tỉ lệ gốc, dùng `object-fit` phù hợp), và không làm nhảy bố cục (CLS do khối này gây ra ≤ 0,1; mục tiêu 0).
 - AC17: Given màn hình 375px, When cuộn tới khối poster, Then không có cuộn ngang, chữ nội dung ≥ 16px, nút (nếu có) có vùng bấm ≥ 44x44px, và mọi chữ đều đọc được: tỉ lệ tương phản chữ/nền ≥ 4,5:1 (chữ thường) hoặc ≥ 3:1 (chữ lớn) theo WCAG AA, kể cả khi chữ đè lên ảnh (dùng lớp phủ hoặc đặt chữ trên nền đặc).
-- AC18: Given chưa cấu hình nội dung poster (thiếu ảnh, họ tên, vai trò hoặc câu thông điệp), When mở `/`, Then khối hoàn toàn không render: không tiêu đề, không khung trống, không ảnh mẫu, không khoảng trắng/padding/margin thừa giữa "Khóa học nổi bật" và khu vực kế tiếp.
+- AC18: Given hằng số nội dung poster là `null` hoặc thiếu ảnh, họ tên/chủ thể, vai trò hoặc câu thông điệp, When mở `/`, Then khối hoàn toàn không render: không tiêu đề, không khung trống, không ảnh mẫu, không khoảng trắng/padding/margin thừa giữa "Khóa học nổi bật" và khu vực kế tiếp. Nội dung tạm do PO duyệt 2026-10-07 (ảnh minh hoạ + "Đội ngũ sáng lập VitaminVui") được tính là đã cấu hình và hiển thị bình thường (AC13: "đúng như PO cung cấp" áp cho nội dung tạm này; AC14: `alt` mô tả hình minh hoạ).
 - AC19: Given tệp ảnh poster tải lỗi (404, hỏng), When mở `/`, Then khối không để ảnh vỡ hay khung trống: ẩn cả khối, hoặc hiện nền đặc cùng chữ vẫn đọc được (Designer chốt một cách; không dùng ảnh mẫu), và không gây lỗi cho các khu vực khác.
 
 ## Trường hợp biên & lỗi
@@ -105,7 +113,7 @@ Nếu PO không phản hồi thì dùng phương án mặc định bên dưới 
 - [ ] Q10: Ý "phụ huynh nhận email xác nhận đồng ý" (cờ `FEATURE_PARENT_CONSENT_ENFORCED` đang tắt, `config/public` chưa có khóa này). Mặc định: ẩn ý này, giữ hai ý còn lại ("Một tài khoản, một thiết bị", "Tiến độ rõ ràng"); bật lại khi cờ bật.
 - [ ] Q14: Vị trí và tiêu đề khu vực giáo viên. Mặc định: sau "Khóa học nổi bật" (và sau poster nếu poster hiển thị, xem Q16), tiêu đề "Thầy cô giảng dạy".
 
-Câu hỏi mở cho khối poster người sáng lập (chưa có câu trả lời thì khối KHÔNG hiển thị, BR10). Chặn FW8 phần poster, không chặn các phần còn lại của US-019:
+Câu hỏi mở cho khối poster người sáng lập — nội dung THẬT (từ PO 2026-10-07 khối hiển thị nội dung tạm trong lúc chờ, không còn chặn FW8):
 - [ ] Q15a: Họ tên đầy đủ của người sáng lập, đúng cách viết hoa/dấu.
 - [ ] Q15b: Vai trò hiển thị. Đề xuất "Người sáng lập"; có kèm "VitaminVui" hay chức danh khác không.
 - [ ] Q15c: Câu thông điệp chính xác (tối đa 200 ký tự, đề xuất) và có ghi tên dưới câu trích hay không.
@@ -118,7 +126,7 @@ Câu hỏi mở cho khối poster người sáng lập (chưa có câu trả l�
 - Designer: cập nhật `/v2`: bỏ nút "Học thử" gắn cứng slug, sửa câu chữ theo Q9/Q10, chừa vị trí khu vực giáo viên (thiết kế khu vực này ở US-020).
   - Poster (BR10): thiết kế khối khổ lớn ngay sau "Khóa học nổi bật" ở 375px, 768px, 1280px: bố cục ảnh + chữ (chữ cạnh ảnh hoặc chữ trên nền đặc/lớp phủ bảo đảm tương phản AA), tỉ lệ khung ảnh cố định, vị trí cắt ảnh (`object-position`), trạng thái ảnh lỗi (AC19), kiểu chữ trích dẫn, kiểu nút nếu có. Cập nhật `docs/design/design-system-v2.md`. Dùng ảnh mẫu chỉ trong bản `/v2` xem trước, ghi rõ là mẫu; không đưa vào production.
 - Dev: trang `/` thật thay cho `/v2`; nối `GET /courses?sort=featured&per_page` (lấy 4 đầu), SSR với CSP nonce như FW2, xử lý rỗng/lỗi từng khu vực. Chỉ gắn khu vực giáo viên khi US-020 xong.
-  - Poster (BR10): hằng số nội dung (tên, vai trò, câu, `alt`, đường dẫn ảnh, có nút hay không) ở một file duy nhất, ví dụ `frontend/apps/web/lib/founder-poster.ts`; ảnh tĩnh trong `frontend/apps/web/public/` hoặc import để `next/image` tự tối ưu (nhiều độ rộng, WebP), kiểm tra tương thích CSP và `next.config.ts`. Khi hằng số chưa đủ giá trị thì component trả `null` (không wrapper, không padding/margin). Khai báo `width`/`height` hoặc `aspect-ratio`, `loading="lazy"`, không `priority`. Component là server component, không gọi API, đặt ngoài vùng bọc dữ liệu khóa học để lỗi/tải lại của khóa nổi bật không ảnh hưởng. Không commit ảnh mẫu vào `public/` của production. Test Vitest: rỗng → `null`; giới hạn độ dài câu.
+  - Poster (BR10): hằng số nội dung (tên, vai trò, câu, `alt`, đường dẫn ảnh, có nút hay không) ở một file duy nhất: `frontend/apps/web/lib/home/founder.ts` (`founderPoster`, đã có nội dung tạm PO 2026-10-07); ảnh tĩnh trong `frontend/apps/web/public/` hoặc import để `next/image` tự tối ưu (nhiều độ rộng, WebP), kiểm tra tương thích CSP và `next.config.ts`. Khi hằng số chưa đủ giá trị thì component trả `null` (không wrapper, không padding/margin). Khai báo `width`/`height` hoặc `aspect-ratio`, `loading="lazy"`, không `priority`. Component là server component, không gọi API, đặt ngoài vùng bọc dữ liệu khóa học để lỗi/tải lại của khóa nổi bật không ảnh hưởng. Không dùng ảnh mẫu có khung vùng an toàn (`public/v2/mau/`) ở trang thật; ảnh minh hoạ tạm `public/trang-chu/nguoi-sang-lap-minh-hoa.svg` được phép (PO 2026-10-07). Test Vitest: rỗng → `null`; giới hạn độ dài câu.
 - QA: SSR/SEO, khóa ngừng bán biến mất, lỗi API từng khu vực, 375px không cuộn ngang, trạng thái 0/1–3/4+ khóa, `paid_checkout_enabled=false`.
-  - Poster: AC13–AC19. Kiểm khi chưa cấu hình (khối biến mất, không khoảng trắng), thứ tự trong HTML, `alt`, `loading="lazy"`, CLS (Lighthouse/Playwright trace) và LCP vẫn là hero, 375/768/1280px không cuộn ngang, tương phản AA bằng công cụ, tắt/chặn API khóa học vẫn thấy poster, chặn tệp ảnh (404) không vỡ bố cục, kiểm trong build production (không có ảnh/chữ mẫu).
+  - Poster: AC13–AC19. Kiểm khi chưa cấu hình (khối biến mất, không khoảng trắng), thứ tự trong HTML, `alt`, `loading="lazy"`, CLS (Lighthouse/Playwright trace) và LCP vẫn là hero, 375/768/1280px không cuộn ngang, tương phản AA bằng công cụ, tắt/chặn API khóa học vẫn thấy poster, chặn tệp ảnh (404) không vỡ bố cục, kiểm trong build production (không có ảnh khung vùng an toàn hay chữ giữ chỗ kiểu "(tên mẫu)"; nội dung tạm PO 2026-10-07 là hợp lệ).
 - Phụ thuộc: không phụ thuộc US-020; làm trước. Frontend đang tạm dừng chờ design (board 2026-10-05): chỉ giao khi PO duyệt design v2.

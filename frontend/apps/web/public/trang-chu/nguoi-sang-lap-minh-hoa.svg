@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 2000" width="1600" height="2000" role="img" aria-label="Hình minh hoạ: giáo viên cách điệu đứng bên bảng kẻ ô ly, cầm bút chỉ vào lời giải phương trình bậc hai, bên cạnh là đồ thị parabol">
+  <!-- Ảnh minh hoạ tự vẽ cho khối "Người sáng lập" trang chủ (nội dung tạm, PO 2026-10-07).
+       Nhân vật cách điệu, không dựa trên người thật. Tỉ lệ 4:5. Đầu nằm trong vùng an toàn
+       (15–85% ngang, 12–50% dọc); nội dung chính nằm trong 10–90% ngang để chịu được khung cắt ở 768–1023px. -->
+  <defs>
+    <pattern id="oly" width="160" height="160" patternUnits="userSpaceOnUse" x="100" y="180">
+      <path d="M0 40H160M0 80H160M0 120H160" stroke="#EEE8FB" stroke-width="2"/>
+      <path d="M0 0H160M0 0V160" stroke="#DCD2F7" stroke-width="3"/>
+    </pattern>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EAE3FA"/>
+      <stop offset="1" stop-color="#E2D9F7"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFC89C" stop-opacity="0.4"/>
+      <stop offset="0.55" stop-color="#FFD9B8" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#FFE7D3" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="1" cy="0" r="0.75">
+      <stop offset="0" stop-color="#FFD0A6" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#FFD0A6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sweater" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2A1F5C"/>
+      <stop offset="0.7" stop-color="#33276C"/>
+      <stop offset="1" stop-color="#4A3780"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Tường + bảng ô ly -->
+  <rect width="1600" height="2000" fill="url(#wall)"/>
+  <rect x="100" y="180" width="1400" height="1060" rx="28" fill="#FDFCFF"/>
+  <rect x="100" y="180" width="1400" height="1060" rx="28" fill="url(#oly)"/>
+  <path d="M220 190V1230" stroke="#E5484D" stroke-opacity="0.5" stroke-width="4"/>
+  <rect x="100" y="180" width="1400" height="1060" rx="28" fill="none" stroke="#CBBEEF" stroke-width="12"/>
+  <rect x="130" y="1232" width="1340" height="34" rx="10" fill="#CFC2F0"/>
+  <rect x="300" y="1218" width="90" height="16" rx="8" fill="#5B2EC4"/>
+  <rect x="410" y="1218" width="70" height="16" rx="8" fill="#FF8A3D"/>
+
+  <!-- Lời giải từng bước (bên trái) -->
+  <g fill="#3B2A86" font-family="'Times New Roman', Times, 'Noto Serif', 'DejaVu Serif', serif" font-size="62" font-style="italic">
+    <text x="260" y="380">x² − 5x + 6 = 0</text>
+    <text x="260" y="500">Δ = 25 − 24 = 1</text>
+    <text x="260" y="620">x<tspan font-size="40" dy="14">1</tspan><tspan dy="-14"> = 3,  x</tspan><tspan font-size="40" dy="14">2</tspan><tspan dy="-14"> = 2</tspan></text>
+  </g>
+  <path d="M262 652 C 380 644, 520 646, 618 650" fill="none" stroke="#FF8A3D" stroke-width="9" stroke-linecap="round"/>
+  <path d="M640 586 l 22 26 l 44 -58" fill="none" stroke="#127A55" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="none" stroke="#9C8BD6" stroke-width="5" stroke-linecap="round">
+    <path d="M232 352 h 10M232 472 h 10M232 592 h 10"/>
+  </g>
+
+  <!-- Đồ thị y = x² − 5x + 6 (bên phải): nghiệm 2 và 3 khớp lời giải -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M1130 640H1440M1150 820V300" stroke="#6B5BA8" stroke-width="5"/>
+    <path d="M1430 630l12 10l-12 10M1140 312l10 -12l10 12" stroke="#6B5BA8" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M1250 634v12M1300 634v12M1350 634v12M1200 634v12M1144 560h12M1144 480h12M1144 400h12" stroke="#6B5BA8" stroke-width="4"/>
+    <path d="M1150 400 Q 1275 900 1400 400" stroke="#5B2EC4" stroke-width="9"/>
+  </g>
+  <circle cx="1250" cy="640" r="13" fill="#FF8A3D"/>
+  <circle cx="1300" cy="640" r="13" fill="#FF8A3D"/>
+  <g fill="#3B2A86" font-family="'Times New Roman', Times, 'Noto Serif', 'DejaVu Serif', serif" font-style="italic">
+    <text x="1418" y="690" font-size="46">x</text>
+    <text x="1170" y="318" font-size="46">y</text>
+    <text x="1112" y="684" font-size="40">O</text>
+    <text x="1238" y="696" font-size="38" font-style="normal">2</text>
+    <text x="1290" y="696" font-size="38" font-style="normal">3</text>
+  </g>
+
+  <!-- Tam giác vuông nhỏ (góc dưới phải bảng) -->
+  <g fill="none" stroke="#9C8BD6" stroke-width="6" stroke-linejoin="round">
+    <path d="M1290 1120 V 900 L 1440 1120 Z"/>
+    <path d="M1290 1090 h 30 v 30"/>
+  </g>
+
+  <!-- Ánh sáng ấm từ cửa sổ phía trên bên phải -->
+  <rect width="1600" height="2000" fill="url(#glow)"/>
+  <path d="M1080 0H1600V560L640 2000H250Z" fill="url(#beam)"/>
+
+  <!-- Nhân vật -->
+  <!-- Thân -->
+  <path d="M440 2000 C 440 1300, 520 1000, 700 940 C 780 912, 840 900, 880 900 C 920 900, 980 912, 1060 940 C 1240 1000, 1320 1300, 1320 2000 Z" fill="url(#sweater)"/>
+  <!-- Cổ -->
+  <path d="M832 790 V 884 C 852 930, 908 930, 928 884 V 790 Z" fill="#D9A07C"/>
+  <!-- Cổ áo sơ mi -->
+  <path d="M800 900 L 880 1032 L 960 900 C 930 887, 830 887, 800 900 Z" fill="#FBFAFF"/>
+  <path d="M800 900 L 838 1002 L 880 962 Z M960 900 L 922 1002 L 880 962 Z" fill="#EFE9FD"/>
+
+  <!-- Tay trái (người xem nhìn bên trái) giơ lên chỉ bảng -->
+  <path d="M640 1010 C 560 1070, 495 1060, 478 920" fill="none" stroke="#3A2D78" stroke-width="112" stroke-linecap="round"/>
+  <ellipse cx="476" cy="884" rx="60" ry="24" fill="#FBFAFF" transform="rotate(-12 476 884)"/>
+  <path d="M470 826 L 410 700" stroke="#FF8A3D" stroke-width="26" stroke-linecap="round"/>
+  <path d="M410 700 L 398 676" stroke="#1E1537" stroke-width="16" stroke-linecap="round"/>
+  <ellipse cx="472" cy="826" rx="50" ry="60" fill="#E8B48E" transform="rotate(-15 472 826)"/>
+  <ellipse cx="446" cy="792" rx="18" ry="26" fill="#E8B48E" transform="rotate(-30 446 792)"/>
+
+  <!-- Đầu -->
+  <path d="M700 640 C 690 470, 790 418, 890 420 C 1010 424, 1078 510, 1066 660 C 1062 720, 1052 770, 1036 800 L 1000 640 C 930 600, 820 580, 740 640 Z" fill="#2B1D52"/>
+  <ellipse cx="880" cy="652" rx="150" ry="176" fill="#E8B48E"/>
+  <ellipse cx="1028" cy="690" rx="24" ry="38" fill="#DCA581"/>
+  <!-- Tóc mái -->
+  <path d="M718 640 C 712 520, 800 452, 900 456 C 990 460, 1040 520, 1036 600 C 980 560, 930 548, 870 556 C 820 562, 770 590, 740 640 Z" fill="#2B1D52"/>
+  <path d="M760 560 C 820 520, 900 512, 960 528" fill="none" stroke="#3E2E70" stroke-width="10" stroke-linecap="round"/>
+  <!-- Kính, mắt, nụ cười (cách điệu) -->
+  <g fill="none" stroke="#2B1D52" stroke-width="8">
+    <circle cx="816" cy="676" r="44"/>
+    <circle cx="940" cy="676" r="44"/>
+    <path d="M860 672 C 870 662, 886 662, 896 672M984 670 L 1022 660"/>
+  </g>
+  <circle cx="820" cy="680" r="9" fill="#2B1D52"/>
+  <circle cx="936" cy="680" r="9" fill="#2B1D52"/>
+  <ellipse cx="790" cy="742" rx="28" ry="16" fill="#F29A7A" fill-opacity="0.45"/>
+  <ellipse cx="972" cy="742" rx="28" ry="16" fill="#F29A7A" fill-opacity="0.45"/>
+  <path d="M846 762 Q 878 790 910 762" fill="none" stroke="#8C4A3C" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Tay phải ôm vở -->
+  <path d="M1170 1040 C 1250 1230, 1240 1410, 1110 1460" fill="none" stroke="#3A2D78" stroke-width="112" stroke-linecap="round"/>
+  <g transform="rotate(-8 920 1400)">
+    <rect x="748" y="1262" width="330" height="246" rx="12" fill="#FBFAFF"/>
+    <rect x="740" y="1272" width="330" height="250" rx="14" fill="#FF8A3D"/>
+    <rect x="740" y="1272" width="26" height="250" rx="8" fill="#E06F25"/>
+    <rect x="822" y="1330" width="180" height="96" rx="10" fill="#FFF0E4"/>
+    <path d="M846 1366h132M846 1394h90" stroke="#5B2EC4" stroke-width="8" stroke-linecap="round"/>
+  </g>
+  <ellipse cx="1096" cy="1452" rx="54" ry="44" fill="#E8B48E"/>
+  <ellipse cx="1060" cy="1430" rx="20" ry="28" fill="#DCA581"/>
+
+  <!-- Bàn học phía trước: vở ô ly mở, chồng sách, cốc nước ấm -->
+  <path d="M0 1610 H1600 V1800 H0 Z" fill="#F4EEFF"/>
+  <path d="M0 1610 H1600" stroke="#FFFFFF" stroke-width="6"/>
+  <rect y="1800" width="1600" height="200" fill="#D3C7F1"/>
+  <rect y="1800" width="1600" height="14" fill="#C4B5EC"/>
+  <g transform="rotate(-4 520 1700)">
+    <path d="M250 1640 L 520 1650 L 520 1770 L 220 1760 Z" fill="#FDFCFF"/>
+    <path d="M520 1650 L 790 1640 L 820 1760 L 520 1770 Z" fill="#FFFFFF"/>
+    <path d="M520 1650 V 1770" stroke="#DCD2F7" stroke-width="5"/>
+    <g stroke="#E4DCF8" stroke-width="3">
+      <path d="M244 1670 L 520 1678M238 1700 L 520 1709M231 1730 L 520 1740M520 1678 L 797 1668M520 1709 L 805 1698M520 1740 L 812 1729"/>
+    </g>
+    <path d="M286 1645 L 262 1764" stroke="#E5484D" stroke-opacity="0.5" stroke-width="3"/>
+    <path d="M310 1690 C 340 1676, 370 1700, 400 1688 S 450 1696, 480 1690M560 1688 C 600 1676, 640 1698, 690 1684M560 1720 C 590 1712, 620 1726, 650 1716" fill="none" stroke="#5B2EC4" stroke-width="5" stroke-linecap="round"/>
+    <path d="M700 1724 l 12 14 l 26 -32" fill="none" stroke="#FF8A3D" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <rect x="1040" y="1676" width="250" height="42" rx="8" fill="#5B2EC4"/>
+  <rect x="1060" y="1636" width="220" height="42" rx="8" fill="#FF8A3D"/>
+  <path d="M1060 1658 H1280M1040 1697 H1290" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="4"/>
+  <path d="M1350 1590 h 120 v 120 c 0 26 -20 40 -60 40 c -40 0 -60 -14 -60 -40 Z" fill="#FBFAFF"/>
+  <path d="M1350 1640 h 120 v 26 h -120 Z" fill="#5B2EC4"/>
+  <path d="M1470 1612 c 50 0 50 70 0 70" fill="none" stroke="#FBFAFF" stroke-width="14"/>
+  <g fill="none" stroke="#FFB27A" stroke-width="7" stroke-linecap="round" stroke-opacity="0.8">
+    <path d="M1392 1560 c -16 -24 16 -36 0 -64M1432 1560 c -16 -24 16 -36 0 -64"/>
+  </g>
+</svg>
