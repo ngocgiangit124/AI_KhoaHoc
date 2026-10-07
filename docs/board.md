@@ -2,6 +2,13 @@
 
 Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) đọc file này trước tiên.
 
+## Tình trạng 2026-10-07 tối (PO tạm dừng)
+
+- FA11 (d56d9a2), FW4 (6ac9f14): đã push.
+- FW8 + FW9 (trang chủ thật): dev xong, review APPROVE, dev đã sửa R1/R2/R5/R6; chưa commit (working tree apps/web). Việc tiếp: QA (dừng giữa chừng, chạy lại từ đầu; đã `seed-e2e-home.sh --clean`) → CI → commit.
+- PO 2026-10-07: GIỮ chữ phụ 14px trên CourseCard/TeacherCard (AC10 ≥16px chỉ áp nội dung chính). Bunny CDN đã có DNS, phát thật ĐẠT (docs/qa/T37.md); PO cần đặt Allowed domains trước production. FA11 R2 → FA11-1.
+- Task tiếp sau FW8: FW5/FA5 (quiz), FW6, FA6, FA7, FA10.
+
 ## Tình trạng 2026-10-07
 
 - Đã xong và đã push (tới `fbaefae`): Sửa lỗi nhỏ 4, T37 Bunny, trần video 1 GB, design v2 (nền ô ly, màn mới, poster tạm), FW-V2 + FW2, FA-V2.
@@ -95,7 +102,8 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - Nợ giao diện (QA FW1 2026-10-07, Minor): logo header web cao 39px ở 375px (< 44px vùng chạm); `Field` v2 chưa có `aria-live` cho lỗi (designer quyết, dùng chung với admin); FA3 R5 (Nổi bật #n ở danh sách), `beforeunload` chỉ theo dõi form chính.
 - FW1 R10 (PO 2026-10-07): bước 2 quên mật khẩu che email (`a**@x.vn`) và SĐT (3 số cuối) — đã làm.
 - FW4/FW5: hộp thoại mất phiên phải `pause()` player khi mở.
-- FA11 R2 (chờ PO): người đã đổi vai trò không còn đường UI tự rút đồng ý/xoá ảnh hồ sơ giáo viên (trùng L1 security T36); hiện admin/QLT xoá ảnh hộ. Seed `seed-e2e-profiles.sh` nên cố định email (Faker trùng email gây lỗi 1 lần).
+- Backlog backend cho FA6 (review FA6 2026-10-07): route admin thu hồi đăng ký (`EnrollmentService::revoke` đã có), tham số `q` tìm học sinh, endpoint đếm theo trạng thái (badge menu), tab Đã duyệt/Từ chối sắp theo thời điểm xử lý mới nhất, lọc khoá giá 0 cho ô chọn khoá. Duyệt không có hộp xác nhận (theo design v2 §14.1).
+- FA11 R2 (PO 2026-10-07: LÀM — task FA11-1, sau FA6): người đã đổi vai trò không còn đường UI tự rút đồng ý/xoá ảnh hồ sơ giáo viên (trùng L1 security T36); hiện admin/QLT xoá ảnh hộ. Seed `seed-e2e-profiles.sh` nên cố định email (Faker trùng email gây lỗi 1 lần).
 
 - V2 (PO quyết định 2026-10-05): cách khoá đăng nhập chống khoá tài khoản người khác (M1 backlog), ngưỡng AC6; ý nghĩa đổi SĐT qua `/auth/contact`; trang `/dieu-khoan`, `/chinh-sach-du-lieu`; pháp chế (thời hạn lưu IP/UA trong `consents`, quy tắc tuổi/phụ huynh của T29).
 

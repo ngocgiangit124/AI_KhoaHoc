@@ -90,7 +90,7 @@ export default async function CourseDetailPage({ params }: PageProps<"/khoa-hoc/
           ]}
         />
 
-        <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_360px]">
+        <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-w-0 flex-col gap-8">
             <header className="flex flex-col gap-4">
               <div className="overflow-hidden rounded-card border border-line lg:hidden">

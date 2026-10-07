@@ -19,6 +19,8 @@ export const MAX_Q_LENGTH = 100;
 export interface CatalogQuery {
   grade: number | null;
   subjectIds: number[];
+  /** Lọc theo giáo viên (US-020 Q6: liên kết "Xem N khóa học" ở trang chủ); `null` = không lọc. */
+  teacherId: number | null;
   q: string;
   sort: CatalogSort;
   page: number;
@@ -61,6 +63,10 @@ export function parseCatalogQuery(params: RawSearchParams, fixedGrade: number | 
     if (subjectIds.length >= MAX_SUBJECT_IDS) break;
   }
 
+  const teacherRaw = first(params.teacher_id);
+  const teacherParsed = teacherRaw !== undefined && /^\d{1,9}$/.test(teacherRaw) ? Number(teacherRaw) : 0;
+  const teacherId = teacherParsed >= 1 ? teacherParsed : null;
+
   const q = (first(params.q) ?? "").trim().slice(0, MAX_Q_LENGTH);
 
   const sortRaw = first(params.sort);
@@ -70,7 +76,7 @@ export function parseCatalogQuery(params: RawSearchParams, fixedGrade: number | 
   const pageParsed = pageRaw !== undefined && /^\d{1,6}$/.test(pageRaw) ? Number(pageRaw) : 1;
   const page = pageParsed >= 1 ? pageParsed : 1;
 
-  return { grade, subjectIds, q, sort, page };
+  return { grade, subjectIds, teacherId, q, sort, page };
 }
 
 /** Query gửi Laravel (`subject_ids[]`, bỏ giá trị mặc định). */
@@ -78,6 +84,7 @@ export function toApiQueryString(query: CatalogQuery): string {
   const sp = new URLSearchParams();
   if (query.grade !== null) sp.set("grade", String(query.grade));
   for (const id of query.subjectIds) sp.append("subject_ids[]", String(id));
+  if (query.teacherId !== null) sp.set("teacher_id", String(query.teacherId));
   if (query.q) sp.set("q", query.q);
   if (query.sort !== "newest") sp.set("sort", query.sort);
   if (query.page > 1) sp.set("page", String(query.page));
@@ -92,6 +99,7 @@ export function toPageHref(basePath: string, query: CatalogQuery, omitGrade: boo
   const sp = new URLSearchParams();
   if (!omitGrade && query.grade !== null) sp.set("grade", String(query.grade));
   for (const id of query.subjectIds) sp.append("subject_ids", String(id));
+  if (query.teacherId !== null) sp.set("teacher_id", String(query.teacherId));
   if (query.q) sp.set("q", query.q);
   if (query.sort !== "newest") sp.set("sort", query.sort);
   if (query.page > 1) sp.set("page", String(query.page));
@@ -101,7 +109,7 @@ export function toPageHref(basePath: string, query: CatalogQuery, omitGrade: boo
 
 export function hasActiveFilters(query: CatalogQuery, omitGrade: boolean): boolean {
   return (
-    (!omitGrade && query.grade !== null) || query.subjectIds.length > 0 || query.q !== ""
+    (!omitGrade && query.grade !== null) || query.subjectIds.length > 0 || query.teacherId !== null || query.q !== ""
   );
 }
 

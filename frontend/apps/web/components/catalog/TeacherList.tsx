@@ -6,17 +6,17 @@ import type { CourseDetail } from "@/lib/catalog/schemas";
 export function TeacherList({ teachers }: { teachers: CourseDetail["teachers"] }) {
   if (teachers.length === 0) return null;
   return (
-    <ul className="grid gap-4 sm:grid-cols-2">
+    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {teachers.map((t) => (
-        <li key={t.id} className="flex gap-3">
+        <li key={t.id} className="flex min-w-0 gap-3">
           {t.avatar_url ? (
-            <Image src={t.avatar_url} alt="" width={56} height={56} unoptimized className="size-14 shrink-0 rounded-full object-cover" />
+            <Image src={t.avatar_url} alt={`Ảnh thầy/cô ${t.name}`} width={56} height={56} unoptimized className="size-14 shrink-0 rounded-full object-cover" />
           ) : (
             <Avatar name={t.name} size="lg" />
           )}
           <div className="min-w-0">
             <p className="font-semibold text-ink">{t.name}</p>
-            {t.bio ? <p className="text-sm text-ink-soft">{t.bio}</p> : null}
+            {t.bio ? <p className="whitespace-pre-line text-sm text-ink-soft">{t.bio}</p> : null}
           </div>
         </li>
       ))}

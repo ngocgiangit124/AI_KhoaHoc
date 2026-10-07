@@ -18,7 +18,7 @@ export function Breadcrumb({ items, className }: { items: BreadcrumbItem[]; clas
           return (
             <li key={`${item.label}-${i}`} className={cx("items-center gap-1", parentOfLast ? "flex" : "hidden sm:flex")}>
               {item.href && !last ? (
-                <UiLink href={item.href} className="focus-ring rounded font-medium text-ink-soft underline-offset-4 hover:text-primary hover:underline">
+                <UiLink href={item.href} className="focus-ring inline-flex min-h-11 min-w-11 items-center rounded font-medium text-ink-soft underline-offset-4 hover:text-primary hover:underline">
                   {item.label}
                 </UiLink>
               ) : (

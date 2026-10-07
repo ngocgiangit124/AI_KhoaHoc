@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { TeacherCard, type HomeTeacher } from "@vitaminvui/ui/v2";
 import { routes } from "@/lib/v2/routes";
 
@@ -7,7 +8,17 @@ import { routes } from "@/lib/v2/routes";
  * - 1 người: một thẻ rộng vừa phải, không lưới trống.
  * - Nhiều người: 1 cột (mobile) → 2 cột (≥ 768px) → 3 cột (≥ 1024px); tối đa 6. Không carousel, không cuộn ngang.
  */
-export function TeacherSection({ teachers }: { teachers: HomeTeacher[] }) {
+export function TeacherSection({
+  teachers,
+  hrefFor = (id) => routes.catalogQuery({ teacher_id: id }),
+  renderImage,
+}: {
+  teachers: HomeTeacher[];
+  /** Đích "Xem N khóa học"; mặc định là danh mục xem trước `/v2`. Trang thật (FW9) truyền `/khoa-hoc?teacher_id=`. */
+  hrefFor?: (teacherId: number) => string;
+  /** Ảnh thật của giáo viên (FW9); không truyền / trả `undefined` → chữ cái đầu trên ô vở. */
+  renderImage?: (teacher: HomeTeacher) => ReactNode;
+}) {
   if (teachers.length === 0) return null;
   const list = teachers.slice(0, 6);
   return (
@@ -18,14 +29,13 @@ export function TeacherSection({ teachers }: { teachers: HomeTeacher[] }) {
       <p className="mt-1 text-base text-ink-soft">Những thầy cô đang có khóa học trên VitaminVui.</p>
       {list.length === 1 ? (
         <div className="mt-6 max-w-2xl">
-          <TeacherCard teacher={list[0] as HomeTeacher} coursesHref={routes.catalogQuery({ teacher_id: (list[0] as HomeTeacher).id })} />
+          <TeacherCard teacher={list[0] as HomeTeacher} coursesHref={hrefFor((list[0] as HomeTeacher).id)} image={renderImage?.(list[0] as HomeTeacher)} />
         </div>
       ) : (
-        <ul className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {list.map((t) => (
-            <li key={t.id}>
-              {/* TODO(dev): có avatar_url → image={<Image src={t.avatar_url} alt={`Ảnh thầy/cô ${t.name}`} fill sizes="96px" className="object-cover" />}; ảnh lỗi → bỏ image để hiện chữ cái đầu. */}
-              <TeacherCard teacher={t} coursesHref={routes.catalogQuery({ teacher_id: t.id })} />
+            <li key={t.id} className="min-w-0">
+              <TeacherCard teacher={t} coursesHref={hrefFor(t.id)} image={renderImage?.(t)} />
             </li>
           ))}
         </ul>

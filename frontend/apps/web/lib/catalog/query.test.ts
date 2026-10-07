@@ -24,17 +24,17 @@ describe("parseGradeSegment", () => {
 
 describe("parseCatalogQuery", () => {
   it("mặc định", () => {
-    expect(parseCatalogQuery({})).toEqual({ grade: null, subjectIds: [], q: "", sort: "newest", page: 1 });
+    expect(parseCatalogQuery({})).toEqual({ grade: null, subjectIds: [], teacherId: null, q: "", sort: "newest", page: 1 });
   });
 
   it("đọc đủ tham số, subject_ids lặp, bỏ trùng", () => {
     const q = parseCatalogQuery({ grade: "8", subject_ids: ["3", "5", "3"], q: "  hình học ", sort: "popular", page: "2" });
-    expect(q).toEqual({ grade: 8, subjectIds: [3, 5], q: "hình học", sort: "popular", page: 2 });
+    expect(q).toEqual({ grade: 8, subjectIds: [3, 5], teacherId: null, q: "hình học", sort: "popular", page: 2 });
   });
 
   it("giá trị sai bị bỏ qua êm, không ném lỗi", () => {
     const q = parseCatalogQuery({ grade: "99", subject_ids: ["abc", "-1", "0"], sort: "lạ", page: "-3" });
-    expect(q).toEqual({ grade: null, subjectIds: [], q: "", sort: "newest", page: 1 });
+    expect(q).toEqual({ grade: null, subjectIds: [], teacherId: null, q: "", sort: "newest", page: 1 });
   });
 
   it("q dài hơn 100 ký tự bị cắt", () => {
@@ -45,6 +45,12 @@ describe("parseCatalogQuery", () => {
     expect(parseCatalogQuery({ grade: "7" }, 9).grade).toBe(9);
   });
 
+  it("teacher_id: số nguyên dương, sai thì bỏ qua êm", () => {
+    expect(parseCatalogQuery({ teacher_id: "12" }).teacherId).toBe(12);
+    for (const bad of ["0", "-3", "abc", "1.5", "", "1234567890", "12x"]) expect(parseCatalogQuery({ teacher_id: bad }).teacherId).toBeNull();
+    expect(parseCatalogQuery({ teacher_id: ["7", "9"] }).teacherId).toBe(7);
+  });
+
   it("tối đa 20 chuyên đề", () => {
     const ids = Array.from({ length: 30 }, (_, i) => String(i + 1));
     expect(parseCatalogQuery({ subject_ids: ids }).subjectIds).toHaveLength(20);
@@ -52,12 +58,12 @@ describe("parseCatalogQuery", () => {
 });
 
 describe("toApiQueryString / toPageHref", () => {
-  const base = { grade: 8, subjectIds: [3, 5], q: "hình học", sort: "popular" as const, page: 2 };
+  const base = { grade: 8, subjectIds: [3, 5], teacherId: null, q: "hình học", sort: "popular" as const, page: 2 };
 
   it("API dùng subject_ids[] và bỏ giá trị mặc định", () => {
     const qs = decodeURIComponent(toApiQueryString(base));
     expect(qs).toBe("grade=8&subject_ids[]=3&subject_ids[]=5&q=hình+học&sort=popular&page=2");
-    expect(toApiQueryString({ grade: null, subjectIds: [], q: "", sort: "newest", page: 1 })).toBe("");
+    expect(toApiQueryString({ grade: null, subjectIds: [], teacherId: null, q: "", sort: "newest", page: 1 })).toBe("");
   });
 
   it("URL trang: subject_ids lặp key; omitGrade ở /lop-{grade}", () => {
@@ -65,6 +71,13 @@ describe("toApiQueryString / toPageHref", () => {
       "/khoa-hoc?grade=8&subject_ids=3&subject_ids=5&q=hình+học&sort=popular&page=2",
     );
     expect(toPageHref("/lop-8", { ...base, page: 1, subjectIds: [], q: "", sort: "newest" }, true)).toBe("/lop-8");
+  });
+
+  it("teacher_id đi cùng API và URL trang, tính là bộ lọc đang bật", () => {
+    const t = { ...base, teacherId: 12, page: 1, subjectIds: [], q: "", sort: "newest" as const, grade: null };
+    expect(toApiQueryString(t)).toBe("teacher_id=12");
+    expect(toPageHref("/khoa-hoc", t, false)).toBe("/khoa-hoc?teacher_id=12");
+    expect(hasActiveFilters(t, false)).toBe(true);
   });
 
   it("hasActiveFilters", () => {

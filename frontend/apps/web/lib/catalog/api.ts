@@ -41,11 +41,11 @@ export async function fetchSubjects(): Promise<Subject[]> {
 
 export async function fetchCourses(query: CatalogQuery): Promise<CourseList> {
   const qs = toApiQueryString(query);
-  // Tìm kiếm tự do (`q`) có vô số tổ hợp -> dễ bị cào dồn vào một bucket: tính theo IP khách (xem lib/api.server.ts
-  // vì sao KHÔNG gắn IP cho mọi request). Các truy vấn còn lại dùng chung cache theo URL.
+  // Tìm kiếm tự do (`q`) và `teacher_id` có vô số tổ hợp -> dễ bị cào dồn vào một bucket: tính theo IP khách (xem
+  // lib/api.server.ts vì sao KHÔNG gắn IP cho mọi request). Các truy vấn còn lại dùng chung cache theo URL.
   const raw = await publicFetchServer<unknown>(`/api/v1/courses${qs ? `?${qs}` : ""}`, {
     ...CATALOG_CACHE,
-    clientIp: query.q ? await clientIp() : null,
+    clientIp: query.q || query.teacherId !== null ? await clientIp() : null,
   });
   return courseListSchema.parse(raw);
 }
@@ -57,7 +57,10 @@ export async function fetchCourses(query: CatalogQuery): Promise<CourseList> {
 export const fetchCourse = cache(async (slug: string): Promise<CourseDetail | null> => {
   if (!isValidCourseSlug(slug)) return null;
   try {
-    const raw = await publicFetchServer<unknown>(`/api/v1/courses/${encodeURIComponent(slug)}`, CATALOG_CACHE);
+    // KHÔNG dùng Data Cache: khi bản cũ hết hạn mà lần làm mới trả 404 (khóa ngừng bán/xoá), Next giữ và tiếp tục phát bản cũ
+    // (không lưu response lỗi, không xoá mục cũ) -> khóa đã gỡ vẫn 200 mãi (QA FW8 BUG-2, đã tái hiện bằng e2e). `no-store` để
+    // 404 của backend có hiệu lực ngay; backend vẫn có cache/ETag công khai 60 giây và throttle nhóm SSR (ADR-004 §2.8).
+    const raw = await publicFetchServer<unknown>(`/api/v1/courses/${encodeURIComponent(slug)}`, { revalidate: false });
     return courseDetailSchema.parse(raw);
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) return null;

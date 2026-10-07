@@ -44,7 +44,10 @@ export function CatalogView({ basePath, query, fixedGrade, subjects, courses, ti
   const filtered = hasActiveFilters(query, omitGrade);
   const { meta, data } = courses;
   const href = (next: Partial<CatalogQuery>) => toPageHref(basePath, { ...query, ...next, page: 1 }, omitGrade);
-  const resetHref = href({ grade: omitGrade ? query.grade : null, subjectIds: [], q: "" });
+  const resetHref = href({ grade: omitGrade ? query.grade : null, subjectIds: [], teacherId: null, q: "" });
+  // Tên giáo viên lấy từ `teachers[]` của kết quả (api-contract: GET /courses không có endpoint riêng cho tên).
+  const teacherName =
+    query.teacherId === null ? null : (data.flatMap((c) => c.teachers).find((t) => t.id === query.teacherId)?.name ?? null);
   const subjectName = (id: number) => subjects.find((s) => s.id === id)?.name ?? `Chuyên đề ${id}`;
 
   return (
@@ -64,6 +67,7 @@ export function CatalogView({ basePath, query, fixedGrade, subjects, courses, ti
         {query.subjectIds.map((id) => (
           <input key={id} type="hidden" name="subject_ids" value={id} />
         ))}
+        {query.teacherId !== null ? <input type="hidden" name="teacher_id" value={query.teacherId} /> : null}
         {query.sort !== "newest" ? <input type="hidden" name="sort" value={query.sort} /> : null}
         <label htmlFor="catalog-q" className="sr-only">
           Tìm trong danh mục khóa học
@@ -150,6 +154,15 @@ export function CatalogView({ basePath, query, fixedGrade, subjects, courses, ti
                   </Link>
                 </li>
               ))}
+              {query.teacherId !== null ? (
+                <li>
+                  <Link href={href({ teacherId: null })} className={REMOVABLE}>
+                    <span className="sr-only">Bỏ lọc </span>
+                    Giáo viên: {teacherName ?? "đã chọn"}
+                    <IconX size={14} />
+                  </Link>
+                </li>
+              ) : null}
               {query.q ? (
                 <li>
                   <Link href={href({ q: "" })} className={REMOVABLE}>
@@ -187,9 +200,9 @@ export function CatalogView({ basePath, query, fixedGrade, subjects, courses, ti
                 }
               />
             ) : (
-              <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {data.map((course, i) => (
-                  <li key={course.id} className="flex">
+                  <li key={course.id} className="flex min-w-0">
                     <CourseCard
                       course={course}
                       href={routes.course(course.slug)}
