@@ -99,7 +99,7 @@ describe("navGroups (menu v2)", () => {
   it("giáo viên: chỉ nhóm Nội dung, ẩn hẳn mục không có quyền", () => {
     const groups = navGroups({ role: "giao_vien", permissions: null }, "/quan-tri");
     expect(groups.map((g) => g.label)).toEqual(["Nội dung"]);
-    expect(groups[0]!.items.map((i) => i.label)).toEqual(["Tổng quan", "Khóa học"]);
+    expect(groups[0]!.items.map((i) => i.label)).toEqual(["Tổng quan", "Khóa học", "Hồ sơ của tôi"]);
   });
 });
 

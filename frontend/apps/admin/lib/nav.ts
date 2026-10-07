@@ -10,7 +10,7 @@ export interface NavItem {
   label: string;
   group: NavGroupKey;
   /** Tên icon (AdminShell ánh xạ sang icon v2). */
-  icon: "home" | "book" | "shapes" | "ticket" | "receipt" | "shield" | "file";
+  icon: "home" | "book" | "shapes" | "ticket" | "receipt" | "shield" | "file" | "users" | "user";
   /** Vai trò thấy mục này (ma trận quyền ADR-004 §3; quyền thật do API kiểm). */
   roles: readonly StaffRole[];
   /** Quyền UI từ `/admin/auth/me`; có thì ưu tiên hơn `roles`. */
@@ -24,6 +24,7 @@ export interface NavItem {
 const ALL: readonly StaffRole[] = ["admin", "quan_ly_trang", "giao_vien"];
 const STAFF: readonly StaffRole[] = ["admin", "quan_ly_trang"];
 const ADMIN: readonly StaffRole[] = ["admin"];
+const TEACHER: readonly StaffRole[] = ["giao_vien"];
 
 export const DEFAULT_LANDING = "/quan-tri";
 
@@ -34,6 +35,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/quan-tri", label: "Tổng quan", group: "content", icon: "home", roles: ALL, ready: true },
   { href: "/quan-tri/khoa-hoc", label: "Khóa học", group: "content", icon: "book", roles: ALL, ready: true },
   { href: "/quan-tri/chuyen-de", permission: "manage_subjects", label: "Chuyên đề", group: "content", icon: "shapes", roles: STAFF, ready: true },
+  { href: "/quan-tri/giao-vien", label: "Giáo viên trang chủ", group: "content", icon: "users", roles: STAFF, ready: true },
+  { href: "/quan-tri/ho-so", label: "Hồ sơ của tôi", group: "content", icon: "user", roles: TEACHER, ready: true },
   { href: "/quan-tri/ma-giam-gia", permission: "manage_coupons", label: "Mã giảm giá", group: "sales", icon: "ticket", roles: STAFF, ready: false },
   {
     href: "/quan-tri/don-hang",

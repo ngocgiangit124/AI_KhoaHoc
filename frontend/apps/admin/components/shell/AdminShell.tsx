@@ -11,6 +11,8 @@ import {
   IconShapes,
   IconShieldCheck,
   IconTicket,
+  IconUser,
+  IconUsers,
   type AdminNavGroup,
   type AdminNavItem,
 } from "@vitaminvui/ui/v2";
@@ -26,6 +28,8 @@ const ICONS: Record<NavItem["icon"], ReactNode> = {
   receipt: <IconReceipt size={18} />,
   shield: <IconShieldCheck size={18} />,
   file: <IconFileText size={18} />,
+  users: <IconUsers size={18} />,
+  user: <IconUser size={18} />,
 };
 
 const GROUP_ORDER: readonly NavGroupKey[] = ["content", "sales", "system"];

@@ -109,8 +109,8 @@ describe("menu theo vai trò", () => {
     expect(r).not.toContain("/quan-tri/nhat-ky");
     expect(r).toEqual(expect.arrayContaining(["/quan-tri/don-hang", "/quan-tri/ma-giam-gia", "/quan-tri/chuyen-de"]));
   });
-  it("giáo viên chỉ thấy tổng quan và khóa học", () => {
-    expect(labels("giao_vien")).toEqual(["/quan-tri", "/quan-tri/khoa-hoc"]);
+  it("giáo viên chỉ thấy tổng quan, khóa học và hồ sơ của tôi", () => {
+    expect(labels("giao_vien")).toEqual(["/quan-tri", "/quan-tri/khoa-hoc", "/quan-tri/ho-so"]);
   });
   it("permissions từ API ưu tiên hơn role", () => {
     const r = navForUser({ role: "quan_ly_trang", permissions: { manage_system: true, view_orders: false } }).map((i) => i.href);
