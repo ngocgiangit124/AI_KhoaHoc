@@ -8,8 +8,8 @@ Ngày công là ước lượng của tài liệu, chưa tính thời gian chờ
 | Nhóm | Đã xong | Đang làm | Chưa làm | Hoãn V2 |
 |---|---|---|---|---|
 | Backend MVP (T01–T34, không có T32) | 26 + T30 phần không thanh toán | 0 | 0 | 6 (T19, T20, T24, T25, T29, T34) + phần thanh toán của T30 |
-| Backend bổ sung sau MVP | T36, T37, T37-1, Sửa lỗi nhỏ 1–4, Bảo mật cụm 1–4, trần video 1 GB | 0 | 0 | — |
-| Frontend | FE0, FA1, FA2, FA3, FW1, FW2, FW-V2, FA-V2, design system v2 | 0 | FW4, FW5, FW6, FW8, FW9, FA4, FA5, FA6, FA7, FA10, FA11 | FW3, FW7, FA8, FA9 |
+| Backend bổ sung sau MVP | T36, T37, T37-1, Sửa lỗi nhỏ 1–5, Bảo mật cụm 1–4, trần video 1 GB | 0 | 0 | — |
+| Frontend | FE0, FA1, FA2, FA3, FA4, FA11, FW1, FW2, FW4, FW-V2, FA-V2, design system v2 | 0 | FW8, FW9, FW5, FW6, FA5, FA6, FA7, FA10 | FW3, FW7, FA8, FA9 |
 
 - Thanh toán đang khoá (`FEATURE_PAID_CHECKOUT=false`, chờ MoMo): khóa có phí hiện giá + "Sắp mở bán".
 - Mọi task đã xong đã commit và push lên `origin/main`.
@@ -43,7 +43,7 @@ Ngày công là ước lượng của tài liệu, chưa tính thời gian chờ
 
 ## 2. Đang làm
 
-Không có. Task tiếp theo: FA4 (tải video) và FW4 (học video).
+Không có. Task tiếp theo: FW8 (trang chủ thật) + FW9 (khu giáo viên trang chủ), rồi FW5/FA5 (quiz).
 
 ## 3. Chưa làm — Frontend (theo thứ tự đề xuất)
 

@@ -34,6 +34,7 @@ export function proxy(request: NextRequest) {
     font-src 'self';
     connect-src 'self' ${env.NEXT_PUBLIC_API_URL} ${captchaSrc}${videoHosts};
     media-src 'self' blob: ${videoHosts};
+    worker-src 'self' blob:;
     frame-src https://www.youtube-nocookie.com https://player.vimeo.com ${captchaSrc.trim()};
     object-src 'none';
     base-uri 'none';

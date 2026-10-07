@@ -30,6 +30,14 @@ describe("env.ts — validate biến môi trường công khai bằng zod", () =
     expect(env.NEXT_PUBLIC_MOMO_HOSTS).toEqual(["test-payment.momo.vn", "payment.momo.vn"]);
   });
 
+  it("NEXT_PUBLIC_VIDEO_HOSTS đi thẳng vào CSP nên mỗi phần tử phải là origin: chèn directive/đường dẫn bị từ chối", async () => {
+    for (const bad of ["cdn.vn; script-src *", "https://cdn.vn/path", "cdn vn", "javascript:alert(1)"]) {
+      vi.resetModules();
+      Object.assign(process.env, REQUIRED_ENV, { NEXT_PUBLIC_VIDEO_HOSTS: bad });
+      await expect(import("./env"), bad).rejects.toThrow(/NEXT_PUBLIC_VIDEO_HOSTS/);
+    }
+  });
+
   it("dùng mặc định NEXT_PUBLIC_MOMO_HOSTS khi không đặt", async () => {
     Object.assign(process.env, REQUIRED_ENV);
     delete process.env.NEXT_PUBLIC_MOMO_HOSTS;

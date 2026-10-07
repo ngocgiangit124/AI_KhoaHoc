@@ -8,6 +8,9 @@ export const routes = {
   catalog: "/khoa-hoc",
   grade: (grade: number) => `/lop-${grade}`,
   course: (slug: string) => `/khoa-hoc/${slug}`,
+  /** Trang học video (FW4). `/hoc/{course}` chuyển tới bài cần học tiếp (`resume_lesson_id`). */
+  learn: (courseId: number) => `/hoc/${courseId}`,
+  lesson: (courseId: number, lessonId: number) => `/hoc/${courseId}/bai/${lessonId}`,
   login: "/dang-nhap",
   register: "/dang-ky",
   verifyOtp: "/xac-thuc-otp",

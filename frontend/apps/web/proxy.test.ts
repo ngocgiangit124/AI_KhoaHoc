@@ -42,6 +42,21 @@ describe("proxy — cổng /v2", () => {
     expect((await run("/khoa-hoc")).headers.get("Content-Security-Policy")).not.toContain("challenges.cloudflare.com");
   });
 
+  it("NEXT_PUBLIC_VIDEO_HOSTS (VideoLab/CDN Bunny) có trong connect-src và media-src; iframe chỉ YouTube/Vimeo", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_VIDEO_HOSTS", "https://video.localhost:8000, https://vz-abc123.b-cdn.net");
+    const csp = (await run("/hoc/1/bai/2")).headers.get("Content-Security-Policy") ?? "";
+    const directive = (name: string) => csp.split(";").map((d) => d.trim()).find((d) => d.startsWith(`${name} `)) ?? "";
+    for (const name of ["connect-src", "media-src"]) {
+      expect(directive(name), name).toContain("https://video.localhost:8000");
+      expect(directive(name), name).toContain("https://vz-abc123.b-cdn.net");
+    }
+    expect(directive("media-src")).toContain("blob:"); // hls.js đẩy đoạn video qua MediaSource
+    expect(directive("worker-src")).toContain("blob:"); // hls.js tạo worker từ blob (strict-dynamic không cho blob qua script-src)
+    expect(directive("frame-src")).toContain("https://www.youtube-nocookie.com");
+    expect(directive("frame-src")).not.toContain("b-cdn.net");
+  });
+
   it("matcher có entry riêng cho /v2 KHÔNG có `missing` (request prefetch cũng bị chặn)", async () => {
     const { config } = await import("./proxy");
     const entries = config.matcher as Array<{ source: string; missing?: unknown }>;

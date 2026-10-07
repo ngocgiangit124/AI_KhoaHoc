@@ -80,7 +80,7 @@ importers:
         version: 9.39.5(jiti@2.7.0)
       eslint-config-next:
         specifier: 16.3.6
-        version: 16.3.6(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+        version: 16.3.6(@typescript-eslint/parser@8.70.1(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
       jsdom:
         specifier: 30.1.1
         version: 30.1.1
@@ -105,6 +105,9 @@ importers:
       '@vitaminvui/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      hls.js:
+        specifier: 1.7.3
+        version: 1.7.3
       isomorphic-dompurify:
         specifier: 4.4.0
         version: 4.4.0
@@ -162,7 +165,7 @@ importers:
         version: 9.39.5(jiti@2.7.0)
       eslint-config-next:
         specifier: 16.3.6
-        version: 16.3.6(@typescript-eslint/parser@8.70.1(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+        version: 16.3.6(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
       jsdom:
         specifier: 30.1.1
         version: 30.1.1
@@ -2098,6 +2101,9 @@ packages:
 
   hermes-parser@0.25.1:
     resolution: {integrity: sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA==}
+
+  hls.js@1.7.3:
+    resolution: {integrity: sha512-MsPlx6yVW4Qv4C7mEVou4/gk/5cN2dVxOTnrNjPSmyH2f0Ln+/UkG10Ax1PE6OvrmTVPKgQYozTtBaPOuCzq7A==}
 
   html-encoding-sniffer@7.0.0:
     resolution: {integrity: sha512-UikN5yr7xsCDAq87Or5or0PAlD3HJJOKVzM05az588WnpDJ4Ux7a2A53Qi6gofGg2/EtvF/H4hCi/TXfCW4Y6w==}
@@ -5014,6 +5020,8 @@ snapshots:
   hermes-parser@0.25.1:
     dependencies:
       hermes-estree: 0.25.1
+
+  hls.js@1.7.3: {}
 
   html-encoding-sniffer@7.0.0:
     dependencies:
