@@ -93,7 +93,7 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - Nợ kỹ thuật test: các race test dùng tiến trình con có timeout 60s/tiến trình, fail khi máy quá tải (T16 CartRaceTest ở load ~240). Nâng timeout (vd 180s) và chạy nhóm `race` tách riêng trong CI.
 - Nợ e2e frontend (QA FA3 2026-10-07, Minor): `khoa-hoc-real` không chạy lại được nếu không `seed-e2e-courses.sh --clean` rồi seed lại; `admin-real` cần đặt lại cờ `must_change_password`, `chuyen-de-qa-real` cần ≥ 25 chuyên đề `E2E CD *` và script locker/attacher ngoài. Gom vào seed script/README e2e.
 - Nợ giao diện (QA FW1 2026-10-07, Minor): logo header web cao 39px ở 375px (< 44px vùng chạm); `Field` v2 chưa có `aria-live` cho lỗi (designer quyết, dùng chung với admin); FA3 R5 (Nổi bật #n ở danh sách), `beforeunload` chỉ theo dõi form chính.
-- Chờ PO (FW1 R10): có che một phần email ở bước 2 quên mật khẩu không (design hiện ghi "Tài khoản: …" đầy đủ).
+- FW1 R10 (PO 2026-10-07): bước 2 quên mật khẩu che email (`a**@x.vn`) và SĐT (3 số cuối) — đã làm.
 - FW4/FW5: hộp thoại mất phiên phải `pause()` player khi mở.
 
 - V2 (PO quyết định 2026-10-05): cách khoá đăng nhập chống khoá tài khoản người khác (M1 backlog), ngưỡng AC6; ý nghĩa đổi SĐT qua `/auth/contact`; trang `/dieu-khoan`, `/chinh-sach-du-lieu`; pháp chế (thời hạn lưu IP/UA trong `consents`, quy tắc tuổi/phụ huynh của T29).

@@ -81,7 +81,6 @@ Không có. Task tiếp theo: FA4 (tải video) và FW4 (học video).
 - Bunny production: thư viện riêng, tên miền phát video, ngân sách băng thông, hợp đồng xử lý dữ liệu (pháp chế).
 - Staging (T35): GHCR + Docker trên server staging; giá trị thật cho T31 (tên miền, SMTP, Turnstile, IP).
 - Ảnh/tên/câu thật của người sáng lập (đang dùng nội dung tạm).
-- FW1: có che một phần email ở bước 2 quên mật khẩu không.
 - Các câu nghiệp vụ đã có mặc định: xem `docs/board.md` và `docs/design/design-system-v2.md` §18.
 
 ## 7. Rủi ro / nợ

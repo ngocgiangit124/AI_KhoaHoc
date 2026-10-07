@@ -106,11 +106,12 @@ describe("ResetPasswordForm (bước 2)", () => {
     expect(await screen.findByRole("link", { name: "Quên mật khẩu" })).toHaveAttribute("href", "/quen-mat-khau");
   });
 
-  it("hiện tài khoản đã nhập ở bước 1, thành công → xoá login, về /dang-nhap?trang-thai=dat-lai-xong", async () => {
+  it("hiện tài khoản đã che (PO 2026-10-07), thành công → xoá login, về /dang-nhap?trang-thai=dat-lai-xong", async () => {
     resetPassword.mockResolvedValue(undefined);
     const u = userEvent.setup();
     wrap(<ResetPasswordForm {...props} />);
-    expect(await screen.findByText("a@x.vn")).toBeInTheDocument();
+    expect(await screen.findByText("a**@x.vn")).toBeInTheDocument();
+    expect(screen.queryByText("a@x.vn")).not.toBeInTheDocument();
     await fill(u);
     await u.click(screen.getByRole("button", { name: "Đặt lại mật khẩu" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/dang-nhap?trang-thai=dat-lai-xong"));
@@ -120,10 +121,16 @@ describe("ResetPasswordForm (bước 2)", () => {
     expect(sessionStorage.getItem("vv:reset-login")).toBe("a@x.vn");
   });
 
+  it("đăng nhập bằng SĐT → chỉ hiện 3 số cuối", async () => {
+    sessionStorage.setItem("vv:reset-login", "0912345678");
+    wrap(<ResetPasswordForm {...props} />);
+    expect(await screen.findByText("*******678")).toBeInTheDocument();
+  });
+
   it("thiếu mã / mật khẩu ngắn / không khớp → lỗi từng ô, không gọi API", async () => {
     const u = userEvent.setup();
     wrap(<ResetPasswordForm {...props} />);
-    await screen.findByText("a@x.vn");
+    await screen.findByText("a**@x.vn");
     await fill(u, "", "ngan", "khac");
     await u.click(screen.getByRole("button", { name: "Đặt lại mật khẩu" }));
     expect(await screen.findByText("Vui lòng nhập đủ 6 chữ số của mã.")).toBeInTheDocument();
@@ -137,7 +144,7 @@ describe("ResetPasswordForm (bước 2)", () => {
     resetPassword.mockRejectedValue(new ApiError(422, { message: "x", code: "OTP_EXPIRED", errors: { code: ["Mã OTP đã hết hạn."] } }));
     const u = userEvent.setup();
     wrap(<ResetPasswordForm {...props} />);
-    await screen.findByText("a@x.vn");
+    await screen.findByText("a**@x.vn");
     await fill(u);
     await u.click(screen.getByRole("button", { name: "Đặt lại mật khẩu" }));
     expect(await screen.findByText(/Mã OTP đã hết hạn hoặc không còn hiệu lực/)).toBeInTheDocument();
@@ -154,7 +161,7 @@ describe("ResetPasswordForm (bước 2)", () => {
     forgotPassword.mockResolvedValue({ message: "Nếu thông tin tồn tại, chúng tôi đã gửi mã xác nhận đến email của bạn.", resendAvailableAt: new Date(Date.now() + 60_000).toISOString() });
     const u = userEvent.setup();
     wrap(<ResetPasswordForm {...props} />);
-    await screen.findByText("a@x.vn");
+    await screen.findByText("a**@x.vn");
     await fill(u);
     await u.click(screen.getByRole("button", { name: "Đặt lại mật khẩu" }));
     await u.click(await screen.findByRole("button", { name: "Gửi lại mã" }));
@@ -168,7 +175,7 @@ describe("ResetPasswordForm (bước 2)", () => {
     resetPassword.mockRejectedValue(new ApiError(422, { message: "x", errors: { password: ["Mật khẩu quá phổ biến, dễ bị đoán. Vui lòng chọn mật khẩu khác."] } }));
     const u = userEvent.setup();
     wrap(<ResetPasswordForm {...props} />);
-    await screen.findByText("a@x.vn");
+    await screen.findByText("a**@x.vn");
     await fill(u, "123456", "matkhau123");
     await u.click(screen.getByRole("button", { name: "Đặt lại mật khẩu" }));
     expect(await screen.findByText("Mật khẩu quá phổ biến, dễ bị đoán. Vui lòng chọn mật khẩu khác.")).toBeInTheDocument();
@@ -179,7 +186,7 @@ describe("ResetPasswordForm (bước 2)", () => {
     resetPassword.mockRejectedValue(new ApiError(429, { message: "m" }, 480));
     const u = userEvent.setup();
     wrap(<ResetPasswordForm {...props} />);
-    await screen.findByText("a@x.vn");
+    await screen.findByText("a**@x.vn");
     await fill(u);
     await u.click(screen.getByRole("button", { name: "Đặt lại mật khẩu" }));
     expect(await screen.findByText("Bạn đã thử quá nhiều lần")).toBeInTheDocument();

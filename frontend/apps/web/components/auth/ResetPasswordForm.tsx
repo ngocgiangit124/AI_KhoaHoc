@@ -14,6 +14,7 @@ import {
   classifyResetError,
 } from "@/lib/auth/errors";
 import { readResetLogin, readResetResendAt } from "@/lib/auth/flash";
+import { maskEmail, maskPhone } from "@/lib/auth/otp";
 import { OTP_LENGTH, secondsUntil } from "@/lib/auth/otp";
 import { routes } from "@/lib/routes";
 
@@ -185,7 +186,7 @@ export function ResetPasswordForm({ resendCooldownSeconds, captchaSiteKey }: Res
 
       <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-ink-soft">
         <span>
-          Tài khoản: <strong className="font-semibold text-ink">{login}</strong>
+          Tài khoản: <strong className="font-semibold text-ink">{login.includes("@") ? maskEmail(login) : maskPhone(login)}</strong>
         </span>
         <AppLink href={routes.forgotPassword} className="focus-ring -my-3 inline-flex min-h-11 items-center rounded font-semibold text-primary hover:underline">
           Đổi
