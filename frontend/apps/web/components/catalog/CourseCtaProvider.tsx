@@ -3,8 +3,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@vitaminvui/ui/v2";
+import { AccountGateDialog, type GateKind } from "@/components/v2/auth/AccountGate";
 import { authFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useGateLive } from "@/lib/auth/useGateLive";
 import { mapFreeEnrollError, resolveCta, type CtaModel, type ViewerStatus } from "@/lib/catalog/cta";
 import { viewerStateSchema, type ViewerState } from "@/lib/catalog/schemas";
 
@@ -44,6 +46,9 @@ export function CourseCtaProvider({ course, children }: { course: CtaCourse; chi
   const [enrolling, setEnrolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Màn chặn (design-system-v2 §12.8): hộp thoại mở tại chỗ, giữ ngữ cảnh khóa học. Giữ gắn sau lần mở đầu để đóng/mở mượt.
+  const [gate, setGate] = useState<{ kind: GateKind; open: boolean } | null>(null);
+  const gateLive = useGateLive();
 
   const isUser = auth.status === "user";
 
@@ -89,7 +94,10 @@ export function CourseCtaProvider({ course, children }: { course: CtaCourse; chi
       const outcome = mapFreeEnrollError(err);
       switch (outcome.type) {
         case "verify_account":
-          router.push("/xac-thuc-otp");
+          setGate({ kind: "verify", open: true });
+          break;
+        case "parent_consent":
+          setGate({ kind: auth.status === "user" && auth.user.parent_consent_status === "revoked" ? "parent-revoked" : "parent-pending", open: true });
           break;
         case "pending":
           setViewer({ viewer_state: "pending_approval", resume_lesson_id: null });
@@ -108,7 +116,7 @@ export function CourseCtaProvider({ course, children }: { course: CtaCourse; chi
     } finally {
       setEnrolling(false);
     }
-  }, [course.id, router, toast]);
+  }, [course.id, auth, toast]);
 
   const run = useCallback(() => {
     switch (model.kind) {
@@ -139,7 +147,14 @@ export function CourseCtaProvider({ course, children }: { course: CtaCourse; chi
     [model, error, loginHref, run],
   );
 
-  return <CtaContext.Provider value={value}>{children}</CtaContext.Provider>;
+  return (
+    <CtaContext.Provider value={value}>
+      {children}
+      {gate ? (
+        <AccountGateDialog kind={gate.kind} open={gate.open} onClose={() => setGate({ ...gate, open: false })} live={gateLive} />
+      ) : null}
+    </CtaContext.Provider>
+  );
 }
 
 export function useCourseCta(): CtaContextValue {

@@ -1,6 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { ToastProvider } from "@vitaminvui/ui/v2";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthState } from "@/lib/auth/AuthProvider";
+
+let pathname = "/";
+vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+const render = (ui: ReactElement) => rtlRender(<ToastProvider>{ui}</ToastProvider>);
 
 let authState: AuthState;
 vi.mock("@/lib/auth/AuthProvider", () => ({ useAuth: () => ({ state: authState, refresh: vi.fn() }) }));
@@ -21,16 +35,17 @@ const base = {
 describe("AccountBanner", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    pathname = "/";
     authState = { status: "user", user: base };
   });
 
   it("khách/đang tải → không hiện", () => {
     authState = { status: "guest" };
     const { rerender } = render(<AccountBanner />);
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cần xác thực tài khoản")).not.toBeInTheDocument();
     authState = { status: "loading" };
-    rerender(<AccountBanner />);
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    rerender(<ToastProvider><AccountBanner /></ToastProvider>);
+    expect(screen.queryByText("Cần xác thực tài khoản")).not.toBeInTheDocument();
   });
 
   it("chưa xác thực → banner + nút Xác thực ngay trỏ /xac-thuc-otp", () => {
@@ -49,11 +64,18 @@ describe("AccountBanner", () => {
   it("đã xác thực, không cờ → không hiện; có cờ verified → báo thành công và xoá cờ", () => {
     authState = { status: "user", user: { ...base, is_verified: true } };
     const { unmount } = render(<AccountBanner />);
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Xác thực tài khoản thành công")).not.toBeInTheDocument();
     unmount();
     sessionStorage.setItem("vv:account-flash", "verified");
     render(<AccountBanner />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Xác thực tài khoản thành công");
+    // Design-system-v2 §12.8: thành công báo bằng toast, không còn banner.
+    expect(screen.getByRole("status")).toHaveTextContent("Xác thực tài khoản thành công");
     expect(sessionStorage.getItem("vv:account-flash")).toBeNull();
+  });
+
+  it("không hiện ở /tai-khoan (trang đó tự có thông báo riêng)", () => {
+    pathname = "/tai-khoan";
+    render(<AccountBanner />);
+    expect(screen.queryByText("Cần xác thực tài khoản")).not.toBeInTheDocument();
   });
 });

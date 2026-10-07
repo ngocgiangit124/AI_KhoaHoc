@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/env";
 import { isBlockedPreview } from "@/lib/previewGate";
+import { CAPTCHA_PATHS as RAW_CAPTCHA_PATHS } from "@/lib/routes";
 
 /** Route có Turnstile — được thêm Cloudflare vào connect-src/frame-src (ADR-004 §2.6). */
-const CAPTCHA_PATHS = new Set(["/dang-ky"]);
+const CAPTCHA_PATHS = new Set(RAW_CAPTCHA_PATHS);
 
 /**
  * Proxy (đổi tên từ middleware ở Next.js 16 — xem node_modules/next/dist/docs/01-app/

@@ -63,10 +63,10 @@ async function fillRegister(page: Page, f: Fill) {
   await page.getByLabel("Họ và tên").fill(f.name ?? "Nguyễn Văn An");
   await page.getByLabel("Ngày sinh").fill(f.dob ?? dobYearsAgo(20));
   if (f.parentEmail) await page.getByLabel("Email phụ huynh").fill(f.parentEmail);
-  await page.getByLabel(/^Email\s*\*?$/).fill(f.email ?? u.email);
-  await page.getByLabel(/^Số điện thoại\s*\*?$/).fill(f.phone ?? u.phone);
+  await page.getByLabel(/^Email(?! phụ huynh)/).fill(f.email ?? u.email);
+  await page.getByLabel(/^Số điện thoại(?! phụ huynh)/).fill(f.phone ?? u.phone);
   await page.getByLabel("Lớp đang học").selectOption(f.grade ?? "9");
-  await page.getByLabel(/^Mật khẩu\s*\*?$/).fill(f.password ?? "matkhau-123");
+  await page.getByLabel(/^Mật khẩu/).fill(f.password ?? "matkhau-123");
   await page.getByLabel("Xác nhận mật khẩu").fill(f.confirm ?? f.password ?? "matkhau-123");
   if (f.terms !== false) await page.getByLabel(/Điều khoản sử dụng/).check();
   if (f.privacy !== false) await page.getByLabel(/Chính sách xử lý dữ liệu/).check();
@@ -122,10 +122,12 @@ test.describe("đăng ký", () => {
     await fillRegister(page, { email: first.email, phone: first.phone });
     await submitRegister(page);
 
-    await expect(page.getByText("Email đã được sử dụng.")).toBeVisible();
-    await expect(page.getByText("Số điện thoại đã được sử dụng.")).toBeVisible();
+    // Lỗi hiện dưới ô VÀ trong hộp tóm tắt đầu form (có liên kết tới ô): kiểm đúng dòng dưới ô.
+    await expect(page.getByText("Email đã được sử dụng.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Số điện thoại đã được sử dụng.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Email", exact: true })).toHaveAttribute("href", "#reg-email");
     await expect(page.getByLabel("Họ và tên")).toHaveValue("Nguyễn Văn An");
-    await expect(page.getByLabel(/^Mật khẩu\s*\*?$/)).toHaveValue("");
+    await expect(page.getByLabel(/^Mật khẩu/)).toHaveValue("");
     await expect(page).toHaveURL(/dang-ky/);
   });
 
@@ -179,7 +181,7 @@ test.describe("đăng nhập / đăng xuất", () => {
       const page = await ctx.newPage();
       await openPage(page, "/dang-nhap");
       await page.getByLabel("Email hoặc số điện thoại").fill(login);
-      await page.getByLabel(/^Mật khẩu\s*\*?$/).fill("matkhau-123");
+      await page.getByLabel(/^Mật khẩu/).fill("matkhau-123");
       await page.getByRole("button", { name: "Đăng nhập" }).click();
       await expect(page).toHaveURL(/\/$/);
       await ctx.close();
@@ -192,17 +194,17 @@ test.describe("đăng nhập / đăng xuất", () => {
     for (const login of [acct.email, "khongco-" + RUN + "@example.com"]) {
       await openPage(page, "/dang-nhap");
       await page.getByLabel("Email hoặc số điện thoại").fill(login);
-      await page.getByLabel(/^Mật khẩu\s*\*?$/).fill("sai-mat-khau-1");
+      await page.getByLabel(/^Mật khẩu/).fill("sai-mat-khau-1");
       await page.getByRole("button", { name: "Đăng nhập" }).click();
       await expect(page.getByText("Thông tin đăng nhập hoặc mật khẩu không đúng")).toBeVisible();
-      await expect(page.getByLabel(/^Mật khẩu\s*\*?$/)).toHaveValue("");
+      await expect(page.getByLabel(/^Mật khẩu/)).toHaveValue("");
     }
   });
 
   test("WRONG_PORTAL: tài khoản giáo viên đăng nhập ở cổng học sinh", async ({ page }) => {
     await openPage(page, "/dang-nhap");
     await page.getByLabel("Email hoặc số điện thoại").fill("teacher@vitaminvui.test");
-    await page.getByLabel(/^Mật khẩu\s*\*?$/).fill("password");
+    await page.getByLabel(/^Mật khẩu/).fill("password");
     await page.getByRole("button", { name: "Đăng nhập" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "không đăng nhập ở trang học sinh" })).toBeVisible();
     await expect(page).toHaveURL(/dang-nhap/);
@@ -215,7 +217,7 @@ test.describe("đăng nhập / đăng xuất", () => {
       const page = await ctx.newPage();
       await openPage(page, `/dang-nhap?next=${evil}`);
       await page.getByLabel("Email hoặc số điện thoại").fill(acct.email);
-      await page.getByLabel(/^Mật khẩu\s*\*?$/).fill("matkhau-123");
+      await page.getByLabel(/^Mật khẩu/).fill("matkhau-123");
       await page.getByRole("button", { name: "Đăng nhập" }).click();
       await page.waitForURL((u) => !u.pathname.startsWith("/dang-nhap"));
       expect(new URL(page.url()).origin).toBe(new URL(BASE).origin);
@@ -229,7 +231,7 @@ test.describe("đăng nhập / đăng xuất", () => {
     const page = await ctx.newPage();
     await openPage(page, "/dang-nhap?next=/dang-nhap%3Fx%3D1");
     await page.getByLabel("Email hoặc số điện thoại").fill(acct.email);
-    await page.getByLabel(/^Mật khẩu\s*\*?$/).fill("matkhau-123");
+    await page.getByLabel(/^Mật khẩu/).fill("matkhau-123");
     await page.getByRole("button", { name: "Đăng nhập" }).click();
     await expect(page).toHaveURL(/x=1/);
     await ctx.close();

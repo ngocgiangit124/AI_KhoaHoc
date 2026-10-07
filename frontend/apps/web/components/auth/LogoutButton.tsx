@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, useToast } from "@vitaminvui/ui/v2";
 import { logoutStudent } from "@/lib/auth/api";
+import { clearResetLogin } from "@/lib/auth/flash";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 
 /** Đăng xuất: POST /auth/logout rồi về /dang-nhap. Lỗi → giữ nguyên trang, báo bằng toast. */
@@ -16,6 +17,7 @@ export function LogoutButton({ block = false }: { block?: boolean }) {
     setPending(true);
     try {
       await logoutStudent();
+      clearResetLogin();
       router.replace("/dang-nhap");
       router.refresh();
     } catch (err) {

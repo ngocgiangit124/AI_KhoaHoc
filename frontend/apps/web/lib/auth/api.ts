@@ -169,6 +169,70 @@ export async function updateContact(payload: ContactPayload): Promise<{ resendAv
   return { resendAvailableAt: readResendAvailableAt(raw) };
 }
 
+export interface ForgotPasswordResult {
+  /** Thông điệp chung của server ("Nếu thông tin tồn tại, chúng tôi đã gửi mã xác nhận đến email của bạn."). */
+  message: string | null;
+  resendAvailableAt: string | null;
+}
+
+/**
+ * `POST /auth/password/forgot` -> 202 `{ message, resend_available_at }`. Luôn giống nhau dù tài khoản có tồn tại hay không
+ * (US-015 AC1). Cần `captcha_token` khi đã cấu hình Turnstile. Học sinh đang đăng nhập gọi -> 403.
+ */
+export async function forgotPassword(input: { login: string; captchaToken: string | null }): Promise<ForgotPasswordResult> {
+  const raw = await authFetch<unknown>("/api/v1/auth/password/forgot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      login: input.login.trim(),
+      ...(input.captchaToken ? { captcha_token: input.captchaToken } : {}),
+    }),
+  });
+  const message =
+    typeof raw === "object" && raw !== null && "message" in raw && typeof (raw as { message: unknown }).message === "string"
+      ? (raw as { message: string }).message
+      : null;
+  return { message, resendAvailableAt: readResendAvailableAt(raw) };
+}
+
+export interface ResetPasswordInput {
+  login: string;
+  code: string;
+  password: string;
+  password_confirmation: string;
+}
+
+/** `POST /auth/password/reset` -> 200. Không tự đăng nhập; mọi phiên của tài khoản bị huỷ (US-015 AC2). */
+export async function resetPassword(input: ResetPasswordInput): Promise<void> {
+  await authFetch<unknown>("/api/v1/auth/password/reset", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...input, login: input.login.trim() }),
+  });
+  resetCsrf();
+}
+
+export interface ChangePasswordInput {
+  current_password: string;
+  password: string;
+  password_confirmation: string;
+}
+
+/**
+ * `PUT /auth/password` -> 200 `{ message, session_kept }`. `session_kept=false` nghĩa là server không bind lại được phiên hiện tại:
+ * gọi `/auth/me` để biết còn đăng nhập hay không (401 -> về đăng nhập).
+ */
+export async function changePassword(input: ChangePasswordInput): Promise<{ sessionKept: boolean }> {
+  const raw = await authFetch<unknown>("/api/v1/auth/password", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  resetCsrf(); // cookie phiên được xoay -> CSRF token cũ gắn với phiên cũ
+  const kept = typeof raw === "object" && raw !== null && "session_kept" in raw ? (raw as { session_kept: unknown }).session_kept : true;
+  return { sessionKept: kept !== false };
+}
+
 function readResendAvailableAt(raw: unknown): string | null {
   if (typeof raw === "object" && raw !== null && "resend_available_at" in raw) {
     const v = (raw as { resend_available_at: unknown }).resend_available_at;
@@ -183,8 +247,8 @@ export type MeResult = { kind: "user"; user: AuthUser } | { kind: "guest" } | { 
 /**
  * Hỏi `GET /auth/me`. Dùng `fetch` thẳng (không qua authFetch) vì 401 `UNAUTHENTICATED` ở đây là
  * trạng thái KHÁCH bình thường — không được phát `login-required` (sẽ đá khách khỏi trang công
- * khai). Riêng 401 `SESSION_REPLACED` (ADR-003) thì phát sự kiện `forced-logout` để overlay phiên
- * ở layout gốc chặn màn hình. Response 200 sai shape → `error`.
+ * khai). Riêng 401 `SESSION_REPLACED` (ADR-003) và `SESSION_REVOKED` thì phát sự kiện để hộp thoại phiên
+ * (`SessionEndedGate`, layout gốc) báo lý do. Response 200 sai shape → `error`.
  */
 export async function fetchCurrentUser(signal?: AbortSignal): Promise<MeResult> {
   try {
@@ -197,7 +261,8 @@ export async function fetchCurrentUser(signal?: AbortSignal): Promise<MeResult> 
     if (res.status === 401) {
       const body: unknown = await res.json().catch(() => null);
       const code = typeof body === "object" && body !== null && "code" in body ? (body as { code: unknown }).code : null;
-      if (code === "SESSION_REPLACED") dispatchAuthEventIfNeeded("SESSION_REPLACED");
+      // REPLACED/REVOKED: người dùng cần được báo lý do (hộp thoại `SessionEndedGate`), không im lặng thành khách.
+      if (code === "SESSION_REPLACED" || code === "SESSION_REVOKED") dispatchAuthEventIfNeeded(code);
       return { kind: "guest" };
     }
     if (!res.ok) return { kind: "error" };

@@ -49,19 +49,22 @@ async function login(page: Page, email: string, next?: string) {
   await page.goto(next ? `/dang-nhap?next=${encodeURIComponent(next)}` : "/dang-nhap");
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Email hoặc số điện thoại").fill(email);
-  await page.getByLabel(/^Mật khẩu\s*\*?$/).fill(PASSWORD);
+  await page.getByLabel(/^Mật khẩu/).fill(PASSWORD);
   await page.getByRole("button", { name: "Đăng nhập" }).click();
 }
 
+/** OtpInput v2: MỘT ô nhập thật có nhãn "Mã xác nhận" (vẽ thành 6 ô); nhập đủ 6 số là tự gửi. */
+const codeBox = (page: Page) => page.getByLabel(/Mã xác nhận/);
+
 async function typeCode(page: Page, code: string) {
-  await page.getByLabel(/chữ số 1 trên 6/).click();
+  await codeBox(page).click();
   await page.keyboard.type(code);
 }
 
 async function openOtp(page: Page) {
   await page.goto("/xac-thuc-otp");
   await expect(page.getByRole("heading", { name: "Xác thực tài khoản" })).toBeVisible();
-  await expect(page.getByLabel(/chữ số 1 trên 6/)).toBeVisible({ timeout: 15_000 });
+  await expect(codeBox(page)).toBeVisible({ timeout: 15_000 });
 }
 
 /** Seed user đăng nhập + gửi mã (bấm "Gửi lại mã") rồi trả mã. */
@@ -87,10 +90,10 @@ test.describe("OTP e2e", () => {
     await page.waitForTimeout(500);
     await page.getByLabel("Họ và tên").fill("Trần Thị Ánh Tuyết");
     await page.getByLabel("Ngày sinh").fill("2000-01-01");
-    await page.getByLabel(/^Email\s*\*?$/).fill(email);
-    await page.getByLabel(/^Số điện thoại\s*\*?$/).fill(`09${String(Date.now()).slice(-8)}`);
+    await page.getByLabel(/^Email(?! phụ huynh)/).fill(email);
+    await page.getByLabel(/^Số điện thoại(?! phụ huynh)/).fill(`09${String(Date.now()).slice(-8)}`);
     await page.getByLabel("Lớp đang học").selectOption("9");
-    await page.getByLabel(/^Mật khẩu\s*\*?$/).fill(PASSWORD);
+    await page.getByLabel(/^Mật khẩu/).fill(PASSWORD);
     await page.getByLabel("Xác nhận mật khẩu").fill(PASSWORD);
     await page.getByLabel(/Điều khoản sử dụng/).check();
     await page.getByLabel(/Chính sách xử lý dữ liệu/).check();
@@ -107,7 +110,7 @@ test.describe("OTP e2e", () => {
     await expect(page).toHaveURL(/xac-thuc-otp/);
     // Vừa đăng ký: cooldown chạy từ lúc server gửi mã.
     await expect(page.getByRole("button", { name: /Gửi lại mã sau/ })).toBeDisabled();
-    await expect(page.getByText(/Mã có hiệu lực trong 10 phút/)).toBeVisible();
+    await expect(page.getByText(/có hiệu lực 10 phút/)).toBeVisible();
 
     await typeCode(page, code); // tự submit khi đủ 6 số
     await expect(page).toHaveURL(/\/$/);
@@ -128,9 +131,9 @@ test.describe("OTP e2e", () => {
     const code = await loginAndRequestCode(page, 1);
     const wrong = code === "000000" ? "111111" : "000000";
     await typeCode(page, wrong);
-    await expect(page.getByRole("alert").filter({ hasText: /không đúng/ })).toBeVisible();
-    for (let i = 1; i <= 6; i++) await expect(page.getByLabel(new RegExp(`chữ số ${i} trên 6`))).toHaveValue("");
-    await expect(page.getByLabel(/chữ số 1 trên 6/)).toBeFocused();
+    await expect(page.getByText("Mã OTP không đúng, vui lòng thử lại.")).toBeVisible();
+    await expect(codeBox(page)).toHaveValue("");
+    await expect(codeBox(page)).toBeFocused();
     await expect(page).toHaveURL(/xac-thuc-otp/);
 
     await typeCode(page, code);
@@ -145,11 +148,14 @@ test.describe("OTP e2e", () => {
     const wrong = code === "000000" ? "111111" : "000000";
     for (let i = 0; i < 5; i++) {
       await typeCode(page, wrong);
-      await expect(page.getByRole("alert").filter({ hasText: /không đúng/ })).toBeVisible();
-      await page.getByLabel(/chữ số 1 trên 6/).click();
+      await expect(page.getByText("Mã OTP không đúng, vui lòng thử lại.")).toBeVisible();
+      await codeBox(page).click();
     }
     await typeCode(page, code);
-    await expect(page.getByRole("alert").filter({ hasText: /Gửi lại mã/ })).toBeVisible();
+    // Lần thứ 6 trong phút: throttle `otp-verify` (429 + Retry-After) -> Alert cảnh báo, khoá ô mã và nút Xác nhận;
+    // hoặc mã hết lượt (429 không Retry-After) -> "sai mã này 5 lần", "Gửi lại mã" thành nút chính. Cả hai chặn mã đúng.
+    await expect(page.getByText("Bạn đã thử quá nhiều lần").or(page.getByText(/sai mã này 5 lần/))).toBeVisible();
+    await expect(codeBox(page)).toBeDisabled();
     await expect(page).toHaveURL(/xac-thuc-otp/);
 
     // Chờ hết cooldown 60s rồi xin mã mới
@@ -158,6 +164,7 @@ test.describe("OTP e2e", () => {
     await expect(resend).toBeEnabled({ timeout: 90_000 });
     await resend.click();
     const fresh = await waitForCode(email, before);
+    await expect(codeBox(page)).toBeEnabled({ timeout: 90_000 }); // ô mở lại khi hết Retry-After / sau khi gửi mã mới
     await typeCode(page, fresh);
     await expect(page).toHaveURL(/\/$/);
   });
@@ -166,49 +173,53 @@ test.describe("OTP e2e", () => {
     await loginAndRequestCode(page, 3);
     const cooling = page.getByRole("button", { name: /Gửi lại mã sau/ });
     await expect(cooling).toBeDisabled();
-    await expect(cooling).toContainText(/\d{2}:\d{2}/);
+    await expect(cooling).toContainText(/\d+:\d{2}/);
   });
 
   test("gửi lại khi còn cooldown (sau F5, UI không biết) -> 429, UI báo lỗi và phải bật đếm ngược theo Retry-After", async ({ page }) => {
     // BUG-2: backend không expose `Retry-After` qua CORS nên trình duyệt không đọc được header -> không có đếm ngược.
     await loginAndRequestCode(page, 11);
     await page.reload();
-    await expect(page.getByLabel(/chữ số 1 trên 6/)).toBeVisible({ timeout: 15_000 });
+    await expect(codeBox(page)).toBeVisible({ timeout: 15_000 });
     await page.getByRole("button", { name: /^Gửi lại mã/ }).click();
     await expect(page.getByRole("alert").first()).toContainText(/quá nhanh/);
     await expect(page.getByRole("button", { name: /Gửi lại mã sau/ })).toBeDisabled({ timeout: 3_000 });
   });
 
-  test("đổi email trùng -> lỗi dưới field; đổi email mới -> mã mới tới email mới, mã cũ không dùng được", async ({ page }) => {
+  test("đổi email ở Tài khoản: trùng -> lỗi dưới ô; email mới -> mã mới tới email mới, mã cũ không dùng được", async ({ page }) => {
     const oldCode = await loginAndRequestCode(page, 4);
-    await page.getByRole("button", { name: "Đổi email/SĐT" }).click();
+    await page.getByRole("link", { name: "Đổi email" }).click();
+    await expect(page).toHaveURL(/tai-khoan#doi-lien-he/);
 
     // trùng với tài khoản khác (user seed số 5)
-    await page.getByLabel("Email", { exact: true }).fill(seeded(5));
-    await page.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
-    await page.getByRole("button", { name: "Lưu và gửi mã mới" }).click();
+    const contact = page.locator("#doi-lien-he"); // trang có hai ô "Mật khẩu hiện tại" (đổi liên hệ, đổi mật khẩu)
+    await contact.getByLabel("Email", { exact: true }).fill(seeded(5));
+    await contact.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
+    await contact.getByRole("button", { name: "Lưu thay đổi" }).click();
     await expect(page.getByText("Email đã được sử dụng.")).toBeVisible();
 
     const newEmail = `otp-e2e-4-moi-${Date.now().toString(36)}@example.com`;
-    await page.getByLabel("Email", { exact: true }).fill(newEmail);
-    await page.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
-    await page.getByRole("button", { name: "Lưu và gửi mã mới" }).click();
-    await expect(page.getByText("Đã cập nhật thông tin liên hệ và gửi mã xác thực mới")).toBeVisible();
+    await contact.getByLabel("Email", { exact: true }).fill(newEmail);
+    await contact.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
+    await contact.getByRole("button", { name: "Lưu thay đổi" }).click();
+    await expect(page.getByText(/Mã xác thực đã gửi tới email mới\./)).toBeVisible();
     const newCode = await waitForCode(newEmail);
 
+    await page.getByRole("link", { name: "Xác thực ngay" }).click();
+    await expect(codeBox(page)).toBeVisible({ timeout: 15_000 });
     await typeCode(page, oldCode);
-    await expect(page.getByRole("alert").filter({ hasText: /không đúng/ })).toBeVisible();
+    await expect(page.getByText("Mã OTP không đúng, vui lòng thử lại.")).toBeVisible();
     await typeCode(page, newCode);
     await expect(page).toHaveURL(/\/$/);
   });
 
   test("F5 giữa chừng: vẫn đăng nhập, ở lại trang OTP, ô trống; mã đã gửi vẫn dùng được", async ({ page }) => {
     const code = await loginAndRequestCode(page, 6);
-    await page.getByLabel(/chữ số 1 trên 6/).click();
+    await codeBox(page).click();
     await page.keyboard.type(code.slice(0, 3));
     await page.reload();
     await expect(page).toHaveURL(/xac-thuc-otp/);
-    await expect(page.getByLabel(/chữ số 1 trên 6/)).toHaveValue("", { timeout: 15_000 });
+    await expect(codeBox(page)).toHaveValue("", { timeout: 15_000 });
     await typeCode(page, code);
     await expect(page).toHaveURL(/\/$/);
   });
@@ -222,7 +233,7 @@ test.describe("OTP e2e", () => {
     await page.goto("/xac-thuc-otp");
     await expect(page).toHaveURL(/dang-nhap\?next=(%2F|\/)xac-thuc-otp/);
     await page.getByLabel("Email hoặc số điện thoại").fill(seeded(7));
-    await page.getByLabel(/^Mật khẩu\s*\*?$/).fill(PASSWORD);
+    await page.getByLabel(/^Mật khẩu/).fill(PASSWORD);
     await page.getByRole("button", { name: "Đăng nhập" }).click();
     await expect(page).toHaveURL(/xac-thuc-otp/);
     await expect(page.getByRole("heading", { name: "Xác thực tài khoản" })).toBeVisible();
@@ -239,17 +250,16 @@ test.describe("OTP e2e", () => {
 
     await openOtp(page);
     expect(await overflow()).toBeLessThanOrEqual(0);
-    for (let i = 1; i <= 6; i++) {
-      const box = await page.getByLabel(new RegExp(`chữ số ${i} trên 6`)).boundingBox();
-      expect(box).not.toBeNull();
-      expect(box!.x).toBeGreaterThanOrEqual(0);
-      expect(box!.x + box!.width).toBeLessThanOrEqual(375);
-      expect(box!.width).toBeGreaterThanOrEqual(40);
-    }
+    // Ô mã vẽ thành 6 ô: cả khối phải nằm gọn trong màn 375px.
+    const box = await codeBox(page).boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(375);
+    expect(box!.width / 6).toBeGreaterThanOrEqual(40);
     await page.screenshot({ path: "test-results/otp-375.png", fullPage: true });
 
-    await page.getByRole("button", { name: "Đổi email/SĐT" }).click();
-    await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Đổi email" }).click();
+    await expect(page.locator("#doi-lien-he").getByLabel("Email", { exact: true })).toBeVisible({ timeout: 15_000 });
     expect(await overflow()).toBeLessThanOrEqual(0);
     await page.screenshot({ path: "test-results/otp-contact-375.png", fullPage: true });
     await ctx.close();
@@ -265,17 +275,19 @@ test.describe("OTP e2e", () => {
     await expect(page).toHaveURL(/xac-thuc-otp/);
     fail = false;
     await page.getByRole("button", { name: "Thử lại" }).click();
-    await expect(page.getByLabel(/chữ số 1 trên 6/)).toBeVisible();
+    await expect(codeBox(page)).toBeVisible();
   });
 
   test("đổi chỉ SĐT (production chỉ email): không báo đã gửi mã mới, mã email cũ vẫn dùng được (R1)", async ({ page }) => {
     const code = await loginAndRequestCode(page, 10);
-    await page.getByRole("button", { name: "Đổi email/SĐT" }).click();
-    await page.getByLabel("Số điện thoại").fill("0966123456");
-    await page.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
-    await page.getByRole("button", { name: "Lưu và gửi mã mới" }).click();
+    await page.getByRole("link", { name: "Đổi email" }).click();
+    const contact = page.locator("#doi-lien-he");
+    await contact.getByLabel("Số điện thoại", { exact: true }).fill("0966123456");
+    await contact.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
+    await contact.getByRole("button", { name: "Lưu thay đổi" }).click();
     await expect(page.getByText("Đã cập nhật thông tin liên hệ.", { exact: true })).toBeVisible();
-    await expect(page.getByText(/gửi mã xác thực mới/)).toHaveCount(0);
+    await expect(page.getByText(/Mã xác thực đã gửi tới email mới/)).toHaveCount(0);
+    await openOtp(page);
     await typeCode(page, code);
     await expect(page).toHaveURL(/\/$/);
   });

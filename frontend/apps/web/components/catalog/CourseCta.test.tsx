@@ -17,6 +17,8 @@ vi.mock("next/link", () => ({
 const authFetch = vi.fn();
 vi.mock("@/lib/api", () => ({ authFetch: (...a: unknown[]) => authFetch(...a) }));
 
+vi.mock("@/lib/auth/api", () => ({ sendOtp: vi.fn().mockResolvedValue({ resendAvailableAt: null }) }));
+
 let authState: AuthState;
 const refreshAuth = vi.fn();
 vi.mock("@/lib/auth/AuthProvider", () => ({ useAuth: () => ({ state: authState, refresh: refreshAuth }) }));
@@ -53,6 +55,16 @@ function viewerState(state: string, resume: number | null = null) {
     return Promise.reject(new Error(`không mong đợi: ${path}`));
   });
 }
+
+// jsdom chưa có <dialog>.showModal.
+const showModal = vi.fn();
+HTMLDialogElement.prototype.showModal = function showModalStub(this: HTMLDialogElement) {
+  showModal();
+  this.setAttribute("open", "");
+};
+HTMLDialogElement.prototype.close = function closeStub(this: HTMLDialogElement) {
+  this.removeAttribute("open");
+};
 
 describe("CourseCta", () => {
   beforeEach(() => {
@@ -137,10 +149,28 @@ describe("CourseCta", () => {
       expect(screen.queryByRole("button", { name: "Đăng ký học miễn phí" })).not.toBeInTheDocument();
     });
 
-    it("403 ACCOUNT_NOT_VERIFIED -> dẫn sang /xac-thuc-otp", async () => {
+    it("403 ACCOUNT_NOT_VERIFIED -> mở hộp thoại 'Xác thực email để tiếp tục' tại chỗ (không rời trang khóa học)", async () => {
       setup(new ApiError(403, { message: "x", code: "ACCOUNT_NOT_VERIFIED" }));
       await userEvent.click(await screen.findByRole("button", { name: "Đăng ký học miễn phí" }));
+      expect(await screen.findByText("Xác thực email để tiếp tục")).toBeInTheDocument();
+      expect(showModal).toHaveBeenCalled();
+      expect(push).not.toHaveBeenCalled();
+      expect(screen.getByRole("link", { name: "Tôi đã có mã" })).toHaveAttribute("href", "/xac-thuc-otp");
+      expect(screen.getByText(/a\*+@example\.com/)).toBeInTheDocument();
+    });
+
+    it("hộp thoại: 'Gửi mã xác nhận' gọi POST otp/send rồi sang /xac-thuc-otp", async () => {
+      setup(new ApiError(403, { message: "x", code: "ACCOUNT_NOT_VERIFIED" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Đăng ký học miễn phí" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Gửi mã xác nhận" }));
       await waitFor(() => expect(push).toHaveBeenCalledWith("/xac-thuc-otp"));
+    });
+
+    it("403 PARENT_CONSENT_REQUIRED -> hộp thoại chờ phụ huynh; email phụ huynh chưa có API nên nút gửi lại bị khoá", async () => {
+      setup(new ApiError(403, { message: "x", code: "PARENT_CONSENT_REQUIRED" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Đăng ký học miễn phí" }));
+      expect(await screen.findByText("Đang chờ phụ huynh xác nhận")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Gửi lại email cho phụ huynh" })).toBeDisabled();
     });
 
     it("409 ENROLLMENT_PENDING -> Đang chờ duyệt", async () => {

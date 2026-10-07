@@ -1,17 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { ToastProvider, UiLinkProvider, type UiLinkProps } from "@vitaminvui/ui/v2";
-
-function NextUiLink({ href, ...rest }: UiLinkProps) {
-  return <Link href={href} {...rest} />;
-}
+import { ToastProvider, UiLinkProvider } from "@vitaminvui/ui/v2";
+import { AppLink } from "@/components/shell/AppLink";
 
 /** Provider dùng chung cho mọi trang: liên kết của packages/ui dùng `next/link`; toast v2. */
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
-    <UiLinkProvider component={NextUiLink}>
+    <UiLinkProvider component={AppLink}>
       <ToastProvider bottomOffsetClass="bottom-24 lg:bottom-6">{children}</ToastProvider>
     </UiLinkProvider>
   );

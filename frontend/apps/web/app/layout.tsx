@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Be_Vietnam_Pro, Mali } from "next/font/google";
-import { ForcedLogoutOverlay } from "@vitaminvui/ui";
 import { AppProviders } from "@/components/providers/AppProviders";
+import { SessionEndedGate } from "@/components/shell/SessionEndedGate";
 import { env } from "@/env";
 import "./globals.css";
 
@@ -37,8 +37,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col bg-paper font-sans text-base text-ink">
         <AppProviders>
           {children}
-          {/* Gắn 1 lần ở layout gốc — lắng sự kiện forced-logout/login-required (US-014). */}
-          <ForcedLogoutOverlay loginHref="/dang-nhap" />
+          {/* Gắn 1 lần ở layout gốc — lắng sự kiện forced-logout/login-required (US-014): hộp thoại báo lý do phiên kết thúc. */}
+          <SessionEndedGate />
         </AppProviders>
       </body>
     </html>

@@ -10,11 +10,16 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, refresh: refres
 
 const verifyOtp = vi.fn();
 const sendOtp = vi.fn();
-const updateContact = vi.fn();
 vi.mock("@/lib/auth/api", () => ({
   verifyOtp: (...a: unknown[]) => verifyOtp(...a),
   sendOtp: (...a: unknown[]) => sendOtp(...a),
-  updateContact: (...a: unknown[]) => updateContact(...a),
+}));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 
 let authState: AuthState;
@@ -36,8 +41,11 @@ const user = {
 
 const props = { ttlMinutes: 10, resendCooldownSeconds: 60 };
 
+/** OtpInput v2 là MỘT ô nhập thật (nhãn "Mã xác nhận"), vẽ thành 6 ô. */
+const codeInput = () => screen.getByLabelText(/Mã xác nhận/) as HTMLInputElement;
+
 async function typeCode(u: ReturnType<typeof userEvent.setup>, code: string) {
-  await u.click(screen.getAllByRole("textbox")[0]!);
+  await u.click(codeInput());
   await u.keyboard(code);
 }
 
@@ -60,10 +68,12 @@ describe("OtpVerifyForm", () => {
     expect(replace).toHaveBeenCalledWith("/");
   });
 
-  it("hiện email đã che và thời hạn mã", () => {
+  it("hiện email đã che, thời hạn mã, lối thoát Đổi email (tới Tài khoản) và Để sau", () => {
     render(<OtpVerifyForm {...props} />);
     expect(screen.getByText("n******@gmail.com")).toBeInTheDocument();
-    expect(screen.getByText(/hiệu lực trong 10 phút/)).toBeInTheDocument();
+    expect(screen.getByText(/có hiệu lực 10 phút/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Đổi email" })).toHaveAttribute("href", "/tai-khoan#doi-lien-he");
+    expect(screen.getByRole("link", { name: "Để sau" })).toHaveAttribute("href", "/");
   });
 
   it("nhập đủ 6 số → gọi verify, ghi cờ và về /", async () => {
@@ -76,26 +86,69 @@ describe("OtpVerifyForm", () => {
     expect(sessionStorage.getItem("vv:account-flash")).toBe("verified");
   });
 
-  it("422 → hiện lỗi của server, xoá ô nhập, không chuyển trang", async () => {
-    verifyOtp.mockRejectedValue(new ApiError(422, { message: "x", errors: { code: ["Mã OTP đã hết hạn."] } }));
+  it("OTP_INVALID → lỗi dưới ô, xoá mã, vẫn còn nút Xác nhận và ô nhập dùng được", async () => {
+    verifyOtp.mockRejectedValue(new ApiError(422, { message: "x", code: "OTP_INVALID" }));
     const u = userEvent.setup();
     render(<OtpVerifyForm {...props} />);
     await typeCode(u, "123456");
-    expect(await screen.findByText("Mã OTP đã hết hạn.")).toBeInTheDocument();
-    expect((screen.getAllByRole("textbox")[0] as HTMLInputElement).value).toBe("");
+    expect(await screen.findByText("Mã OTP không đúng, vui lòng thử lại.")).toBeInTheDocument();
+    expect(codeInput().value).toBe("");
+    expect(codeInput()).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Xác nhận" })).toBeEnabled();
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it("gửi lại mã: nút khoá và đếm ngược theo resend_available_at", async () => {
+  it("OTP_EXPIRED → khoá ô mã, ẩn Xác nhận, Gửi lại mã thành nút chính", async () => {
+    verifyOtp.mockRejectedValue(new ApiError(422, { message: "x", code: "OTP_EXPIRED", errors: { code: ["Mã OTP đã hết hạn. Vui lòng gửi lại mã."] } }));
+    const u = userEvent.setup();
+    render(<OtpVerifyForm {...props} />);
+    await typeCode(u, "123456");
+    expect(await screen.findByText("Mã OTP đã hết hạn. Vui lòng gửi lại mã.")).toBeInTheDocument();
+    expect(codeInput()).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Xác nhận" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gửi lại mã" })).toBeEnabled();
+  });
+
+  it("429 của mã (sai 5 lần, không Retry-After) → như hết hạn, nói rõ sai 5 lần", async () => {
+    verifyOtp.mockRejectedValue(new ApiError(429, { message: "Nhập sai quá nhiều lần.", code: "TOO_MANY_ATTEMPTS" }));
+    const u = userEvent.setup();
+    render(<OtpVerifyForm {...props} />);
+    await typeCode(u, "123456");
+    expect(await screen.findByText(/sai mã này 5 lần/)).toBeInTheDocument();
+    expect(codeInput()).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Xác nhận" })).not.toBeInTheDocument();
+  });
+
+  it("429 throttle (có Retry-After) → Alert cảnh báo, khoá ô và nút Xác nhận", async () => {
+    verifyOtp.mockRejectedValue(new ApiError(429, { message: "Bạn thao tác quá nhanh.", code: "TOO_MANY_ATTEMPTS" }, 720));
+    const u = userEvent.setup();
+    render(<OtpVerifyForm {...props} />);
+    await typeCode(u, "123456");
+    expect(await screen.findByText("Bạn đã thử quá nhiều lần")).toBeInTheDocument();
+    expect(screen.getByText(/thử lại sau 12 phút/)).toBeInTheDocument();
+    expect(codeInput()).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Xác nhận" })).toBeDisabled();
+  });
+
+  it("lỗi lạ (5xx) khi verify → Alert chung, vẫn nhập lại được", async () => {
+    verifyOtp.mockRejectedValue(new ApiError(500, { message: "Lỗi hệ thống" }));
+    const u = userEvent.setup();
+    render(<OtpVerifyForm {...props} />);
+    await typeCode(u, "123456");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Lỗi hệ thống");
+    expect(codeInput()).not.toBeDisabled();
+  });
+
+  it("gửi lại mã: nút khoá và đếm ngược theo resend_available_at, báo đã gửi tới email đã che", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       sendOtp.mockResolvedValue({ resendAvailableAt: new Date(Date.now() + 60_000).toISOString() });
       const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       render(<OtpVerifyForm {...props} />);
       await u.click(screen.getByRole("button", { name: "Gửi lại mã" }));
-      const btn = await screen.findByRole("button", { name: /Gửi lại mã sau 01:00/ });
+      const btn = await screen.findByRole("button", { name: /Gửi lại mã sau 1:00/ });
       expect(btn).toBeDisabled();
-      expect(screen.getByText(/Đã gửi mã mới/)).toBeInTheDocument();
+      expect(screen.getByText(/Đã gửi mã mới tới n\*+@gmail\.com/)).toBeInTheDocument();
       await act(async () => {
         vi.advanceTimersByTime(61_000);
       });
@@ -105,72 +158,42 @@ describe("OtpVerifyForm", () => {
     }
   });
 
-  it("gửi lại bị chặn (429) → hiện thông điệp server", async () => {
+  it("sau OTP_EXPIRED, gửi lại thành công → mở lại ô mã, ẩn lỗi, có nút Xác nhận", async () => {
+    verifyOtp.mockRejectedValue(new ApiError(422, { message: "x", code: "OTP_EXPIRED" }));
+    sendOtp.mockResolvedValue({ resendAvailableAt: new Date(Date.now() + 60_000).toISOString() });
+    const u = userEvent.setup();
+    render(<OtpVerifyForm {...props} />);
+    await typeCode(u, "123456");
+    await u.click(await screen.findByRole("button", { name: "Gửi lại mã" }));
+    expect(await screen.findByRole("button", { name: "Xác nhận" })).toBeInTheDocument();
+    expect(codeInput()).not.toBeDisabled();
+    expect(screen.queryByText(/đã hết hạn/)).not.toBeInTheDocument();
+  });
+
+  it("gửi lại bị chặn (429, không có thời gian chờ ngắn) → khoá nút kèm thông điệp server", async () => {
     sendOtp.mockRejectedValue(new ApiError(429, { message: "Bạn đã gửi quá nhiều mã hôm nay." }));
     const u = userEvent.setup();
     render(<OtpVerifyForm {...props} />);
     await u.click(screen.getByRole("button", { name: "Gửi lại mã" }));
     expect(await screen.findByText("Bạn đã gửi quá nhiều mã hôm nay.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gửi lại mã" })).toBeDisabled();
   });
 
-  it("đổi liên hệ: chỉ gửi field đổi, rồi làm mới user và quay lại màn nhập mã", async () => {
-    updateContact.mockResolvedValue({ resendAvailableAt: new Date(Date.now() + 60_000).toISOString() });
-    refreshAuth.mockResolvedValue(authState);
+  it("429 khi gửi lại có Retry-After ngắn → đếm ngược theo đó", async () => {
+    sendOtp.mockRejectedValue(new ApiError(429, { message: "Chờ chút." }, 42));
     const u = userEvent.setup();
     render(<OtpVerifyForm {...props} />);
-    await u.click(screen.getByRole("button", { name: "Đổi email/SĐT" }));
-    const email = screen.getByLabelText(/^Email/);
-    await u.clear(email);
-    await u.type(email, "moi@example.com");
-    await u.type(screen.getByLabelText(/^Mật khẩu hiện tại/), "matkhau-123");
-    await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
-    await waitFor(() => expect(updateContact).toHaveBeenCalledWith({ email: "moi@example.com", current_password: "matkhau-123" }));
-    expect(refreshAuth).toHaveBeenCalled();
-    expect(await screen.findByText(/gửi mã xác thực mới/)).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Gửi lại mã" }));
+    expect(await screen.findByRole("button", { name: /Gửi lại mã sau 0:4[12]/ })).toBeDisabled();
   });
 
-  it("đổi liên hệ: 422 hiện lỗi dưới field email", async () => {
-    updateContact.mockRejectedValue(new ApiError(422, { message: "x", errors: { email: ["Email đã được sử dụng"] } }));
+  it("503 OTP_DELIVERY_FAILED khi gửi lại → Alert 'Chưa gửi được mã', gửi lại được ngay", async () => {
+    sendOtp.mockRejectedValue(new ApiError(503, { message: "x", code: "OTP_DELIVERY_FAILED" }));
     const u = userEvent.setup();
     render(<OtpVerifyForm {...props} />);
-    await u.click(screen.getByRole("button", { name: "Đổi email/SĐT" }));
-    const email = screen.getByLabelText(/^Email/);
-    await u.clear(email);
-    await u.type(email, "trung@example.com");
-    await u.type(screen.getByLabelText(/^Mật khẩu hiện tại/), "matkhau-123");
-    await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
-    expect(await screen.findByText("Email đã được sử dụng")).toBeInTheDocument();
-  });
-
-  it("đổi liên hệ: thiếu mật khẩu hiện tại -> lỗi tại ô, không gọi API", async () => {
-    const u = userEvent.setup();
-    render(<OtpVerifyForm {...props} />);
-    await u.click(screen.getByRole("button", { name: "Đổi email/SĐT" }));
-    const email = screen.getByLabelText(/^Email/);
-    await u.clear(email);
-    await u.type(email, "moi@example.com");
-    await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
-    expect(await screen.findByText("Vui lòng nhập mật khẩu hiện tại để xác nhận thay đổi.")).toBeInTheDocument();
-    expect(updateContact).not.toHaveBeenCalled();
-  });
-
-  it("đổi liên hệ: 422 current_password -> lỗi dưới ô mật khẩu và xoá ô; 429 -> thông báo chờ", async () => {
-    updateContact.mockRejectedValueOnce(new ApiError(422, { message: "x", errors: { current_password: ["Mật khẩu hiện tại không đúng."] } }));
-    const u = userEvent.setup();
-    render(<OtpVerifyForm {...props} />);
-    await u.click(screen.getByRole("button", { name: "Đổi email/SĐT" }));
-    const email = screen.getByLabelText(/^Email/);
-    await u.clear(email);
-    await u.type(email, "moi@example.com");
-    const pw = screen.getByLabelText(/^Mật khẩu hiện tại/);
-    await u.type(pw, "sai-roi-1234");
-    await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
-    expect(await screen.findByText("Mật khẩu hiện tại không đúng.")).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Mật khẩu hiện tại/)).toHaveValue("");
-    updateContact.mockRejectedValueOnce(new ApiError(429, { message: "x" }, 120));
-    await u.type(screen.getByLabelText(/^Mật khẩu hiện tại/), "lai-sai-1234");
-    await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
-    expect(await screen.findByText(/sai mật khẩu quá nhiều lần.*2 phút/)).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Gửi lại mã" }));
+    expect(await screen.findByText("Chưa gửi được mã")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gửi lại mã" })).toBeEnabled();
   });
 
   it("/auth/me lỗi tạm thời → nút Thử lại, KHÔNG chuyển sang đăng nhập", async () => {
@@ -182,55 +205,26 @@ describe("OtpVerifyForm", () => {
     expect(refreshAuth).toHaveBeenCalled();
   });
 
-  it("429 khi gửi lại có Retry-After → đếm ngược theo đó", async () => {
-    sendOtp.mockRejectedValue(new ApiError(429, { message: "Chờ chút." }, 42));
-    const u = userEvent.setup();
-    render(<OtpVerifyForm {...props} />);
-    await u.click(screen.getByRole("button", { name: "Gửi lại mã" }));
-    expect(await screen.findByRole("button", { name: /Gửi lại mã sau 00:4[12]/ })).toBeDisabled();
-  });
-
   it("vào ngay sau đăng ký → nút Gửi lại mã bắt đầu bị khoá theo cooldown config", () => {
     sessionStorage.setItem("vv:otp-sent-at", String(Date.now() - 10_000));
     render(<OtpVerifyForm {...props} />);
-    expect(screen.getByRole("button", { name: /Gửi lại mã sau 00:(49|50)/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Gửi lại mã sau 0:(49|50)/ })).toBeDisabled();
   });
 
-  it("TOO_MANY_ATTEMPTS khi verify → gợi ý Gửi lại mã, focus về ô đầu", async () => {
-    verifyOtp.mockRejectedValue(new ApiError(429, { message: "Nhập sai quá nhiều lần.", code: "TOO_MANY_ATTEMPTS" }));
+  it("bấm Xác nhận khi chưa đủ 6 số → lỗi dưới ô, không gọi API", async () => {
     const u = userEvent.setup();
     render(<OtpVerifyForm {...props} />);
-    await typeCode(u, "123456");
-    const alert = (await screen.findByText(/Bấm "Gửi lại mã"/)).closest("[role=alert]")!;
-    expect(alert.id).not.toBe("");
-    expect(screen.getAllByRole("textbox")[0]).toHaveAttribute("aria-describedby", alert.id);
-    await waitFor(() => expect(document.activeElement).toBe(screen.getAllByRole("textbox")[0]));
+    await typeCode(u, "123");
+    await u.click(screen.getByRole("button", { name: "Xác nhận" }));
+    expect(await screen.findByText("Vui lòng nhập đủ 6 chữ số.")).toBeInTheDocument();
+    expect(verifyOtp).not.toHaveBeenCalled();
   });
 
-  it("đổi liên hệ mà server không gửi mã mới (resend_available_at null) → không báo đã gửi mã", async () => {
-    updateContact.mockResolvedValue({ resendAvailableAt: null });
-    refreshAuth.mockResolvedValue(authState);
+  it("ô mã chỉ nhận chữ số (dán chuỗi lẫn chữ)", async () => {
     const u = userEvent.setup();
     render(<OtpVerifyForm {...props} />);
-    await u.click(screen.getByRole("button", { name: "Đổi email/SĐT" }));
-    const phone = screen.getByLabelText(/^Số điện thoại/);
-    await u.clear(phone);
-    await u.type(phone, "0987654321");
-    await u.type(screen.getByLabelText(/^Mật khẩu hiện tại/), "matkhau-123");
-    await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
-    expect(await screen.findByText("Đã cập nhật thông tin liên hệ.")).toBeInTheDocument();
-    expect(screen.queryByText(/gửi mã xác thực mới/)).not.toBeInTheDocument();
-  });
-
-  it("đổi liên hệ: giá trị không đổi sau chuẩn hoá → không gọi API", async () => {
-    const u = userEvent.setup();
-    render(<OtpVerifyForm {...props} />);
-    await u.click(screen.getByRole("button", { name: "Đổi email/SĐT" }));
-    const phone = screen.getByLabelText(/^Số điện thoại/);
-    await u.clear(phone);
-    await u.type(phone, "+84912345678");
-    await u.click(screen.getByRole("button", { name: "Lưu và gửi mã mới" }));
-    expect(await screen.findByText("Bạn chưa thay đổi email hoặc số điện thoại.")).toBeInTheDocument();
-    expect(updateContact).not.toHaveBeenCalled();
+    await u.click(codeInput());
+    await u.paste("12ab34");
+    expect(codeInput().value).toBe("1234");
   });
 });

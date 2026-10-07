@@ -1,7 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import type { UseFormRegister } from "react-hook-form";
+import { Checkbox, cx } from "@vitaminvui/ui/v2";
 import type { RegisterFormValues } from "@/lib/auth/schemas";
+import { routes } from "@/lib/routes";
 
 export interface ConsentCheckboxGroupProps {
   register: UseFormRegister<RegisterFormValues>;
@@ -11,55 +14,54 @@ export interface ConsentCheckboxGroupProps {
   disabled?: boolean;
 }
 
-const LINK_CLASSES = "font-medium text-indigo-700 underline hover:text-indigo-800";
+const LINK = "font-semibold text-primary underline underline-offset-2";
 
 /**
- * 2 checkbox đồng ý TÁCH RIÊNG, không tick sẵn (US-017 BR1). Link mở tab mới.
- * Trang đích `/dieu-khoan`, `/chinh-sach-du-lieu` chưa có trong tasks — xem báo cáo FW1.
+ * 2 checkbox đồng ý TÁCH RIÊNG, không tick sẵn (US-017 BR1). Liên kết mở tab mới tới `/dieu-khoan`, `/chinh-sach-du-lieu`
+ * (hiện là trang giữ chỗ chờ pháp chế — xem route `(site)/dieu-khoan`).
  */
 export function ConsentCheckboxGroup({ register, policyVersion, error, disabled }: ConsentCheckboxGroupProps) {
   return (
-    <fieldset className="space-y-3" aria-describedby={error ? "consent-error" : undefined}>
+    <fieldset
+      id="reg-consent"
+      aria-describedby={error ? "consent-error" : undefined}
+      className={cx("flex flex-col rounded-card", error && "border border-danger/40 px-3 py-1")}
+    >
       <legend className="sr-only">Đồng ý điều khoản và chính sách</legend>
-
-      <label className="flex items-start gap-3 text-sm text-gray-900">
-        <input
-          type="checkbox"
-          className="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-400 text-indigo-600 focus:ring-indigo-600"
-          disabled={disabled}
-          aria-invalid={error ? true : undefined}
-          {...register("accept_terms")}
-        />
-        <span>
-          Tôi đã đọc và đồng ý với{" "}
-          <a href="/dieu-khoan" target="_blank" rel="noopener noreferrer" className={LINK_CLASSES}>
-            Điều khoản sử dụng
-          </a>
-        </span>
-      </label>
-
-      <label className="flex items-start gap-3 text-sm text-gray-900">
-        <input
-          type="checkbox"
-          className="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-400 text-indigo-600 focus:ring-indigo-600"
-          disabled={disabled}
-          aria-invalid={error ? true : undefined}
-          {...register("accept_privacy")}
-        />
-        <span>
-          Tôi đã đọc và đồng ý với{" "}
-          <a href="/chinh-sach-du-lieu" target="_blank" rel="noopener noreferrer" className={LINK_CLASSES}>
-            Chính sách xử lý dữ liệu cá nhân
-          </a>
-        </span>
-      </label>
-
-      <p className="text-xs text-gray-600">Phiên bản chính sách: {policyVersion}</p>
+      <Checkbox
+        id="reg-accept-terms"
+        disabled={disabled}
+        aria-invalid={error ? true : undefined}
+        label={
+          <>
+            Tôi đã đọc và đồng ý với{" "}
+            <Link href={routes.terms} target="_blank" rel="noopener noreferrer" className={LINK}>
+              Điều khoản sử dụng
+            </Link>
+          </>
+        }
+        {...register("accept_terms")}
+      />
+      <Checkbox
+        id="reg-accept-privacy"
+        disabled={disabled}
+        aria-invalid={error ? true : undefined}
+        label={
+          <>
+            Tôi đã đọc và đồng ý với{" "}
+            <Link href={routes.privacy} target="_blank" rel="noopener noreferrer" className={LINK}>
+              Chính sách xử lý dữ liệu cá nhân
+            </Link>
+          </>
+        }
+        {...register("accept_privacy")}
+      />
       {error ? (
-        <p id="consent-error" className="text-sm text-rose-600">
+        <p id="consent-error" className="pb-2 text-sm font-medium text-danger">
           {error}
         </p>
       ) : null}
+      <p className="pb-1 text-sm text-ink-soft">Phiên bản chính sách: {policyVersion}</p>
     </fieldset>
   );
 }

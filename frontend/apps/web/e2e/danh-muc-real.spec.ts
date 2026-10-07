@@ -16,7 +16,7 @@ async function login(page: Page, email: string) {
   await page.goto("/dang-nhap");
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Email hoặc số điện thoại").fill(email);
-  await page.getByLabel(/^Mật khẩu\s*\*?$/).fill(PASSWORD);
+  await page.getByLabel(/^Mật khẩu/).fill(PASSWORD);
   await page.getByRole("button", { name: "Đăng nhập" }).click();
   await expect(page).toHaveURL(/\/$/);
 }
@@ -228,10 +228,12 @@ test.describe("Chi tiết khóa học (học sinh đăng nhập — viewer-state
     await expect(cta.getByRole("status").filter({ hasText: "Đang chờ duyệt" })).toBeVisible();
   });
 
-  test("chưa xác thực: Đăng ký -> dẫn sang /xac-thuc-otp", async ({ page }) => {
+  test("chưa xác thực: Đăng ký -> hộp thoại chặn tại chỗ, 'Gửi mã xác nhận' dẫn sang /xac-thuc-otp", async ({ page }) => {
     await login(page, "fw2-hs-unv@example.com");
     await page.goto(`/khoa-hoc/${FREE}`);
     await page.locator("#course-cta").getByRole("button", { name: "Đăng ký học miễn phí" }).click();
+    await expect(page.getByRole("dialog").getByText("Xác thực email để tiếp tục")).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("dialog").getByRole("button", { name: "Gửi mã xác nhận" }).click();
     await expect(page).toHaveURL(/\/xac-thuc-otp/, { timeout: 15_000 });
   });
 

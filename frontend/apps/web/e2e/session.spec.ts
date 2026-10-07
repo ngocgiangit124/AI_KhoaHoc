@@ -12,7 +12,7 @@ test.use({ baseURL: BASE });
 test.skip(process.env.E2E_REAL_BACKEND !== "1", "Cần backend thật (E2E_REAL_BACKEND=1)");
 
 const user = (n: number) => `qa-t05-e2e-${n}@example.com`;
-const OVERLAY_TITLE = "Tài khoản vừa đăng nhập ở thiết bị khác";
+const OVERLAY_TITLE = "Tài khoản vừa đăng nhập trên thiết bị khác";
 
 async function device(browser: Browser, deviceId?: string): Promise<{ ctx: BrowserContext; page: Page }> {
   const ctx = await browser.newContext();
@@ -26,7 +26,7 @@ async function login(page: Page, email: string) {
   await page.goto("/dang-nhap");
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Email hoặc số điện thoại").fill(email);
-  await page.getByLabel(/^Mật khẩu\s*\*?$/).fill(PASSWORD);
+  await page.getByLabel(/^Mật khẩu/).fill(PASSWORD);
   await page.getByRole("button", { name: "Đăng nhập" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("button", { name: "Đăng xuất" })).toBeVisible({ timeout: 15_000 });
@@ -40,7 +40,7 @@ test.describe("T05 một phiên học sinh", () => {
     await login(b.page, user(1));
 
     await a.page.reload();
-    const overlay = a.page.getByRole("alertdialog");
+    const overlay = a.page.getByRole("dialog");
     await expect(overlay).toBeVisible({ timeout: 15_000 });
     await expect(overlay.getByText(OVERLAY_TITLE)).toBeVisible();
     await expect(overlay.getByRole("link", { name: "Đăng nhập lại" })).toBeVisible();
@@ -52,7 +52,7 @@ test.describe("T05 một phiên học sinh", () => {
 
     await b.page.reload();
     await expect(b.page.getByRole("button", { name: "Đăng xuất" })).toBeVisible({ timeout: 15_000 });
-    await expect(b.page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(b.page.getByRole("dialog")).toHaveCount(0);
 
     // "Đăng nhập lại" ở A đưa về form đăng nhập; đăng nhập lại -> B bị thay thế ngược lại
     await overlay.getByRole("link", { name: "Đăng nhập lại" }).click();
@@ -69,7 +69,7 @@ test.describe("T05 một phiên học sinh", () => {
     await login(a.page, user(2));
 
     await b.page.reload();
-    await expect(b.page.getByRole("alertdialog").getByText(OVERLAY_TITLE)).toBeVisible({ timeout: 15_000 });
+    await expect(b.page.getByRole("dialog").getByText(OVERLAY_TITLE)).toBeVisible({ timeout: 15_000 });
     await a.page.reload();
     await expect(a.page.getByRole("button", { name: "Đăng xuất" })).toBeVisible({ timeout: 15_000 });
     await a.ctx.close();
@@ -104,10 +104,10 @@ test.describe("T05 một phiên học sinh", () => {
     // Thiết kế hiện tại (api.ts fetchCurrentUser): /auth/me 401 SESSION_EXPIRED ở trang công khai = khách, không overlay.
     await a.page.reload();
     await expect(a.page.getByRole("link", { name: "Đăng nhập" })).toBeVisible({ timeout: 15_000 });
-    await expect(a.page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(a.page.getByRole("dialog")).toHaveCount(0);
     await a.page.goto("/xac-thuc-otp");
     await expect(a.page).toHaveURL(/dang-nhap/, { timeout: 15_000 });
-    await expect(a.page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(a.page.getByRole("dialog")).toHaveCount(0);
 
     await b.page.reload();
     await expect(b.page.getByRole("button", { name: "Đăng xuất" })).toBeVisible({ timeout: 15_000 });
@@ -123,7 +123,7 @@ test.describe("T05 một phiên học sinh", () => {
 
     await a.page.reload();
     await expect(a.page.getByRole("button", { name: "Đăng xuất" })).toBeVisible({ timeout: 15_000 });
-    await expect(a.page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(a.page.getByRole("dialog")).toHaveCount(0);
     await a.ctx.close();
   });
 
@@ -146,7 +146,7 @@ test.describe("T05 một phiên học sinh", () => {
     await a.ctx.setOffline(false);
     await a.page.goto("/");
     await expect(a.page.getByRole("button", { name: "Đăng xuất" })).toBeVisible({ timeout: 15_000 });
-    await expect(a.page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(a.page.getByRole("dialog")).toHaveCount(0);
     await a.ctx.close();
   });
 });

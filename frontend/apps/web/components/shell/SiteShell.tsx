@@ -35,7 +35,8 @@ export function SiteShell({ children, variant = "site" }: SiteShellProps) {
           <AccountBanner />
         </div>
       )}
-      <main id="noi-dung" className="flex-1">
+      {/* Nền vở ô ly nhạt cho mọi trang khách (design-system-v2 §3.1); form/đoạn dài nằm trên `Sheet`. `minimal`: cột flex để khung đăng nhập cao hết màn. */}
+      <main id="noi-dung" className={minimal ? "bg-oly-page flex flex-1 flex-col" : "bg-oly-page flex-1"}>
         {children}
       </main>
       {minimal ? null : <ShellFooter />}

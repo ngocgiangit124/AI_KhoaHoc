@@ -68,4 +68,23 @@ describe("LoginForm", () => {
     await fill(user);
     expect(await screen.findByRole("alert")).toHaveTextContent("Tài khoản của bạn đã bị khoá");
   });
+
+  it("R10: đăng nhập thành công hoặc vừa đặt lại mật khẩu xong thì dọn login giữ ở bước 2", async () => {
+    sessionStorage.setItem("vv:reset-login", "a@x.vn");
+    const { unmount } = render(<LoginForm notice="dat-lai-xong" />);
+    expect(sessionStorage.getItem("vv:reset-login")).toBeNull();
+    unmount();
+    sessionStorage.setItem("vv:reset-login", "a@x.vn");
+    loginStudent.mockResolvedValue({});
+    const user = userEvent.setup();
+    render(<LoginForm />);
+    await fill(user);
+    await waitFor(() => expect(sessionStorage.getItem("vv:reset-login")).toBeNull());
+  });
+
+  it("liên kết Quên mật khẩu / Đăng ký là <a> thường (điều hướng cứng, CSP Turnstile)", () => {
+    render(<LoginForm />);
+    expect(screen.getByRole("link", { name: "Quên mật khẩu?" })).toHaveAttribute("href", "/quen-mat-khau");
+    expect(screen.getByRole("link", { name: "Đăng ký ngay" })).toHaveAttribute("href", "/dang-ky");
+  });
 });

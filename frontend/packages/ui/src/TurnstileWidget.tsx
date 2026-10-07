@@ -11,6 +11,7 @@ interface TurnstileApi {
       "expired-callback": () => void;
       "error-callback": () => void;
       language?: string;
+      appearance?: "always" | "execute" | "interaction-only";
     },
   ) => string;
   remove: (widgetId: string) => void;
@@ -52,13 +53,18 @@ export interface TurnstileWidgetProps {
   /** Gọi khi widget lỗi (script không tải được, hoặc Cloudflare báo lỗi). */
   onError?: () => void;
   className?: string;
+  /**
+   * `interaction-only`: chế độ ẩn — widget chỉ hiện khi Cloudflare buộc người dùng tương tác (dùng cho "Gửi lại mã" ở
+   * bước 2 đặt lại mật khẩu, design-system-v2 §12.8). Mặc định `always` (hành vi cũ).
+   */
+  appearance?: "always" | "interaction-only";
 }
 
 /**
  * Cloudflare Turnstile (explicit render). Token dùng 1 lần: muốn xác minh lại, đổi `key`
  * của component này ở nơi dùng để mount lại widget mới.
  */
-export function TurnstileWidget({ siteKey, onToken, onError, className = "" }: TurnstileWidgetProps) {
+export function TurnstileWidget({ siteKey, onToken, onError, className = "", appearance = "always" }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onTokenRef = useRef(onToken);
   const onErrorRef = useRef(onError);
@@ -80,6 +86,7 @@ export function TurnstileWidget({ siteKey, onToken, onError, className = "" }: T
         widgetId = turnstile.render(containerRef.current, {
           sitekey: siteKey,
           language: "vi",
+          ...(appearance === "interaction-only" ? { appearance } : {}),
           callback: (token) => onTokenRef.current(token),
           "expired-callback": () => onTokenRef.current(null),
           "error-callback": () => {
@@ -99,7 +106,7 @@ export function TurnstileWidget({ siteKey, onToken, onError, className = "" }: T
       cancelled = true;
       if (api && widgetId !== null) api.remove(widgetId);
     };
-  }, [siteKey]);
+  }, [siteKey, appearance]);
 
   return <div ref={containerRef} className={className} data-testid="turnstile-widget" />;
 }

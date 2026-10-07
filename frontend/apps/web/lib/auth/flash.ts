@@ -42,3 +42,46 @@ export function readOtpSentAt(): number | null {
     return null;
   }
 }
+
+const RESET_LOGIN_KEY = "vv:reset-login";
+const RESET_RESEND_KEY = "vv:reset-resend-at";
+
+/**
+ * Giữ định danh (email/SĐT) người dùng nhập ở bước 1 quên mật khẩu để bước 2 dùng — KHÔNG đặt lên URL
+ * (design-system-v2 §12.8). sessionStorage chỉ sống trong tab, mất khi đóng tab. `resendAvailableAt` (ISO, từ
+ * `resend_available_at` của `/auth/password/forgot`) để "Gửi lại mã" ở bước 2 bắt đầu bằng thời gian chờ còn lại.
+ */
+export function setResetLogin(login: string, resendAvailableAt?: string | null): void {
+  try {
+    sessionStorage.setItem(RESET_LOGIN_KEY, login);
+    if (resendAvailableAt) sessionStorage.setItem(RESET_RESEND_KEY, resendAvailableAt);
+    else sessionStorage.removeItem(RESET_RESEND_KEY);
+  } catch {
+    // bị chặn: bước 2 sẽ đưa người dùng về bước 1.
+  }
+}
+
+export function readResetLogin(): string | null {
+  try {
+    return sessionStorage.getItem(RESET_LOGIN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function readResetResendAt(): string | null {
+  try {
+    return sessionStorage.getItem(RESET_RESEND_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearResetLogin(): void {
+  try {
+    sessionStorage.removeItem(RESET_LOGIN_KEY);
+    sessionStorage.removeItem(RESET_RESEND_KEY);
+  } catch {
+    // bỏ qua
+  }
+}

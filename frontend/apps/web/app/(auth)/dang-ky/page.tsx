@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { env } from "@/env";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { CatalogBusy } from "@/components/catalog/CatalogBusy";
+import { AuthFrame } from "@/components/v2/auth/AuthFrame";
 import { fetchPublicConfig } from "@/lib/catalog/api";
 import { isUpstreamBusy } from "@/lib/catalog/busy";
 
@@ -20,17 +21,18 @@ export default async function RegisterPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[480px] px-4 py-8">
-      <div className="rounded-card border border-line bg-surface p-6">
-        <h1 className="mb-6 text-title font-extrabold tracking-heading text-ink">Tạo tài khoản học sinh</h1>
-        <RegisterForm
-          grades={config.grades}
-          parentConsentAge={config.parent_consent_age}
-          referralEnabled={config.referral_code_enabled}
-          policyVersion={config.policy_version}
-          captchaSiteKey={config.captcha_site_key || env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || null}
-        />
-      </div>
-    </div>
+    <AuthFrame
+      title="Tạo tài khoản học sinh"
+      subtitle="Miễn phí, mất khoảng 2 phút."
+      aside="Bắt đầu từ bài dễ nhất. Ai cũng học được Toán!"
+    >
+      <RegisterForm
+        grades={config.grades}
+        parentConsentAge={config.parent_consent_age}
+        referralEnabled={config.referral_code_enabled}
+        policyVersion={config.policy_version}
+        captchaSiteKey={config.captcha_site_key || env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || null}
+      />
+    </AuthFrame>
   );
 }

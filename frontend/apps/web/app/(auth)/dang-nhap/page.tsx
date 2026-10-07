@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
+import { AuthFrame } from "@/components/v2/auth/AuthFrame";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { parseLoginNotice } from "@/lib/auth/loginNotice";
 
 export const metadata: Metadata = { title: "Đăng nhập — VitaminVui" };
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage({ searchParams }: PageProps<"/dang-nhap">) {
-  const { next } = await searchParams;
+  const { next, "trang-thai": status } = await searchParams;
 
   return (
-    <div className="mx-auto w-full max-w-[480px] px-4 py-8">
-      <div className="rounded-card border border-line bg-surface p-6">
-        <h1 className="mb-6 text-title font-extrabold tracking-heading text-ink">Đăng nhập</h1>
-        <LoginForm next={typeof next === "string" ? next : null} />
-      </div>
-    </div>
+    <AuthFrame title="Đăng nhập" subtitle="Chào mừng bạn quay lại học tiếp.">
+      <LoginForm next={typeof next === "string" ? next : null} notice={parseLoginNotice(typeof status === "string" ? status : undefined)} />
+    </AuthFrame>
   );
 }

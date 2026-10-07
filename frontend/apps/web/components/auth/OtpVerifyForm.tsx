@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiError } from "@vitaminvui/api-client";
-import { Alert, Button, OtpInput } from "@vitaminvui/ui";
+import { Alert, Button, Field, OtpInput, ResendCode } from "@vitaminvui/ui/v2";
 import { sendOtp, verifyOtp } from "@/lib/auth/api";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { classifyOtpSendError, classifyOtpVerifyError } from "@/lib/auth/errors";
 import { readOtpSentAt, setAccountFlash } from "@/lib/auth/flash";
-import { formatCountdown, maskEmail, OTP_LENGTH, otpErrorMessage, secondsUntil } from "@/lib/auth/otp";
-import { ChangeContactForm } from "./ChangeContactForm";
+import { maskEmail, OTP_LENGTH, secondsUntil } from "@/lib/auth/otp";
+import { routes } from "@/lib/routes";
 
 export interface OtpVerifyFormProps {
   /** `otp.ttl_minutes` từ `/config/public`. */
@@ -17,78 +18,94 @@ export interface OtpVerifyFormProps {
   resendCooldownSeconds: number;
 }
 
-/** Màn `/xac-thuc-otp` (design US-001 §2.2): nhập mã 6 số, gửi lại có đếm ngược, đổi email/SĐT. */
+interface SendAlert {
+  tone: "info" | "danger";
+  title?: string;
+  body: string;
+}
+
+/**
+ * Màn `/xac-thuc-otp` (US-001 §2.2, AC8; design-system-v2 §12.8). Nhập đủ 6 số là tự gửi, vẫn có nút "Xác nhận".
+ * Lỗi luôn nằm dưới ô mã: `OTP_INVALID` xoá mã + nhập lại; `OTP_EXPIRED`/429 của mã khoá ô, "Gửi lại mã" thành nút chính;
+ * 429 throttle khoá ô + nút; 503 `OTP_DELIVERY_FAILED` gửi lại được ngay. Đổi email/SĐT ở `/tai-khoan#doi-lien-he`.
+ */
 export function OtpVerifyForm({ ttlMinutes, resendCooldownSeconds }: OtpVerifyFormProps) {
   const router = useRouter();
   const { state, refresh } = useAuth();
-  const errorId = useId();
 
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [mustResend, setMustResend] = useState(false);
+  const [throttle, setThrottle] = useState<{ message: string } | null>(null);
+  const [verifyBanner, setVerifyBanner] = useState<string | null>(null);
+  const [sendAlert, setSendAlert] = useState<SendAlert | null>(null);
+  const [lockedReason, setLockedReason] = useState<string | undefined>();
   const [resending, setResending] = useState(false);
-  // Vừa đăng ký xong thì server đã gửi mã: cooldown chạy từ mốc đó (nếu còn).
-  const [resendEndAt, setResendEndAt] = useState<number | null>(() => {
+  // Vừa đăng ký xong thì server đã gửi mã: cooldown chạy từ mốc đó (nếu còn). `key` đổi để ResendCode chạy lại đồng hồ.
+  const [wait, setWait] = useState<{ seconds: number; key: number }>(() => {
     const sentAt = readOtpSentAt();
-    if (sentAt === null) return null;
-    const end = sentAt + resendCooldownSeconds * 1000;
-    return end > Date.now() ? end : null;
+    if (sentAt === null) return { seconds: 0, key: 0 };
+    const left = Math.ceil((sentAt + resendCooldownSeconds * 1000 - Date.now()) / 1000);
+    return { seconds: Math.max(0, left), key: 0 };
   });
-  const [remaining, setRemaining] = useState(0);
   const [focusSignal, setFocusSignal] = useState(0);
-  const [changing, setChanging] = useState(false);
 
   // Khách → đăng nhập rồi quay lại; đã xác thực → về trang chủ.
   useEffect(() => {
-    if (state.status === "guest") router.replace("/dang-nhap?next=/xac-thuc-otp");
+    if (state.status === "guest") router.replace(`${routes.login}?next=${routes.verifyOtp}`);
     else if (state.status === "user" && state.user.is_verified) router.replace("/");
   }, [state, router]);
 
-  // Đếm ngược nút "Gửi lại mã" theo mốc tuyệt đối (không trôi khi tab bị throttle).
+  // Hết thời gian chờ của throttle thì mở khoá ô nhập (mốc từ `Retry-After`).
+  const [throttleMs, setThrottleMs] = useState<number | null>(null);
   useEffect(() => {
-    if (resendEndAt === null) return;
-    const tick = () => {
-      const left = Math.max(0, Math.ceil((resendEndAt - Date.now()) / 1000));
-      setRemaining(left);
-      if (left === 0) setResendEndAt(null);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [resendEndAt]);
+    if (throttleMs === null) return;
+    const id = setTimeout(() => {
+      setThrottle(null);
+      setThrottleMs(null);
+    }, Math.min(throttleMs, 86_400_000));
+    return () => clearTimeout(id);
+  }, [throttleMs]);
 
-  const startCooldownSeconds = useCallback((seconds: number) => {
-    setResendEndAt(seconds > 0 ? Date.now() + seconds * 1000 : null);
-  }, []);
-
-  const startCooldown = useCallback(
-    (resendAvailableAt: string | null) => {
-      const parsed = resendAvailableAt ? Date.parse(resendAvailableAt) : NaN;
-      const seconds = Number.isNaN(parsed) ? resendCooldownSeconds : secondsUntil(resendAvailableAt);
-      startCooldownSeconds(seconds);
-    },
-    [resendCooldownSeconds, startCooldownSeconds],
-  );
+  function startWait(seconds: number) {
+    setWait((w) => ({ seconds, key: w.key + 1 }));
+  }
 
   async function submit(value: string) {
-    if (pending) return;
+    if (pending || mustResend || throttle) return;
     if (value.length !== OTP_LENGTH) {
-      setError(`Vui lòng nhập đủ ${OTP_LENGTH} chữ số.`);
+      setFieldError(`Vui lòng nhập đủ ${OTP_LENGTH} chữ số.`);
+      setFocusSignal((n) => n + 1);
       return;
     }
     setPending(true);
-    setError(null);
-    setNotice(null);
+    setFieldError(null);
+    setVerifyBanner(null);
+    setSendAlert(null);
     try {
       await verifyOtp(value);
       setAccountFlash("verified");
       router.replace("/");
       router.refresh();
     } catch (err) {
-      const hint =
-        err instanceof ApiError && err.code === "TOO_MANY_ATTEMPTS" ? ' Bấm "Gửi lại mã" để nhận mã mới.' : "";
-      setError(otpErrorMessage(err) + hint);
+      const failure = classifyOtpVerifyError(err);
+      switch (failure.kind) {
+        case "invalid":
+          setFieldError(failure.message);
+          break;
+        case "must-resend":
+          setFieldError(failure.message);
+          setMustResend(true);
+          break;
+        case "throttled":
+          setThrottle({ message: failure.message });
+          setThrottleMs((failure.retryAfterSeconds ?? 60) * 1000);
+          break;
+        case "other":
+          setVerifyBanner(failure.message);
+          break;
+      }
       setCode("");
       setPending(false);
       setFocusSignal((n) => n + 1);
@@ -102,18 +119,33 @@ export function OtpVerifyForm({ ttlMinutes, resendCooldownSeconds }: OtpVerifyFo
 
   async function onResend() {
     setResending(true);
-    setError(null);
-    setNotice(null);
+    setFieldError(null);
+    setVerifyBanner(null);
+    setSendAlert(null);
     try {
       const { resendAvailableAt } = await sendOtp();
-      startCooldown(resendAvailableAt);
+      const parsed = resendAvailableAt ? Date.parse(resendAvailableAt) : Number.NaN;
+      startWait(Number.isNaN(parsed) ? resendCooldownSeconds : secondsUntil(resendAvailableAt));
       setCode("");
-      setNotice("Đã gửi mã mới. Mã cũ không còn hiệu lực.");
+      setMustResend(false);
+      setLockedReason(undefined);
+      setSendAlert({
+        tone: "info",
+        body: `Đã gửi mã mới tới ${state.status === "user" && state.user.email ? maskEmail(state.user.email) : "email của bạn"}. Mã cũ không còn dùng được.`,
+      });
+      setFocusSignal((n) => n + 1);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 429 && err.retryAfterSeconds) {
-        startCooldownSeconds(err.retryAfterSeconds);
+      const failure = classifyOtpSendError(err);
+      if (failure.kind === "wait") {
+        startWait(failure.seconds);
+        setSendAlert({ tone: "danger", body: failure.message });
+      } else if (failure.kind === "locked") {
+        setLockedReason(failure.message);
+      } else if (failure.kind === "delivery") {
+        setSendAlert({ tone: "danger", title: "Chưa gửi được mã", body: "Hệ thống gửi thư đang gặp sự cố. Bạn có thể bấm “Gửi lại mã” ngay." });
+      } else {
+        setSendAlert({ tone: "danger", body: failure.message });
       }
-      setError(otpErrorMessage(err));
     } finally {
       setResending(false);
     }
@@ -121,98 +153,88 @@ export function OtpVerifyForm({ ttlMinutes, resendCooldownSeconds }: OtpVerifyFo
 
   if (state.status === "error") {
     return (
-      <div className="space-y-4">
-        <Alert variant="danger">Không tải được thông tin tài khoản. Vui lòng kiểm tra kết nối và thử lại.</Alert>
-        <Button type="button" onClick={() => void refresh()}>
-          Thử lại
-        </Button>
+      <div className="flex flex-col gap-4">
+        <Alert tone="danger">Không tải được thông tin tài khoản. Vui lòng kiểm tra kết nối và thử lại.</Alert>
+        <div>
+          <Button type="button" onClick={() => void refresh()}>
+            Thử lại
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (state.status !== "user" || state.user.is_verified) {
-    return <p className="text-sm text-gray-700">Đang tải…</p>;
+    return <p className="text-base text-ink-soft">Đang tải…</p>;
   }
 
   const email = state.user.email;
-  const coolingDown = remaining > 0;
-
-  if (changing) {
-    return (
-      <ChangeContactForm
-        email={email ?? ""}
-        phone={state.user.phone ?? ""}
-        onCancel={() => setChanging(false)}
-        onDone={async (resendAvailableAt) => {
-          await refresh();
-          setError(null);
-          if (resendAvailableAt === null) {
-            // Server không gửi mã mới (ví dụ chỉ đổi SĐT): giữ nguyên mã email đang chờ và cooldown hiện có.
-            setNotice("Đã cập nhật thông tin liên hệ.");
-          } else {
-            startCooldown(resendAvailableAt);
-            setCode("");
-            setNotice("Đã cập nhật thông tin liên hệ và gửi mã xác thực mới.");
-          }
-          setChanging(false);
-        }}
-      />
-    );
-  }
+  const throttled = throttle !== null;
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-5">
-      <p className="text-sm text-gray-700">
-        Chúng tôi đã gửi mã gồm {OTP_LENGTH} chữ số tới <strong>{email ? maskEmail(email) : "email của bạn"}</strong>.
-        Mã có hiệu lực trong {ttlMinutes} phút.
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
+      <p className="text-base text-ink-soft">
+        Chúng tôi đã gửi mã gồm {OTP_LENGTH} chữ số tới <strong className="font-semibold text-ink">{email ? maskEmail(email) : "email của bạn"}</strong>.
+        Xác thực xong bạn có thể đăng ký khóa học.
       </p>
 
-      {error ? (
-        <Alert id={errorId} variant="danger">
-          {error}
+      {throttle ? (
+        <Alert tone="warning" title="Bạn đã thử quá nhiều lần">
+          {throttle.message}
         </Alert>
       ) : null}
-      {notice ? <Alert variant="success">{notice}</Alert> : null}
+      {verifyBanner ? <Alert tone="danger">{verifyBanner}</Alert> : null}
+      {sendAlert ? (
+        <Alert tone={sendAlert.tone} title={sendAlert.title}>
+          {sendAlert.body}
+        </Alert>
+      ) : null}
 
-      <OtpInput
-        value={code}
-        onChange={(v) => {
-          setCode(v);
-          if (error) setError(null);
-        }}
-        onComplete={(v) => void submit(v)}
-        busy={pending}
-        focusSignal={focusSignal}
-        invalid={error !== null}
-        describedBy={error ? errorId : undefined}
-        autoFocus
-        length={OTP_LENGTH}
-        label="Mã xác thực"
-      />
+      <Field
+        label="Mã xác nhận"
+        required
+        error={fieldError ?? undefined}
+        hint={mustResend ? undefined : `Gồm ${OTP_LENGTH} chữ số, có hiệu lực ${ttlMinutes} phút. Không thấy thư? Xem thêm mục Thư rác hoặc Quảng cáo.`}
+      >
+        <OtpInput
+          value={code}
+          onChange={(v) => {
+            setCode(v);
+            if (fieldError && !mustResend) setFieldError(null);
+          }}
+          onComplete={(v) => void submit(v)}
+          busy={pending}
+          disabled={throttled || mustResend}
+          focusSignal={focusSignal}
+          length={OTP_LENGTH}
+          autoFocus
+        />
+      </Field>
 
-      <Button type="submit" size="lg" loading={pending} className="w-full" disabled={code.length !== OTP_LENGTH}>
-        Xác nhận
-      </Button>
+      {mustResend ? (
+        <ResendCode key={wait.key} waitSeconds={wait.seconds} onResend={() => void onResend()} loading={resending} lockedReason={lockedReason} emphasis block />
+      ) : (
+        <>
+          <Button type="submit" size="lg" block loading={pending} loadingText="Đang kiểm tra…" disabled={throttled}>
+            Xác nhận
+          </Button>
+          <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-start sm:justify-between">
+            <p className="text-sm text-ink-soft">Chưa nhận được mã?</p>
+            <ResendCode key={wait.key} waitSeconds={wait.seconds} onResend={() => void onResend()} loading={resending} lockedReason={lockedReason} />
+          </div>
+        </>
+      )}
 
-      <div className="flex flex-col items-center gap-2 text-sm">
-        <Button
-          type="button"
-          variant="ghost"
-          loading={resending}
-          disabled={coolingDown || pending}
-          onClick={onResend}
-        >
-          {coolingDown ? `Gửi lại mã sau ${formatCountdown(remaining)}` : "Gửi lại mã"}
-        </Button>
-        <button
-          type="button"
-          onClick={() => setChanging(true)}
-          disabled={pending}
-          className="inline-flex min-h-11 items-center px-2 font-medium text-indigo-700 hover:underline disabled:opacity-50"
-        >
-          Đổi email/SĐT
-        </button>
-      </div>
+      <p className="text-base text-ink-soft">
+        Sai email?{" "}
+        <Link href={`${routes.account}#doi-lien-he`} className="focus-ring rounded font-semibold text-primary hover:underline">
+          Đổi email
+        </Link>
+        {" · "}
+        <Link href={routes.home} className="focus-ring rounded font-semibold text-primary hover:underline">
+          Để sau
+        </Link>
+      </p>
     </form>
   );
 }

@@ -78,6 +78,30 @@ describe("RegisterForm", () => {
     expect(screen.getByTestId("parent-fields")).toBeInTheDocument();
   });
 
+  it("lỗi client: hộp tóm tắt liệt kê từng mục có liên kết tới ô, focus vào hộp", async () => {
+    const user = userEvent.setup();
+    render(<RegisterForm {...props} />);
+    await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+    expect(await screen.findByText(/Còn \d+ mục cần sửa/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Họ và tên" })).toHaveAttribute("href", "#reg-name");
+    expect(screen.getByRole("link", { name: "Đồng ý điều khoản" })).toHaveAttribute("href", "#reg-accept-terms");
+    await waitFor(() => expect(screen.getByText(/Còn \d+ mục cần sửa/).closest("[tabindex='-1']")).toHaveFocus());
+  });
+
+  it("422 mật khẩu phổ biến → hiện nguyên errors.password[0] dưới ô mật khẩu", async () => {
+    registerStudent.mockRejectedValue(
+      new ApiError(422, { message: "x", errors: { password: ["Mật khẩu quá phổ biến, dễ bị đoán. Vui lòng chọn mật khẩu khác."] } }),
+    );
+    const user = userEvent.setup();
+    render(<RegisterForm {...props} />);
+    await fillValid(user);
+    await user.click(screen.getByLabelText(/Điều khoản sử dụng/));
+    await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
+    await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+    expect(await screen.findAllByText(/Mật khẩu quá phổ biến/)).not.toHaveLength(0);
+    expect(screen.getByLabelText(/^Mật khẩu/)).toHaveAttribute("aria-invalid", "true");
+  });
+
   it("ô mã giới thiệu chỉ hiện khi flag bật", () => {
     const { rerender } = render(<RegisterForm {...props} />);
     expect(screen.queryByLabelText(/Mã giới thiệu/)).not.toBeInTheDocument();
@@ -139,7 +163,9 @@ describe("RegisterForm", () => {
     await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
     expect(await screen.findByText("Cần liên hệ phụ huynh")).toBeInTheDocument();
     expect(screen.getByTestId("parent-fields")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByLabelText(/Email phụ huynh/)).toHaveFocus());
+    // Focus vào hộp tóm tắt lỗi (design-system-v2 §12.8), có liên kết tới ô phụ huynh.
+    await waitFor(() => expect(screen.getByText("Còn 1 mục cần sửa").closest("[tabindex='-1']")).toHaveFocus());
+    expect(screen.getByRole("link", { name: "Liên hệ phụ huynh" })).toHaveAttribute("href", "#reg-parent_phone");
   });
 
   it("lỗi 422 referral_code khi ô bị ẩn → vào banner", async () => {

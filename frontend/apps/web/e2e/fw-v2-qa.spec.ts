@@ -17,7 +17,7 @@ async function login(page: Page, email: string) {
   await page.goto("/dang-nhap");
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Email hoặc số điện thoại").fill(email);
-  await page.getByLabel(/^Mật khẩu\s*\*?$/).fill(PASSWORD);
+  await page.getByLabel(/^Mật khẩu/).fill(PASSWORD);
   await page.getByRole("button", { name: "Đăng nhập" }).click();
   await expect(page).toHaveURL(/\/$/, { timeout: 20_000 });
 }
@@ -145,20 +145,20 @@ test.describe("Đổi liên hệ cần mật khẩu hiện tại (BUG-1)", () =>
     const mailsTo = async (to: string) =>
       ((await (await fetch(`${process.env.E2E_MAILPIT_URL ?? "http://127.0.0.1:8025"}/api/v1/search?query=${encodeURIComponent(`to:${to}`)}`)).json()) as { messages?: unknown[] }).messages ?? [];
     await login(page, email);
-    await page.goto("/xac-thuc-otp");
-    await page.getByRole("button", { name: "Đổi email/SĐT" }).click();
+    await page.goto("/tai-khoan");
+    const contact = page.locator("#doi-lien-he");
     const newEmail = `qa-fwv2-ct-moi-${Date.now().toString(36)}@example.com`;
-    await page.getByLabel("Email", { exact: true }).fill(newEmail);
-    const save = page.getByRole("button", { name: "Lưu và gửi mã mới" });
+    await contact.getByLabel("Email", { exact: true }).fill(newEmail);
+    const save = contact.getByRole("button", { name: "Lưu thay đổi" });
     await save.click();
     await expect(page.getByText(/Vui lòng nhập mật khẩu hiện tại/)).toBeVisible();
-    await page.getByLabel(/^Mật khẩu hiện tại/).fill("sai-mat-khau-1");
+    await contact.getByLabel(/^Mật khẩu hiện tại/).fill("sai-mat-khau-1");
     await save.click();
     await expect(page.getByText(/Mật khẩu hiện tại không đúng/)).toBeVisible();
     expect(await mailsTo(newEmail)).toHaveLength(0);
-    await page.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
+    await contact.getByLabel(/^Mật khẩu hiện tại/).fill(PASSWORD);
     await save.click();
-    await expect(page.getByText("Đã cập nhật thông tin liên hệ và gửi mã xác thực mới")).toBeVisible();
+    await expect(page.getByText(/Mã xác thực đã gửi tới email mới\./)).toBeVisible();
     await expect.poll(async () => (await mailsTo(newEmail)).length, { timeout: 15_000 }).toBeGreaterThan(0);
   });
 });

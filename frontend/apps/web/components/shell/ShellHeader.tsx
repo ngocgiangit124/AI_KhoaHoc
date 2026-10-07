@@ -14,7 +14,7 @@ import { isCatalogPath, routes } from "@/lib/routes";
  * - khách, hoặc `/auth/me` lỗi mạng: nút Đăng nhập/Đăng ký (mất mạng không bao giờ coi là mất phiên — chỉ ảnh hưởng hiển thị).
  * `minimal` (đăng nhập/đăng ký/OTP): chỉ logo, không ô tìm kiếm, không cần `AuthProvider`.
  *
- * Chưa có: "Khóa học của tôi", trang tài khoản, giỏ hàng (FW3/FW4/FW5 dựng sau) — thêm vào `nav` khi các trang tồn tại.
+ * Chưa có: "Khóa học của tôi", giỏ hàng (FW3/FW6 dựng sau) — thêm vào `nav` khi các trang tồn tại.
  */
 export function ShellHeader({ minimal = false, searchDefault }: { minimal?: boolean; searchDefault?: string }) {
   const pathname = usePathname();
@@ -28,7 +28,7 @@ export function ShellHeader({ minimal = false, searchDefault }: { minimal?: bool
     <SiteHeader
       homeHref={routes.home}
       nav={nav}
-      viewer={user ? { name: user.name || "Học sinh" } : null}
+      viewer={user ? { name: user.name || "Học sinh", accountHref: routes.account } : null}
       viewerActions={user ? <LogoutButton /> : undefined}
       authPending={state?.status === "loading"}
       loginHref={routes.login}

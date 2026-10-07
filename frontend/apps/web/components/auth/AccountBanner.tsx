@@ -1,54 +1,46 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Alert } from "@vitaminvui/ui";
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { Alert, ButtonLink, useToast } from "@vitaminvui/ui/v2";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { consumeAccountFlash } from "@/lib/auth/flash";
+import { routes } from "@/lib/routes";
 
 /**
- * Banner trạng thái tài khoản ở trang chủ (design US-001 §3, §2.4). Quyết định theo
+ * Banner trạng thái tài khoản ở trang công khai (design US-001 §3, §2.4). Quyết định theo
  * `is_verified`/`parent_consent_status` của `/auth/me`, không theo tuổi client hay query string:
- * - chưa xác thực → nhắc + nút "Xác thực ngay" (kèm lưu ý phụ huynh nếu `pending`);
- * - vừa xác thực xong (cờ một lần) → thông báo thành công.
+ * - chưa xác thực → nhắc + nút "Xác thực ngay" (kèm lưu ý phụ huynh nếu `pending`); không hiện ở `/tai-khoan`
+ *   (trang đó tự có thông báo riêng, tránh hai nút "Xác thực ngay");
+ * - vừa xác thực xong (cờ một lần) → toast "Xác thực tài khoản thành công" (design-system-v2 §12.8).
  */
 export function AccountBanner() {
   const { state } = useAuth();
-  const [verifiedFlash, setVerifiedFlash] = useState(false);
+  const toast = useToast();
+  const pathname = usePathname();
 
   useEffect(() => {
-    // Đọc sessionStorage chỉ làm được sau hydrate → setState trong effect là chủ đích.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (consumeAccountFlash() === "verified") setVerifiedFlash(true); // Strict Mode: lần 2 đọc null, không ghi đè.
-  }, []);
+    // Đọc sessionStorage chỉ làm được sau hydrate; Strict Mode: lần 2 đọc null nên không báo hai lần.
+    if (consumeAccountFlash() === "verified") toast.show({ tone: "success", title: "Xác thực tài khoản thành công" });
+  }, [toast]);
 
-  if (state.status !== "user") return null;
+  if (state.status !== "user" || state.user.is_verified || pathname === routes.account) return null;
   const { user } = state;
 
-  if (!user.is_verified) {
-    return (
-      <Alert variant="warning" title="Cần xác thực tài khoản" className="mb-6">
-        <p>
-          {user.parent_consent_status === "pending"
-            ? "Vui lòng xác thực tài khoản. Chúng tôi cũng đã gửi email xác nhận tới phụ huynh của bạn — bạn cần cả 2 bước hoàn tất mới mua được khóa học."
-            : "Vui lòng xác thực tài khoản để có thể mua khóa học."}
-        </p>
-        <Link
-          href="/xac-thuc-otp"
-          className="mt-3 inline-flex h-11 items-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
+  return (
+    <Alert
+      tone="warning"
+      title="Cần xác thực tài khoản"
+      className="mb-2"
+      action={
+        <ButtonLink href={routes.verifyOtp} size="md">
           Xác thực ngay
-        </Link>
-      </Alert>
-    );
-  }
-
-  if (verifiedFlash) {
-    return (
-      <Alert variant="success" className="mb-6" dismissible>
-        Xác thực tài khoản thành công
-      </Alert>
-    );
-  }
-  return null;
+        </ButtonLink>
+      }
+    >
+      {user.parent_consent_status === "pending"
+        ? "Vui lòng xác thực tài khoản. Chúng tôi cũng đã gửi email xác nhận tới phụ huynh của bạn — bạn cần cả 2 bước hoàn tất mới mua được khóa học."
+        : "Vui lòng xác thực tài khoản để có thể mua khóa học."}
+    </Alert>
+  );
 }

@@ -62,6 +62,7 @@ describe("resolveCta", () => {
 describe("mapFreeEnrollError", () => {
   it("403 ACCOUNT_NOT_VERIFIED -> dẫn sang xác thực", () => {
     expect(mapFreeEnrollError(new ApiError(403, { message: "x", code: "ACCOUNT_NOT_VERIFIED" }))).toEqual({ type: "verify_account" });
+    expect(mapFreeEnrollError(new ApiError(403, { message: "x", code: "PARENT_CONSENT_REQUIRED" }))).toEqual({ type: "parent_consent" });
   });
   it("409 ENROLLMENT_PENDING / ALREADY_OWNED", () => {
     expect(mapFreeEnrollError(new ApiError(409, { message: "x", code: "ENROLLMENT_PENDING" })).type).toBe("pending");
