@@ -61,13 +61,7 @@ test('token dung nhung tran tong SSR van ap dung', function () {
     vvT26CatalogGet($h('4.4.4.3'))->assertStatus(429);
 });
 
-test('token dung nhung X-Client-IP rac: roi ve IP ket noi; token chua cau hinh thi tat', function () {
-    $h = ['X-Internal-Token' => str_repeat('a', 40), 'X-Client-IP' => 'khong-phai-ip'];
-    foreach ([1, 2, 3] as $_) {
-        vvT26CatalogGet($h)->assertOk();
-    }
-    vvT26CatalogGet($h)->assertStatus(429);
-
+test('token chua cau hinh thi tat', function () {
     config(['internal.ssr_token' => null]);
     RateLimiter::clear('x');
     Cache::flush();

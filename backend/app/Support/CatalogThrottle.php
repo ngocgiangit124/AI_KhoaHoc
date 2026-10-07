@@ -6,8 +6,12 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 
 /**
- * Limiter `catalog`: request SSR nội bộ (header bí mật đúng) được tính theo IP khách thật; mọi trường hợp khác
- * theo IP kết nối như cũ. Không đọc X-Forwarded-For — chỉ tin `X-Client-IP` khi kèm token đúng.
+ * Limiter `catalog` (ADR-004 §2.8):
+ * - không token / token sai: 120/phút theo IP kết nối, bỏ qua `X-Client-IP` (giả được);
+ * - token đúng + `X-Client-IP` là IP hợp lệ: 120/phút theo IP khách đó + chung trần `ssr-total`;
+ * - token đúng + thiếu/sai định dạng `X-Client-IP`: CHỈ trần `ssr-total` (không rơi về IP của máy Next,
+ *   vì mọi khách dùng chung IP đó). Chống cào theo IP khách ở trường hợp này do Nginx `limit_req` đảm nhiệm.
+ * Không đọc X-Forwarded-For.
  */
 class CatalogThrottle
 {
@@ -24,13 +28,14 @@ class CatalogThrottle
             return Limit::perMinute($perIp)->by((string) $request->ip());
         }
 
+        $total = Limit::perMinute((int) config('internal.catalog_ssr_total_per_minute'))->by('ssr-total');
         $clientIp = filter_var((string) $request->header(self::CLIENT_IP_HEADER), FILTER_VALIDATE_IP);
-        $key = $clientIp !== false ? $clientIp : (string) $request->ip();
 
-        return [
-            Limit::perMinute($perIp)->by('ssr-client:'.$key),
-            Limit::perMinute((int) config('internal.catalog_ssr_total_per_minute'))->by('ssr-total'),
-        ];
+        if ($clientIp === false) {
+            return $total;
+        }
+
+        return [Limit::perMinute($perIp)->by('ssr-client:'.$clientIp), $total];
     }
 
     public static function isInternal(Request $request): bool

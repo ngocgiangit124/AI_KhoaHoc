@@ -1,6 +1,6 @@
 # ADR-004: Nền tảng — Laravel 13 API cho 2 frontend Next.js (học sinh / quản trị), Sanctum SPA cookie theo từng host, phân quyền bằng `role` + Policy
 
-**Trạng thái:** Accepted (sau review Security `docs/security/audit-2026-09-25.md` và DBA `docs/db/design-review.md`) · **Cập nhật:** 2026-09-25
+**Trạng thái:** Accepted (sau review Security `docs/security/audit-2026-09-25.md` và DBA `docs/db/design-review.md`) · **Cập nhật:** 2026-09-25; bổ sung §2.8 ngày 2026-10-07
 **Phạm vi:** toàn dự án (US-001 → US-014 và các story bổ sung US-015..018)
 
 ## Bối cảnh
@@ -128,6 +128,38 @@ Cùng một ứng dụng Laravel phục vụ 2 host API bằng `Route::domain(co
 - App admin: đã render động hoàn toàn, không bị ảnh hưởng.
 
 **Hệ quả:** (+) một chính sách CSP chặt cho toàn origin; (+) không phải duy trì 2 bộ CSP; (−) tốn CPU phía Next.js cho mỗi lượt xem trang công khai → cần theo dõi và có thể phải mở rộng ngang; (−) không đặt được CDN cache cho HTML.
+
+### 2.8 SSR gọi catalog qua đường nội bộ: rate limit và header `Host` — Quyết định 2026-10-07 (phát hiện ở FW2)
+
+**Bối cảnh:**
+1. Next.js đưa **header** của request vào khoá Data Cache. Gắn `X-Client-IP` (IP khách) cho mọi request catalog thì cache tách theo từng IP: mất tác dụng cache 60 s (§2.7) và phình đĩa. FW2 vì vậy chỉ gắn `X-Client-IP` cho tìm kiếm `q`; các request khác chỉ có `X-Internal-Token`. Nhưng `CatalogThrottle` (T26) khi thiếu `X-Client-IP` lại rơi về bucket 120/phút theo IP của **máy Next**. Mọi khách dùng chung bucket này, nên nhiều slug/tổ hợp lọc cộng bot cào sẽ gây 429 và trang lỗi.
+2. `fetch` của Node (undici) không cho đặt header `Host`: hostname trong `API_INTERNAL_URL` chính là `Host`. Mẫu Nginx/checklist T31 lại giả định gọi `http://<IP>:8081` kèm `Host: api.<domain>` đặt tay (curl làm được, Next thì không). Kết quả: Laravel nhận `Host` là IP, `TrustHosts`/`Route::domain` không khớp.
+
+**Các phương án cho (1):**
+
+| Phương án | Đánh giá |
+|---|---|
+| (a) Gắn `X-Client-IP` cho mọi request | Loại: phá Data Cache (vấn đề gốc) |
+| (b) Request có token đúng mà không có `X-Client-IP` → chỉ tính vào trần tổng của nguồn SSR. Chống cào theo IP khách chuyển lên **Nginx `limit_req`** ở host web công khai. Tìm kiếm `q` vẫn tính theo IP khách | **Chọn.** Đơn giản, không phụ thuộc API cache riêng của Next. Nhược điểm: Laravel không biết khách nào gây cache miss, nên bot phân tán vẫn có thể ăn hết trần tổng (giảm thiểu bằng `limit_req` + theo dõi 429) |
+| (c) Bọc fetch bằng cache tự đặt khoá (`unstable_cache`) để gửi `X-Client-IP` mà khoá cache không chứa IP | Hoãn: dựa vào API cũ của Next 16 (`'use cache'` không dùng được vì xung đột nonce, §2.7), khó test, `revalidateTag` khác hành vi. Xem lại nếu log cho thấy (b) bị bot ăn hết trần tổng |
+
+**Quyết định:**
+- **Laravel, limiter `catalog`** (`App\Support\CatalogThrottle`):
+
+  | Request | Bucket |
+  |---|---|
+  | Không có token, hoặc token sai (mọi host công khai) | 120/phút theo IP kết nối (giữ nguyên) |
+  | Token đúng + `X-Client-IP` là IP hợp lệ | 120/phút theo `X-Client-IP` + trần tổng `ssr-total` (giữ nguyên) |
+  | Token đúng + thiếu `X-Client-IP` hoặc giá trị không phải IP | **chỉ trần tổng `ssr-total`** (`CATALOG_SSR_TOTAL_PER_MINUTE`, mặc định 6000). Không còn rơi về bucket theo IP của máy Next |
+
+- **Next.js:** mọi request catalog SSR gửi `X-Internal-Token`. `X-Client-IP` **chỉ** gửi cho truy vấn có `q` (cũng áp dụng cho FW8/FW9). IP khách lấy từ `X-Forwarded-For` do Nginx ghi đè (`$remote_addr`), không nối chuỗi. Next chỉ nghe trên loopback/mạng nội bộ, nếu không khách sẽ gọi thẳng Next kèm `X-Forwarded-For` giả. Response 429/5xx từ API không được nằm trong Data Cache; trang hiện thông báo "hệ thống đang bận", không để lộ lỗi 500 trần.
+- **Nginx host web `vitaminvui.vn`:** `limit_req` theo IP khách thật (`$binary_remote_addr` sau `vv-real-ip.conf`) cho HTML/RSC. Giá trị khởi điểm: zone `vv_web` `rate=10r/s`, `burst=200 nodelay`, `limit_req_status 429`. `/_next/static/` không giới hạn. Ngưỡng phải đủ rộng cho một lớp học chung NAT (khoảng 40 máy, mỗi trang kéo theo prefetch); chỉnh sau khi đo staging và xem log 429.
+- **Listener nội bộ `:8081` (giải quyết (2)):** Nginx **ép** `fastcgi_param HTTP_HOST api.<domain>;`. Laravel luôn thấy đúng host api dù Next gọi bằng IP. Production dùng `API_INTERNAL_URL=http://<IP_NOI_BO_NGINX>:8081`. **Không** khuyến nghị trỏ `api.<domain>` về IP nội bộ bằng `/etc/hosts`/DNS nội bộ: cách này đổi đích của MỌI lời gọi tới tên miền công khai từ máy Next (sau này gọi HTTPS tới `api.<domain>` sẽ vào IP nội bộ). Nếu hạ tầng vẫn chọn DNS nội bộ thì vẫn chạy được, vì Host bị ép ở Nginx.
+  - Listener chỉ phục vụ host api, GET/HEAD `/api/v1/`, `allow` IP Next + `deny all`, firewall chặn 8081 từ ngoài. Đặt `access_log` riêng để đếm 429 của nguồn SSR.
+  - Response qua listener này có URL tuyệt đối dạng `http://api.<domain>/...` (`links`/`meta.path` của phân trang). Frontend **không** render các URL này; tự dựng URL từ `meta.current_page`/`last_page`.
+- **An toàn (không đổi so với T26/T31):** token chỉ ở server Next (`env.server.ts` + `server-only`), hex ≥ 32 ký tự. Mọi host công khai xoá `X-Internal-Token`/`X-Client-IP` trước khi tới PHP. `X-Client-IP` chỉ có hiệu lực khi kèm token đúng. Ai có token và vào được mạng nội bộ thì được dùng trần tổng: chấp nhận, vì lúc đó hạ tầng đã bị xâm nhập.
+
+**Hệ quả:** (+) cache 60 s giữ nguyên tác dụng; người dùng thật không còn bị 429 vì dùng chung IP máy Next. (+) Next không cần thủ thuật Host/DNS. (−) Chống cào chuyển sang Nginx: thêm một ngưỡng phải chỉnh và theo dõi. (−) Bot phân tán vẫn có thể làm cạn `ssr-total`; khi đó các trang có cache miss báo bận cho mọi người, cho tới hết phút. Task: **Sửa lỗi nhỏ 4** (backend + mẫu Nginx), phần bổ sung FW2 (frontend).
 
 ### 3. Phân quyền: cột `users.role` + PHP enum + Gate/Policy (không dùng package phân quyền)
 - 4 vai trò cố định → không cần bảng roles/permissions. Muốn thêm vai trò → ADR mới.

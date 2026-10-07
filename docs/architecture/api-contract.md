@@ -76,7 +76,7 @@ Ngoại lệ duy nhất: `POST /auth/logout` và `POST /admin/auth/logout` chỉ
 | `check-payment` | 1 lần/30s/đơn | — |
 | `playback` | 30/phút/user | — |
 | `heartbeat` | 6/phút/user/bài. Thêm (cụm 2 L1): tổng giây được CỘNG trên mọi bài ≤ 165 (`max_speed*(60+nhịp 20s)+slack`) trong cửa sổ 60 giây/user (`learning.heartbeat.user_credit_*`); phần vượt cộng 0, vẫn 200 | — |
-| `catalog` | — | 120/phút. **SSR (T26+):** request mang `X-Internal-Token` đúng (= `INTERNAL_API_TOKEN`) được tính theo IP khách trong `X-Client-IP` (120/phút/IP) và chung trần 6000/phút cho toàn bộ nguồn SSR; token sai/thiếu → như cũ theo IP kết nối. Không tin `X-Forwarded-For`. |
+| `catalog` | — | 120/phút. **SSR (T26+):** request mang `X-Internal-Token` đúng (= `INTERNAL_API_TOKEN`) + `X-Client-IP` hợp lệ được tính 120/phút/IP khách và chung trần 6000/phút (`CATALOG_SSR_TOTAL_PER_MINUTE`) cho toàn bộ nguồn SSR; token đúng nhưng thiếu/sai định dạng `X-Client-IP` → CHỈ tính trần tổng (ADR-004 §2.8); token sai/thiếu → như cũ theo IP kết nối (bỏ qua `X-Client-IP`). Không tin `X-Forwarded-For`. |
 | `csrf` | — | 120/phút (PO chốt 2026-10-05, lớp học dùng chung NAT) |
 | `webhook` | — | 120/phút |
 | `export` | 10 lần tạo/ngày/user | — |
