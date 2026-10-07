@@ -257,8 +257,11 @@ test('R2: connection redis_video dung connection Redis `video`: mac dinh cung Re
     $video = ['REDIS_VIDEO_HOST' => 'video-redis', 'REDIS_VIDEO_PORT' => '6380', 'REDIS_VIDEO_PASSWORD' => 'videopw', 'REDIS_VIDEO_USERNAME' => 'vv_worker_video', 'REDIS_VIDEO_DB' => '0'];
 
     $load = function (array $env): array {
-        $keys = array_keys($env);
+        // Khôi phục đúng giá trị cũ (không unset): biến REDIS_* thật của tiến trình (vd. --env-file trong CI)
+        // phải còn cho các test chạy sau dùng Redis thật.
+        $old = [];
         foreach ($env as $k => $v) {
+            $old[$k] = [$_ENV[$k] ?? null, $_SERVER[$k] ?? null, getenv($k)];
             $_ENV[$k] = $_SERVER[$k] = $v;
             putenv("{$k}={$v}");
         }
@@ -266,9 +269,18 @@ test('R2: connection redis_video dung connection Redis `video`: mac dinh cung Re
         try {
             return (require config_path('database.php'))['redis']['video'];
         } finally {
-            foreach ($keys as $k) {
-                unset($_ENV[$k], $_SERVER[$k]);
-                putenv($k);
+            foreach ($old as $k => [$e, $s, $g]) {
+                if ($e === null) {
+                    unset($_ENV[$k]);
+                } else {
+                    $_ENV[$k] = $e;
+                }
+                if ($s === null) {
+                    unset($_SERVER[$k]);
+                } else {
+                    $_SERVER[$k] = $s;
+                }
+                $g === false ? putenv($k) : putenv("{$k}={$g}");
             }
         }
     };

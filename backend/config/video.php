@@ -50,6 +50,15 @@ return [
     // `videos:prune-orphans`: chỉ xoá asset không còn bài trỏ tới, tạo cách đây ít nhất ngần này phút.
     'orphan_grace_minutes' => (int) env('VIDEO_ORPHAN_GRACE_MINUTES', 10),
 
+    // T37-1 `videos:migrate-provider` (chuyển video VideoLab → Bunny).
+    'migration' => [
+        // Timeout PUT tệp gốc lên Bunny (giây); tệp ≤ 1 GB.
+        'upload_timeout_seconds' => (int) env('VIDEO_MIGRATE_UPLOAD_TIMEOUT', 3600),
+        // Chờ Bunny mã hoá xong ngay trong lần chạy (giây); hết hạn mà chưa xong thì để lần chạy sau ghi nhận tiếp.
+        'wait_seconds' => (int) env('VIDEO_MIGRATE_WAIT_SECONDS', 300),
+        'poll_interval_seconds' => 10,
+    ],
+
     'providers' => [
         'fake' => [
             'secret' => env('FAKE_VIDEO_SECRET', 'fake-video-local-only'),

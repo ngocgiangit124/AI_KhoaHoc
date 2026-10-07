@@ -58,6 +58,8 @@
         <env name="TRUSTED_PROXIES" value="" force="true"/>
         <env name="PULSE_ENABLED" value="false" force="true"/>
         <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <env name="VIDEO_PROVIDER" value="internal" force="true"/>
+        <env name="VIDEO_ENABLED_PROVIDERS" value="internal" force="true"/>
         <env name="BUNNY_LIBRARY_ID" value="" force="true"/>
         <env name="BUNNY_API_KEY" value="" force="true"/>
         <env name="BUNNY_CDN_HOST" value="" force="true"/>
@@ -88,6 +90,8 @@
         <server name="TRUSTED_PROXIES" value="" force="true"/>
         <server name="PULSE_ENABLED" value="false" force="true"/>
         <server name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <server name="VIDEO_PROVIDER" value="internal" force="true"/>
+        <server name="VIDEO_ENABLED_PROVIDERS" value="internal" force="true"/>
         <server name="BUNNY_LIBRARY_ID" value="" force="true"/>
         <server name="BUNNY_API_KEY" value="" force="true"/>
         <server name="BUNNY_CDN_HOST" value="" force="true"/>

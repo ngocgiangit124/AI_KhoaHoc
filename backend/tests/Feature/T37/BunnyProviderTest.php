@@ -265,5 +265,6 @@ test('thieu cau hinh: chuoi rong/khoang trang cung tinh la thieu; du cau hinh ->
 test('moi lenh HTTP co timeout toi da 10s va khong retry (kiem tren ma nguon)', function () {
     $src = (string) file_get_contents(app_path('Services/Video/Providers/BunnyStreamProvider.php'));
 
-    expect($src)->toContain('->timeout(10)')->and($src)->toContain('->connectTimeout(5)')->and($src)->not->toContain('->retry(');
+    // Mặc định 10s; chỉ uploadSource (T37-1, lệnh vận hành) truyền timeout dài hơn.
+    expect($src)->toContain('int $timeout = 10')->and($src)->toContain('->timeout($timeout)')->and($src)->toContain('->connectTimeout(5)')->and($src)->not->toContain('->retry(');
 });

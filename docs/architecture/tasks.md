@@ -476,7 +476,7 @@ Story do BA viết sau khi chốt task MVP (PO 2026-10-06). Architect đã chố
 | US-020 | **FA11** (frontend admin) | T36, FA1, design US-020 (`nextjs-designer`) | **Màn riêng, không gộp FA10**: FA10 chỉ admin (`manage-system`), còn QLT cũng phải quản lý hồ sơ giáo viên |
 | US-020 | **FW9** (frontend web) | T36, FW8, design US-020 | Gắn khu vực giáo viên vào chỗ FW8 đã chừa |
 | US-021 Kết nối Bunny Stream (Draft) | **T37** (backend) [SEC] | T11, T12, T13 (đã xong); tài khoản Bunny (câu hỏi A1) cho bước kiểm thật | Không có task frontend riêng; dùng chung FA4/FW4 (xem ghi chú ở hai dòng đó) |
-| US-021 | **T37-1** (backend, tuỳ chọn) | T37, PO trả lời A5 | `videos:migrate-provider`, chỉ làm nếu có video thật trên VideoLab |
+| US-021 | **T37-1** (backend, tuỳ chọn) | T37, PO trả lời A5 | `videos:migrate-provider`. **Xong 2026-10-07** (review + QA PASS; chưa chạy thật trên Bunny, làm ở staging) |
 
 Thứ tự:
 
@@ -524,7 +524,7 @@ Phụ thuộc T11, T12, T13 (đã xong). Làm được bằng `Http::fake` khi c
 - `ProductionConfigGuard`: thiếu `BUNNY_*` khi Bunny bật → không khởi động; `BUNNY_CDN_HOST` https và khác host app/web/admin.
 - Tài liệu: mục cấu hình thư viện Bunny + webhook trong `docs/ops/production-checklist.md`; api-contract §2.7.
 - **Xong khi:** AC1–AC16 của US-021 có test Pest (trừ AC9 và phần đối chiếu thật của AC16 làm tay trên thư viện Bunny staging, ghi vào báo cáo QA); `VIDEO_ENABLED_PROVIDERS=bunny,internal` phát đúng từng nhà cung cấp; `composer ci` xanh; review + Security + QA.
-- **T37-1 (tuỳ chọn, ~1,5 ngày)** chuyển video cũ: lệnh `videos:migrate-provider` theo ADR-002 §6.4. Chỉ làm nếu PO có video thật trên VideoLab.
+- **T37-1 (tuỳ chọn, ~1,5 ngày)** chuyển video cũ: lệnh `videos:migrate-provider` theo ADR-002 §6.4. **Xong 2026-10-07: review + QA PASS** (`docs/review/T37-1.md`, `docs/qa/T37-1.md`) (PO quyết làm ngay vì đã có tài khoản Bunny). Chi tiết: `docs/tech/US-021.md` mục T37-1; vận hành: `docs/ops/production-checklist.md` mục 2.1.
 
 ### FW8 — Trang chủ thật (`nextjs-dev`, ~2,5 ngày, +0,25–0,5 ngày cho poster) (US-019)
 Phụ thuộc FW2 (review xong), design v2 do PO duyệt.

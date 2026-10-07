@@ -13,6 +13,7 @@ use App\Services\Video\Data\UploadTarget;
 use App\Services\Video\Exceptions\VideoNotFoundException;
 use App\Services\Video\Exceptions\VideoProviderException;
 use App\Services\Video\Providers\Bunny\BunnySigner;
+use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -88,6 +89,44 @@ class BunnyStreamProvider implements VerifiesWebhookRequest, VideoProvider
         }
 
         return $this->toProviderVideo($response->json());
+    }
+
+    /**
+     * T37-1: đẩy tệp gốc từ server lên video đã tạo (`PUT .../videos/{guid}`, thân nhị phân). Dùng stream nên không
+     * nạp cả tệp vào RAM; timeout riêng cho tệp lớn (`video.migration.upload_timeout_seconds`), KHÔNG dùng cho
+     * luồng học sinh.
+     *
+     * @throws VideoProviderException
+     */
+    public function uploadSource(string $providerVideoId, string $path): void
+    {
+        $this->assertGuid($providerVideoId);
+
+        $handle = is_file($path) ? @fopen($path, 'rb') : false;
+
+        if ($handle === false) {
+            throw new VideoProviderException('Không đọc được tệp gốc để tải lên Bunny.');
+        }
+
+        try {
+            $response = $this->send(
+                fn (PendingRequest $http) => $http->withBody(Utils::streamFor($handle), 'application/octet-stream')
+                    ->put($this->videosUrl().'/'.$providerVideoId),
+                max(60, (int) config('video.migration.upload_timeout_seconds', 3600)),
+            );
+        } finally {
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+        }
+
+        if ($response->status() === 404) {
+            throw new VideoNotFoundException('Video không tồn tại ở Bunny.');
+        }
+
+        if (! $response->successful()) {
+            throw new VideoProviderException('Bunny từ chối tệp tải lên (HTTP '.$response->status().').');
+        }
     }
 
     public function uploadTarget(ProviderVideo $video, int $ttlSeconds): UploadTarget
@@ -174,11 +213,11 @@ class BunnyStreamProvider implements VerifiesWebhookRequest, VideoProvider
     /**
      * @param  callable(PendingRequest): Response  $call
      */
-    private function send(callable $call): Response
+    private function send(callable $call, int $timeout = 10): Response
     {
         $http = Http::withHeaders(['AccessKey' => $this->required('api_key')])
             ->acceptJson()
-            ->timeout(10)
+            ->timeout($timeout)
             ->connectTimeout(5)
             ->withoutRedirecting(); // AccessKey không được đi theo redirect sang host khác
 
