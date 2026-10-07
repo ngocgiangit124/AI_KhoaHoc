@@ -307,7 +307,7 @@ Cài ở task sau:
 - [ ] **T11 Contract video** (~1,5 ngày) **[SEC]** — phụ thuộc T09
   - `VideoProvider`, `VideoProviderManager`, `FakeVideoProvider` (chỉ local/testing).
   - Phải dọn `video_asset` mồ côi: T09 gỡ `lessons.video_asset_id` khi bài đổi khỏi `upload` (kể cả asset đang `processing`) — job/lệnh dọn asset không còn bài trỏ tới (review T09 m3).
-  - Tạo phiên upload (kiểm size ≤ 2 GB, hạn mức 20 GB/ngày); webhook `whereIn(provider)` + pull-verify; `videos:check-stuck`.
+  - Tạo phiên upload (kiểm size ≤ 1 GB (PO 2026-10-07, trước đây 2 GB), hạn mức 20 GB/ngày); webhook `whereIn(provider)` + pull-verify; `videos:check-stuck`.
   - _Dev 2026-10-05: xong phần contract: `VideoProvider` + DTO, `VideoProviderManager` (allowlist `video.enabled_providers`), `FakeVideoProvider` (local/testing, boot guard cấm production), `VideoUploadService`, `VideoAssetSyncService`, `VideoWebhookService`, `OrphanVideoPruner`, `SyncVideoAssetStatusJob`, lệnh `videos:check-stuck` (15 phút) và `videos:prune-orphans` (hourly), route admin upload/trạng thái + webhook. 29 test ở tests/Feature/T11. CHƯA có `InternalVideoProvider` (T12) và `BunnyStreamProvider` (chờ tài khoản): chọn chúng → 503 `VIDEO_PROVIDER_UNAVAILABLE`. Playback (`LessonAccessService`, `/learn/.../playback`, endpoint admin playback) thuộc T13; `FakeVideoProvider::playback` đã sẵn để T13 dùng._
 - [ ] **T12 Module VideoLab** (~4 ngày) **[SEC]** — song song T13 sau T11
   - Toàn bộ ADR-002 §3a: magic bytes; ffprobe/ffmpeg với `-protocol_whitelist file` + `-format_whitelist` qua `Process` mảng tham số.

@@ -102,7 +102,7 @@ interface VideoProvider
    - Khi phục vụ, `realpath()` của file phải nằm trong `videolab/hls/{guid}/`, sai → 404.
    - File gốc nằm ở thư mục khác (`videolab/source/`), không bao giờ phục vụ được.
 5. **TUS:**
-   - `Upload-Length` ≤ `max_bytes` (= kích thước khai ở `POST /admin/lessons/{id}/video-uploads`, ≤ `max_upload_mb` = 2048). PATCH làm vượt `Upload-Length` → 413.
+   - `Upload-Length` ≤ `max_bytes` (= kích thước khai ở `POST /admin/lessons/{id}/video-uploads`, ≤ `max_upload_mb` = 1024 (PO 2026-10-07, trước đây 2048)). PATCH làm vượt `Upload-Length` → 413.
    - Chỉ nhận upload khi `status ∈ {0}` và chưa có upload khác cho `guid` (1 upload/guid); video đã `finished` → 403.
    - Chữ ký hết hạn sau ≤ 6 giờ; kiểm `AuthorizationExpire > now()`, `VideoId` khớp bản ghi, so chữ ký bằng `hash_equals`. VideoLab dùng `hash_hmac('sha256', library_id.expire.video_id, api_key)` (Bunny adapter giữ công thức Bunny).
    - `Upload-Metadata.filename` chỉ để hiển thị, **không bao giờ dùng làm đường dẫn**.

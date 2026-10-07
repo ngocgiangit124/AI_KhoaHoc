@@ -128,7 +128,7 @@ test('S1: k dang mang (?k[]=x) -> 404', function () {
 test('S2b: upload, de, prune, upload lai -> han muc ngay KHONG duoc hoan', function () {
     vvCourseActor();
     bzConfigure();
-    config(['video.daily_quota_gb' => 3]);
+    config(['video.daily_quota_gb' => 2]);
     $gb = 1024 * 1024 * 1024;
     $n = 0;
     bzFakeApi(['POST '.bzVideosPath() => function () use (&$n) {
@@ -138,7 +138,7 @@ test('S2b: upload, de, prune, upload lai -> han muc ngay KHONG duoc hoan', funct
     }]);
     [$course, , $lesson] = vvContentSet();
 
-    vvRequestUpload($course, $lesson, ['size' => 2 * $gb])->assertCreated();
+    vvRequestUpload($course, $lesson, ['size' => 1 * $gb])->assertCreated();
     vvRequestUpload($course, $lesson, ['size' => 1 * $gb])->assertCreated(); // de len; asset dau thanh mo coi
 
     VideoAsset::query()->update(['created_at' => now()->subHour()]);
@@ -148,16 +148,16 @@ test('S2b: upload, de, prune, upload lai -> han muc ngay KHONG duoc hoan', funct
 
     bzFakeApi(['POST '.bzVideosPath() => Http::response(bzVideoBody('11111111-2222-3333-4444-999999999999'), 200)]);
     vvRequestUpload($course, $lesson, ['size' => 1 * $gb])->assertStatus(422)->assertJsonPath('code', 'VIDEO_QUOTA_EXCEEDED');
-    expect((int) DB::table('video_upload_usages')->value('bytes'))->toBe(3 * $gb);
+    expect((int) DB::table('video_upload_usages')->value('bytes'))->toBe(2 * $gb);
 });
 
 test('S2b: phien bo do vi Bunny loi duoc hoan so han muc', function () {
     vvCourseActor();
     bzConfigure();
-    config(['video.daily_quota_gb' => 2]);
+    config(['video.daily_quota_gb' => 1]);
     bzFakeApi(['POST '.bzVideosPath() => Http::response('err', 500)]);
     [$course, , $lesson] = vvContentSet();
-    $size = 2 * 1024 * 1024 * 1024;
+    $size = 1024 * 1024 * 1024;
 
     vvRequestUpload($course, $lesson, ['size' => $size])->assertStatus(503);
     expect((int) DB::table('video_upload_usages')->value('bytes'))->toBe(0);

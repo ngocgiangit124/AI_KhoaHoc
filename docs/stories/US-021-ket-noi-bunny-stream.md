@@ -16,7 +16,7 @@ Là PO, tôi muốn đổi từ VideoLab sang Bunny chỉ bằng cấu hình, đ
   - Chưa có `BunnyStreamProvider`. `VideoProviderManager::createBunnyDriver()` luôn báo lỗi "chưa cài đặt".
   - Đặt `VIDEO_PROVIDER=bunny`: tạo phiên upload trả 503 `VIDEO_PROVIDER_UNAVAILABLE`; webhook `/webhooks/video/bunny` trả 404.
   - `config/video.php` chưa có mục `providers.bunny`. `.env.example` chưa có biến `BUNNY_*`.
-  - Phần còn lại đã dùng chung cho mọi nhà cung cấp, không phải viết lại: tạo phiên upload + hạn mức 20 GB/ngày + trần 2 GB (T11), webhook không tin payload và gọi lại `getVideo()` (T11), đồng bộ trạng thái và quét video kẹt `videos:check-stuck` (T11), dọn video mồ côi `videos:prune-orphans` (T11), phát video có token, ràng IP, throttle, log, tiến độ 90% (T13).
+  - Phần còn lại đã dùng chung cho mọi nhà cung cấp, không phải viết lại: tạo phiên upload + hạn mức 20 GB/ngày + trần 1 GB (PO đổi từ 2 GB ngày 2026-10-07) (T11), webhook không tin payload và gọi lại `getVideo()` (T11), đồng bộ trạng thái và quét video kẹt `videos:check-stuck` (T11), dọn video mồ côi `videos:prune-orphans` (T11), phát video có token, ràng IP, throttle, log, tiến độ 90% (T13).
   - `video_assets.provider` lưu nhà cung cấp của từng video. Khi phát, hệ thống dùng đúng nhà cung cấp của video đó. Nên VideoLab và Bunny chạy song song được: video cũ vẫn phát qua VideoLab, video mới đi Bunny.
   - Chỗ cần chỉnh nhỏ: `VideoUploadService` đang ghi `provider_library_id` từ `config('video.library_id')` (mặc định `default`, dùng cho VideoLab). Bunny có Library ID riêng nên phải lấy từ cấu hình của Bunny.
 - Frontend (FA4 tải video, FW4 học video) cùng gọi một API cho mọi nhà cung cấp, nên không cần màn riêng cho Bunny. Chỉ phải cấu hình tên miền được phép (xem Ghi chú).
@@ -91,6 +91,10 @@ Cấu hình khoá Bunny: chỉ người vận hành server qua `.env`. Không c�
 - Thống kê băng thông/chi phí trong trang quản trị (xem số liệu ở trang Bunny).
 - Tự động chuyển nhà cung cấp khi Bunny sập (failover sang VideoLab).
 - Tắt/gỡ module VideoLab khỏi mã nguồn (chỉ tắt bằng cấu hình khi hết video cũ).
+
+## Quyết định PO
+- 2026-10-07: mỗi video tối đa **1 GB** (thay cho 2 GB); mặc định `VIDEO_MAX_UPLOAD_MB=1024`. Hạn mức 20 GB/ngày mỗi người tạo giữ nguyên.
+- 2026-10-07: PO chấp nhận rủi ro Bunny không ép kích thước thật theo con số khai (S2a trong `docs/security/review-T37.md`), vì chỉ staff tải video. Ghi ở `docs/security/backlog-v2.md`.
 
 ## Câu hỏi mở
 Nhóm A, cần trả lời trước khi dev bắt đầu bước kiểm thật:

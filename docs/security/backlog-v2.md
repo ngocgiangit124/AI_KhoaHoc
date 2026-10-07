@@ -330,7 +330,7 @@ Còn lại (không sửa trong T36):
 
 | Mã | Mức | Nội dung | Trạng thái |
 |---|---|---|---|
-| S2a | Medium | Kích thước thật của tệp tải thẳng lên Bunny không bị ép (chỉ số khai báo); đối chiếu `storageSize` khi `ready` nếu PO muốn; cảnh báo dung lượng/chi phí trên Bunny | PO quyết (chấp nhận rủi ro hoặc làm đối chiếu) |
+| S2a | Medium | Kích thước thật của tệp tải thẳng lên Bunny không bị ép (chỉ số khai báo); đối chiếu `storageSize` khi `ready` nếu PO muốn; cảnh báo dung lượng/chi phí trên Bunny | PO chấp nhận 2026-10-07 (giữ rủi ro; trần giảm còn 1 GB/video; chỉ staff tải video) |
 | S3 | Medium (cổng go-live) | Kiểm soát truy cập dựa cấu hình Bunny: bật CDN Token Auth + Embed View Token Auth, kiểm phủ định 403 (checklist §2.1). Cân nhắc lệnh `videos:bunny-selfcheck` sau deploy | Làm tay ở QA staging (AC16); lệnh tự kiểm để V2 |
 | S5 | Low | Chữ ký TUS 6 giờ dùng lại được sau khi gỡ quyền/khi video đã `ready`; kiểm staging xem Bunny có từ chối TUS vào video đã có nội dung; cân nhắc TTL theo kích thước khai báo; ghi vào ADR-002 là chỉ thu hồi bằng xoay `BUNNY_API_KEY` | Hoãn V2 |
 | S6 | Low | Ràng IP dễ hỏng: dual-stack, IPv6 không chuẩn hoá (`inet_ntop(inet_pton())`), ràng /64 nếu Bunny hỗ trợ; FE phải gọi playback từ trình duyệt và làm mới URL trước `expires_at` (ghi ở FW4); QA thử dual-stack. Không tắt `VIDEO_BIND_IP` để chữa cháy | Hoãn V2 (phần FE ở FW4) |

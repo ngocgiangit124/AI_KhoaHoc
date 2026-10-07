@@ -37,11 +37,11 @@ test('AC11: Bunny 5xx / timeout / 401 -> 503 tieng Viet, han muc khong bi tru oa
     };
     vvCourseActor();
     bzConfigure();
-    config(['video.daily_quota_gb' => 2]);
+    config(['video.daily_quota_gb' => 1]);
     Log::spy();
     bzFakeApi(['POST '.bzVideosPath() => $reply]);
     [$course, , $lesson] = vvContentSet();
-    $size = 2 * 1024 * 1024 * 1024;
+    $size = 1024 * 1024 * 1024;
 
     $res = vvRequestUpload($course, $lesson, ['size' => $size])->assertStatus(503)->assertJsonPath('code', 'VIDEO_PROVIDER_UNAVAILABLE');
     expect($res->getContent())->not->toContain(BZ_API_KEY)->and($lesson->fresh()->video_asset_id)->toBeNull()

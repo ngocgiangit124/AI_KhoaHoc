@@ -50,19 +50,23 @@ test('upload lai: asset cu tro thanh mo coi, bai tro asset moi; chuyen link ngoa
     expect($lesson->fresh()->video_asset_id)->toBe($second)->and(VideoAsset::query()->whereKey($first)->exists())->toBeTrue();
 });
 
-test('validate: size > 2GB, size 0, duoi file la, thieu truong -> 422; khong tao asset', function () {
+test('mac dinh tran moi video la 1024 MB (PO 2026-10-07)', function () {
+    expect(config('video.max_upload_mb'))->toBe(1024);
+});
+
+test('validate: size > 1GB, size 0, duoi file la, thieu truong -> 422; khong tao asset', function () {
     vvCourseActor();
     vvVideoFake();
     [$course, , $lesson] = vvContentSet();
 
-    vvRequestUpload($course, $lesson, ['size' => 2048 * 1024 * 1024 + 1])->assertStatus(422)->assertJsonValidationErrors('size');
+    vvRequestUpload($course, $lesson, ['size' => 1024 * 1024 * 1024 + 1])->assertStatus(422)->assertJsonValidationErrors('size');
     vvRequestUpload($course, $lesson, ['size' => 0])->assertStatus(422)->assertJsonValidationErrors('size');
     vvRequestUpload($course, $lesson, ['filename' => 'virus.php'])->assertStatus(422)->assertJsonValidationErrors('filename');
     vvRequestUpload($course, $lesson, ['filename' => 'a.mp4.exe'])->assertStatus(422)->assertJsonValidationErrors('filename');
     vvCourseJson('POST', vvUploadPath($course, $lesson), [])->assertStatus(422)->assertJsonValidationErrors(['filename', 'size']);
 
-    // đúng 2 GB thì được
-    vvRequestUpload($course, $lesson, ['size' => 2048 * 1024 * 1024])->assertCreated();
+    // đúng 1 GB thì được
+    vvRequestUpload($course, $lesson, ['size' => 1024 * 1024 * 1024])->assertCreated();
     expect(VideoAsset::query()->count())->toBe(1);
 });
 
@@ -72,14 +76,14 @@ test('han muc 20GB/ngay moi nguoi tao: vuot -> 422 VIDEO_QUOTA_EXCEEDED; nguoi k
     [$course, , $lesson] = vvContentSet();
 
     $gb = 1024 * 1024 * 1024;
-    VideoAsset::factory()->create(['created_by' => $actor->id, 'declared_size_bytes' => 19 * $gb]);
+    VideoAsset::factory()->create(['created_by' => $actor->id, 'declared_size_bytes' => 19 * $gb + $gb / 2]);
     VideoAsset::factory()->create(['created_by' => User::factory()->teacher(), 'declared_size_bytes' => 15 * $gb]);
     VideoAsset::factory()->create(['created_by' => $actor->id, 'declared_size_bytes' => 15 * $gb, 'created_at' => now()->subDay()->startOfDay()->subHour()]);
 
-    vvRequestUpload($course, $lesson, ['size' => 2 * $gb])->assertStatus(422)->assertJsonPath('code', 'VIDEO_QUOTA_EXCEEDED');
+    vvRequestUpload($course, $lesson, ['size' => 1 * $gb])->assertStatus(422)->assertJsonPath('code', 'VIDEO_QUOTA_EXCEEDED');
     expect($lesson->fresh()->video_asset_id)->toBeNull();
 
-    vvRequestUpload($course, $lesson, ['size' => 1 * $gb])->assertCreated(); // đúng 20 GB
+    vvRequestUpload($course, $lesson, ['size' => $gb / 2])->assertCreated(); // đúng 20 GB
     vvRequestUpload($course, $lesson, ['size' => 1])->assertStatus(422)->assertJsonPath('code', 'VIDEO_QUOTA_EXCEEDED');
 });
 

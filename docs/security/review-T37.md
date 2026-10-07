@@ -45,7 +45,7 @@
   3. Kiểm lại tài liệu Bunny hiện hành. Nếu Bunny Stream đã hỗ trợ ký webhook thì bật lên và xác minh HMAC hằng thời gian.
 - Cách kiểm chứng: test gửi webhook cho asset `ready` thì `Http::assertNothingSent()`; gửi 2 webhook liên tiếp cho asset `processing` thì chỉ có 1 lời gọi; thiếu hoặc sai `k` thì 404 và không gọi mạng.
 
-### S2 [Medium] Hạn mức 2 GB/video và 20 GB/ngày lách được khi upload thẳng lên Bunny (OWASP A04)
+### S2 [Medium] Hạn mức 1 GB/video (PO đổi từ 2 GB, 2026-10-07) và 20 GB/ngày lách được khi upload thẳng lên Bunny (OWASP A04)
 - Vị trí: `backend/app/Services/Video/Providers/BunnyStreamProvider.php:79-90` (bỏ qua `$maxBytes`), `:92-111` (chữ ký TUS không ràng kích thước), `backend/app/Services/Video/VideoUploadService.php:157-166` (hạn mức tính trên các dòng `video_assets` còn tồn tại), `backend/app/Services/Video/OrphanVideoPruner.php:74` (xoá cứng; `VideoAsset` không dùng `SoftDeletes`).
 - Mô tả và tác động:
   - (a) Kích thước chỉ là số do client khai (`size`). Bunny không ép `Upload-Length` theo chữ ký, nên khai 1 MB vẫn tải được tệp hàng chục GB. Story đã ghi đây là rủi ro chấp nhận (US-021, dòng 59).

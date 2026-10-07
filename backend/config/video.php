@@ -24,7 +24,7 @@ return [
     'library_id' => env('VIDEO_LIBRARY_ID', 'default'),
 
     // Kích thước tối đa mỗi video tải lên (MB) và hạn mức mỗi người tạo mỗi ngày (GB) — ADR-002 §3a.5.
-    'max_upload_mb' => (int) env('VIDEO_MAX_UPLOAD_MB', 2048),
+    'max_upload_mb' => (int) env('VIDEO_MAX_UPLOAD_MB', 1024),
     'daily_quota_gb' => (int) env('VIDEO_DAILY_QUOTA_GB', 20),
 
     // Chỉ để báo lỗi sớm cho người dùng; kiểm định dạng thật bằng magic bytes ở VideoLab (T12).
