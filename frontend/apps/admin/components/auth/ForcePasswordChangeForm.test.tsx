@@ -10,7 +10,7 @@ const replace = vi.fn();
 const refresh = vi.fn();
 const show = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, refresh: vi.fn() }) }));
-vi.mock("@vitaminvui/ui", async (orig) => ({ ...(await orig<typeof import("@vitaminvui/ui")>()), useToast: () => ({ show }) }));
+vi.mock("@vitaminvui/ui/v2", async (orig) => ({ ...(await orig<typeof import("@vitaminvui/ui/v2")>()), useToast: () => ({ show }) }));
 vi.mock("@/lib/auth/api", () => ({ changeStaffPassword: vi.fn() }));
 vi.mock("@/lib/auth/SessionProvider", () => ({ useSession: vi.fn() }));
 
@@ -40,17 +40,26 @@ describe("ForcePasswordChangeForm", () => {
 
   it("xác nhận không khớp → lỗi dưới field, không gọi API", async () => {
     render(<ForcePasswordChangeForm />);
-    await fill("matkhau123", "khac123456");
+    await fill("MatKhauMoi#2026", "KhacHoanToan#99");
     expect(await screen.findByText("Xác nhận mật khẩu không khớp")).toBeInTheDocument();
+    expect(changeStaffPassword).not.toHaveBeenCalled();
+  });
+
+  it("mật khẩu staff tối thiểu 12 ký tự: gợi ý + minLength + lỗi dưới ô, không gọi API", async () => {
+    render(<ForcePasswordChangeForm />);
+    expect(screen.getByLabelText(/^Mật khẩu mới/)).toHaveAttribute("minlength", "12");
+    expect(screen.getByText(/Tối thiểu 12 ký tự, không chứa phần trước @ của email/)).toBeInTheDocument();
+    await fill("NganHon#1", "NganHon#1");
+    expect(await screen.findByText("Mật khẩu tối thiểu 12 ký tự")).toBeInTheDocument();
     expect(changeStaffPassword).not.toHaveBeenCalled();
   });
 
   it("mật khẩu mới trùng mật khẩu hiện tại → lỗi, không gọi API", async () => {
     render(<ForcePasswordChangeForm />);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/^Mật khẩu hiện tại/), "matkhau123");
-    await user.type(screen.getByLabelText(/^Mật khẩu mới/), "matkhau123");
-    await user.type(screen.getByLabelText(/^Xác nhận mật khẩu mới/), "matkhau123");
+    await user.type(screen.getByLabelText(/^Mật khẩu hiện tại/), "MatKhauMoi#2026");
+    await user.type(screen.getByLabelText(/^Mật khẩu mới/), "MatKhauMoi#2026");
+    await user.type(screen.getByLabelText(/^Xác nhận mật khẩu mới/), "MatKhauMoi#2026");
     await user.click(screen.getByRole("button", { name: "Đặt mật khẩu mới và tiếp tục" }));
     expect(await screen.findByText("Mật khẩu mới phải khác mật khẩu hiện tại")).toBeInTheDocument();
     expect(changeStaffPassword).not.toHaveBeenCalled();
@@ -59,10 +68,10 @@ describe("ForcePasswordChangeForm", () => {
   it("thành công → toast + vào next", async () => {
     vi.mocked(changeStaffPassword).mockResolvedValue();
     render(<ForcePasswordChangeForm next="/quan-tri/khoa-hoc" />);
-    await fill("matkhau123", "matkhau123");
+    await fill("MatKhauMoi#2026", "MatKhauMoi#2026");
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/quan-tri/khoa-hoc"));
-    expect(changeStaffPassword).toHaveBeenCalledWith({ current_password: "tamthoi1234", password: "matkhau123", password_confirmation: "matkhau123" });
-    expect(show).toHaveBeenCalledWith("success", "Đổi mật khẩu thành công");
+    expect(changeStaffPassword).toHaveBeenCalledWith({ current_password: "tamthoi1234", password: "MatKhauMoi#2026", password_confirmation: "MatKhauMoi#2026" });
+    expect(show).toHaveBeenCalledWith({ tone: "success", title: "Đổi mật khẩu thành công" });
   });
 
   it("422 → lỗi dưới field, giữ dữ liệu đã nhập", async () => {
@@ -70,9 +79,9 @@ describe("ForcePasswordChangeForm", () => {
       new ApiError(422, { message: "x", errors: { password: ["Mật khẩu quá phổ biến"] } }),
     );
     render(<ForcePasswordChangeForm />);
-    await fill("matkhau123", "matkhau123");
+    await fill("MatKhauMoi#2026", "MatKhauMoi#2026");
     expect(await screen.findByText("Mật khẩu quá phổ biến")).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Mật khẩu mới/)).toHaveValue("matkhau123");
+    expect(screen.getByLabelText(/^Mật khẩu mới/)).toHaveValue("MatKhauMoi#2026");
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -80,7 +89,7 @@ describe("ForcePasswordChangeForm", () => {
     vi.mocked(changeStaffPassword).mockResolvedValue();
     refresh.mockResolvedValue({ kind: "guest", reason: null });
     render(<ForcePasswordChangeForm />);
-    await fill("matkhau123", "matkhau123");
+    await fill("MatKhauMoi#2026", "MatKhauMoi#2026");
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dang-nhap?reason=password_changed"));
   });
 

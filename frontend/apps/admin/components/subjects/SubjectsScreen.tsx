@@ -2,14 +2,32 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Alert, Badge, Button, ConfirmModal, EmptyState, FormField, Select, Table, TextInput, useToast, type TableColumn } from "@vitaminvui/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  ConfirmDialog,
+  DataTable,
+  EmptyState,
+  Field,
+  IconPencil,
+  IconPlus,
+  IconSearch,
+  IconShapes,
+  IconTrash,
+  Pagination,
+  Select,
+  Switch,
+  TextInput,
+  useToast,
+  type Column,
+} from "@vitaminvui/ui/v2";
 import { ForbiddenView } from "@/components/shell/ForbiddenView";
 import { useSession } from "@/lib/auth/SessionProvider";
 import { deleteSubject, listSubjects, setSubjectStatus } from "@/lib/subjects/api";
-import { isForbidden, isSubjectInUse, subjectActionError } from "@/lib/subjects/errors";
+import { isForbidden, isSubjectGone, isSubjectInUse, subjectActionError } from "@/lib/subjects/errors";
 import { parseSubjectQuery, subjectQueryToApi, subjectQueryToSearch } from "@/lib/subjects/query";
 import { PER_PAGE_OPTIONS, type Subject, type SubjectPage, type SubjectQuery } from "@/lib/subjects/types";
-import { StatusSwitch } from "./StatusSwitch";
 import { SubjectFormModal } from "./SubjectFormModal";
 import { SubjectInUseModal } from "./SubjectInUseModal";
 
@@ -38,6 +56,7 @@ export function SubjectsScreen() {
   const [result, setResult] = useState<LoadResult | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [busyIds, setBusyIds] = useState<ReadonlySet<number>>(new Set());
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [qInput, setQInput] = useState(query.q);
   const openerRef = useRef<HTMLElement | null>(null);
   // Đang gọi API trong hộp thoại (xoá/ẩn): chặn Esc/overlay/Huỷ để không đóng giữa chừng.
@@ -133,11 +152,13 @@ export function SubjectsScreen() {
       await withBusy(subject.id, async () => {
         try {
           const saved = await setSubjectStatus(subject.id, status);
-          toast.show("success", saved.status === "hidden" ? "Đã ẩn chuyên đề khỏi bộ lọc công khai" : "Đã hiển thị lại chuyên đề");
+          toast.show({ tone: "success", title: saved.status === "hidden" ? "Đã ẩn chuyên đề khỏi bộ lọc công khai" : "Đã hiển thị lại chuyên đề" });
           reload();
           ok = true;
         } catch (err) {
-          toast.show("danger", subjectActionError(err));
+          toast.show({ tone: "danger", title: subjectActionError(err) });
+          // Dòng đã cũ (chuyên đề bị xoá từ nơi khác): tải lại để dòng chết biến mất (QA FA2 BUG-1).
+          if (isSubjectGone(err)) reload();
         }
       });
       return ok;
@@ -147,7 +168,7 @@ export function SubjectsScreen() {
 
   const onSaved = useCallback(
     () => {
-      toast.show("success", "Đã lưu chuyên đề");
+      toast.show({ tone: "success", title: "Đã lưu chuyên đề" });
       closeDialog();
       reload();
     },
@@ -162,46 +183,68 @@ export function SubjectsScreen() {
 
   if (loadError && isForbidden(loadError)) return <ForbiddenView />;
 
-  const columns: TableColumn<Subject>[] = [
+  const hrefFor = (n: number) => `${pathname}${subjectQueryToSearch({ ...query, page: n })}`;
+
+  const columns: Array<Column<Subject>> = [
     {
       key: "name",
       header: "Tên chuyên đề",
-      className: "min-w-44 break-words",
-      render: (s) => <span className="break-words font-medium text-gray-900">{s.name}</span>,
+      className: "min-w-40",
+      cell: (s) => (
+        <div className="min-w-0">
+          <p className="break-words font-semibold text-ink">{s.name}</p>
+          <p className="break-words text-xs text-ink-soft">
+            /{s.slug}
+            {canWrite ? <span className="md:hidden"> · {s.courses_count ?? 0} khóa học</span> : null}
+            {canWrite ? <span className="sm:hidden"> · {s.status === "active" ? "Đang hiển thị" : "Đã ẩn"}</span> : null}
+          </p>
+        </div>
+      ),
     },
   ];
   if (canWrite) {
     columns.push(
-      { key: "courses_count", header: "Số khóa học đang gán", className: "whitespace-nowrap", render: (s) => s.courses_count ?? 0 },
+      { key: "courses_count", header: "Khóa học đang gán", align: "right", hideBelow: "md", cell: (s) => s.courses_count ?? 0 },
       {
         key: "status",
-        header: "Trạng thái",
+        header: "Hiển thị công khai",
         className: "whitespace-nowrap",
-        render: (s) => (
+        cell: (s) => (
           <div className="flex items-center gap-1">
-            <StatusSwitch
-              status={s.status}
-              name={s.name}
-              busy={busyIds.has(s.id)}
-              onToggle={() => void changeStatus(s, s.status === "active" ? "hidden" : "active")}
+            <Switch
+              checked={s.status === "active"}
+              label={`Hiển thị chuyên đề ${s.name}`}
+              showState={false}
+              disabled={busyIds.has(s.id)}
+              onCheckedChange={() => void changeStatus(s, s.status === "active" ? "hidden" : "active")}
             />
-            <Badge variant={s.status === "active" ? "success" : "neutral"}>{s.status === "active" ? "Đang hiển thị" : "Đã ẩn"}</Badge>
+            <Badge size="sm" dot className="max-sm:hidden" tone={s.status === "active" ? "success" : "neutral"}>
+              {s.status === "active" ? "Đang hiển thị" : "Đã ẩn"}
+            </Badge>
           </div>
         ),
       },
       {
         key: "actions",
-        header: "Thao tác",
+        header: <span className="max-sm:hidden">Thao tác</span>,
         className: "whitespace-nowrap",
-        render: (s) => (
-          <div className="flex gap-1">
-            <Button size="md" variant="ghost" aria-label={`Sửa chuyên đề ${s.name}`} onClick={() => openDialog({ kind: "form", subject: s })}>
+        cell: (s) => (
+          <div className="flex justify-end gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              leadingIcon={<IconPencil size={16} />}
+              className="max-sm:size-11 max-sm:[&>span]:hidden"
+              aria-label={`Sửa chuyên đề ${s.name}`}
+              onClick={() => openDialog({ kind: "form", subject: s })}
+            >
               Sửa
             </Button>
             <Button
-              size="md"
+              size="sm"
               variant="ghost"
-              className="text-rose-700 hover:bg-rose-50"
+              leadingIcon={<IconTrash size={16} />}
+              className="text-danger hover:bg-danger-soft hover:text-danger max-sm:size-11 max-sm:[&>span]:hidden"
               aria-label={`Xoá chuyên đề ${s.name}`}
               onClick={() =>
                 openDialog(
@@ -219,26 +262,36 @@ export function SubjectsScreen() {
 
   const total = page?.meta.total ?? 0;
   const lastPage = page?.meta.last_page ?? 1;
+  const createButton = (label: string) => (
+    <Button size="sm" className="max-sm:h-11" data-create-subject leadingIcon={<IconPlus size={16} />} onClick={() => openDialog({ kind: "form" })}>
+      {label}
+    </Button>
+  );
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-gray-900">Chuyên đề</h1>
-        {canWrite ? (
-          <Button data-create-subject onClick={() => openDialog({ kind: "form" })}>
-            + Tạo chuyên đề
-          </Button>
-        ) : null}
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-title font-extrabold tracking-heading text-ink">Chuyên đề</h1>
+          <p className="mt-1 max-w-3xl text-sm text-ink-soft">
+            Chuyên đề dùng để lọc khóa học ở danh mục và gán cho khóa học. Chuyên đề bị ẩn không hiện ở bộ lọc công khai.
+          </p>
+        </div>
+        {canWrite ? createButton("Tạo chuyên đề") : null}
       </div>
 
-      {!canWrite ? <p className="text-sm text-gray-700">Danh sách chuyên đề đang hiển thị để chọn khi tạo hoặc sửa khóa học.</p> : null}
+      {!canWrite ? (
+        <Alert tone="info" title="Chế độ chỉ xem">
+          Danh sách chuyên đề đang hiển thị để chọn khi tạo hoặc sửa khóa học. Admin/Quản lý trang tạo, sửa và ẩn chuyên đề.
+        </Alert>
+      ) : null}
 
       {showEmptyFresh ? (
         <EmptyState
+          icon={<IconShapes size={32} />}
           title="Chưa có chuyên đề nào"
           description={canWrite ? "Tạo chuyên đề đầu tiên để phân loại khóa học." : undefined}
-          actionLabel={canWrite ? "+ Tạo chuyên đề đầu tiên" : undefined}
-          onAction={canWrite ? () => openDialog({ kind: "form" }) : undefined}
+          action={canWrite ? createButton("Tạo chuyên đề đầu tiên") : undefined}
         />
       ) : (
         <>
@@ -252,20 +305,25 @@ export function SubjectsScreen() {
             }}
             className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
           >
-            <FormField label="Tìm theo tên">
+            <Field label="Tìm theo tên">
               <TextInput
+                size="sm"
+                className="max-sm:h-11"
                 type="search"
                 name="q"
                 value={qInput}
                 maxLength={100}
                 placeholder="Nhập tên chuyên đề"
                 autoComplete="off"
+                leadingIcon={<IconSearch size={16} />}
                 onChange={(e) => setQInput(e.target.value)}
               />
-            </FormField>
+            </Field>
             {canWrite ? (
-              <FormField label="Trạng thái">
+              <Field label="Trạng thái">
                 <Select
+                  size="sm"
+                  className="max-sm:h-11"
                   name="status"
                   value={query.status}
                   onChange={(e) => navigate({ ...query, status: e.target.value === "active" || e.target.value === "hidden" ? e.target.value : "", page: 1 })}
@@ -274,10 +332,12 @@ export function SubjectsScreen() {
                   <option value="active">Đang hiển thị</option>
                   <option value="hidden">Đã ẩn</option>
                 </Select>
-              </FormField>
+              </Field>
             ) : null}
-            <FormField label="Số dòng/trang">
+            <Field label="Số dòng/trang">
               <Select
+                size="sm"
+                className="max-sm:h-11"
                 name="per_page"
                 value={query.perPage}
                 onChange={(e) => navigate({ ...query, perPage: Number(e.target.value) === 50 ? 50 : 25, page: 1 })}
@@ -288,61 +348,66 @@ export function SubjectsScreen() {
                   </option>
                 ))}
               </Select>
-            </FormField>
+            </Field>
           </form>
 
           {loadError ? (
-            <Alert variant="danger" title="Không tải được danh sách chuyên đề">
-              <p>{subjectActionError(loadError)}</p>
-              <Button className="mt-3" variant="outline" onClick={reload}>
-                Thử lại
-              </Button>
+            <Alert
+              tone="danger"
+              title="Không tải được danh sách chuyên đề"
+              action={
+                <Button size="sm" variant="secondary" onClick={reload}>
+                  Thử lại
+                </Button>
+              }
+            >
+              {subjectActionError(loadError)}
             </Alert>
           ) : (
-            <div aria-busy={loading}>
-              <Table
+            <div aria-busy={loading} className="flex flex-col gap-2">
+              <DataTable
+                caption="Danh sách chuyên đề"
                 columns={columns}
                 rows={rows}
                 rowKey={(s) => s.id}
-                isLoading={loading && rows.length === 0}
-                emptyMessage={hasFilter ? "Không có chuyên đề phù hợp với bộ lọc." : "Chưa có chuyên đề nào"}
-                className={loading && rows.length > 0 ? "opacity-60" : ""}
+                density="compact"
+                loadingRows={loading && rows.length === 0 ? 5 : undefined}
+                empty={
+                  <EmptyState
+                    size="inline"
+                    icon={<IconSearch size={24} />}
+                    title={hasFilter ? "Không có chuyên đề phù hợp với bộ lọc." : "Chưa có chuyên đề nào"}
+                  />
+                }
               />
-              <p className="mt-2 text-sm text-gray-700" aria-live="polite">
+              <p className="text-sm text-ink-soft" aria-live="polite">
                 {loading ? "Đang tải…" : `Tổng ${total} chuyên đề`}
               </p>
-              {lastPage > 1 ? (
-                <nav aria-label="Phân trang" className="mt-2 flex items-center justify-between gap-3">
-                  <Button variant="outline" disabled={query.page <= 1 || loading} onClick={() => navigate({ ...query, page: query.page - 1 })}>
-                    Trang trước
-                  </Button>
-                  <span className="text-sm text-gray-700">
-                    Trang {page?.meta.current_page ?? query.page}/{lastPage}
-                  </span>
-                  <Button variant="outline" disabled={query.page >= lastPage || loading} onClick={() => navigate({ ...query, page: query.page + 1 })}>
-                    Trang sau
-                  </Button>
-                </nav>
-              ) : null}
+              {lastPage > 1 ? <Pagination currentPage={page?.meta.current_page ?? query.page} lastPage={lastPage} hrefFor={hrefFor} /> : null}
             </div>
           )}
         </>
       )}
 
-      {dialog?.kind === "form" ? <SubjectFormModal subject={dialog.subject} onClose={closeDialog} onSaved={onSaved} /> : null}
+      {dialog?.kind === "form" ? <SubjectFormModal subject={dialog.subject} onClose={closeDialog} onSaved={onSaved} onGone={reload} /> : null}
 
       {dialog?.kind === "delete" ? (
-        <ConfirmModal
+        <ConfirmDialog
+          open
+          tone="danger"
           title="Xoá chuyên đề"
           description={`Xoá chuyên đề '${dialog.subject.name}'? Hành động này không thể hoàn tác.`}
           confirmLabel="Xoá"
+          loading={deleteBusy}
+          loadingText="Đang xoá…"
           onClose={closeIfIdle}
           onConfirm={async () => {
             const target = dialog.subject;
             dialogBusyRef.current = true;
+            setDeleteBusy(true);
             try {
               await deleteSubject(target.id);
-              toast.show("success", "Đã xoá chuyên đề");
+              toast.show({ tone: "success", title: "Đã xoá chuyên đề" });
               closeDialog();
               reload();
             } catch (err) {
@@ -352,10 +417,12 @@ export function SubjectsScreen() {
                 setDialog({ kind: "in-use", subject: target, count: null });
                 reload();
               } else {
-                toast.show("danger", subjectActionError(err));
+                toast.show({ tone: "danger", title: subjectActionError(err) });
                 closeDialog();
                 reload();
               }
+            } finally {
+              setDeleteBusy(false);
             }
           }}
         />

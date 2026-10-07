@@ -94,7 +94,7 @@ test.describe("FA2 chuyên đề (thật)", () => {
     await expect(page.getByRole("link", { name: "Chuyên đề" })).toHaveAttribute("aria-current", "page");
 
     // Tên rỗng: lỗi client dưới field, không gọi API.
-    await page.getByRole("button", { name: "+ Tạo chuyên đề" }).click();
+    await page.getByRole("button", { name: "Tạo chuyên đề" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: "Lưu" }).click();
     await expect(dialog.getByText("Vui lòng nhập tên chuyên đề")).toBeVisible();
@@ -119,7 +119,7 @@ test.describe("FA2 chuyên đề (thật)", () => {
     await expect(row(page, NAME)).toBeVisible();
 
     // Tạo trùng (khác hoa/thường) → "Chuyên đề đã tồn tại" dưới field, giữ dữ liệu.
-    await page.getByRole("button", { name: "+ Tạo chuyên đề" }).click();
+    await page.getByRole("button", { name: "Tạo chuyên đề" }).click();
     await dialog.getByLabel(/Tên chuyên đề/).fill(NAME.toLowerCase());
     await dialog.getByRole("button", { name: "Lưu" }).click();
     await expect(dialog.getByText(/Chuyên đề đã tồn tại/)).toBeVisible({ timeout: 15_000 });
@@ -175,11 +175,11 @@ test.describe("FA2 chuyên đề (thật)", () => {
     await expect(page.getByRole("heading", { name: "Chuyên đề" })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("row").nth(1)).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-    for (const loc of [page.getByRole("button", { name: /Sửa chuyên đề/ }).first(), page.getByRole("switch").first(), page.getByRole("button", { name: "+ Tạo chuyên đề" })]) {
+    for (const loc of [page.getByRole("button", { name: /Sửa chuyên đề/ }).first(), page.getByRole("switch").first(), page.getByRole("button", { name: "Tạo chuyên đề" })]) {
       const box = await loc.boundingBox();
       expect(box!.height).toBeGreaterThanOrEqual(43.5);
     }
-    await page.getByRole("button", { name: "+ Tạo chuyên đề" }).click();
+    await page.getByRole("button", { name: "Tạo chuyên đề" }).click();
     const b = await page.getByRole("dialog").boundingBox();
     expect(b!.x).toBeGreaterThanOrEqual(0);
     expect(b!.x + b!.width).toBeLessThanOrEqual(375);

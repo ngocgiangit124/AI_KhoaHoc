@@ -7,10 +7,9 @@ import {
 } from "@vitaminvui/api-client";
 import { env } from "@/env";
 
-/** Sự kiện cổng truy cập staff (khoá/MFA/đổi mật khẩu) phát từ mọi lệnh gọi API đã đăng nhập. */
-export const STAFF_GATE_EVENT = "vv:staff-gate";
-export type StaffGateCode = "ACCOUNT_LOCKED" | "MFA_REQUIRED" | "PASSWORD_CHANGE_REQUIRED";
-const GATE_CODES: readonly string[] = ["ACCOUNT_LOCKED", "MFA_REQUIRED", "PASSWORD_CHANGE_REQUIRED"];
+import { GATE_CODES, STAFF_GATE_EVENT, type StaffGateCode } from "@/lib/auth/gate";
+
+export { STAFF_GATE_EVENT, type StaffGateCode };
 
 /**
  * Gọi endpoint công khai trên host admin-api (ví dụ `/csrf-token` trước khi đăng nhập) từ

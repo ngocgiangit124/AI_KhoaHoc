@@ -2,13 +2,13 @@
 
 import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Alert, Button, Skeleton } from "@vitaminvui/ui";
-import { ACCOUNT_LOCKED_MESSAGE } from "@/lib/auth/errors";
+import { Alert, Button, LoadingRegion, Skeleton } from "@vitaminvui/ui/v2";
 import { useSession } from "@/lib/auth/SessionProvider";
 import { AdminShell } from "./AdminShell";
+import { LockedNotice } from "./LockedNotice";
 
 function Centered({ children }: { children: ReactNode }) {
-  return <main className="mx-auto w-full max-w-xl flex-1 px-4 py-16">{children}</main>;
+  return <main className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center px-4 py-16">{children}</main>;
 }
 
 /**
@@ -32,12 +32,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (state.kind === "staff") return <AdminShell user={state.user}>{children}</AdminShell>;
 
+  // Bị khoá: chỉ hiện màn khoá (không còn menu/tên/nội dung cũ phía sau).
   if (state.kind === "locked") {
     return (
       <Centered>
-        <Alert variant="danger" title="Tài khoản đã bị khóa">
-          {ACCOUNT_LOCKED_MESSAGE}
-        </Alert>
+        <LockedNotice />
       </Centered>
     );
   }
@@ -45,12 +44,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (state.kind === "error") {
     return (
       <Centered>
-        <Alert variant="danger" title="Không tải được phiên đăng nhập">
-          Vui lòng kiểm tra kết nối và thử lại.
-        </Alert>
-        <Button className="mt-4" onClick={() => void refresh()}>
-          Thử lại
-        </Button>
+        <div className="flex w-full flex-col gap-4">
+          <Alert tone="danger" title="Không tải được phiên đăng nhập">
+            Vui lòng kiểm tra kết nối và thử lại.
+          </Alert>
+          <Button onClick={() => void refresh()}>Thử lại</Button>
+        </div>
       </Centered>
     );
   }
@@ -58,11 +57,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // loading, hoặc đang chuyển hướng
   return (
     <Centered>
-      <span className="sr-only" role="status">
-        Đang tải…
-      </span>
-      <Skeleton variant="text" className="h-8 w-64" />
-      <Skeleton variant="card" className="mt-6" />
+      <LoadingRegion className="flex w-full flex-col gap-4">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-40 w-full" />
+      </LoadingRegion>
     </Centered>
   );
 }

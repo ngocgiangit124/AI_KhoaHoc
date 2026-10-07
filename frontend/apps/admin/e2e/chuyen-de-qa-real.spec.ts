@@ -16,6 +16,7 @@ test.describe.configure({ mode: "serial" });
 
 const email = (n: string) => `e2e-${n}@example.com`;
 const nav = (page: Page) => page.getByRole("navigation", { name: "Menu quản trị" });
+const pager = (page: Page) => page.getByRole("navigation", { name: "Phân trang" });
 const row = (page: Page, name: string) => page.getByRole("row").filter({ hasText: name });
 
 async function fillLogin(page: Page, who: string) {
@@ -85,11 +86,11 @@ test.describe("QA FA2 bổ sung (thật)", () => {
     await expect(nav(page).getByRole("link", { name: "Chuyên đề" })).toBeVisible();
     await nav(page).getByRole("link", { name: "Chuyên đề" }).click();
     await expect(page.getByRole("heading", { name: "Chuyên đề" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "+ Tạo chuyên đề" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Tạo chuyên đề" })).toBeVisible();
 
     const dialog = page.getByRole("dialog");
     const create = async (name: string) => {
-      await page.getByRole("button", { name: "+ Tạo chuyên đề" }).click();
+      await page.getByRole("button", { name: "Tạo chuyên đề" }).click();
       await dialog.getByLabel(/Tên chuyên đề/).fill(name);
       await dialog.getByRole("button", { name: "Lưu" }).click();
     };
@@ -163,13 +164,13 @@ test.describe("QA FA2 bổ sung (thật)", () => {
     const total = Number(/(\d+)/.exec(await page.getByText(/^Tổng \d+ chuyên đề$/).innerText())![1]);
     expect(total).toBeGreaterThan(25);
     await expect(page.getByRole("row")).toHaveCount(26);
-    await expect(page.getByText(/^Trang 1\/\d+$/)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Trang trước" })).toBeDisabled();
-    await page.getByRole("button", { name: "Trang sau" }).click();
+    await expect(pager(page).getByRole("link", { name: "Trang 1" })).toHaveAttribute("aria-current", "page");
+    await expect(pager(page).getByText("Trước")).toHaveAttribute("aria-disabled", "true");
+    await pager(page).getByRole("link", { name: "Sau" }).click();
     await expect(page).toHaveURL(/page=2/);
-    await expect(page.getByText(/^Trang 2\/\d+$/)).toBeVisible();
+    await expect(pager(page).getByRole("link", { name: "Trang 2" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("row")).toHaveCount(total - 25 + 1);
-    await expect(page.getByRole("button", { name: "Trang sau" })).toBeDisabled();
+    await expect(pager(page).getByText("Sau")).toHaveAttribute("aria-disabled", "true");
 
     // per_page=50 → về trang 1, hiện hết (nếu <=50).
     await page.getByLabel("Số dòng/trang").selectOption("50");
@@ -189,7 +190,7 @@ test.describe("QA FA2 bổ sung (thật)", () => {
 
     // page=999 → tự lùi về trang cuối, không vòng lặp.
     await page.goto(`${ADMIN}/quan-tri/chuyen-de?page=999`);
-    await expect(page.getByText(/^Trang 2\/\d+$/)).toBeVisible({ timeout: 20_000 });
+    await expect(pager(page).getByRole("link", { name: "Trang 2" })).toHaveAttribute("aria-current", "page", { timeout: 20_000 });
     await expect(page).toHaveURL(/page=2/);
     await expect(page.getByRole("row").nth(1)).toBeVisible();
 
@@ -254,7 +255,7 @@ test.describe("QA FA2 bổ sung (thật)", () => {
     const mk = async (name: string) => {
       await A.goto(`${ADMIN}/quan-tri/chuyen-de?q=${encodeURIComponent(name)}`);
       await expect(A.getByText(/^Tổng \d+ chuyên đề$/)).toBeVisible({ timeout: 20_000 });
-      await A.getByRole("button", { name: "+ Tạo chuyên đề" }).click();
+      await A.getByRole("button", { name: "Tạo chuyên đề" }).click();
       await dlgA().getByLabel(/Tên chuyên đề/).fill(name);
       await dlgA().getByRole("button", { name: "Lưu" }).click();
       await expect(dlgA()).toBeHidden({ timeout: 15_000 });
@@ -279,12 +280,21 @@ test.describe("QA FA2 bổ sung (thật)", () => {
     await B1.getByRole("dialog").getByRole("button", { name: "Lưu" }).click();
     await expect(B1.getByRole("dialog").getByRole("alert")).toContainText("không còn tồn tại", { timeout: 15_000 });
     await B1.getByRole("dialog").getByRole("button", { name: "Huỷ" }).click();
-    await row(B1, t1).getByRole("switch").click();
-    await expect(B1.getByText("Chuyên đề không còn tồn tại.")).toBeVisible({ timeout: 15_000 });
-    // BUG-1 (QA): sau 404 khi đổi trạng thái, danh sách không tải lại -> dòng chết vẫn còn.
-    const stale = await row(B1, t1).count();
-    test.info().annotations.push({ type: "BUG-1", description: `dòng chết sau 404 khi ẩn/hiện còn lại: ${stale}` });
+    // FA-V2 (Minor FA2 đã sửa): sau 404 khi sửa, danh sách tự tải lại -> dòng chết biến mất.
+    await expect(row(B1, t1)).toHaveCount(0, { timeout: 15_000 });
     await B1.close();
+
+    // Ca 1b: A xoá, B (dòng cũ) bấm Ẩn/Hiện -> toast 404 và danh sách tự tải lại (dòng chết biến mất).
+    const t1b = `E2E CD tab1b ${stamp}`;
+    await mk(t1b);
+    const B1b = await openB(t1b);
+    await row(A, t1b).getByRole("button", { name: /Xoá chuyên đề/ }).click();
+    await dlgA().getByRole("button", { name: "Xoá" }).click();
+    await expect(A.getByText("Đã xoá chuyên đề")).toBeVisible({ timeout: 15_000 });
+    await row(B1b, t1b).getByRole("switch").click();
+    await expect(B1b.getByText("Chuyên đề không còn tồn tại.")).toBeVisible({ timeout: 15_000 });
+    await expect(row(B1b, t1b)).toHaveCount(0, { timeout: 15_000 });
+    await B1b.close();
 
     // Ca 2: A xoá, B mở hộp xoá trên dòng cũ rồi xác nhận -> toast, hộp thoại đóng, dòng biến mất.
     const t2 = `E2E CD tab2 ${stamp}`;
@@ -356,7 +366,7 @@ test.describe("QA FA2 bổ sung (thật)", () => {
     // F5: vẫn ở màn khoá, không về trang chuyên đề.
     await page.reload();
     await expect(page.getByText(/bị khóa/i).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole("button", { name: "+ Tạo chuyên đề" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Tạo chuyên đề" })).toHaveCount(0);
   });
 
   test("375px: giáo viên (chỉ đọc) và QLT không tràn ngang, ô tìm/phân trang dùng được", async ({ page }) => {
@@ -370,8 +380,8 @@ test.describe("QA FA2 bổ sung (thật)", () => {
     expect(box!.height).toBeGreaterThanOrEqual(43.5);
     const per = await page.getByLabel("Số dòng/trang").boundingBox();
     expect(per!.height).toBeGreaterThanOrEqual(43.5);
-    for (const name of ["Trang trước", "Trang sau"]) {
-      const b = page.getByRole("button", { name });
+    for (const name of ["Trước", "Sau"]) {
+      const b = pager(page).getByRole("link", { name });
       if (await b.count()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(43.5);
     }
   });
@@ -384,7 +394,7 @@ test.describe("QA FA2 bổ sung (thật)", () => {
     const dialog = page.getByRole("dialog");
     await page.goto(`${ADMIN}/quan-tri/chuyen-de?q=${encodeURIComponent(`E2E CD `)}&per_page=50`);
     for (const n of [x, y]) {
-      await page.getByRole("button", { name: "+ Tạo chuyên đề" }).click();
+      await page.getByRole("button", { name: "Tạo chuyên đề" }).click();
       await dialog.getByLabel(/Tên chuyên đề/).fill(n);
       await dialog.getByRole("button", { name: "Lưu" }).click();
       await expect(dialog).toBeHidden({ timeout: 15_000 });

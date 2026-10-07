@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LOGIN_REQUIRED_EVENT, type AuthEventDetail } from "@vitaminvui/api-client";
 import { STAFF_GATE_EVENT, type StaffGateCode } from "@/lib/api";
 import { logoutStaff } from "@/lib/auth/api";
-import { ACCOUNT_LOCKED_MESSAGE } from "@/lib/auth/errors";
 import { isIdleExpired, readIdleLimitMs, readLastActivity, writeLastActivity } from "@/lib/auth/idle";
+import { LockedNotice } from "./LockedNotice";
 
 const AUTH_PATHS = ["/dang-nhap", "/xac-thuc-mfa", "/doi-mat-khau"];
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
@@ -103,25 +103,29 @@ export function SessionWatcher({ now = Date.now, idleLimitMs }: SessionWatcherPr
   }, [inAdminArea, pathname, router, now, idleLimitMs]);
 
   if (!locked) return null;
+  return <LockedOverlay />;
+}
+
+/**
+ * Overlay khoá giữa phiên: `<dialog>` + `showModal()` (bẫy focus, phần còn lại của trang bị `inert`, focus vào liên kết
+ * "Về trang đăng nhập"). Nền đặc `bg-paper` nên không lộ khung/menu phía sau; Esc không đóng được.
+ */
+function LockedOverlay() {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el && !el.open) el.showModal();
+  }, []);
   return (
-    <div
+    <dialog
+      ref={ref}
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="staff-locked-title"
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-gray-900/70 p-4"
+      onCancel={(e) => e.preventDefault()}
+      className="fixed inset-0 z-[200] m-0 h-full max-h-none w-full max-w-none items-center justify-center overflow-y-auto bg-paper p-4 text-ink backdrop:bg-paper open:flex"
     >
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-lg">
-        <p id="staff-locked-title" className="text-lg font-semibold text-gray-900">
-          Tài khoản đã bị khóa
-        </p>
-        <p className="mt-2 text-sm text-gray-700">{ACCOUNT_LOCKED_MESSAGE}</p>
-        <a
-          href="/dang-nhap"
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          Về trang đăng nhập
-        </a>
-      </div>
-    </div>
+      <LockedNotice titleId="staff-locked-title" />
+    </dialog>
   );
 }

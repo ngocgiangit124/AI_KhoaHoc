@@ -16,7 +16,7 @@ export function classifySubjectFormError(err: unknown): SubjectFormFailure {
       return { nameError, banner: others.length > 0 ? others.join(" ") : nameError ? null : err.message || UNKNOWN_ERROR_MESSAGE };
     }
     if (err.status === 403) return { nameError: null, banner: "Bạn không có quyền thực hiện thao tác này." };
-    if (err.status === 404) return { nameError: null, banner: "Chuyên đề không còn tồn tại. Vui lòng đóng và tải lại danh sách." };
+    if (err.status === 404) return { nameError: null, banner: "Chuyên đề không còn tồn tại. Danh sách đã được tải lại, vui lòng đóng hộp thoại." };
     return { nameError: null, banner: err.message || UNKNOWN_ERROR_MESSAGE };
   }
   return { nameError: null, banner: UNKNOWN_ERROR_MESSAGE };
@@ -24,6 +24,10 @@ export function classifySubjectFormError(err: unknown): SubjectFormFailure {
 
 export function isSubjectInUse(err: unknown): boolean {
   return err instanceof ApiError && err.status === 409 && err.code === "SUBJECT_IN_USE";
+}
+
+export function isSubjectGone(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 404;
 }
 
 export function isForbidden(err: unknown): boolean {

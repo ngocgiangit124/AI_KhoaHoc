@@ -1,22 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Alert, Button, FormField, Modal, TextInput } from "@vitaminvui/ui";
+import { Alert, Button, Dialog, Field, TextInput } from "@vitaminvui/ui/v2";
 import { createSubject, renameSubject } from "@/lib/subjects/api";
-import { classifySubjectFormError } from "@/lib/subjects/errors";
+import { classifySubjectFormError, isSubjectGone } from "@/lib/subjects/errors";
 import { NAME_MAX_LENGTH, normalizeSubjectName, validateSubjectName } from "@/lib/subjects/query";
 import type { Subject } from "@/lib/subjects/types";
 
 export interface SubjectFormModalProps {
   /** Có → sửa tên; không → tạo mới. */
   subject?: Subject;
-  /** PHẢI ổn định (useCallback): `Modal` đặt lại focus mỗi khi `onClose` đổi. */
+  /** Nên ổn định (useCallback). */
   onClose: () => void;
   onSaved: () => void;
+  /** Chuyên đề không còn tồn tại (404 khi sửa): màn hình tải lại danh sách để dòng cũ biến mất. */
+  onGone?: () => void;
 }
 
-/** Modal dùng chung tạo & đổi tên chuyên đề (design US-011 §2.2). Lỗi 422 hiện dưới ô tên, giữ nguyên dữ liệu đã nhập. */
-export function SubjectFormModal({ subject, onClose, onSaved }: SubjectFormModalProps) {
+/** Hộp thoại dùng chung tạo & đổi tên chuyên đề (design US-011 §2.2). Lỗi 422 hiện dưới ô tên, giữ nguyên dữ liệu đã nhập. */
+export function SubjectFormModal({ subject, onClose, onSaved, onGone }: SubjectFormModalProps) {
   const [name, setName] = useState(subject?.name ?? "");
   const [nameError, setNameError] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export function SubjectFormModal({ subject, onClose, onSaved }: SubjectFormModal
   const formId = "subject-form";
   const isEdit = Boolean(subject);
 
-  // Modal tự focus hộp thoại ở effect của nó (chạy sau con) → focus ô nhập sau đó.
+  // `<dialog>` tự focus phần tử đầu tiên khi mở → focus ô nhập sau đó.
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 0);
     return () => clearTimeout(t);
@@ -64,6 +66,7 @@ export function SubjectFormModal({ subject, onClose, onSaved }: SubjectFormModal
       const failure = classifySubjectFormError(err);
       setNameError(failure.nameError);
       setBanner(failure.banner);
+      if (isSubjectGone(err)) onGone?.();
       if (failure.nameError) inputRef.current?.focus();
     } finally {
       pendingRef.current = false;
@@ -72,23 +75,26 @@ export function SubjectFormModal({ subject, onClose, onSaved }: SubjectFormModal
   }
 
   return (
-    <Modal
+    <Dialog
+      open
+      size="sm"
       title={isEdit ? "Sửa chuyên đề" : "Tạo chuyên đề"}
       onClose={stableClose}
+      dismissible={!pending}
       footer={
         <>
-          <Button type="button" variant="outline" onClick={stableClose} disabled={pending}>
+          <Button type="button" variant="secondary" onClick={stableClose} disabled={pending}>
             Huỷ
           </Button>
-          <Button type="submit" form={formId} loading={pending}>
+          <Button type="submit" form={formId} loading={pending} loadingText="Đang lưu…">
             Lưu
           </Button>
         </>
       }
     >
-      <form id={formId} onSubmit={(e) => void onSubmit(e)} noValidate className="space-y-4">
-        {banner ? <Alert variant="danger">{banner}</Alert> : null}
-        <FormField
+      <form id={formId} onSubmit={(e) => void onSubmit(e)} noValidate className="flex flex-col gap-4">
+        {banner ? <Alert tone="danger">{banner}</Alert> : null}
+        <Field
           label="Tên chuyên đề"
           required
           error={nameError ?? undefined}
@@ -114,8 +120,8 @@ export function SubjectFormModal({ subject, onClose, onSaved }: SubjectFormModal
               if (nameError) setNameError(null);
             }}
           />
-        </FormField>
+        </Field>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

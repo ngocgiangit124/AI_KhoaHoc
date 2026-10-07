@@ -29,6 +29,10 @@ export interface AdminFrameProps {
   homeHref: string;
   groups: AdminNavGroup[];
   user: { name: string; email: string; roleLabel: string };
+  /** `aria-label` của `<nav>` menu (mặc định "Quản trị"). Có ở cả sidebar lẫn ngăn kéo mobile. */
+  navLabel?: string;
+  /** `data-testid` gắn vào tên người dùng ở sidebar (chỉ dùng cho kiểm thử). */
+  userNameTestId?: string;
   logoutSlot?: ReactNode;
   children: ReactNode;
   /** Dải nhỏ phía trên (môi trường, cảnh báo phiên...). */
@@ -86,12 +90,14 @@ function NavList({ groups }: { groups: AdminNavGroup[] }) {
  * Cùng token với web học sinh nhưng mật độ cao hơn (chữ 14px trong bảng/menu, nút 36px).
  * Menu chỉ chứa mục vai trò được phép (ẩn hẳn, không chỉ khoá) — trừ mục "chưa mở" có nhãn giải thích.
  */
-export function AdminFrame({ homeHref, groups, user, logoutSlot, banner, children }: AdminFrameProps) {
-  const userBlock = (
+export function AdminFrame({ homeHref, groups, user, navLabel = "Quản trị", userNameTestId, logoutSlot, banner, children }: AdminFrameProps) {
+  const userBlock = (testId?: string) => (
     <div className="flex items-center gap-3">
       <Avatar name={user.name} size="sm" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-ink">{user.name}</p>
+        <p className="truncate text-sm font-semibold text-ink" data-testid={testId}>
+          {user.name}
+        </p>
         <p className="truncate text-xs text-ink-soft">{user.roleLabel}</p>
       </div>
     </div>
@@ -111,11 +117,11 @@ export function AdminFrame({ homeHref, groups, user, logoutSlot, banner, childre
             <Logo tagline="Quản trị" />
           </UiLink>
         </div>
-        <nav aria-label="Quản trị" className="flex-1 overflow-y-auto px-3 py-4">
+        <nav aria-label={navLabel} className="flex-1 overflow-y-auto px-3 py-4">
           <NavList groups={groups} />
         </nav>
         <div className="flex flex-col gap-2 border-t border-line p-3">
-          {userBlock}
+          {userBlock(userNameTestId)}
           {logout}
         </div>
       </aside>
@@ -123,8 +129,10 @@ export function AdminFrame({ homeHref, groups, user, logoutSlot, banner, childre
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-surface px-2 lg:hidden">
           <NavDrawer title="Quản trị">
-            <div className="mb-4 rounded-card bg-sunken p-3">{userBlock}</div>
-            <NavList groups={groups} />
+            <div className="mb-4 rounded-card bg-sunken p-3">{userBlock()}</div>
+            <nav aria-label={navLabel}>
+              <NavList groups={groups} />
+            </nav>
             <div className="mt-4 border-t border-line pt-3">{logout}</div>
           </NavDrawer>
           <UiLink href={homeHref} className="focus-ring rounded-control p-1" aria-label="VitaminVui Quản trị — Trang đầu">

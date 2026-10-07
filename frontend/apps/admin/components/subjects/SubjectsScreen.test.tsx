@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@vitaminvui/api-client";
-import { ToastProvider } from "@vitaminvui/ui";
+import { ToastProvider } from "@vitaminvui/ui/v2";
 import { useSession, type SessionState } from "@/lib/auth/SessionProvider";
 import type { StaffUser } from "@/lib/auth/types";
 import * as api from "@/lib/subjects/api";
@@ -64,7 +64,7 @@ describe("SubjectsScreen", () => {
     vi.mocked(api.listSubjects).mockResolvedValue(pageOf([]));
     renderScreen();
     expect(await screen.findByText("Chưa có chuyên đề nào")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "+ Tạo chuyên đề đầu tiên" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tạo chuyên đề đầu tiên" })).toBeInTheDocument();
   });
 
   it("lỗi tải: báo lỗi và thử lại được", async () => {
@@ -93,7 +93,7 @@ describe("SubjectsScreen", () => {
       .mockResolvedValueOnce(subject(2, "Hình học"));
     renderScreen();
     await screen.findByText("Đại số");
-    await userEvent.click(screen.getByRole("button", { name: "+ Tạo chuyên đề" }));
+    await userEvent.click(screen.getByRole("button", { name: "Tạo chuyên đề" }));
     const dialog = screen.getByRole("dialog");
     const input = within(dialog).getByLabelText(/Tên chuyên đề/);
     await userEvent.type(input, "đại số");
@@ -112,7 +112,7 @@ describe("SubjectsScreen", () => {
     vi.mocked(api.listSubjects).mockResolvedValue(pageOf([subject(1, "Đại số")]));
     renderScreen();
     await screen.findByText("Đại số");
-    await userEvent.click(screen.getByRole("button", { name: "+ Tạo chuyên đề" }));
+    await userEvent.click(screen.getByRole("button", { name: "Tạo chuyên đề" }));
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Lưu" }));
     expect(await screen.findByText("Vui lòng nhập tên chuyên đề")).toBeInTheDocument();
     expect(api.createSubject).not.toHaveBeenCalled();
@@ -197,5 +197,30 @@ describe("SubjectsScreen", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     release();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("Ẩn/hiện gặp 404: báo lỗi và tải lại danh sách để dòng chết biến mất (QA FA2 BUG-1)", async () => {
+    vi.mocked(api.listSubjects).mockResolvedValueOnce(pageOf([subject(1, "Đại số")])).mockResolvedValue(pageOf([]));
+    vi.mocked(api.setSubjectStatus).mockRejectedValue(new ApiError(404, { message: "Không tìm thấy" }));
+    renderScreen();
+    await screen.findByText("Đại số");
+    await userEvent.click(screen.getByRole("switch", { name: "Hiển thị chuyên đề Đại số" }));
+    expect(await screen.findByText("Chuyên đề không còn tồn tại.")).toBeInTheDocument();
+    await waitFor(() => expect(api.listSubjects).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText("Đại số")).toBeNull());
+  });
+
+  it("Sửa gặp 404: hộp thoại báo lỗi và danh sách phía sau được tải lại", async () => {
+    vi.mocked(api.listSubjects).mockResolvedValueOnce(pageOf([subject(1, "Đại số")])).mockResolvedValue(pageOf([]));
+    vi.mocked(api.renameSubject).mockRejectedValue(new ApiError(404, { message: "Không tìm thấy" }));
+    renderScreen();
+    await screen.findByText("Đại số");
+    await userEvent.click(screen.getByRole("button", { name: "Sửa chuyên đề Đại số" }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(/Tên chuyên đề/), " x");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Lưu" }));
+    expect(await within(dialog).findByText(/không còn tồn tại/)).toBeInTheDocument();
+    await waitFor(() => expect(api.listSubjects).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("cell", { name: "Đại số" })).toBeNull());
   });
 });

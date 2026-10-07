@@ -6,7 +6,7 @@ import { logoutStaff } from "@/lib/auth/api";
 import { useSession, type SessionState } from "@/lib/auth/SessionProvider";
 import type { StaffUser } from "@/lib/auth/types";
 import { AuthGate } from "./AuthGate";
-import { AdminShell } from "./AdminShell";
+import { AdminShell, navGroups } from "./AdminShell";
 import { RequireRole } from "./RequireRole";
 import { SessionWatcher } from "./SessionWatcher";
 
@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/auth/api", () => ({ logoutStaff: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/auth/SessionProvider", () => ({ useSession: vi.fn() }));
-vi.mock("@vitaminvui/ui", async (orig) => ({ ...(await orig<typeof import("@vitaminvui/ui")>()), useToast: () => ({ show: vi.fn() }) }));
+vi.mock("@vitaminvui/ui/v2", async (orig) => ({ ...(await orig<typeof import("@vitaminvui/ui/v2")>()), useToast: () => ({ show: vi.fn() }) }));
 
 const user = (role: StaffUser["role"]): StaffUser => ({ id: 1, name: "Tên", email: null, role, permissions: null, mustChangePassword: false, session: null });
 function setSession(state: SessionState) {
@@ -69,7 +69,7 @@ describe("AuthGate", () => {
 });
 
 describe("AdminShell menu theo vai trò", () => {
-  it("giáo viên không thấy mục Tài khoản staff / Nhật ký; mục chưa làm không phải link", () => {
+  it("giáo viên không thấy mục Tài khoản staff / Nhật ký; Khóa học chưa có màn nên không phải link (FA3)", () => {
     render(<AdminShell user={user("giao_vien")}>x</AdminShell>);
     expect(screen.queryByText("Tài khoản staff")).toBeNull();
     expect(screen.queryByText("Nhật ký thao tác")).toBeNull();
@@ -78,8 +78,26 @@ describe("AdminShell menu theo vai trò", () => {
   });
   it("admin thấy đủ mục", () => {
     render(<AdminShell user={user("admin")}>x</AdminShell>);
-    expect(screen.getByText("Tài khoản staff")).toBeInTheDocument();
-    expect(screen.getByText("Nhật ký thao tác")).toBeInTheDocument();
+    // Sidebar + ngăn kéo mobile cùng có trong DOM.
+    expect(screen.getAllByText("Tài khoản staff").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Nhật ký thao tác").length).toBeGreaterThan(0);
+  });
+});
+
+describe("navGroups (menu v2)", () => {
+  it("nhóm theo design: Nội dung / Bán hàng / Hệ thống; mục chưa có màn là mờ kèm nhãn, không phải link", () => {
+    const groups = navGroups({ role: "admin", permissions: null }, "/quan-tri/chuyen-de");
+    expect(groups.map((g) => g.label)).toEqual(["Nội dung", "Bán hàng", "Hệ thống"]);
+    const items = groups.flatMap((g) => g.items);
+    expect(items.find((i) => i.label === "Chuyên đề")).toMatchObject({ href: "/quan-tri/chuyen-de", current: true });
+    expect(items.find((i) => i.label === "Khóa học")?.disabledNote).toBe("Sắp có");
+    expect(items.find((i) => i.label === "Đơn hàng")).toMatchObject({ disabledNote: "V2", disabledReason: "Mở khi bật thanh toán trực tuyến" });
+    expect(items.find((i) => i.label === "Mã giảm giá")?.disabledNote).toBe("Sắp có");
+  });
+  it("giáo viên: chỉ nhóm Nội dung, ẩn hẳn mục không có quyền", () => {
+    const groups = navGroups({ role: "giao_vien", permissions: null }, "/quan-tri");
+    expect(groups.map((g) => g.label)).toEqual(["Nội dung"]);
+    expect(groups[0]!.items.map((i) => i.label)).toEqual(["Tổng quan", "Khóa học"]);
   });
 });
 
@@ -128,6 +146,12 @@ describe("SessionWatcher", () => {
     expect(replace).toHaveBeenCalledWith("/doi-mat-khau?next=%2Fquan-tri%2Fkhoa-hoc");
     fire(STAFF_GATE_EVENT, { code: "ACCOUNT_LOCKED" });
     expect(screen.getByRole("alertdialog")).toHaveTextContent("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin.");
+    // Overlay đặc (không trong suốt): không lộ khung/menu phía sau.
+    expect(screen.getByRole("alertdialog")).toHaveClass("bg-paper");
+    // `<dialog>` modal: focus chuyển vào liên kết đăng nhập (polyfill showModal không tự focus → kiểm thuộc tính open + link có mặt).
+    expect(screen.getByRole("alertdialog").tagName).toBe("DIALOG");
+    expect(screen.getByRole("alertdialog")).toHaveAttribute("open");
+    expect(screen.getByRole("link", { name: "Về trang đăng nhập" })).toHaveAttribute("href", "/dang-nhap");
   });
 
   it("idle phía trình duyệt: quá hạn thì đăng xuất và chuyển về đăng nhập", async () => {

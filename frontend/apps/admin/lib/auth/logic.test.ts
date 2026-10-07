@@ -15,13 +15,16 @@ describe("schemas", () => {
     expect(r.success).toBe(false);
     if (!r.success) expect(Object.keys(zodFieldErrors(r.error)).sort()).toEqual(["login", "password"]);
   });
-  it("đổi mật khẩu: min 8, max 128, xác nhận khớp", () => {
+  it("đổi mật khẩu staff: min 12, max 128, xác nhận khớp", () => {
     expect(passwordChangeSchema.safeParse({ current_password: "cu", password: "short", password_confirmation: "short" }).success).toBe(false);
+    // 11 ký tự: chưa đủ (Bảo mật cụm 1); đúng 12 ký tự: đạt.
+    expect(passwordChangeSchema.safeParse({ current_password: "cu", password: "x".repeat(11), password_confirmation: "x".repeat(11) }).success).toBe(false);
+    expect(passwordChangeSchema.safeParse({ current_password: "cu", password: "x".repeat(12), password_confirmation: "x".repeat(12) }).success).toBe(true);
     expect(passwordChangeSchema.safeParse({ current_password: "cu", password: "x".repeat(129), password_confirmation: "x".repeat(129) }).success).toBe(false);
-    const mismatch = passwordChangeSchema.safeParse({ current_password: "cu", password: "matkhau123", password_confirmation: "khac12345" });
+    const mismatch = passwordChangeSchema.safeParse({ current_password: "cu", password: "matkhau12345678", password_confirmation: "khac123456789" });
     expect(mismatch.success).toBe(false);
     if (!mismatch.success) expect(zodFieldErrors(mismatch.error).password_confirmation).toMatch(/không khớp/);
-    expect(passwordChangeSchema.safeParse({ current_password: "cu", password: "matkhau123", password_confirmation: "matkhau123" }).success).toBe(true);
+    expect(passwordChangeSchema.safeParse({ current_password: "cu", password: "matkhau12345678", password_confirmation: "matkhau12345678" }).success).toBe(true);
   });
 });
 

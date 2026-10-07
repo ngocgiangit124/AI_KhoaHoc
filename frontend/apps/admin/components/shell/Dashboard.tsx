@@ -1,6 +1,6 @@
 "use client";
 
-import { Card } from "@vitaminvui/ui";
+import { Alert } from "@vitaminvui/ui/v2";
 import { useSession } from "@/lib/auth/SessionProvider";
 import { STAFF_ROLE_LABELS } from "@/lib/auth/types";
 
@@ -9,14 +9,12 @@ export function Dashboard() {
   const { state } = useSession();
   if (state.kind !== "staff") return null;
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-gray-900">Xin chào, {state.user.name}</h1>
-      <Card>
-        <p className="text-sm text-gray-700">
-          Bạn đang đăng nhập với vai trò <strong>{STAFF_ROLE_LABELS[state.user.role]}</strong>. Các chức năng quản lý
-          sẽ xuất hiện ở menu bên trái khi được mở.
-        </p>
-      </Card>
+    <div className="flex flex-col gap-4">
+      <h1 className="text-title font-extrabold tracking-heading text-ink">Xin chào, {state.user.name}</h1>
+      <Alert tone="info" role="none">
+        Bạn đang đăng nhập với vai trò <strong>{STAFF_ROLE_LABELS[state.user.role]}</strong>. Các chức năng quản lý sẽ
+        xuất hiện ở menu bên trái khi được mở.
+      </Alert>
     </div>
   );
 }

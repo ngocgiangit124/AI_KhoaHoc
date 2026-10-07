@@ -1,9 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/env";
 
+import { isBlockedPreview } from "@/lib/previewGate";
+
 /**
  * Proxy sinh nonce CSP + header bảo mật cho app admin (ADR-004 §2.5–2.6). Khác app web:
  * `frame-src 'none'` (không nhúng video ngoài ở khu quản trị).
+ * Cũng chặn bản xem trước `/v2/...` ở production (xem `lib/previewGate.ts`): rewrite sang route không tồn tại để có 404 thật
+ * (layout `notFound()` đơn lẻ trả 200 vì đã stream), vẫn đi qua đường đặt header bảo mật bên dưới.
  */
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
@@ -30,7 +34,9 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", cspHeader);
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  const response = isBlockedPreview(request.nextUrl.pathname)
+    ? NextResponse.rewrite(new URL("/khong-ton-tai", request.url), { request: { headers: requestHeaders } })
+    : NextResponse.next({ request: { headers: requestHeaders } });
 
   response.headers.set("Content-Security-Policy", cspHeader);
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -45,6 +51,9 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    // Cổng /v2: KHÔNG có `missing` để request mang header prefetch cũng chạy proxy (không vượt được gate).
+    { source: "/v2" },
+    { source: "/v2/:path*" },
     {
       // ADR-004 §2.7: chỉ loại trừ route không phải HTML (không cần nonce) —
       // _next/static, _next/image, favicon.ico, robots.txt, sitemap.xml, file tĩnh trong public/.

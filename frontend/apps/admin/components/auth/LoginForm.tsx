@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button, FormField, PasswordInput, TextInput } from "@vitaminvui/ui";
+import { Alert, Button, Field, PasswordInput, TextInput } from "@vitaminvui/ui/v2";
 import { loginStaff } from "@/lib/auth/api";
 import { loginErrorMessage, loginNotice } from "@/lib/auth/errors";
 import { saveMfaHint, saveMfaResendAt } from "@/lib/auth/mfaHint";
@@ -60,12 +60,12 @@ export function LoginForm({ next, reason }: LoginFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-4" aria-busy={pending}>
-      {notice ? <Alert variant={notice.variant}>{notice.message}</Alert> : null}
-      {banner ? <Alert variant="danger">{banner}</Alert> : null}
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5" aria-busy={pending}>
+      {notice ? <Alert tone={notice.variant}>{notice.message}</Alert> : null}
+      {banner ? <Alert tone="danger">{banner}</Alert> : null}
 
-      <fieldset disabled={pending} className="space-y-4">
-        <FormField label="Email" required error={fieldErrors.login}>
+      <fieldset disabled={pending} className="flex min-w-0 flex-col gap-4">
+        <Field label="Email" required error={fieldErrors.login}>
           <TextInput
             name="login"
             type="email"
@@ -73,21 +73,21 @@ export function LoginForm({ next, reason }: LoginFormProps) {
             value={login}
             onChange={(e) => setLogin(e.target.value)}
           />
-        </FormField>
-        <FormField label="Mật khẩu" required error={fieldErrors.password}>
+        </Field>
+        <Field label="Mật khẩu" required error={fieldErrors.password}>
           <PasswordInput
             name="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-        </FormField>
+        </Field>
       </fieldset>
 
-      <Button type="submit" size="lg" className="w-full" loading={pending}>
+      <Button type="submit" size="lg" block loading={pending} loadingText="Đang đăng nhập…">
         Đăng nhập
       </Button>
-      <p className="text-center text-xs text-gray-600">Quên mật khẩu? Liên hệ Admin để được đặt lại.</p>
+      <p className="text-center text-sm text-ink-soft">Quên mật khẩu? Liên hệ Admin để được đặt lại.</p>
     </form>
   );
 }

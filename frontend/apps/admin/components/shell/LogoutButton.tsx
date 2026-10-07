@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, useToast } from "@vitaminvui/ui";
+import { Button, IconLogOut, useToast } from "@vitaminvui/ui/v2";
 import { logoutStaff } from "@/lib/auth/api";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 
@@ -18,13 +18,13 @@ export function LogoutButton() {
       router.replace("/dang-nhap");
       router.refresh();
     } catch (err) {
-      toast.show("danger", err instanceof Error && err.message ? err.message : UNKNOWN_ERROR_MESSAGE);
+      toast.show({ tone: "danger", title: err instanceof Error && err.message ? err.message : UNKNOWN_ERROR_MESSAGE });
       setPending(false);
     }
   }
 
   return (
-    <Button variant="outline" size="sm" loading={pending} onClick={onClick}>
+    <Button variant="ghost" size="sm" className="justify-start max-sm:h-11 text-ink hover:bg-sunken hover:text-ink" leadingIcon={<IconLogOut size={18} />} loading={pending} loadingText="Đang đăng xuất…" onClick={onClick}>
       Đăng xuất
     </Button>
   );

@@ -110,6 +110,7 @@ test.describe("T28/FA1 thật", () => {
 
     await page.locator("input").first().click();
     await page.keyboard.type(code);
+    // Trước đó test vào thẳng /quan-tri nên `next=/quan-tri` được giữ (không phải DEFAULT_LANDING).
     await expect(page).toHaveURL(`${ADMIN}/quan-tri`, { timeout: 20_000 });
     for (const label of ["Tài khoản staff", "Nhật ký thao tác", "Đơn hàng", "Mã giảm giá", "Chuyên đề"]) {
       await expect(nav(page).getByText(label)).toBeVisible();

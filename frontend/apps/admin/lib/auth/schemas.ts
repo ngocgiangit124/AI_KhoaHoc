@@ -6,11 +6,14 @@ export const loginSchema = z.object({
 });
 export type LoginValues = z.infer<typeof loginSchema>;
 
-/** Giống học sinh: min 8, max 128 (api-contract "Bổ sung từ T03"). Laravel validate lại. */
+/** Mật khẩu staff tối thiểu 12 ký tự (Bảo mật cụm 1, 2026-10-06); tối đa 128. Laravel validate lại (mật khẩu phổ biến,
+ * chứa phần trước @ của email → 422 `errors.password`, hiện dưới ô qua `classifyPasswordError`). */
+export const STAFF_PASSWORD_MIN_LENGTH = 12;
+
 export const passwordChangeSchema = z
   .object({
     current_password: z.string().min(1, "Vui lòng nhập mật khẩu hiện tại"),
-    password: z.string().min(8, "Mật khẩu tối thiểu 8 ký tự").max(128, "Mật khẩu tối đa 128 ký tự"),
+    password: z.string().min(STAFF_PASSWORD_MIN_LENGTH, `Mật khẩu tối thiểu ${STAFF_PASSWORD_MIN_LENGTH} ký tự`).max(128, "Mật khẩu tối đa 128 ký tự"),
     password_confirmation: z.string().min(1, "Vui lòng nhập lại mật khẩu mới"),
   })
   .superRefine((v, ctx) => {

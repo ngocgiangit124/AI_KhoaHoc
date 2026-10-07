@@ -1,92 +1,76 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import Link from "next/link";
+import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { Badge } from "@vitaminvui/ui";
-import { isNavActive, navForUser } from "@/lib/nav";
+import {
+  AdminFrame,
+  IconBookOpen,
+  IconFileText,
+  IconHome,
+  IconReceipt,
+  IconShapes,
+  IconShieldCheck,
+  IconTicket,
+  type AdminNavGroup,
+  type AdminNavItem,
+} from "@vitaminvui/ui/v2";
+import { isNavActive, NAV_GROUP_LABELS, navForUser, type NavGroupKey, type NavItem } from "@/lib/nav";
 import { STAFF_ROLE_LABELS, type StaffUser } from "@/lib/auth/types";
 import { LogoutButton } from "./LogoutButton";
 
-function NavList({ user, onNavigate }: { user: StaffUser; onNavigate?: () => void }) {
-  const pathname = usePathname();
-  return (
-    <nav aria-label="Menu quản trị">
-      <ul className="space-y-1 text-sm">
-        {navForUser(user).map((item) => {
-          const active = isNavActive(item.href, pathname);
-          if (!item.ready) {
-            return (
-              <li key={item.href}>
-                <span
-                  aria-disabled="true"
-                  className="flex min-h-11 items-center justify-between rounded-lg px-3 text-gray-500"
-                >
-                  {item.label}
-                  <span className="text-xs">Sắp có</span>
-                </span>
-              </li>
-            );
-          }
-          return (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                onClick={onNavigate}
-                aria-current={active ? "page" : undefined}
-                className={`flex min-h-11 items-center rounded-lg px-3 ${
-                  active ? "bg-indigo-50 font-semibold text-indigo-700" : "text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {item.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
+const ICONS: Record<NavItem["icon"], ReactNode> = {
+  home: <IconHome size={18} />,
+  book: <IconBookOpen size={18} />,
+  shapes: <IconShapes size={18} />,
+  ticket: <IconTicket size={18} />,
+  receipt: <IconReceipt size={18} />,
+  shield: <IconShieldCheck size={18} />,
+  file: <IconFileText size={18} />,
+};
+
+const GROUP_ORDER: readonly NavGroupKey[] = ["content", "sales", "system"];
+
+/** Menu theo vai trò (`navForUser`) → nhóm của `AdminFrame`; mục chưa có màn hiện mờ kèm nhãn, không phải link (tránh 404). */
+export function navGroups(user: Pick<StaffUser, "role" | "permissions">, pathname: string): AdminNavGroup[] {
+  const items = navForUser(user);
+  return GROUP_ORDER.flatMap((key) => {
+    const inGroup = items.filter((i) => i.group === key);
+    if (inGroup.length === 0) return [];
+    const mapped: AdminNavItem[] = inGroup.map((i) => ({
+      href: i.href,
+      label: i.label,
+      icon: ICONS[i.icon],
+      current: i.ready && isNavActive(i.href, pathname),
+      ...(i.ready ? {} : { disabledNote: i.pending?.note ?? "Sắp có", disabledReason: i.pending?.reason }),
+    }));
+    return [{ label: NAV_GROUP_LABELS[key], items: mapped }];
+  });
 }
 
-/** Khung quản trị: sidebar (menu theo vai trò) + thanh trên có người dùng/đăng xuất. Responsive từ 375px. */
+/**
+ * Khung quản trị (design v2 §14): dựng từ `AdminFrame` (sidebar 256px ≥ lg, topbar + ngăn kéo ở mobile) với dữ liệu
+ * phiên thật. Menu theo vai trò/quyền của `/admin/auth/me`; chỉ để trải nghiệm — quyền thật do API kiểm.
+ */
 export function AdminShell({ user, children }: { user: StaffUser; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-
+  const pathname = usePathname();
   return (
-    <div className="flex min-h-full flex-1">
-      <aside className="hidden w-60 shrink-0 border-r border-gray-200 bg-white p-4 lg:block">
-        <p className="mb-6 px-2 text-lg font-bold text-indigo-600">Quản trị VitaminVui</p>
-        <NavList user={user} />
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-2">
-          <button
-            type="button"
-            className="inline-flex h-11 items-center rounded-lg border border-gray-300 px-3 text-sm font-medium lg:hidden"
-            aria-expanded={open}
-            aria-controls="admin-mobile-nav"
-            onClick={() => setOpen((v) => !v)}
-          >
-            Menu
-          </button>
-          <div className="ml-auto flex items-center gap-3">
-            <span className="text-sm text-gray-900" data-testid="staff-name">
-              {user.name}
-            </span>
-            <Badge variant="info">{STAFF_ROLE_LABELS[user.role]}</Badge>
-            <LogoutButton />
-          </div>
-        </header>
-
-        {open ? (
-          <div id="admin-mobile-nav" className="border-b border-gray-200 bg-white p-3 lg:hidden">
-            <NavList user={user} onNavigate={() => setOpen(false)} />
-          </div>
-        ) : null}
-
-        <main className="flex-1 p-4 lg:p-6">{children}</main>
-      </div>
-    </div>
+    <>
+      <a
+        href="#noi-dung"
+        className="focus-ring fixed left-2 top-2 z-[300] -translate-y-20 rounded-control bg-surface px-3 py-2 text-sm font-semibold text-primary focus:translate-y-0"
+      >
+        Bỏ qua tới nội dung
+      </a>
+      <AdminFrame
+        homeHref="/quan-tri"
+        navLabel="Menu quản trị"
+        userNameTestId="staff-name"
+        groups={navGroups(user, pathname)}
+        user={{ name: user.name, email: user.email ?? "", roleLabel: STAFF_ROLE_LABELS[user.role] }}
+        logoutSlot={<LogoutButton />}
+      >
+        {children}
+      </AdminFrame>
+    </>
   );
 }

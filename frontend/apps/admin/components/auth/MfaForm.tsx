@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@vitaminvui/api-client";
-import { Alert, Button, OtpInput } from "@vitaminvui/ui";
+import { Alert, Button, Field, LoadingRegion, OtpInput, Spinner } from "@vitaminvui/ui/v2";
 import { logoutStaff, resendMfa, verifyMfa } from "@/lib/auth/api";
 import { mfaErrorMessage } from "@/lib/auth/errors";
 import { clearMfaHint, readMfaHint, readMfaResendAt, saveMfaResendAt } from "@/lib/auth/mfaHint";
@@ -19,7 +19,6 @@ export const MFA_TTL_MINUTES = 10;
 export function MfaForm({ next }: { next?: string | null }) {
   const router = useRouter();
   const { state, refresh } = useSession();
-  const errorId = useId();
   const target = safeNext(next);
 
   const [code, setCode] = useState("");
@@ -122,8 +121,8 @@ export function MfaForm({ next }: { next?: string | null }) {
 
   if (state.kind === "error") {
     return (
-      <div className="space-y-4">
-        <Alert variant="danger">Không kiểm tra được phiên đăng nhập. Vui lòng kiểm tra kết nối và thử lại.</Alert>
+      <div className="flex flex-col gap-4">
+        <Alert tone="danger">Không kiểm tra được phiên đăng nhập. Vui lòng kiểm tra kết nối và thử lại.</Alert>
         <Button type="button" onClick={() => void refresh()}>
           Thử lại
         </Button>
@@ -131,10 +130,15 @@ export function MfaForm({ next }: { next?: string | null }) {
     );
   }
   if (state.kind === "locked") {
-    return <Alert variant="danger">Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin.</Alert>;
+    return <Alert tone="danger">Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin.</Alert>;
   }
   if (state.kind !== "mfa_required") {
-    return <p className="text-sm text-gray-700">Đang tải…</p>;
+    return (
+      <LoadingRegion className="flex items-center gap-2 text-sm text-ink-soft">
+        <Spinner label={null} className="size-4" />
+        Đang tải…
+      </LoadingRegion>
+    );
   }
 
   function onSubmit(e: FormEvent) {
@@ -143,52 +147,40 @@ export function MfaForm({ next }: { next?: string | null }) {
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-5">
-      <p className="text-sm text-gray-700">
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
+      <p className="text-base leading-relaxed text-ink-soft">
         Vì tài khoản của bạn có quyền truy cập dữ liệu học sinh, chúng tôi đã gửi mã xác nhận gồm {MFA_CODE_LENGTH} chữ số tới{" "}
-        <strong>{hint ?? "email của bạn"}</strong>. Mã có hiệu lực trong {MFA_TTL_MINUTES} phút.
+        <strong className="font-semibold text-ink">{hint ?? "email của bạn"}</strong>. Mã có hiệu lực trong {MFA_TTL_MINUTES} phút.
       </p>
 
-      {error ? (
-        <Alert id={errorId} variant="danger">
-          {error}
-        </Alert>
-      ) : null}
+      {notice ? <Alert tone="success">{notice}</Alert> : null}
 
-      {notice ? <Alert variant="success">{notice}</Alert> : null}
+      <Field label="Mã xác nhận" required error={error ?? undefined}>
+        <OtpInput
+          value={code}
+          onChange={(v) => {
+            setCode(v);
+            if (error) setError(null);
+          }}
+          onComplete={(v) => void submit(v)}
+          busy={pending}
+          focusSignal={focusSignal}
+          autoFocus
+          length={MFA_CODE_LENGTH}
+        />
+      </Field>
 
-      <OtpInput
-        value={code}
-        onChange={(v) => {
-          setCode(v);
-          if (error) setError(null);
-        }}
-        onComplete={(v) => void submit(v)}
-        busy={pending}
-        focusSignal={focusSignal}
-        invalid={error !== null}
-        describedBy={error ? errorId : undefined}
-        autoFocus
-        length={MFA_CODE_LENGTH}
-        label="Mã xác nhận"
-      />
-
-      <Button type="submit" size="lg" loading={pending} className="w-full" disabled={code.length !== MFA_CODE_LENGTH}>
+      <Button type="submit" size="lg" block loading={pending} loadingText="Đang xác nhận…" disabled={code.length !== MFA_CODE_LENGTH}>
         Xác nhận
       </Button>
 
-      <div className="flex flex-col items-center gap-1 text-sm text-gray-700">
+      <div className="flex flex-col items-center gap-1">
         <Button type="button" variant="ghost" loading={resending} disabled={remaining > 0 || pending} onClick={() => void onResend()}>
           {remaining > 0 ? `Gửi lại mã sau ${formatCountdown(remaining)}` : "Gửi lại mã"}
         </Button>
-        <button
-          type="button"
-          onClick={() => void restart()}
-          disabled={pending}
-          className="inline-flex min-h-11 items-center px-2 font-medium text-indigo-700 hover:underline disabled:opacity-50"
-        >
+        <Button type="button" variant="ghost" onClick={() => void restart()} disabled={pending}>
           Đăng nhập bằng tài khoản khác
-        </button>
+        </Button>
       </div>
     </form>
   );

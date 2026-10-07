@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { STAFF_GATE_EVENT, type StaffGateCode } from "./gate";
 import { writeIdleMinutes } from "./idle";
 import { fetchSession, type SessionResult } from "./session";
 
@@ -31,6 +32,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!controller.signal.aborted) setState(result);
     });
     return () => controller.abort();
+  }, []);
+
+  // Khoá giữa phiên (ACCOUNT_LOCKED từ bất kỳ lệnh gọi API nào): chuyển sang trạng thái "locked" để AuthGate dựng
+  // màn khoá thay cho khung + màn con (không để lại menu/tên/cảnh báo cũ phía sau overlay của SessionWatcher).
+  useEffect(() => {
+    function onGate(e: Event) {
+      if ((e as CustomEvent<{ code: StaffGateCode }>).detail?.code === "ACCOUNT_LOCKED") setState({ kind: "locked" });
+    }
+    window.addEventListener(STAFF_GATE_EVENT, onGate);
+    return () => window.removeEventListener(STAFF_GATE_EVENT, onGate);
   }, []);
 
   // SessionWatcher (layout gốc, ngoài provider) đọc giới hạn idle từ đây.

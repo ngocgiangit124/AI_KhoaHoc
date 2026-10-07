@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Modal } from "@vitaminvui/ui";
+import { Button, Dialog } from "@vitaminvui/ui/v2";
 import type { Subject } from "@/lib/subjects/types";
 
 export interface SubjectInUseModalProps {
@@ -17,17 +17,21 @@ export function SubjectInUseModal({ subject, count, onClose, onHide }: SubjectIn
   const [pending, setPending] = useState(false);
   const canHide = subject.status === "active";
   return (
-    <Modal
+    <Dialog
+      open
+      size="sm"
       title="Không thể xoá chuyên đề"
       onClose={onClose}
+      dismissible={!pending}
       footer={
         <>
-          <Button variant="outline" onClick={onClose} disabled={pending}>
+          <Button variant="secondary" onClick={onClose} disabled={pending}>
             Đã hiểu
           </Button>
           {canHide ? (
             <Button
               loading={pending}
+              loadingText="Đang ẩn…"
               onClick={async () => {
                 setPending(true);
                 try {
@@ -43,11 +47,11 @@ export function SubjectInUseModal({ subject, count, onClose, onHide }: SubjectIn
         </>
       }
     >
-      <p>
+      <p className="text-base text-ink">
         Chuyên đề <strong className="break-words">{subject.name}</strong> đang được gán cho{" "}
         {count !== null ? `${count} khóa học` : "ít nhất 1 khóa học"} nên không thể xoá.
         {canHide ? " Bạn có thể chuyển sang trạng thái Ẩn thay thế." : " Chuyên đề này đã ở trạng thái Ẩn."}
       </p>
-    </Modal>
+    </Dialog>
   );
 }
