@@ -15,7 +15,7 @@ export function CourseStatusBadge({ status }: { status: CourseStatus }) {
  * VideoStatusBadge (US-009 §2.3): trạng thái video của bài, từ `video_source` + `video_status`.
  * Đang tải lên hiện % (từ tus-js-client), lỗi hiện đỏ; bài link ngoài ghi rõ nguồn.
  */
-export function VideoStatusBadge({ lesson }: { lesson: AdminLesson }) {
+export function VideoStatusBadge({ lesson }: { lesson: Pick<AdminLesson, "video_source" | "video_status" | "external_provider" | "upload_percent"> }) {
   if (lesson.video_source === "external_link") {
     return (
       <Badge tone="info" size="sm" icon={<IconExternalLink size={12} />}>

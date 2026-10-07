@@ -429,7 +429,7 @@ export function CourseForm({ mode, course, isStaff, onSaved, onGone, aside, vers
         {/* TODO(FA4): khi có màn Chương & bài, đổi lời thành "Sau khi lưu, thêm chương và bài học". */}
         {mode === "create" ? (
           <p className="rounded-card border border-line bg-surface p-5 text-sm text-ink-soft">
-            Khóa mới ở trạng thái <strong className="text-ink">Nháp</strong>. Cần ít nhất 1 chương và 1 bài học mới xuất bản được; màn soạn chương/bài sẽ có ở bản tiếp theo.
+            Khóa mới ở trạng thái <strong className="text-ink">Nháp</strong>. Cần ít nhất 1 chương và 1 bài học mới xuất bản được; soạn ở tab “Chương & bài” sau khi tạo khóa.
           </p>
         ) : null}
 

@@ -6,18 +6,22 @@ import { ToastProvider } from "@vitaminvui/ui/v2";
 import { useSession, type SessionState } from "@/lib/auth/SessionProvider";
 import type { StaffUser } from "@/lib/auth/types";
 import * as api from "@/lib/courses/api";
+import * as curriculumApi from "@/lib/curriculum/api";
 import type { CourseAbilities, CourseDetail } from "@/lib/courses/types";
+import { UploadProvider } from "@/components/curriculum/useUploadManager";
 import { CourseEditScreen } from "./CourseEditScreen";
 
 vi.mock("@/env", () => ({ env: { NEXT_PUBLIC_ADMIN_API_URL: "http://admin-api.test" } }));
 const push = vi.fn();
+const nav = vi.hoisted(() => ({ search: "" }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push }),
   usePathname: () => "/quan-tri/khoa-hoc/5/sua",
-  useSearchParams: () => new URLSearchParams(""),
+  useSearchParams: () => new URLSearchParams(nav.search),
 }));
 vi.mock("@/lib/auth/SessionProvider", () => ({ useSession: vi.fn() }));
 vi.mock("@/lib/courses/api");
+vi.mock("@/lib/curriculum/api");
 
 const STAFF_ABILITIES: CourseAbilities = { update: true, delete: true, publish: true, manage_teachers: true, edit_price: true, edit_grade_level: true };
 const TEACHER_ABILITIES: CourseAbilities = { update: true, delete: false, publish: false, manage_teachers: false, edit_price: false, edit_grade_level: false };
@@ -53,12 +57,15 @@ function setUser(role: StaffUser["role"]) {
 const renderScreen = () =>
   render(
     <ToastProvider>
-      <CourseEditScreen id={5} />
+      <UploadProvider>
+        <CourseEditScreen id={5} />
+      </UploadProvider>
     </ToastProvider>,
   );
 
 beforeEach(() => {
   vi.resetAllMocks();
+  nav.search = "";
   push.mockReset();
   setUser("quan_ly_trang");
   vi.mocked(api.listActiveSubjects).mockResolvedValue([{ id: 1, name: "Đại số" }]);
@@ -75,8 +82,8 @@ describe("CourseEditScreen", () => {
     expect(await screen.findByRole("heading", { name: "Hình học 9", level: 1 })).toBeInTheDocument();
     const tabs = screen.getByRole("navigation", { name: "Phần của khóa học" });
     expect(within(tabs).getByRole("link", { name: "Thông tin chung" })).toHaveAttribute("aria-current", "page");
-    expect(within(tabs).getAllByText("Sắp có")).toHaveLength(2);
-    expect(within(tabs).getAllByRole("link")).toHaveLength(1);
+    expect(within(tabs).getAllByText("Sắp có")).toHaveLength(1);
+    expect(within(tabs).getAllByRole("link")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Xuất bản" })).toBeInTheDocument();
     expect(screen.getByText(/Chưa có trang công khai/)).toBeInTheDocument();
   });
@@ -236,5 +243,36 @@ describe("CourseEditScreen", () => {
     expect(api.publishCourse).not.toHaveBeenCalled();
     await userEvent.click(within(dialog).getByRole("button", { name: "Tiếp tục" }));
     await waitFor(() => expect(api.publishCourse).toHaveBeenCalledWith(5));
+  });
+
+  it("R7: đổi sang tab Thông tin chung khi form bài còn thay đổi chưa lưu thì hỏi xác nhận", async () => {
+    nav.search = "tab=chuong-bai&bai=1";
+    vi.mocked(api.getCourse).mockResolvedValue(detail());
+    vi.mocked(curriculumApi.getCurriculum).mockResolvedValue({
+      course_id: 5,
+      chapters: [
+        {
+          id: 10,
+          course_id: 5,
+          title: "Chương 1",
+          position: 1,
+          lessons: [
+            { id: 1, course_id: 5, chapter_id: 10, title: "Bài 1", position: 1, is_preview: false, video_source: "none", duration_seconds: null, external_provider: null, external_video_id: null, external_embed_url: null, has_video_asset: false, video_status: null },
+          ],
+        },
+      ],
+    });
+    renderScreen();
+    const name = await screen.findByLabelText(/Tên bài học/);
+    await userEvent.type(name, " sửa dở");
+    const tabs = screen.getByRole("navigation", { name: "Phần của khóa học" });
+    await userEvent.click(within(tabs).getByRole("link", { name: "Thông tin chung" }));
+    const dlg = await screen.findByRole("dialog");
+    expect(dlg).toHaveTextContent("Còn thay đổi chưa lưu");
+    await userEvent.click(within(dlg).getByRole("button", { name: "Ở lại để lưu" }));
+    expect(push).not.toHaveBeenCalled();
+    await userEvent.click(within(tabs).getByRole("link", { name: "Thông tin chung" }));
+    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Bỏ thay đổi" }));
+    expect(push).toHaveBeenCalledWith("/quan-tri/khoa-hoc/5/sua");
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Alert,
   Badge,
@@ -25,6 +25,8 @@ import { isCourseStaff } from "@/lib/courses/permissions";
 import { COURSES_PATH } from "@/lib/courses/query";
 import type { CourseDetail } from "@/lib/courses/types";
 import { useSession } from "@/lib/auth/SessionProvider";
+import { CurriculumPanel } from "@/components/curriculum/CurriculumPanel";
+import { useUploadManager } from "@/components/curriculum/useUploadManager";
 import { CourseForm } from "./CourseForm";
 import { ManualOrderField } from "./ManualOrderField";
 import { CourseStatusBadge } from "./StatusBadge";
@@ -36,11 +38,13 @@ type Result = { key: number; course: CourseDetail | null; error: unknown };
 const SOON_TAB = "relative inline-flex min-h-11 cursor-not-allowed items-center gap-2 whitespace-nowrap px-1 text-base font-semibold text-ink-soft";
 
 /**
- * `/quan-tri/khoa-hoc/{id}/sua` — tab "Thông tin chung" (design v2). Tab "Chương & bài" (FA4) và "Bài tập" (FA5) hiện
- * mờ "Sắp có". Trường ẩn/hiện theo `abilities` của API (quyền thật do Policy).
+ * `/quan-tri/khoa-hoc/{id}/sua` — tab "Thông tin chung" và "Chương & bài" (`?tab=chuong-bai&bai=ID`, FA4) theo design v2.
+ * Tab "Bài tập" (FA5) hiện mờ "Sắp có". Trường ẩn/hiện theo `abilities` của API (quyền thật do Policy).
  */
 export function CourseEditScreen({ id }: { id: number }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const { state } = useSession();
   const [reloadKey, setReloadKey] = useState(0);
@@ -51,6 +55,26 @@ export function CourseEditScreen({ id }: { id: number }) {
   // Xuất bản/ngừng bán khi form còn thay đổi chưa lưu → hỏi xác nhận (R3).
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const ready = state.kind === "staff";
+  const tab = searchParams.get("tab") === "chuong-bai" ? "chuong-bai" : "thong-tin";
+  const lessonParam = searchParams.get("bai");
+  const selectedLessonId = lessonParam && /^[1-9]\d{0,9}$/.test(lessonParam) ? Number(lessonParam) : null;
+  // Tải video (FA4): quản lý ở đây để đổi bài/đổi tab không làm mất lượt tải đang chạy.
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [watched, setWatched] = useState<number[]>([]);
+  // Form bài (tab Chương & bài) còn thay đổi chưa lưu: hỏi trước khi sang tab Thông tin chung.
+  const lessonDirtyRef = useRef(false);
+  const [leaveToInfo, setLeaveToInfo] = useState(false);
+  const onUploadFinished = useCallback((lessonId: number, outcome: "uploaded" | "stopped") => {
+    if (outcome === "uploaded") setWatched((prev) => (prev.includes(lessonId) ? prev : [...prev, lessonId]));
+    setRefreshTick((n) => n + 1);
+  }, []);
+  const uploads = useUploadManager(id, onUploadFinished);
+  const onWatchedSettled = useCallback((ids: number[]) => setWatched((prev) => prev.filter((x) => !ids.includes(x))), []);
+  const curriculumHref = useCallback(
+    (lessonId: number | null) => `${pathname}?tab=chuong-bai${lessonId ? `&bai=${lessonId}` : ""}`,
+    [pathname],
+  );
+  const selectLesson = useCallback((lessonId: number | null) => router.replace(curriculumHref(lessonId), { scroll: false }), [router, curriculumHref]);
 
   useEffect(() => {
     if (!ready) return;
@@ -175,24 +199,53 @@ export function CourseEditScreen({ id }: { id: number }) {
       <nav aria-label="Phần của khóa học" className="mt-5 flex gap-6 overflow-x-auto border-b border-line">
         <UiLink
           href={`${COURSES_PATH}/${course.id}/sua`}
-          aria-current="page"
-          className="focus-ring relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-1 text-base font-semibold text-primary"
+          aria-current={tab === "thong-tin" ? "page" : undefined}
+          onClick={(e) => {
+            if (tab === "chuong-bai" && lessonDirtyRef.current) {
+              e.preventDefault();
+              setLeaveToInfo(true);
+            }
+          }}
+          className={`focus-ring relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-1 text-base font-semibold ${tab === "thong-tin" ? "text-primary" : "text-ink-soft hover:text-ink"}`}
         >
           Thông tin chung
-          <span aria-hidden="true" className="absolute inset-x-0 -bottom-px h-0.75 rounded-full bg-primary" />
+          {tab === "thong-tin" ? <span aria-hidden="true" className="absolute inset-x-0 -bottom-px h-0.75 rounded-full bg-primary" /> : null}
         </UiLink>
-        {/* Chương & bài (FA4) và Bài tập (FA5) chưa có màn: hiện mờ, không phải link (tránh 404). */}
-        <span aria-disabled="true" className={SOON_TAB}>
+        <UiLink
+          href={`${COURSES_PATH}/${course.id}/sua?tab=chuong-bai`}
+          aria-current={tab === "chuong-bai" ? "page" : undefined}
+          className={`focus-ring relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-1 text-base font-semibold ${tab === "chuong-bai" ? "text-primary" : "text-ink-soft hover:text-ink"}`}
+        >
           Chương &amp; bài
-          <Badge size="sm">Sắp có</Badge>
-        </span>
+          {course.lessons_count !== undefined ? <span className="num rounded-full bg-sunken px-2 text-sm text-ink-soft">{course.lessons_count}</span> : null}
+          {tab === "chuong-bai" ? <span aria-hidden="true" className="absolute inset-x-0 -bottom-px h-0.75 rounded-full bg-primary" /> : null}
+        </UiLink>
+        {/* Bài tập (FA5) chưa có màn: hiện mờ, không phải link (tránh 404). */}
         <span aria-disabled="true" className={SOON_TAB}>
           Bài tập
           <Badge size="sm">Sắp có</Badge>
         </span>
       </nav>
 
-      <div className="mt-5">
+      {tab === "chuong-bai" ? (
+        <div className="mt-5">
+          <CurriculumPanel
+            courseId={course.id}
+            manager={uploads}
+            refreshTick={refreshTick}
+            dirtyRef={lessonDirtyRef}
+            watchedLessonIds={watched}
+            onWatchedSettled={onWatchedSettled}
+            selectedLessonId={selectedLessonId}
+            lessonHref={curriculumHref}
+            onSelect={selectLesson}
+            onStructureChanged={reload}
+          />
+        </div>
+      ) : null}
+
+      {/* Giữ form thông tin mounted khi đang ở tab khác để không mất phần đang sửa. */}
+      <div className="mt-5" hidden={tab !== "thong-tin"}>
         <CourseForm
           key={course.id}
           version={formVersion}
@@ -263,10 +316,25 @@ export function CourseEditScreen({ id }: { id: number }) {
         ) : null}
 
         <p className="mt-6 text-sm text-ink-soft">
-          Hiện có {course.chapters_count ?? 0} chương, {course.lessons_count ?? 0} bài học. Màn soạn chương, bài học và bài tập sẽ có ở bản tiếp theo.
+          Hiện có {course.chapters_count ?? 0} chương, {course.lessons_count ?? 0} bài học. Soạn chương và bài ở tab “Chương &amp; bài”; bài tập sẽ có ở bản tiếp theo.
         </p>
       </div>
 
+      {leaveToInfo ? (
+        <ConfirmDialog
+          open
+          title="Còn thay đổi chưa lưu"
+          description="Thông tin bài học bạn vừa sửa chưa được lưu. Chuyển sang “Thông tin chung” sẽ bỏ các thay đổi này."
+          confirmLabel="Bỏ thay đổi"
+          cancelLabel="Ở lại để lưu"
+          onClose={() => setLeaveToInfo(false)}
+          onConfirm={() => {
+            lessonDirtyRef.current = false;
+            setLeaveToInfo(false);
+            router.push(`${COURSES_PATH}/${id}/sua`);
+          }}
+        />
+      ) : null}
       {actions.dialogs}
       {pendingAction ? (
         <ConfirmDialog
