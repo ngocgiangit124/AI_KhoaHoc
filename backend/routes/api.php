@@ -186,6 +186,11 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             ->whereNumber('lesson')
             ->middleware('throttle:heartbeat')
             ->name('api.learn.lessons.heartbeat');
+        // Đánh dấu đã học thủ công: chỉ bài link ngoài (US-006, PO 2026-10-07). Cùng limiter với heartbeat (6/phút/user/bài).
+        Route::post('/learn/lessons/{lesson}/complete', [ProgressController::class, 'complete'])
+            ->whereNumber('lesson')
+            ->middleware('throttle:heartbeat')
+            ->name('api.learn.lessons.complete');
 
         // T23 — Khóa học của tôi + tiến độ (US-008). Quyền: role học sinh (group) + LessonAccessService (COURSE_NOT_OWNED).
         Route::middleware('throttle:me-courses')->group(function (): void {

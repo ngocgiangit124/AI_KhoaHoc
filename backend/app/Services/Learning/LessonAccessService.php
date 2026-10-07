@@ -33,7 +33,7 @@ class LessonAccessService
     public function assertOwnsCourse(User $user, int $courseId): void
     {
         if (! $this->ownsCourse((int) $user->getKey(), $courseId)) {
-            throw $this->notOwned();
+            throw $this->notOwned($courseId);
         }
     }
 
@@ -48,7 +48,7 @@ class LessonAccessService
             return;
         }
 
-        throw $course->status === CourseStatus::Published ? $this->notOwned() : $this->notFound();
+        throw $course->status === CourseStatus::Published ? $this->notOwned((int) $course->getKey()) : $this->notFound();
     }
 
     /**
@@ -73,7 +73,7 @@ class LessonAccessService
         }
 
         if (! $lesson->is_preview) {
-            throw $this->notOwned();
+            throw $this->notOwned((int) $lesson->course_id);
         }
 
         return false;
@@ -106,13 +106,39 @@ class LessonAccessService
             && Chapter::query()->whereKey($lesson->chapter_id)->exists();
     }
 
-    public function notOwned(): DomainException
+    /**
+     * Người KHÔNG sở hữu khóa: khóa published -> 403 COURSE_NOT_OWNED (kèm course); khóa nháp/ẩn -> 404 (không để dò ID
+     * bài của khóa chưa công bố). Dùng cho đường ghi tiến độ (heartbeat, complete).
+     */
+    public function denyNotOwned(int $courseId): DomainException
     {
-        return new DomainException('COURSE_NOT_OWNED', 'Bạn chưa sở hữu khóa học này.', 403);
+        $published = Course::query()->whereKey($courseId)->where('status', CourseStatus::Published->value)->exists();
+
+        return $published ? $this->notOwned($courseId) : $this->notFound();
+    }
+
+    /**
+     * 403 COURSE_NOT_OWNED. Kèm `errors.course {id, slug, title}` để web chuyển về trang chi tiết, CHỈ khi khóa đang
+     * published (khóa nháp/ẩn/đã xoá không lộ slug/title).
+     */
+    public function notOwned(?int $courseId = null): DomainException
+    {
+        $context = [];
+
+        if ($courseId !== null) {
+            $course = Course::query()->whereKey($courseId)->where('status', CourseStatus::Published->value)->first(['id', 'slug', 'title']);
+
+            if ($course !== null) {
+                $context['course'] = ['id' => $course->id, 'slug' => $course->slug, 'title' => $course->title];
+            }
+        }
+
+        return new DomainException('COURSE_NOT_OWNED', 'Bạn chưa sở hữu khóa học này.', 403, $context);
     }
 
     public function notFound(): DomainException
     {
-        return new DomainException('NOT_FOUND', 'Không tìm thấy bài học.', 404);
+        // Cùng message với 404 mặc định (ApiExceptionRenderer) để không phân biệt được ID khoá nháp với ID không tồn tại (QA SLN5 BUG-1).
+        return new DomainException('NOT_FOUND', 'Không tìm thấy tài nguyên.', 404);
     }
 }

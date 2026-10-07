@@ -70,6 +70,27 @@ $out = match ($mode) {
 
         return $run(fn () => app(ProgressService::class)->heartbeat($user, $lesson, (int) $position, (int) $delta));
     })(),
+    // args: student, lesson, startAt
+    'complete' => (function () use ($args, $wait, $run) {
+        [$studentId, $lessonId, $startAt] = $args;
+        $user = User::findOrFail($studentId);
+        $lesson = Lesson::findOrFail($lessonId);
+        $wait($startAt);
+
+        return $run(fn () => app(ProgressService::class)->completeManually($user, $lesson));
+    })(),
+    // args: lesson  (đổi nguồn bài sang link ngoài để thử /complete)
+    'make_external' => (function () use ($args) {
+        Lesson::query()->whereKey($args[0])->update(['video_source' => VideoSource::ExternalLink->value, 'external_provider' => 'youtube', 'external_video_id' => 'dQw4w9WgXcQ']);
+
+        return ['ok' => true];
+    })(),
+    // args: student, lesson
+    'completed_state' => (function () use ($args) {
+        $r = DB::table('lesson_progress')->where('user_id', $args[0])->where('lesson_id', $args[1])->first();
+
+        return ['rows' => (int) DB::table('lesson_progress')->where('user_id', $args[0])->where('lesson_id', $args[1])->count(), 'status' => $r->status ?? null, 'completed_at' => $r->completed_at ?? null];
+    })(),
     // args: course, chapter, lesson, startAt
     'delete_lesson' => (function () use ($args, $wait, $run) {
         [$courseId, $chapterId, $lessonId, $startAt] = $args;

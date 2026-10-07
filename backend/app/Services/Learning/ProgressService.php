@@ -4,7 +4,9 @@ namespace App\Services\Learning;
 
 use App\Enums\EnrollmentStatus;
 use App\Enums\LessonProgressStatus;
+use App\Enums\VideoSource;
 use App\Exceptions\DomainException;
+use App\Models\Chapter;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
@@ -53,6 +55,77 @@ class ProgressService
         ];
     }
 
+    /**
+     * Học sinh tự đánh dấu "đã học" cho bài nguồn link ngoài (không có heartbeat). Bài upload: 422
+     * LESSON_COMPLETION_NOT_MANUAL (chỉ hoàn thành qua heartbeat). Idempotent: bài đã xong giữ nguyên `completed_at`.
+     * Cùng thứ tự khoá và kiểm quyền như heartbeat.
+     *
+     * @return array{status: string, completed: bool, course_percent: int}
+     *
+     * @throws DomainException 403 COURSE_NOT_OWNED, 404 NOT_FOUND, 422 LESSON_COMPLETION_NOT_MANUAL
+     */
+    public function completeManually(User $user, Lesson $lesson): array
+    {
+        $courseId = (int) $lesson->course_id;
+        $userId = (int) $user->getKey();
+        $lessonId = (int) $lesson->getKey();
+
+        DB::transaction(function () use ($userId, $lessonId, $courseId): void {
+            $course = Course::query()->whereKey($courseId)->sharedLock()->first(['id']);
+            $lesson = $course === null ? null : Lesson::query()->whereKey($lessonId)->where('course_id', $courseId)->sharedLock()->first();
+
+            if ($lesson === null || Chapter::query()->whereKey($lesson->chapter_id)->doesntExist()) {
+                throw $this->access->notFound();
+            }
+
+            if (! $this->access->ownsCourse($userId, $courseId)) {
+                throw $this->access->denyNotOwned($courseId);
+            }
+
+            if ($lesson->video_source !== VideoSource::ExternalLink) {
+                throw new DomainException('LESSON_COMPLETION_NOT_MANUAL', 'Bài học này được tính hoàn thành khi bạn xem video, không thể đánh dấu thủ công.', 422);
+            }
+
+            $find = fn () => LessonProgress::query()->where('user_id', $userId)->where('lesson_id', $lessonId)->lockForUpdate()->first();
+            $row = $find();
+
+            if ($row === null) {
+                DB::table('lesson_progress')->insertOrIgnore([
+                    'user_id' => $userId,
+                    'lesson_id' => $lessonId,
+                    'course_id' => $courseId,
+                    'watched_seconds' => 0,
+                    'last_position_seconds' => 0,
+                    'status' => LessonProgressStatus::InProgress->value,
+                    'last_accessed_at' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $row = $find() ?? throw new \RuntimeException('lesson_progress biến mất sau khi insert.');
+            }
+
+            if ($row->status === LessonProgressStatus::Completed) {
+                return;
+            }
+
+            $now = now();
+            LessonProgress::query()->whereKey($row->getKey())->update([
+                'status' => LessonProgressStatus::Completed->value,
+                'completed_at' => $now,
+                'last_accessed_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }, 3);
+
+        $this->touchEnrollment($userId, $courseId);
+
+        return [
+            'status' => LessonProgressStatus::Completed->value,
+            'completed' => true,
+            'course_percent' => $this->courseProgress->percent($userId, $courseId),
+        ];
+    }
+
     private function record(int $userId, int $lessonId, int $courseId, int $position, int $delta): LessonProgressStatus
     {
         $course = Course::query()->whereKey($courseId)->sharedLock()->first(['id']);
@@ -64,7 +137,7 @@ class ProgressService
 
         // Quyền kiểm sau khi giữ khoá: bài còn sống thì mới có quyền để nói tới.
         if (! $this->access->ownsCourse($userId, $courseId)) {
-            throw $this->access->notOwned();
+            throw $this->access->denyNotOwned($courseId);
         }
 
         $cfg = (array) config('learning.heartbeat');

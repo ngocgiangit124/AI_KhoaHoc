@@ -8,6 +8,7 @@ use App\Models\Lesson;
 use App\Models\User;
 use App\Services\Learning\ProgressService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ProgressController extends Controller
 {
@@ -24,5 +25,13 @@ class ProgressController extends Controller
             $request->integer('position_seconds'),
             $request->integer('watched_delta_seconds'),
         ));
+    }
+
+    public function complete(Request $request, Lesson $lesson): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json($this->progress->completeManually($user, $lesson));
     }
 }
