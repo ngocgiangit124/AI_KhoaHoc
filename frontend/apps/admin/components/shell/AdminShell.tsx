@@ -12,6 +12,7 @@ import {
   IconShieldCheck,
   IconTicket,
   IconUser,
+  IconUserCheck,
   IconUsers,
   type AdminNavGroup,
   type AdminNavItem,
@@ -30,6 +31,7 @@ const ICONS: Record<NavItem["icon"], ReactNode> = {
   file: <IconFileText size={18} />,
   users: <IconUsers size={18} />,
   user: <IconUser size={18} />,
+  "user-check": <IconUserCheck size={18} />,
 };
 
 const GROUP_ORDER: readonly NavGroupKey[] = ["content", "sales", "system"];
