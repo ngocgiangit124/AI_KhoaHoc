@@ -1,111 +1,91 @@
 # Báo cáo task VitaminVui
 
-Cập nhật: 2026-10-06 (backend MVP xong; thêm T36 hồ sơ giáo viên công khai). Nguồn định nghĩa task: `docs/architecture/tasks.md`. Trạng thái chi tiết và quy tắc làm việc: `docs/board.md`.
+Cập nhật: 2026-10-07. Nguồn định nghĩa task: `docs/architecture/tasks.md`. Trạng thái chi tiết và quy tắc làm việc: `docs/board.md`.
 Ngày công là ước lượng của tài liệu, chưa tính thời gian chờ PO duyệt và sửa sau review/QA.
 
 ## Tóm tắt
 
-| Nhóm | Tổng | Đã xong | Đang làm | Chưa làm (MVP) | Hoãn V2 |
-|---|---|---|---|---|---|
-| Backend (T01–T34, không có T32) | 33 | 26 (+ T30 phần không thanh toán) | 0 | 0 | 6 (T19, T20, T24, T25, T29, T34) + phần thanh toán của T30 |
-| Frontend (FE0, FW1–FW7, FA1–FA10) | 18 | 3 | 0 (FW2, FA3 tạm dừng) | 15 | FW3 (thanh toán), FW7 (pháp lý), FA8, FA9 |
+| Nhóm | Đã xong | Đang làm | Chưa làm | Hoãn V2 |
+|---|---|---|---|---|
+| Backend MVP (T01–T34, không có T32) | 26 + T30 phần không thanh toán | 0 | 0 | 6 (T19, T20, T24, T25, T29, T34) + phần thanh toán của T30 |
+| Backend bổ sung sau MVP | T36, T37, Sửa lỗi nhỏ 1–4, Bảo mật cụm 1–4, trần video 1 GB | 0 | T37-1 (tuỳ chọn, chờ PO) | — |
+| Frontend | FE0, FA1, FA2, FW2, FW-V2, FA-V2, design system v2 | FA3, FW1 (phần còn lại) | FW4, FW5, FW6, FW8, FW9, FA4, FA5, FA6, FA7, FA10, FA11 | FW3, FW7, FA8, FA9 |
 
-Ghi chú: thanh toán tạm khoá (cờ `FEATURE_PAID_CHECKOUT=false`, PO 2026-10-06, chờ kết nối MoMo) — checkout tổng > 0 trả 503 `PAYMENT_DISABLED`, khóa miễn phí/đơn 0đ vẫn chạy. Đội frontend tạm dừng từ 2026-10-05 chờ design mới. Mọi task đã xong đều đã commit local (chưa push). Cổng `laravel-security` tạm dừng theo quyết định PO; nợ bảo mật ở `docs/security/backlog-v2.md`.
+- Thanh toán đang khoá (`FEATURE_PAID_CHECKOUT=false`, chờ MoMo): khóa có phí hiện giá + "Sắp mở bán".
+- Mọi task đã xong đã commit và push lên `origin/main` (tới `fbaefae`).
+- Video: production vẫn dùng VideoLab (`VIDEO_PROVIDER=internal`) cho tới khi làm xong checklist staging Bunny C1–C9 (`docs/qa/T37.md`).
 
 ## 1. Đã xong
 
+### Backend
+
 | Task | Tên | Ghi chú |
 |---|---|---|
-| T01 | Khởi tạo backend Laravel 13 + Docker | Review, Security, QA |
-| T02 | Users, audit_logs, vai trò, staff:* | Như T01 |
-| T03 | Đăng ký/đăng nhập học sinh | Review, QA |
-| T04 | OTP + `GET /auth/me` | Review, QA |
-| T05 | Một phiên học sinh (ADR-003) | Review, QA |
-| T06 | Chuyên đề CRUD | Review, QA |
-| T07 | Schema nội dung + ghi danh | Review (kiêm DBA), QA |
-| T08 | Quản trị khóa học | Review, QA |
-| T09 | Chương/bài | Review, QA |
-| T10 | Danh mục công khai + chi tiết | Review, QA |
-| T11 | Contract video | Review, QA |
-| T13 | Học & tiến độ (playback, heartbeat) | Review, QA |
-| T14 | EnrollmentService | Review, QA |
-| T15 | Mã giảm giá quản trị | Review, QA |
-| T16 | Giỏ hàng | Review, QA |
-| T17 | Thanh toán: abstraction + MoMo | Review, QA; chưa kiểm sandbox MoMo (V2) |
-| T18 | Checkout | Review, QA; phần tính tiền đang khoá bằng cờ (V2) |
-| T21 | Soạn quiz | Review, QA |
-| T22 | Làm quiz | Review, QA |
-| T23 | Khóa học của tôi + tiến độ | Review, QA |
-| T26 | Vận hành queue/scheduler | Review, QA |
-| T27 | Quên/đổi mật khẩu học sinh | Review, QA |
-| T28 | Đăng nhập quản trị (MFA, idle, đổi mật khẩu) | Review, QA |
-| T33 | Tài khoản staff + nhật ký thao tác | Review, QA |
-| T12 | Module VideoLab | Review, QA e2e + sandbox |
-| T31 | Checklist production & mẫu cấu hình | Review, QA; chờ PO/hạ tầng điền giá trị thật khi dựng staging |
-| T36 | Hồ sơ giáo viên công khai (trang chủ tối đa 6 thầy/cô, cần đồng ý) | Review, Security, QA; frontend FW8/FW9/FA11 chờ duyệt design v2 |
-| Sửa lỗi nhỏ 2 | Bộ đếm đăng nhập nguyên tử, reset không lộ tài khoản | Review, QA (race) |
-| T30 (một phần) | `audit:purge` (24 tháng), `users:purge-unverified` (7 ngày) | Review, QA; phần dọn dữ liệu thanh toán để V2 |
-| Sửa lỗi nhỏ 1 | validation tiếng Việt, T28 BUG-1/2, mã lỗi OTP, email duyệt đăng ký | Review, QA |
-| FE0 | Khởi tạo frontend Next.js 16 | Review |
-| FA1 | Layout quản trị, đăng nhập, MFA, đổi mật khẩu lần đầu, menu theo vai trò | Review, QA cùng T28 |
-| FA2 | Quản lý chuyên đề (admin) | Review, QA; 2 lỗi Minor chuyển FA3 sửa |
+| T01–T18, T21–T23, T26–T28, T31, T33 | Backend MVP | Review, QA (xem `docs/board.md`) |
+| T30 (một phần) | `audit:purge`, `users:purge-unverified` | Phần dọn dữ liệu thanh toán để V2 |
+| Sửa lỗi nhỏ 1–3, Bảo mật cụm 1–4 | Validation tiếng Việt, chống chiếm tài khoản, mật khẩu, audit bất biến, cấu hình production, Redis ACL | Review, Security, QA |
+| T36 | Hồ sơ giáo viên công khai (US-019/US-020) | Review, Security, QA |
+| Sửa lỗi nhỏ 4 | Limiter catalog cho SSR nội bộ + Nginx mẫu (ADR-004 §2.8) | Review, QA trên Nginx thật |
+| T37 | Kết nối Bunny Stream (US-021) | Review, Security (PASS có điều kiện), QA; đã thử thật tải 3 video lên thư viện staging 772566: chữ ký TUS, trạng thái, thời lượng, xoá đều đạt |
+| Trần video 1 GB | `VIDEO_MAX_UPLOAD_MB=1024` (PO 2026-10-07) | CI xanh |
+
+### Frontend
+
+| Task | Tên | Ghi chú |
+|---|---|---|
+| FE0 | Khởi tạo Next.js 16 | Review |
+| Design system v2 | "Vở ô ly & mực tím", bản xem trước `/v2`, nền ô ly chủ đạo, poster người sáng lập tạm | PO duyệt 2026-10-06/07 |
+| FW-V2 + FW2 | Web học sinh sang v2; danh mục `/khoa-hoc`, `/lop-{n}`, chi tiết khóa | Review, QA (e2e thật 72 pass); sửa đổi email/SĐT gửi mật khẩu hiện tại |
+| FA-V2 (gồm FA1, FA2 làm lại) | Quản trị sang v2: đăng nhập, MFA, đổi mật khẩu lần đầu, 403, chuyên đề | Review, QA (e2e thật 26 pass) |
 
 ## 2. Đang làm
 
-| Task | Tên | Bước hiện tại | Ngày công |
-|---|---|---|---|
-| FW2 | Danh mục web | TẠM DỪNG chờ design mới (dev xong, chưa review) | 3,5 |
-| FA3 | Khóa học (admin) | TẠM DỪNG chờ design mới (dev dở) | 2 |
-| FW1 | Còn màn quên/đổi mật khẩu | TẠM DỪNG chờ design mới | còn ~0,5 |
+| Task | Nội dung | Ngày công |
+|---|---|---|
+| FA3 | Khóa học quản trị trên v2 (danh sách, tạo, sửa, gán giáo viên, ảnh bìa) + 3 Minor từ QA FA-V2 | ~2 |
+| FW1 (còn lại) | Đăng nhập/đăng ký/OTP theo v2, quên + đặt lại mật khẩu, màn chặn, hộp thoại mất phiên, nền ô ly | ~1,5 |
 
-## 3. Chưa làm — Backend
+## 3. Chưa làm — Frontend (theo thứ tự đề xuất)
 
-| Task | Tên | Ngày công | Ghi chú |
-|---|---|---|---|
-| T19 | IPN & fulfillment | 2 | V2 (chờ MoMo) |
-| T20 | Đối soát + huỷ 12h + `/pay` + đơn của tôi | 2 | V2; `/pay` phải kiểm cờ `paid_checkout` |
-| T24 | Admin đơn hàng | 2 | V2 |
-| T25 | Xuất CSV/XLSX | 2 | V2 |
-| T29 | Đồng ý của phụ huynh | 2 | V2 (pháp chế) |
-| T34 | Quyền dữ liệu cá nhân | 2 | V2 (pháp chế) |
+| Task | Nội dung | Ngày công |
+|---|---|---|
+| FA4 | Cây chương/bài, tải video lên (TUS, VideoLab/Bunny), trạng thái video | 3 |
+| FW4 | Học video (hls.js, lấy lại link trước khi hết hạn 15 phút, heartbeat) | 3 |
+| FW8 | Trang chủ thật (gồm poster người sáng lập) | 2,75–3 |
+| FW9 | Khu vực giáo viên ở trang chủ | 1,5 |
+| FA11 | Hồ sơ giáo viên (quản trị) | 2,5 |
+| FW5 | Làm quiz (KaTeX, đồng hồ, autosave) | 2,5 |
+| FW6 | Khóa học của tôi, tiến độ | 1,5 |
+| FA5 | Soạn quiz | 2 |
+| FA6 | Duyệt đăng ký | 1 |
+| FA7 | Mã giảm giá | 1,5 |
+| FA10 | Quản lý tài khoản staff | 1,5 |
 
-## 4. Chưa làm — Frontend
+## 4. Để sang V2
 
-| Task | Nội dung | Ngày công | Phụ thuộc |
-|---|---|---|---|
-| FW1 (còn lại) | Quên/đổi mật khẩu, overlay phiên, màn chặn checkout | (trong 3) | T05, T27 |
-| FW3 | Giỏ hàng, checkout, kết quả thanh toán, đơn của tôi | 3 | T16–T20 |
-| FW4 | Học video (hls.js, heartbeat), iframe link ngoài | 3 | T13 |
-| FW5 | Quiz (KaTeX, đồng hồ, autosave) | 2,5 | T22 |
-| FW6 | Khóa học của tôi, tiến độ | 1,5 | T23 |
-| FW7 | Xác nhận phụ huynh, quyền dữ liệu cá nhân | 1,5 | T29, T34 |
-| FA4 | Cây chương/bài, upload TUS, trạng thái video | 3 | T09, T11, T12 |
-| FA5 | Soạn quiz | 2 | T21 |
-| FA6 | Duyệt đăng ký | 1 | T14 |
-| FA7 | Mã giảm giá | 1,5 | T15 |
-| FA8 | Đơn hàng | 2 | T24 |
-| FA9 | Xuất file | 0,5 | T25 |
-| FA10 | Quản lý tài khoản staff | 1,5 | T33 |
+| Task | Lý do |
+|---|---|
+| T19, T20, T24, T25, FW3, FA8, FA9 | Thanh toán/đơn hàng, chờ MoMo |
+| T29, T34, FW7 | Pháp chế (phụ huynh, quyền dữ liệu cá nhân) |
+| T37-1 | Chuyển video cũ VideoLab sang Bunny, chỉ khi có video thật cần giữ |
 
 ## 5. Mốc demo
 
-1. Sau T10 + FW2: danh mục khóa học.
-2. Sau T13 + FW4: học video.
-3. Sau T20 + FW3: mua khóa bằng MoMo sandbox.
-4. Sau T25 + FA8/FA9: vận hành đơn hàng.
+1. Đã có: danh mục + chi tiết khóa học (T10 + FW2), đăng nhập quản trị + chuyên đề (FA-V2).
+2. Sau FA3 + FA4 + FW4: giáo viên tạo khóa, tải video, học sinh học video.
+3. Sau FW8 + FW9 + FA11: trang chủ thật có giáo viên và poster.
+4. V2: mua khóa bằng MoMo.
 
-## 6. Đang chờ quyết định
+## 6. Đang chờ PO
 
-- PO/hạ tầng (cho T31, trước staging): tên miền + DNS, Turnstile key, SMTP, IP LB/app/Next, TLS, MySQL/Redis, backup; quyết định giữ log `learning` 14 hay 90 ngày, giới hạn IP admin, bật mail kết quả duyệt.
-- PO: kết nối MoMo (V2); các mặc định trong mục "Chờ PO xác nhận" của `docs/board.md`.
-- Production: user DB cần quyền DELETE trên `audit_logs` (cho `audit:purge`). Pháp chế (V2) xác nhận giữ audit 24 tháng và xoá `consents` khi xoá tài khoản chưa xác thực.
-- Nợ kỹ thuật: e2e web 7/21 chạy lại sau khi FW2 xong (FW2 đang dùng cổng 3000).
+- Bunny staging (thư viện 772566): chép lại CDN Hostname đúng (tên hiện có không tồn tại) để thử phát video.
+- Bunny production: thư viện riêng, tên miền phát video, ngân sách băng thông, hợp đồng xử lý dữ liệu (pháp chế).
+- Staging (T35): GHCR + Docker trên server staging; giá trị thật cho T31 (tên miền, SMTP, Turnstile, IP).
+- Ảnh/tên/câu thật của người sáng lập (đang dùng nội dung tạm).
+- Các câu nghiệp vụ đã có mặc định: xem `docs/board.md` và `docs/design/design-system-v2.md` §18.
 
-## 7. Để sang V2 (PO quyết định 2026-10-05)
+## 7. Rủi ro / nợ
 
-- Cách khoá đăng nhập chống khoá tài khoản người khác (M1 trong backlog bảo mật); ngưỡng khoá đăng nhập AC6 (5 lần/15 phút).
-- Ý nghĩa đổi SĐT qua `/auth/contact` khi production chỉ xác thực email.
-- Trang `/dieu-khoan` và `/chinh-sach-du-lieu`.
-- Pháp chế: thời hạn lưu IP/UA trong `consents`; quy tắc tuổi/phụ huynh (nội dung T29). Bàn lại ở V2.
-
-Đã xử lý: push lên `origin/main` đến `0367da2`; sửa `frontend/scripts/pnpm.sh` và `playwright.sh` chạy được trên macOS.
+- Load test catalog cache ấm 50 req/s chưa đạt trên máy dev; đo lại trên staging (mở rộng instance Next nếu cần).
+- Bunny: công thức token phát chưa thử thật (chờ CDN Hostname); checklist C1–C9 trên staging.
+- Máy dev: Docker ~7,75 GB RAM, tối đa 2–3 agent chạy lệnh nặng cùng lúc.

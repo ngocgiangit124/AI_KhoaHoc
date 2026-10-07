@@ -2,6 +2,14 @@
 
 Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) đọc file này trước tiên.
 
+## Tình trạng 2026-10-07
+
+- Đã xong và đã push (tới `fbaefae`): Sửa lỗi nhỏ 4, T37 Bunny, trần video 1 GB, design v2 (nền ô ly, màn mới, poster tạm), FW-V2 + FW2, FA-V2.
+- Đang làm: FA3 (khóa học quản trị v2 + 3 Minor QA FA-V2), FW1 phần còn lại (xác thực theo v2).
+- Tiếp theo: FA4 → FW4 → FW8/FW9/FA11 → FW5, FW6, FA5, FA6, FA7, FA10. Báo cáo: `docs/bao-cao-task.md`.
+- Bunny: thư viện 772566 là STAGING; khoá trong `backend/.env` (không commit); chờ PO chép lại CDN Hostname để thử phát; production giữ `VIDEO_PROVIDER=internal` tới khi xong checklist C1–C9 (`docs/qa/T37.md`).
+- Môi trường: Docker ~7,75 GB RAM — tối đa 2–3 agent chạy lệnh nặng; MySQL local đã `SET PERSIST log_bin_trust_function_creators=1`; web dev mở `http://api.localhost:3000`.
+
 ## Trạng thái task
 
 Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tasks.md`. Báo cáo tổng hợp đã xong / đang làm / chưa làm: `docs/bao-cao-task.md`.
