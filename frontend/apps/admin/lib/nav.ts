@@ -17,6 +17,8 @@ export interface NavItem {
   permission?: keyof StaffPermissions;
   /** Màn đã có chưa. Chưa có → hiện mờ "Sắp có", không phải link (tránh 404). Bật khi FAx xong. */
   ready: boolean;
+  /** Chỉ hiện khi `/admin/me/teacher-profile` cho thấy người này còn dữ liệu hồ sơ (FA11-1), ngoài điều kiện vai trò. */
+  needsLegacyProfile?: boolean;
   /** Nhãn + lý do khi chưa mở (mặc định "Sắp có", không kèm lý do). Ví dụ Đơn hàng: V2 (thanh toán tạm khoá). */
   pending?: { note: string; reason?: string };
 }
@@ -38,6 +40,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/quan-tri/duyet-dang-ky", label: "Duyệt đăng ký", group: "content", icon: "user-check", roles: ALL, ready: true },
   { href: "/quan-tri/giao-vien", label: "Giáo viên trang chủ", group: "content", icon: "users", roles: STAFF, ready: true },
   { href: "/quan-tri/ho-so", label: "Hồ sơ của tôi", group: "content", icon: "user", roles: TEACHER, ready: true },
+  { href: "/quan-tri/ho-so", label: "Hồ sơ giáo viên cũ", group: "content", icon: "user", roles: STAFF, ready: true, needsLegacyProfile: true },
   { href: "/quan-tri/ma-giam-gia", permission: "manage_coupons", label: "Mã giảm giá", group: "sales", icon: "ticket", roles: STAFF, ready: false },
   {
     href: "/quan-tri/don-hang",
@@ -61,8 +64,9 @@ export function safeNext(next: string | null | undefined, fallback: string = DEF
   return AUTH_PATH_RE.test(target) ? fallback : target;
 }
 
-export function navForUser(user: Pick<StaffUser, "role" | "permissions">): NavItem[] {
+export function navForUser(user: Pick<StaffUser, "role" | "permissions">, opts: { legacyProfile?: boolean } = {}): NavItem[] {
   return NAV_ITEMS.filter((item) => {
+    if (item.needsLegacyProfile && !opts.legacyProfile) return false;
     const granted = item.permission ? user.permissions?.[item.permission] : undefined;
     if (typeof granted === "boolean") return granted;
     return item.roles.includes(user.role);

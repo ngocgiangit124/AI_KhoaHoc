@@ -102,6 +102,8 @@ Danh sách task, phụ thuộc và định nghĩa "xong": `docs/architecture/tas
 - Nợ giao diện (QA FW1 2026-10-07, Minor): logo header web cao 39px ở 375px (< 44px vùng chạm); `Field` v2 chưa có `aria-live` cho lỗi (designer quyết, dùng chung với admin); FA3 R5 (Nổi bật #n ở danh sách), `beforeunload` chỉ theo dõi form chính.
 - FW1 R10 (PO 2026-10-07): bước 2 quên mật khẩu che email (`a**@x.vn`) và SĐT (3 số cuối) — đã làm.
 - FW4/FW5: hộp thoại mất phiên phải `pause()` player khi mở.
+- PO 2026-10-08: quiz nộp lúc `now >= expires_at` tính là tự nộp (`auto_submitted=true`), giữ 30 giây ân hạn cho mạng chậm (review FW5 R1).
+- Bài học 2026-10-08: agent build/`next start` vào `.next` dùng chung làm hỏng dev server web (500 postcss). Build/e2e production BẮT BUỘC dùng `NEXT_DIST_DIR=.next-…` hoặc bản copy.
 - Backlog backend cho FA6 (review FA6 2026-10-07): route admin thu hồi đăng ký (`EnrollmentService::revoke` đã có), tham số `q` tìm học sinh, endpoint đếm theo trạng thái (badge menu), tab Đã duyệt/Từ chối sắp theo thời điểm xử lý mới nhất, lọc khoá giá 0 cho ô chọn khoá. Duyệt không có hộp xác nhận (theo design v2 §14.1).
 - FA11 R2 (PO 2026-10-07: LÀM — task FA11-1, sau FA6): người đã đổi vai trò không còn đường UI tự rút đồng ý/xoá ảnh hồ sơ giáo viên (trùng L1 security T36); hiện admin/QLT xoá ảnh hộ. Seed `seed-e2e-profiles.sh` nên cố định email (Faker trùng email gây lỗi 1 lần).
 

@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Gate;
 /**
  * "Hồ sơ của tôi" (US-020): CHỈ giáo viên, chỉ hồ sơ của chính mình (không có `{user}` trên route nên không có IDOR).
  * Admin/QLT gọi các route này → 403 (Gate `own-teacher-profile`, kiểm trước validate). Đồng ý/rút đồng ý chỉ có ở đây.
- * Ngoại lệ (L1): rút đồng ý và xoá ảnh dùng Gate `withdraw-own-teacher-profile` để người đã đổi vai trò vẫn còn hồ sơ tự gỡ được.
+ * Ngoại lệ (L1): xem hồ sơ (GET, chỉ đọc, không tạo dòng), rút đồng ý và xoá ảnh dùng Gate `withdraw-own-teacher-profile` để người đã đổi vai trò vẫn còn hồ sơ tự gỡ được.
  */
 class MyTeacherProfileController extends Controller
 {
@@ -28,7 +28,7 @@ class MyTeacherProfileController extends Controller
 
     public function show(Request $request): TeacherProfileResource
     {
-        Gate::authorize('own-teacher-profile');
+        Gate::authorize('withdraw-own-teacher-profile');
 
         return $this->respond($this->actor($request));
     }

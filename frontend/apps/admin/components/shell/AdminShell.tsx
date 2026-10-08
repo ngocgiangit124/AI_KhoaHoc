@@ -19,6 +19,7 @@ import {
 } from "@vitaminvui/ui/v2";
 import { isNavActive, NAV_GROUP_LABELS, navForUser, type NavGroupKey, type NavItem } from "@/lib/nav";
 import { STAFF_ROLE_LABELS, type StaffUser } from "@/lib/auth/types";
+import { LegacyProfileProvider, useLegacyProfile } from "@/lib/teacher-profiles/legacy";
 import { LogoutButton } from "./LogoutButton";
 
 const ICONS: Record<NavItem["icon"], ReactNode> = {
@@ -37,8 +38,8 @@ const ICONS: Record<NavItem["icon"], ReactNode> = {
 const GROUP_ORDER: readonly NavGroupKey[] = ["content", "sales", "system"];
 
 /** Menu theo vai trò (`navForUser`) → nhóm của `AdminFrame`; mục chưa có màn hiện mờ kèm nhãn, không phải link (tránh 404). */
-export function navGroups(user: Pick<StaffUser, "role" | "permissions">, pathname: string): AdminNavGroup[] {
-  const items = navForUser(user);
+export function navGroups(user: Pick<StaffUser, "role" | "permissions">, pathname: string, opts: { legacyProfile?: boolean } = {}): AdminNavGroup[] {
+  const items = navForUser(user, opts);
   return GROUP_ORDER.flatMap((key) => {
     const inGroup = items.filter((i) => i.group === key);
     if (inGroup.length === 0) return [];
@@ -58,7 +59,16 @@ export function navGroups(user: Pick<StaffUser, "role" | "permissions">, pathnam
  * phiên thật. Menu theo vai trò/quyền của `/admin/auth/me`; chỉ để trải nghiệm — quyền thật do API kiểm.
  */
 export function AdminShell({ user, children }: { user: StaffUser; children: ReactNode }) {
+  return (
+    <LegacyProfileProvider role={user.role} userId={user.id}>
+      <ShellInner user={user}>{children}</ShellInner>
+    </LegacyProfileProvider>
+  );
+}
+
+function ShellInner({ user, children }: { user: StaffUser; children: ReactNode }) {
   const pathname = usePathname();
+  const { hasData } = useLegacyProfile();
   return (
     <>
       <a
@@ -71,7 +81,7 @@ export function AdminShell({ user, children }: { user: StaffUser; children: Reac
         homeHref="/quan-tri"
         navLabel="Menu quản trị"
         userNameTestId="staff-name"
-        groups={navGroups(user, pathname)}
+        groups={navGroups(user, pathname, { legacyProfile: hasData })}
         user={{ name: user.name, email: user.email ?? "", roleLabel: STAFF_ROLE_LABELS[user.role] }}
         logoutSlot={<LogoutButton />}
       >

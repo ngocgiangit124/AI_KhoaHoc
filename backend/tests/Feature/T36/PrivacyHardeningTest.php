@@ -134,7 +134,6 @@ test('L1: nguoi da doi vai tro nhung con ho so tu rut dong y va xoa anh cua minh
 
     vvT36Json('POST', '/admin/me/teacher-profile/consent', ['version' => vvT36PrivVersion()])->assertForbidden();
     vvT36Json('PATCH', '/admin/me/teacher-profile', ['bio' => 'x'])->assertForbidden();
-    vvT36Json('GET', '/admin/me/teacher-profile')->assertForbidden();
 
     $r = vvT36Json('DELETE', '/admin/me/teacher-profile/consent')->assertOk();
     expect($r->json('consent.given'))->toBeFalse()->and($r->json('abilities'))->toBe(['edit_content' => false, 'consent' => false, 'manage_homepage' => false]);
@@ -146,6 +145,43 @@ test('L1: nguoi da doi vai tro nhung con ho so tu rut dong y va xoa anh cua minh
     Storage::disk('uploads')->assertMissing($new);
     expect(vvT36Profile($t)->avatar_path)->toBeNull();
 });
+
+test('FA11-1: GET /me cua nguoi da doi vai tro con dong ho so -> 200, abilities chi doc, role/reasons dung, khong lo them', function () {
+    [$t] = vvT36PrivConsentedTeacher();
+    vvT36SetUser($t, ['role' => UserRole::PageManager->value]);
+    vvStaffLogin($t->fresh());
+
+    $r = vvT36Json('GET', '/admin/me/teacher-profile')->assertOk();
+    expect($r->json('user.role'))->toBe('quan_ly_trang')
+        ->and($r->json('consent.given'))->toBeTrue()
+        ->and($r->json('avatar_url'))->not->toBeNull()
+        ->and($r->json('abilities'))->toBe(['edit_content' => false, 'consent' => false, 'manage_homepage' => false])
+        ->and($r->json('homepage_status.visible'))->toBeFalse()
+        ->and($r->json('homepage_status.reasons'))->toContain('not_teacher')
+        ->and(array_keys($r->json()))->not->toContain('email', 'phone');
+    expect(json_encode($r->json()))->not->toContain('@');
+});
+
+test('FA11-1: nguoi doi vai tro da rut dong y va xoa anh nhung dong van con -> GET 200 rong; khong tao dong khi GET', function () {
+    [$t] = vvT36PrivConsentedTeacher();
+    vvT36SetUser($t, ['role' => UserRole::PageManager->value]);
+    vvStaffLogin($t->fresh());
+    vvT36Json('DELETE', '/admin/me/teacher-profile/consent')->assertOk();
+    vvT36Json('DELETE', '/admin/me/teacher-profile/avatar')->assertOk();
+
+    $r = vvT36Json('GET', '/admin/me/teacher-profile')->assertOk();
+    expect($r->json('consent.given'))->toBeFalse()->and($r->json('avatar_url'))->toBeNull()
+        ->and($r->json('abilities.consent'))->toBeFalse()->and($r->json('abilities.edit_content'))->toBeFalse();
+    expect(vvT36Profile($t))->not->toBeNull();
+});
+
+test('FA11-1: GET /me khong tao dong cho nguoi chua tung co ho so (admin, QLT) -> 403; hoc sinh/khach bi chan', function (string $state) {
+    vvT36Env();
+    vvT36Login($state);
+
+    vvT36Json('GET', '/admin/me/teacher-profile')->assertForbidden()->assertJson(['code' => 'FORBIDDEN']);
+    expect(TeacherProfile::query()->count())->toBe(0);
+})->with(['admin', 'pageManager']);
 
 test('L1: user khong co dong ho so (admin, QLT, hoc sinh) van 403 o rut dong y/xoa anh', function (string $state) {
     vvT36Env();

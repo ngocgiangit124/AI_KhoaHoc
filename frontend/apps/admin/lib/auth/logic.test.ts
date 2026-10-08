@@ -123,3 +123,15 @@ describe("menu theo vai trò", () => {
     expect(isNavActive("/quan-tri/khoa-hoc", "/quan-tri/khoa-hoc/tao")).toBe(true);
   });
 });
+
+describe("navForUser — Hồ sơ giáo viên cũ (FA11-1)", () => {
+  const hrefs = (role: "admin" | "quan_ly_trang" | "giao_vien", legacyProfile?: boolean) =>
+    navForUser({ role, permissions: null }, { legacyProfile }).map((i) => i.label);
+  it("chỉ hiện cho admin/QLT khi API báo còn dữ liệu; giáo viên chỉ thấy 'Hồ sơ của tôi'", () => {
+    expect(hrefs("quan_ly_trang")).not.toContain("Hồ sơ giáo viên cũ");
+    expect(hrefs("quan_ly_trang", true)).toContain("Hồ sơ giáo viên cũ");
+    expect(hrefs("admin", true)).toContain("Hồ sơ giáo viên cũ");
+    expect(hrefs("giao_vien", true)).not.toContain("Hồ sơ giáo viên cũ");
+    expect(hrefs("giao_vien")).toContain("Hồ sơ của tôi");
+  });
+});
