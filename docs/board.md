@@ -10,7 +10,8 @@ Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) 
 - FA5 (soạn quiz quản trị + kéo thả sắp xếp câu dùng SLN7, hook `useUnsavedChangesGuard` dùng chung): review 2 vòng APPROVE, QA 2 vòng PASS (docs/qa/FA5.md). Backlog: đưa 3 file KaTeX trùng (admin/web) vào `packages/ui`; `has_attempts` cho câu hỏi; cờ `quiz_time_limit_enabled` ở `/admin/auth/me`.
 - Backlog từ FW6: `best_attempt_id` trong `quizzes[]` của `/me/courses/{course}/progress` (nút đang là "Xem kết quả lượt gần nhất"); `packages/ui` `DataTable` cần khung cuộn `relative` để `sr-only` không gây tràn ngang 375px.
 - FA5 đã commit (f5a978c). FW6 (Khóa học của tôi + tiến độ): review APPROVE, QA PASS (docs/qa/FW6.md), đã sửa BUG-1/NIT-1/NIT-2.
-- Tiếp: FA7 (mã giảm giá), FA10 (tài khoản staff).
+- FA7 (mã giảm giá): review APPROVE, QA PASS (docs/qa/FA7.md). Chờ PO: giữ/ẩn nút "Bật lại mã" (đang giữ). Backlog: API trả giá khóa rẻ nhất (FE đang quét ≤200 khóa).
+- Đang làm: FA10 (tài khoản staff) — QA. Chờ PO: kênh gửi mật khẩu khởi tạo (đang: Admin tự gửi).
 - SỰ CỐ 2026-10-08 ~09:48: QA SLN7 chạy `php artisan migrate:fresh --env=testing` trong container php — không có `.env.testing` nên xoá trắng DB dev `vitaminvui` (không có bản sao lưu). Đã chạy lại `db:seed` + seed-e2e catalog/home/learn/quiz và duyệt lại ghi danh fw4-hs-none (khóa 55). QUY TẮC: agent không bao giờ chạy `migrate:fresh|refresh|reset`, `db:wipe`, `db:seed` trong container php; DB test chỉ qua `pest -c phpunit.local-{e,g,h}.xml` (RefreshDatabase tự migrate).
 
 ## Tình trạng 2026-10-07 tối (PO tạm dừng)

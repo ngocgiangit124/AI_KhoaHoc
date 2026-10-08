@@ -41,7 +41,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/quan-tri/giao-vien", label: "Giáo viên trang chủ", group: "content", icon: "users", roles: STAFF, ready: true },
   { href: "/quan-tri/ho-so", label: "Hồ sơ của tôi", group: "content", icon: "user", roles: TEACHER, ready: true },
   { href: "/quan-tri/ho-so", label: "Hồ sơ giáo viên cũ", group: "content", icon: "user", roles: STAFF, ready: true, needsLegacyProfile: true },
-  { href: "/quan-tri/ma-giam-gia", permission: "manage_coupons", label: "Mã giảm giá", group: "sales", icon: "ticket", roles: STAFF, ready: false },
+  { href: "/quan-tri/ma-giam-gia", permission: "manage_coupons", label: "Mã giảm giá", group: "sales", icon: "ticket", roles: STAFF, ready: true },
   {
     href: "/quan-tri/don-hang",
     permission: "view_orders",
