@@ -186,6 +186,36 @@ class EnrollmentService
     }
 
     /**
+     * Rút yêu cầu học miễn phí đang chờ duyệt khi học sinh xoá tài khoản (T34.4, ADR-006 §6). Hệ thống làm, KHÔNG gửi mail.
+     * Khoá `courses` → `enrollments`; chỉ xử lý khi còn `pending_approval` (idempotent: đã xử lý thì không làm gì).
+     *
+     * @return bool `true` nếu đã chuyển sang `rejected`
+     */
+    public function withdrawPending(Enrollment $enrollment, string $reason): bool
+    {
+        return DB::transaction(function () use ($enrollment, $reason): bool {
+            $this->lockCourse((int) $enrollment->course_id);
+            $locked = $this->lock($enrollment);
+
+            if ($locked->status !== EnrollmentStatus::PendingApproval) {
+                return false;
+            }
+
+            $locked->forceFill([
+                'status' => EnrollmentStatus::Rejected,
+                'rejection_reason' => mb_substr($reason, 0, 1000),
+            ])->save();
+
+            $this->audit->logAsSystem('enrollment.withdraw', $locked, [
+                'course_id' => $locked->course_id,
+                'user_id' => $locked->user_id,
+            ]);
+
+            return true;
+        }, self::DEADLOCK_ATTEMPTS);
+    }
+
+    /**
      * Thu hồi quyền học (hoàn tiền/vi phạm). `$reason` là mã ngắn (≤ 50 ký tự, vd `refund`, `admin`).
      * Chỉ thu hồi được enrollment `active`; đã `revoked` → 409 ALREADY_PROCESSED.
      * Caller (T24 hoàn tiền) kiểm quyền; `$actor = null` khi do hệ thống.

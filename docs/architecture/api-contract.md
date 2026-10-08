@@ -97,20 +97,20 @@ IP thật lấy qua `TrustProxies` với danh sách IP cụ thể (không `*`).
 ```json
 { "message": "Thông điệp tiếng Việt cho người dùng", "code": "SESSION_REPLACED", "errors": { "field": ["..."] }, "request_id": "..." }
 ```
-Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $status, $context)`, render trong `bootstrap/app.php`.
+Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $status, $context)`, render trong `bootstrap/app.php`. **`context` được trả trong khoá `errors` của envelope** (vd `errors.current_version`, `errors.retry_after_at`, `errors.resets_at`); mọi chỗ trong tài liệu này ghi `context.x` nghĩa là `errors.x`.
 
 | HTTP | code | Khi nào |
 |---|---|---|
 | 401 | `UNAUTHENTICATED` | Chưa đăng nhập / phiên hết hạn |
 | 401 | `SESSION_REPLACED` | HS bị đăng xuất vì đăng nhập thiết bị khác (ADR-003). Tombstone `replaced` (renderer `AuthenticationException`) hoặc phiên không khớp `current_session_id` (middleware `student.single_session`) với `X-Device-Id` khác thiết bị đang giữ phiên |
 | 401 | `SESSION_EXPIRED` | Phiên cũ trên cùng thiết bị (`X-Device-Id` hợp lệ == thiết bị đang giữ phiên; bấm đăng nhập 2 lần). FE: chuyển `/dang-nhap`, không báo "thiết bị khác" |
-| 401 | `SESSION_REVOKED` | Đã đổi/đặt lại mật khẩu (tombstone `password_changed`) |
+| 401 | `SESSION_REVOKED` | Đã đổi/đặt lại mật khẩu (tombstone `password_changed`), đổi email (`contact_changed`), hoặc tài khoản đã xoá (tombstone `account_deleted`, T34; message "Tài khoản đã được xoá.") |
 | 401 | `STAFF_IDLE_TIMEOUT` | Phiên quản trị quá 120 phút không hoạt động hoặc quá 12 giờ |
 | 403 | `ACCOUNT_LOCKED` | Tài khoản bị khoá — ở login **chỉ trả khi mật khẩu đúng** (S20); route đã đăng nhập: `account.active`; phiên HS bị huỷ do khoá (tombstone `locked`) |
 | 403 | `ACCOUNT_NOT_VERIFIED` | Chưa xác thực OTP mà checkout/đăng ký học miễn phí |
 | 403 | `PARENT_CONSENT_REQUIRED` | **Không còn phát ra từ T29 (ADR-006, PO 2026-10-08: không cần phụ huynh đồng ý).** Giữ trong bảng để FE cũ không vỡ; FE mới không cần xử lý |
 | 409 | `ACCOUNT_HAS_PENDING_PAYMENT` | Xoá tài khoản khi còn đơn `pending` có giao dịch cổng `pending` chưa hết hạn (T34). `context.retry_after_at` (ISO 8601) = `expires_at` muộn nhất của các link đó |
-| 429 | `DATA_EXPORT_LIMIT` | Đã tải dữ liệu cá nhân đủ 2 lần trong ngày (T34). Có header `Retry-After` (giây tới 00:00 giờ VN) và `context: {limit, resets_at}` |
+| 429 | `DATA_EXPORT_LIMIT` | Đã tải dữ liệu cá nhân đủ 2 lần trong ngày (T34). Có header `Retry-After` (giây tới 00:00 giờ VN) và `context: {limit, resets_at}` (trong `errors`) |
 | 403 | `MFA_REQUIRED` | Staff chưa nhập OTP đăng nhập |
 | 403 | `PASSWORD_CHANGE_REQUIRED` | Staff phải đổi mật khẩu lần đầu |
 | 403 | `WRONG_PORTAL` | Đăng nhập đúng mật khẩu nhưng sai trang (HS ở admin hoặc staff ở web) |
@@ -543,14 +543,14 @@ Không có endpoint rút đồng ý `terms`/`privacy_policy`: học sinh muốn 
 | Method | URI | Controller@action | Middleware | Request | Response / lỗi |
 |---|---|---|---|---|---|
 | GET | /me/data-export | `Privacy\DataExportController@status` | student, throttle:privacy-read | — | 200 `{ "limit_per_day": 2, "used_today": 1, "remaining": 1, "resets_at": "2026-10-09T00:00:00+07:00", "requires_password": true }` |
-| POST | /me/data-export | `Privacy\DataExportController@store` | student, throttle:data-export, throttle:password-change (chung hạn mức như trên) | `{ "current_password": string }` | 200 file JSON (dưới). Lỗi: 422 `VALIDATION_ERROR` field `current_password`; **429 `DATA_EXPORT_LIMIT`** (`Retry-After`, `context: {limit: 2, resets_at}`); 429 `TOO_MANY_ATTEMPTS`; 500 có `request_id` (lần lỗi KHÔNG bị tính) |
+| POST | /me/data-export | `Privacy\DataExportController@store` | student, throttle:data-export, throttle:password-change (chung hạn mức như trên) | `{ "current_password": string }` | 200 file JSON (dưới). Lỗi: 422 `VALIDATION_ERROR` field `current_password`; **429 `DATA_EXPORT_LIMIT`** (`Retry-After`, `errors: {limit: 2, resets_at}`); 429 `TOO_MANY_ATTEMPTS`; 500 có `request_id` (lần lỗi KHÔNG bị tính) |
 
 - **Hạn mức:** tối đa `privacy.data_export_daily_limit` (2) lần thành công mỗi ngày lịch Asia/Ho_Chi_Minh. Nguồn đếm là `audit_logs` (`actor_id` = học sinh, `action = privacy.data_export`, `created_at` ≥ 00:00 hôm nay giờ VN), dùng IX `(actor_id, created_at)` sẵn có.
   1. Kiểm sơ bộ trước khi dựng file.
   2. Dựng dữ liệu (chỉ đọc).
   3. Transaction: khoá dòng `users` FOR UPDATE, đếm lại; vẫn dưới trần thì ghi audit `privacy.data_export` (`changes = {format_version: 1, bytes}`), ngược lại 429.
   4. Trả file.
-  Hai request song song không vượt trần.
+  Hai request song song không vượt trần (T34 đã kiểm bằng race thật). Audit `privacy.data_export` có `actor_id` = học sinh (do `AuditLogger` lấy từ người đăng nhập); đếm theo `actor_id` nên mọi nơi gọi `DataExportService::export` phải chạy khi `Auth::user()` là chính học sinh.
 - **Header response:**
   - `Content-Type: application/json; charset=utf-8`;
   - `Content-Disposition: attachment; filename="vitaminvui-du-lieu-ca-nhan-YYYYMMDD.json"` (ngày giờ VN);
@@ -628,6 +628,8 @@ const DeleteConfirmResponse = z.object({ message: z.string() });
   - đăng nhập bằng thông tin cũ → 422 thông điệp chung như sai mật khẩu;
   - đơn hàng, chứng từ, tiến độ, lượt quiz vẫn giữ (gắn `user_id`, không còn PII).
   Chi tiết các cột bị xoá/giữ ở tasks.md T34.
+- **`audit_logs` (S2, tạm theo đề xuất, PO chưa chốt):** KHÔNG xoá `ip`/`user_agent` trong `audit_logs` của tài khoản đã xoá. Các dòng này tự xoá sau 24 tháng bằng `audit:purge` (đã có). Chờ PO + pháp chế xác nhận; nếu đổi sang xoá ngay thì làm ở pha B (không đổi hợp đồng API).
+- **File ảnh:** ảnh hồ sơ GV (`teacher_profiles`) và ảnh ở cột cũ `users.avatar_path` bị xoá SAU khi pha A commit (rollback thì file còn nguyên).
 
 ### 2.9 Hồ sơ giáo viên công khai (US-020, task T36 — thiết kế 2026-10-06, PO đã duyệt)
 

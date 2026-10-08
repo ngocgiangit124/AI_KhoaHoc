@@ -10,6 +10,7 @@ use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Privacy\ParentNotifier;
+use App\Support\LockedUser;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Support\Facades\DB;
@@ -80,7 +81,7 @@ class OtpService
         /** @var array{at: CarbonImmutable, id: int}|array{retry: int, audit: bool} $result */
         $result = DB::transaction(function () use ($user, $purpose, $channel, $destination, $code, $enforceCooldown, $cooldown): array {
             // Khoá hàng user: tuần tự hoá mọi lần phát mã của cùng 1 tài khoản.
-            User::query()->whereKey($user->getKey())->lockForUpdate()->first();
+            LockedUser::lockActive($user->getKey());
 
             $blocked = $this->sendLimitViolation($user, $enforceCooldown, $cooldown);
 

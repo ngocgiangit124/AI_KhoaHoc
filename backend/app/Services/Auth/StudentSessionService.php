@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
@@ -30,6 +31,8 @@ class StudentSessionService
     public const REASON_LOCKED = 'locked';
 
     public const REASON_CONTACT_CHANGED = 'contact_changed';
+
+    public const REASON_ACCOUNT_DELETED = 'account_deleted';
 
     /**
      * `X-Device-Id`/`device_id` chỉ dùng để chọn thông điệp, không cấp quyền: sai định dạng
@@ -92,6 +95,12 @@ class StudentSessionService
         try {
             $old = DB::transaction(function () use ($user, $newId, $deviceId, $now): ?string {
                 $row = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+
+                // T34: tài khoản vừa bị ẩn danh hoá (đua với xoá tài khoản) không được nhận phiên mới.
+                if ($row->anonymized_at !== null) {
+                    throw ValidationException::withMessages(['login' => LoginService::GENERIC_FAILURE]);
+                }
+
                 $old = $row->current_session_id;
 
                 $row->forceFill([

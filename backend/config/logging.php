@@ -175,6 +175,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // T34: xuất/xoá dữ liệu cá nhân (duration_ms, bytes, user_id). KHÔNG ghi PII hay nội dung file.
+        'privacy' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/privacy.log'),
+            'level' => 'info',
+            'max_files' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];

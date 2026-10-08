@@ -22,6 +22,9 @@ use App\Http\Controllers\Api\V1\Learn\LessonController as LearnLessonController;
 use App\Http\Controllers\Api\V1\Learn\MyCourseController;
 use App\Http\Controllers\Api\V1\Learn\PlaybackController;
 use App\Http\Controllers\Api\V1\Learn\ProgressController;
+use App\Http\Controllers\Api\V1\Privacy\AccountDeletionController;
+use App\Http\Controllers\Api\V1\Privacy\ConsentController;
+use App\Http\Controllers\Api\V1\Privacy\DataExportController;
 use App\Http\Controllers\Api\V1\Privacy\ParentContactController;
 use App\Http\Controllers\Api\V1\Privacy\ParentNoticeUnsubscribeController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
@@ -159,6 +162,27 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         Route::put('/me/parent-contact', [ParentContactController::class, 'update'])
             ->middleware(['throttle:parent-contact', 'throttle:password-change'])
             ->name('api.me.parent-contact.update');
+
+        // T34 (ADR-006) — quyền dữ liệu cá nhân của chính học sinh. Không cần `account.verified`, trừ 2 route xoá tài khoản
+        // (xác nhận qua email đã xác thực: kiểm trong AccountAnonymizer → 403 ACCOUNT_NOT_VERIFIED).
+        Route::get('/me/consents', [ConsentController::class, 'index'])
+            ->middleware('throttle:privacy-read')
+            ->name('api.me.consents.index');
+        Route::post('/me/consents/accept', [ConsentController::class, 'accept'])
+            ->middleware('throttle:consent-accept')
+            ->name('api.me.consents.accept');
+        Route::get('/me/data-export', [DataExportController::class, 'status'])
+            ->middleware('throttle:privacy-read')
+            ->name('api.me.data-export.status');
+        Route::post('/me/data-export', [DataExportController::class, 'store'])
+            ->middleware(['throttle:data-export', 'throttle:password-change'])
+            ->name('api.me.data-export.store');
+        Route::post('/me/account/delete/otp', [AccountDeletionController::class, 'sendOtp'])
+            ->middleware('throttle:otp-send')
+            ->name('api.me.account.delete.otp');
+        Route::post('/me/account/delete', [AccountDeletionController::class, 'confirm'])
+            ->middleware('throttle:otp-verify')
+            ->name('api.me.account.delete');
 
         // T14 — xin học khóa miễn phí (US-012). `account.verified` chỉ gắn ở route này (US-001 AC9: chặn
         // đăng ký miễn phí/checkout, KHÔNG chặn xem/học). ADR-006 (T29): không còn middleware phụ huynh đồng ý.

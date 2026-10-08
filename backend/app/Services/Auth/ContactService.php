@@ -7,6 +7,7 @@ use App\Mail\ContactChangedMail;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\Otp\OtpService;
+use App\Support\LockedUser;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -64,8 +65,7 @@ class ContactService
 
         try {
             [$emailChanged, $phoneChanged, $previousEmail] = DB::transaction(function () use ($user, $data): array {
-                /** @var User $locked */
-                $locked = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+                $locked = LockedUser::lockActive($user->getKey());
 
                 $emailChanged = isset($data['email']) && $data['email'] !== $locked->email;
                 $phoneChanged = isset($data['phone']) && $data['phone'] !== $locked->phone;

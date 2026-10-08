@@ -95,4 +95,6 @@ Thiết kế cũ (US-017) yêu cầu phụ huynh của học sinh dưới 18 tu�
 6. Xoá tài khoản: **không** cần mật khẩu (OTP qua email đã đủ). Email/SĐT **được giải phóng**. Đơn có link thanh toán còn sống thì **chặn** (409). Yêu cầu học miễn phí đang chờ thì **tự rút**. Khóa đang học thì giữ nguyên dòng.
 7. File xuất **không** gồm nhật ký truy cập/audit (trừ danh sách thông báo đã gửi cho phụ huynh) và **không** gồm đáp án từng câu quiz (chỉ điểm/tổng hợp).
 8. Khi ẩn danh: xoá `ip`/`user_agent` trong `consents` của tài khoản đó, giữ loại/phiên bản/thời điểm. `audit_logs` giữ nguyên tới khi `audit:purge` dọn (24 tháng).
+   - **Bổ sung sau security T34 (S2, tạm theo đề xuất, chờ PO/pháp chế chốt):** `ip`/`user_agent` trong `audit_logs` của tài khoản đã xoá được GIỮ, tự xoá sau 24 tháng bằng `audit:purge` đã có; không thêm code. Nếu PO chọn xoá ngay thì làm ở pha B, theo lô.
+   - Pha B bỏ qua đơn còn link thanh toán sống thì tự phát lại sau 15 phút, tối đa 6 vòng; hết vòng, job huỷ 12h (T20) dọn.
 9. Đổi phiên bản chính sách thì **chỉ hiện banner** chấp nhận lại, không chặn mua/học.

@@ -447,7 +447,8 @@ class TeacherProfileService
             $this->audit->log('teacher_profile.erase', $user);
         }, self::TRANSACTION_ATTEMPTS);
 
-        $this->images->delete($oldPath);
+        // T34 S3: nếu `erase()` nằm trong transaction ngoài (xoá tài khoản) thì chỉ xoá file khi transaction ngoài commit.
+        DB::afterCommit(fn () => $this->images->delete($oldPath));
     }
 
     /**

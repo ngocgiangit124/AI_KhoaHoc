@@ -34,6 +34,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $parent_phone
  * @property Carbon|null $parent_notice_opt_out_at
  * @property Carbon|null $anonymized_at
+ * @property Carbon|null $date_of_birth
  */
 class User extends Authenticatable
 {

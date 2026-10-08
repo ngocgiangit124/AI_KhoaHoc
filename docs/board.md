@@ -4,6 +4,18 @@ Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) 
 
 ## Tình trạng 2026-10-08
 
+### 2026-10-08 ~20:30: PO cho chạy tiếp — T34 đã sửa xong vòng review+security, QA PASS (docs/qa/T34.md), đang CI → commit → push (T29, FW1, T34). SLN8 (nút "Tiếp tục học" trang chi tiết khóa) đang dev. Danh sách việc theo đội: docs/bao-cao-task.md.
+
+### (Đã xử lý) TẠM DỪNG 2026-10-08 ~19:00
+- Commit chưa push: `b24db58` (T29), `40601c1` (FW1-ADR006). Push khi PO bảo.
+- **T34 (đang dở, chưa commit):** dev xong bản đầu (101 test), review APPROVE (R1–R4), security PASS có điều kiện (docs/security/T34.md: S1 Medium bắt buộc, S2 chờ PO, S3/S4 Low). Agent dev bị DỪNG giữa vòng sửa. Đã thấy trong code: `LockedUser::lockActive` ở ContactService/ConsentService/OtpService, `afterCommit` xoá ảnh ở TeacherProfileService::erase, Job `$timeout=60` + `failed()`. CHƯA chắc: PasswordService + ParentContactService dùng `lockActive`, S4 (xoá file `users.avatar_path` sau commit), R2 (pha B tự phát lại job khi bỏ qua đơn), sửa `context.*`→`errors.*` trong tasks.md, mục "Dev sửa theo review + security" trong docs/review/T34.md. Việc tiếp: giao laravel-dev kiểm/hoàn tất các điểm trên + chạy Pint/PHPStan/test (T34, T29, T36, T03, T04, T18, T27) → laravel-qa (gợi ý QA cuối docs/review/T34.md và docs/security/T34.md) → CI sạch → commit.
+- **Chờ PO:** S2 — IP/UA trong `audit_logs` của tài khoản đã xoá: đề xuất giữ, tự xoá sau 24 tháng (`audit:purge` 03:40 đã có trong OperationsServiceProvider; `queue:prune-failed` cũng đã có). Pháp chế: ẩn danh hay giả danh, file xuất có liên hệ phụ huynh đầy đủ.
+- **Sau T34:** FW7 (trang quyền dữ liệu cá nhân + `/phu-huynh/huy-nhan-thong-bao`). Chỉ bật `FEATURE_PARENT_NOTICES` ở production khi FW7 đã lên.
+- **Thay đổi chưa commit ngoài T34:** máy chủ ảnh tĩnh local `localhost:8080` (`infra/nginx/conf.d/vitaminvui.conf` + port `127.0.0.1:8080:8080` trong `infra/docker-compose.yml`) — đang chạy. Đề xuất chờ PO: đồng bộ trạng thái video mỗi phút ở local (Bunny webhook không tới được localhost; hiện `videos:check-stuck` 15 phút + ngưỡng 15 phút).
+- Môi trường dev: `VIDEO_PROVIDER=bunny` (php/queue/scheduler đã recreate), 5 asset Bunny ready (khóa 55 + khóa "Giang test" 285); T29 đã migrate DB dev (bảng sao lưu `users_parent_consent_bak_t29`); `.env` có `PRIVACY_POLICY_VERSION=2026-10-tam`, `PRIVACY_NOTICE_TOKEN_KEY` riêng. Tài khoản demo: admin@/teacher@/student@vitaminvui.test mật khẩu `Demo-VitaminVui-2026` (MFA qua Mailpit :8025); fw4-hs-*/fw5-hs-* `matkhau-123`.
+- QUY TẮC (2026-10-08, sự cố SLN8): agent KHÔNG chạy `--clean`/`--reset` của các seed đang làm dữ liệu demo cho PO (`seed-e2e-learn.sh` → khóa video demo + `fw4-*`, `seed-e2e-quiz.sh` web → `fw5-*`); e2e mới phải dùng tiền tố riêng. Demo hiện tại: khóa video demo 287 (`e2e-fw4-hoc-video`), `fw4-hs-none` đã duyệt vào 287 và 285 (Giang test).
+- Sau mỗi lần recreate container php: nếu API 502 thì `docker compose restart nginx` (nginx giữ IP php cũ).
+
 - **PO 2026-10-08 (T29/T34, thay đổi US-017):** KHÔNG cần phụ huynh đồng ý — học sinh mua/học không phải chờ phụ huynh; hệ thống chỉ GỬI THÔNG BÁO cho phụ huynh (nếu có email phụ huynh). Đăng ký KHÔNG bắt buộc nhập thông tin phụ huynh. Không có luồng rút lại đồng ý của phụ huynh. Học sinh tải dữ liệu cá nhân tối đa 2 lần/ngày. Làm T29/T34 với nội dung chính sách TẠM (thay khi có bản pháp chế). Giữ nút "Bật lại mã" (FA7). Mật khẩu khởi tạo staff: Admin tự gửi (FA10).
 - FW8 + FW9, FA6 (+91f244b), FA11-1 (57c56b7): đã commit; 91f244b, 57c56b7 chưa push.
 - FW5 (web làm quiz, katex 0.19.0) + SLN6 (nộp từ `expires_at` là tự nộp): review APPROVE, QA PASS (docs/qa/FW5.md); nợ Low: e2e hết giờ chưa assert nhãn "tự động nộp", chưa thử Safari/Firefox, CORS `max_age`.

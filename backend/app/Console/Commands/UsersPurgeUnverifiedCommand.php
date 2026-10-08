@@ -118,6 +118,8 @@ class UsersPurgeUnverifiedCommand extends Command
             ->where('users.role', UserRole::Student->value)
             ->whereNull('users.email_verified_at')
             ->whereNull('users.phone_verified_at')
+            // T34: tài khoản đã ẩn danh hoá (giữ dòng làm gốc FK cho đơn/tiến độ) không bao giờ bị xoá cứng.
+            ->whereNull('users.anonymized_at')
             ->where('users.created_at', '<', $cutoff)
             ->whereNotExists($none('orders'))
             ->whereNotExists($none('enrollments'))

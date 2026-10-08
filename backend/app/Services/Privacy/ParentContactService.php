@@ -5,6 +5,7 @@ namespace App\Services\Privacy;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\CurrentPasswordGuard;
+use App\Support\LockedUser;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -28,7 +29,7 @@ class ParentContactService
         $this->currentPassword->assert($user, (string) $validated['current_password'], 'parent_contact.update_failed');
 
         return DB::transaction(function () use ($user, $validated): User {
-            $locked = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+            $locked = LockedUser::lockActive($user->getKey());
 
             $email = $this->diff($locked->parent_email, $validated, 'parent_email', true);
             $phone = $this->diff($locked->parent_phone, $validated, 'parent_phone', false);

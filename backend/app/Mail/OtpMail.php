@@ -36,9 +36,11 @@ class OtpMail extends Mailable implements ShouldBeEncrypted, ShouldQueue
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: $this->purpose === OtpPurpose::StaffLoginMfa
-            ? 'Mã đăng nhập quản trị VitaminVui'
-            : 'Mã xác thực VitaminVui của bạn');
+        return new Envelope(subject: match ($this->purpose) {
+            OtpPurpose::StaffLoginMfa => 'Mã đăng nhập quản trị VitaminVui',
+            OtpPurpose::DeleteAccount => 'Mã xác nhận xoá tài khoản VitaminVui',
+            default => 'Mã xác thực VitaminVui của bạn',
+        });
     }
 
     public function content(): Content

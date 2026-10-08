@@ -252,6 +252,10 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perDay(10)->by('parent-contact-day:'.$identity),
             ];
         });
+        // T34: chấp nhận lại chính sách 10/giờ; xuất dữ liệu 5/phút (chống bấm liên tục — hạn mức nghiệp vụ 2 lần/ngày là
+        // lỗi riêng DATA_EXPORT_LIMIT, route còn gắn `password-change` để chung hạn mức dò mật khẩu).
+        RateLimiter::for('consent-accept', fn (Request $request) => Limit::perHour(10)->by('consent-accept:'.$this->identity($request)));
+        RateLimiter::for('data-export', fn (Request $request) => Limit::perMinute(5)->by('data-export:'.$this->identity($request)));
         RateLimiter::for('parent-notice-unsub', fn (Request $request) => Limit::perHour(30)->by('parent-notice-unsub:'.$request->ip()));
 
         RateLimiter::for('catalog', fn (Request $request) => CatalogThrottle::limits($request));

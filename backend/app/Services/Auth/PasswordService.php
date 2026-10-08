@@ -11,6 +11,7 @@ use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\Otp\OtpService;
+use App\Support\LockedUser;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -193,8 +194,7 @@ class PasswordService
         $deviceId = $user->current_device_id;
 
         DB::transaction(function () use ($user, $new): void {
-            /** @var User $locked */
-            $locked = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+            $locked = LockedUser::lockActive($user->getKey());
 
             $this->applyNewPassword($locked, $new);
         });

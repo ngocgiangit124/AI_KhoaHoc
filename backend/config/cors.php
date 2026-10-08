@@ -31,7 +31,8 @@ return [
         'X-Request-Id',
     ],
 
-    'exposed_headers' => ['X-Request-Id', 'Retry-After'],
+    // T34: FE lấy tên file tải về từ Content-Disposition (POST /me/data-export).
+    'exposed_headers' => ['X-Request-Id', 'Retry-After', 'Content-Disposition'],
 
     'max_age' => 0,
 

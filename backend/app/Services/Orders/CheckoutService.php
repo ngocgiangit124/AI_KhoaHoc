@@ -148,6 +148,14 @@ class CheckoutService
     {
         $now = now();
         $cart = $this->cart->lockCart($user);
+
+        // T34: tài khoản vừa bị ẩn danh hoá (đua với xoá tài khoản) không tạo được đơn. Khoá SHARE `users` sau `carts`
+        // (pha A giữ `users` X rồi không đụng `carts`; pha B chỉ khoá `carts` → `orders`) nên không tạo vòng chờ.
+        $anonymizedAt = User::query()->whereKey($user->getKey())->sharedLock()->value('anonymized_at');
+        if ($anonymizedAt !== null) {
+            throw new DomainException('SESSION_REVOKED', 'Tài khoản đã được xoá.', 401);
+        }
+
         $existing = $this->lockPendingOrder($user);
 
         $snapshot = $this->cart->snapshot($cart, $user);
