@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Quiz\QuizQuestionOrderRequest;
 use App\Http\Requests\Admin\Quiz\QuizQuestionRequest;
 use App\Http\Resources\QuizQuestionResource;
 use App\Models\Course;
@@ -24,6 +25,14 @@ class QuizQuestionController extends Controller
 
         return response()->json([
             'data' => QuizQuestionResource::collection($this->content->list($quiz))->resolve($request),
+        ]);
+    }
+
+    /** SLN7: đổi thứ tự câu; chỉ đổi position, id giữ nguyên. */
+    public function reorder(QuizQuestionOrderRequest $request, Course $course, Quiz $quiz): JsonResponse
+    {
+        return response()->json([
+            'data' => QuizQuestionResource::collection($this->content->reorder($course, $quiz, $request->questionIds()))->resolve($request),
         ]);
     }
 

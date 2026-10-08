@@ -151,6 +151,8 @@ Route::domain(config('app.admin_api_host'))
                 Route::delete('/admin/courses/{course}/quizzes/{quiz}', [QuizController::class, 'destroy'])->name('admin.quizzes.destroy');
                 Route::get('/admin/courses/{course}/quizzes/{quiz}/questions', [QuizQuestionController::class, 'index'])->name('admin.quiz-questions.index');
                 Route::post('/admin/courses/{course}/quizzes/{quiz}/questions', [QuizQuestionController::class, 'store'])->name('admin.quiz-questions.store');
+                // SLN7 — khai báo TRƯỚC `/questions/{question}` để "order" không bị bind thành id câu.
+                Route::put('/admin/courses/{course}/quizzes/{quiz}/questions/order', [QuizQuestionController::class, 'reorder'])->name('admin.quiz-questions.order');
                 Route::get('/admin/courses/{course}/quizzes/{quiz}/questions/{question}', [QuizQuestionController::class, 'show'])->name('admin.quiz-questions.show');
                 Route::put('/admin/courses/{course}/quizzes/{quiz}/questions/{question}', [QuizQuestionController::class, 'update'])->name('admin.quiz-questions.update');
                 Route::delete('/admin/courses/{course}/quizzes/{quiz}/questions/{question}', [QuizQuestionController::class, 'destroy'])->name('admin.quiz-questions.destroy');

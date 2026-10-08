@@ -123,6 +123,7 @@ class QuizContentService
             }
 
             $current->delete();
+            $this->renumber($locked);
 
             $this->audit->log('quiz_question.delete', $current, [
                 'course_id' => $course->getKey(),
@@ -130,6 +131,64 @@ class QuizContentService
                 'kept_for_attempts' => $kept,
             ]);
         });
+    }
+
+    /**
+     * Đổi thứ tự câu (position 1..n). Chỉ đổi `position`, giữ id (KHÔNG copy-on-write): lượt làm đã chốt
+     * `question_ids` lúc bắt đầu nên không bị ảnh hưởng. `$ids` phải đúng toàn bộ câu chưa xoá của quiz.
+     *
+     * @param  list<int>  $ids
+     * @return Collection<int, QuizQuestion>
+     */
+    public function reorder(Course $course, Quiz $quiz, array $ids): Collection
+    {
+        return DB::transaction(function () use ($course, $quiz, $ids): Collection {
+            $locked = $this->lockQuiz($course, $quiz);
+            $positions = QuizQuestion::query()->where('quiz_id', $locked->getKey())->pluck('position', 'id');
+
+            $existing = $positions->keys()->map(fn ($id): int => (int) $id)->all();
+            $sent = array_map('intval', $ids);
+            sort($existing);
+            $sortedSent = $sent;
+            sort($sortedSent);
+
+            if ($existing !== $sortedSent || count(array_unique($sent)) !== count($sent)) {
+                throw new DomainException('QUIZ_QUESTIONS_MISMATCH', 'Danh sách câu hỏi không khớp với dữ liệu hiện tại của quiz. Vui lòng tải lại trang.', 422);
+            }
+
+            $moved = 0;
+
+            foreach ($sent as $i => $id) {
+                if ((int) $positions[$id] !== $i + 1) {
+                    QuizQuestion::query()->whereKey($id)->update(['position' => $i + 1]);
+                    $moved++;
+                }
+            }
+
+            $this->audit->log('quiz_question.reorder', $locked, [
+                'course_id' => $course->getKey(),
+                'quiz_id' => $locked->getKey(),
+                'questions' => count($sent),
+                'rows_changed' => $moved,
+            ]);
+
+            return $this->list($locked);
+        });
+    }
+
+    /** Đánh lại position liền mạch 1..n cho câu chưa xoá (giữ thứ tự position, id). Gọi dưới khoá quiz. */
+    private function renumber(Quiz $quiz): void
+    {
+        $rows = QuizQuestion::query()->where('quiz_id', $quiz->getKey())->orderBy('position')->orderBy('id')->pluck('position', 'id');
+        $i = 0;
+
+        foreach ($rows as $id => $position) {
+            $i++;
+
+            if ((int) $position !== $i) {
+                QuizQuestion::query()->whereKey($id)->update(['position' => $i]);
+            }
+        }
     }
 
     /**
