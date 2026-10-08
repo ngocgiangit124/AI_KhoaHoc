@@ -1,0 +1,12 @@
+/* Công thức KaTeX trong quiz: to hơn chữ thường 10% (design-system-v2 §5.3), \dfrac giữ cỡ đầy đủ, không tràn ngang. */
+.math-text .katex {
+  font-size: 1.1em;
+  overflow-wrap: normal;
+}
+.math-text .katex-display {
+  margin: 0;
+  text-align: left;
+}
+.math-text .katex-display > .katex {
+  text-align: left;
+}

@@ -2,6 +2,12 @@
 
 Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) đọc file này trước tiên.
 
+## Tình trạng 2026-10-08
+
+- FW8 + FW9, FA6 (+91f244b), FA11-1 (57c56b7): đã commit; 91f244b, 57c56b7 chưa push.
+- FW5 (web làm quiz, katex 0.19.0) + SLN6 (nộp từ `expires_at` là tự nộp): review APPROVE, QA PASS (docs/qa/FW5.md); nợ Low: e2e hết giờ chưa assert nhãn "tự động nộp", chưa thử Safari/Firefox, CORS `max_age`.
+- Đang làm: FA5 (soạn quiz quản trị). Tiếp: FW6, FA7, FA10.
+
 ## Tình trạng 2026-10-07 tối (PO tạm dừng)
 
 - FA11 (d56d9a2), FW4 (6ac9f14): đã push.

@@ -19,14 +19,17 @@ const STATUS: Record<LessonStatus, { icon: React.ReactNode; label: string }> = {
   not_started: { icon: <IconCircle className="text-line-strong" />, label: "Chưa học" },
 };
 
-/** Bài trắc nghiệm: màn làm quiz là FW5 (chưa có route) nên chỉ hiện thông tin, không dẫn tới trang chưa dựng (US-019). */
-function QuizRow({ quiz, className }: { quiz: QuizSummary; className: string }) {
+/** Bài trắc nghiệm: liên kết tới màn làm quiz (FW5). */
+function QuizRow({ quiz, courseId, className }: { quiz: QuizSummary; courseId: number; className: string }) {
   return (
-    <div className={cx("flex min-h-11 items-center gap-3 py-2 text-sm", className)}>
+    <AppLink href={routes.quiz(courseId, quiz.id)} className={cx("focus-ring flex min-h-11 items-center gap-3 py-2 text-sm hover:bg-sunken", className)}>
       <IconListChecks size={18} className="text-accent-ink" />
-      <span className="flex-1 font-medium text-ink">{quiz.title}</span>
+      <span className="flex-1 font-medium text-ink">
+        <span className="sr-only">Bài kiểm tra: </span>
+        {quiz.title}
+      </span>
       <span className="num text-ink-soft">{quiz.question_count} câu</span>
-    </div>
+    </AppLink>
   );
 }
 
@@ -75,14 +78,14 @@ export function LessonOutline({ data, currentLessonId, done }: { data: LearnCour
                       <span className="num pt-0.5 text-sm text-ink-soft">{formatClock(l.duration_seconds ?? 0)}</span>
                     </AppLink>
                     {l.quizzes.map((q) => (
-                      <QuizRow key={q.id} quiz={q} className="pl-10 pr-3" />
+                      <QuizRow key={q.id} quiz={q} courseId={data.course.id} className="pl-10 pr-3" />
                     ))}
                   </li>
                 );
               })}
               {ch.quizzes.map((q) => (
                 <li key={q.id}>
-                  <QuizRow quiz={q} className="px-3 font-semibold" />
+                  <QuizRow quiz={q} courseId={data.course.id} className="px-3 font-semibold" />
                 </li>
               ))}
             </ul>

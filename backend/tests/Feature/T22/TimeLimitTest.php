@@ -31,7 +31,7 @@ test('cong tat FEATURE_QUIZ_TIME_LIMIT: bo qua gioi han cu', function () {
     vvAtStart($s['quiz'])->assertCreated()->assertJsonPath('expires_at', null);
 });
 
-test('trong an han: autosave va nop van nhan (khong auto_submitted)', function () {
+test('trong an han: autosave va nop van nhan (nop luc >= expires_at -> auto_submitted)', function () {
     Carbon::setTestNow('2026-10-06 10:00:00');
     config(['quiz.submit_grace_seconds' => 30]);
     $s = vvAtSet(timeLimit: 10, questions: 2);
@@ -40,7 +40,7 @@ test('trong an han: autosave va nop van nhan (khong auto_submitted)', function (
     Carbon::setTestNow('2026-10-06 10:10:20'); // quá hạn 20s < 30s
     vvAtAnswer($id, $s['questions'][0], vvAtOpt($s['questions'][0], 1))->assertNoContent();
     vvAtShow($id)->assertJsonPath('status', 'in_progress')->assertJsonPath('remaining_seconds', 0);
-    vvAtSubmit($id)->assertOk()->assertJsonPath('auto_submitted', false)->assertJsonPath('correct_count', 1);
+    vvAtSubmit($id)->assertOk()->assertJsonPath('auto_submitted', true)->assertJsonPath('correct_count', 1);
 });
 
 test('qua an han: autosave 409 EXPIRED va tu nop bang dap an da luu, submitted_at = expires_at', function () {

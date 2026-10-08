@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
   { files: ["components/catalog/CourseDescription.tsx"], rules: { "no-restricted-syntax": "off" } },
   // ... và JsonLd (chỉ nhận object, serialize bằng jsonLd() có escape "<"; không nhận chuỗi HTML).
   { files: ["components/seo/JsonLd.tsx"], rules: { "no-restricted-syntax": "off" } },
+  // ... và MathText của quiz (FW5): chỉ nhận chuỗi HTML do katex.renderToString (trust:false) sinh ra, chữ thường đi qua React.
+  { files: ["components/quiz/MathText.tsx"], rules: { "no-restricted-syntax": "off" } },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

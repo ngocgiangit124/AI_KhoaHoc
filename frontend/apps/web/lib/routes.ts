@@ -11,6 +11,15 @@ export const routes = {
   /** Trang học video (FW4). `/hoc/{course}` chuyển tới bài cần học tiếp (`resume_lesson_id`). */
   learn: (courseId: number) => `/hoc/${courseId}`,
   lesson: (courseId: number, lessonId: number) => `/hoc/${courseId}/bai/${lessonId}`,
+  /** Làm quiz (FW5). Kết quả: `?lan=<attemptId>` (bỏ trống = lượt đã nộp gần nhất); `loc=sai|bo-trong` lọc câu. */
+  quiz: (courseId: number, quizId: number) => `/hoc/${courseId}/quiz/${quizId}`,
+  quizResult: (courseId: number, quizId: number, opts: { attemptId?: number; filter?: "sai" | "bo-trong" } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.attemptId) q.set("lan", String(opts.attemptId));
+    if (opts.filter) q.set("loc", opts.filter);
+    const qs = q.toString();
+    return `/hoc/${courseId}/quiz/${quizId}/ket-qua${qs ? `?${qs}` : ""}`;
+  },
   login: "/dang-nhap",
   register: "/dang-ky",
   verifyOtp: "/xac-thuc-otp",

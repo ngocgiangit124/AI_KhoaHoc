@@ -310,11 +310,18 @@ export function LessonScreen({ courseId, lessonId }: { courseId: number; lessonI
                 </h2>
                 <ul className="mt-3 flex flex-col gap-2">
                   {quizzes.map((q) => (
-                    <li key={q.id}>
-                      <p className="font-medium text-ink">{q.title}</p>
-                      <p className="num text-sm text-ink-soft">
-                        {q.question_count} câu{q.time_limit_minutes ? ` · ${q.time_limit_minutes} phút` : " · không giới hạn thời gian"}
-                      </p>
+                    <li key={q.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-medium text-ink">{q.title}</p>
+                        <p className="num text-sm text-ink-soft">
+                          {q.question_count} câu{q.time_limit_minutes ? ` · ${q.time_limit_minutes} phút` : " · không giới hạn thời gian"}
+                        </p>
+                      </div>
+                      {can_track ? (
+                        <ButtonLink href={routes.quiz(course.id, q.id)} variant="secondary" className="sm:shrink-0">
+                          Làm bài
+                        </ButtonLink>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

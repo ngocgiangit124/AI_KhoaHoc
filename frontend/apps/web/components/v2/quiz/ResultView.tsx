@@ -1,5 +1,8 @@
-import { Badge, IconCheck, IconX, MathText, cx, formatScore } from "@vitaminvui/ui/v2";
+import { Badge, IconCheck, IconX, MathText as PreviewMathText, cx, formatScore } from "@vitaminvui/ui/v2";
+import type { ComponentType } from "react";
 import type { AttemptResult } from "@/lib/mock/v2/types";
+
+type MathTextProps = { content: string; className?: string; as?: "div" | "span" | "p" };
 
 const LETTERS = ["A", "B", "C", "D"];
 
@@ -23,7 +26,7 @@ export function ScoreRing({ score }: { score: number }) {
 }
 
 /** Một câu khi xem lại: đáp án đúng luôn được đánh dấu, đáp án đã chọn sai tô đỏ; có lời giải. */
-export function ResultQuestion({ q }: { q: AttemptResult["questions"][number] }) {
+export function ResultQuestion({ q, MathText = PreviewMathText }: { q: AttemptResult["questions"][number]; MathText?: ComponentType<MathTextProps> }) {
   const status = q.selected_option_id === null ? "skipped" : q.is_correct ? "correct" : "wrong";
   return (
     <article id={`cau-${q.position}`} className="scroll-mt-24 rounded-card border border-line bg-surface p-4 sm:p-5">

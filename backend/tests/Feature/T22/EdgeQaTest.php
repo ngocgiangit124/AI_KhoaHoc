@@ -26,7 +26,7 @@ test('QA AC7: bien an han +29s nhan autosave va nop tay, +31s autosave 409 EXPIR
     Carbon::setTestNow('2026-10-06 10:00:00');
     $id2 = vvAtStart($s2['quiz'])->json('id');
     Carbon::setTestNow('2026-10-06 10:10:29');
-    vvAtSubmit($id2)->assertOk()->assertJsonPath('auto_submitted', false);
+    vvAtSubmit($id2)->assertOk()->assertJsonPath('auto_submitted', true);
 
     $s3 = vvAtSet(timeLimit: 10, questions: 1);
     Carbon::setTestNow('2026-10-06 10:00:00');

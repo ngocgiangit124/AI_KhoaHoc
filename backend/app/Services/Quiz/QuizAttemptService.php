@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  * - Đồng hồ do server quyết định: `expires_at = started_at + time_limit`; hết hạn khi `now > expires_at + ân hạn`
  *   (config quiz.submit_grace_seconds). Quá hạn: autosave bị từ chối (409 QUIZ_ATTEMPT_EXPIRED) và lượt được tự nộp
  *   (auto_submitted = true, submitted_at = expires_at) bằng đáp án đã autosave — làm lười ở mọi lần đọc/ghi và quét
- *   nền bằng `quizzes:auto-submit-expired`.
+ *   nền bằng `quizzes:auto-submit-expired`. Nộp tay từ `expires_at` trở đi (trong ân hạn) cũng ghi auto_submitted = true.
  * - Thứ tự khoá cố định: quizzes (sharedLock) → quiz_attempts. Tạo lượt đọc dòng quiz bằng sharedLock để lọt
  *   khoảng giữa "admin kiểm có lượt" (QuizContentService, lockForUpdate quiz) và "sửa câu tại chỗ" không xảy ra.
  * - Nộp bài/tự nộp: khoá dòng lượt (lockForUpdate theo PK) + UPDATE ... WHERE submitted_at IS NULL → double submit,
@@ -297,13 +297,15 @@ class QuizAttemptService
     }
 
     /**
-     * Chốt điểm lượt đang bị khoá. $manual = học sinh bấm nộp; nếu đã quá hạn vẫn đánh dấu tự nộp và lấy
-     * `expires_at` làm giờ nộp (không cho kéo dài thời gian).
+     * Chốt điểm lượt đang bị khoá. $manual = học sinh bấm nộp; nộp lúc `now >= expires_at` (kể cả trong ân hạn)
+     * đánh dấu tự nộp; quá ân hạn thì lấy `expires_at` làm giờ nộp (không cho kéo dài thời gian).
      */
     private function settle(QuizAttempt $locked, bool $manual = false): QuizAttempt
     {
         $expired = $this->isExpired($locked);
-        $auto = $expired || ! $manual;
+        // Nộp tay lúc now >= expires_at (trong ân hạn) cũng tính là tự nộp (PO 2026-10-08).
+        $pastDeadline = $locked->expires_at !== null && ! now()->lt($locked->expires_at);
+        $auto = $expired || ! $manual || $pastDeadline;
         $submittedAt = $expired ? $locked->expires_at : now();
 
         $questions = $this->questionsFor($locked)->keyBy('id');
