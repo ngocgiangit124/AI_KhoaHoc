@@ -76,14 +76,15 @@ beforeEach(() => {
 });
 
 describe("CourseEditScreen", () => {
-  it("staff: tab Chương & bài, Bài tập hiện 'Sắp có' (không phải link); nút Xuất bản; thông tin trạng thái", async () => {
+  it("staff: tab Chương & bài và Bài tập (link thật); nút Xuất bản; thông tin trạng thái", async () => {
     vi.mocked(api.getCourse).mockResolvedValue(detail());
     renderScreen();
     expect(await screen.findByRole("heading", { name: "Hình học 9", level: 1 })).toBeInTheDocument();
     const tabs = screen.getByRole("navigation", { name: "Phần của khóa học" });
     expect(within(tabs).getByRole("link", { name: "Thông tin chung" })).toHaveAttribute("aria-current", "page");
-    expect(within(tabs).getAllByText("Sắp có")).toHaveLength(1);
-    expect(within(tabs).getAllByRole("link")).toHaveLength(2);
+    expect(within(tabs).queryByText("Sắp có")).toBeNull();
+    expect(within(tabs).getByRole("link", { name: "Bài tập" })).toHaveAttribute("href", "/quan-tri/khoa-hoc/5/sua?tab=bai-tap");
+    expect(within(tabs).getAllByRole("link")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Xuất bản" })).toBeInTheDocument();
     expect(screen.getByText(/Chưa có trang công khai/)).toBeInTheDocument();
   });

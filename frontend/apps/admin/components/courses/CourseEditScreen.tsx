@@ -26,6 +26,8 @@ import { COURSES_PATH } from "@/lib/courses/query";
 import type { CourseDetail } from "@/lib/courses/types";
 import { useSession } from "@/lib/auth/SessionProvider";
 import { CurriculumPanel } from "@/components/curriculum/CurriculumPanel";
+import { useUnsavedChangesGuard } from "@/lib/unsaved/useUnsavedChangesGuard";
+import { QuizListPanel } from "@/components/quiz/QuizListPanel";
 import { useUploadManager } from "@/components/curriculum/useUploadManager";
 import { CourseForm } from "./CourseForm";
 import { ManualOrderField } from "./ManualOrderField";
@@ -35,11 +37,9 @@ import { useCourseActions } from "./useCourseActions";
 
 type Result = { key: number; course: CourseDetail | null; error: unknown };
 
-const SOON_TAB = "relative inline-flex min-h-11 cursor-not-allowed items-center gap-2 whitespace-nowrap px-1 text-base font-semibold text-ink-soft";
-
 /**
- * `/quan-tri/khoa-hoc/{id}/sua` — tab "Thông tin chung" và "Chương & bài" (`?tab=chuong-bai&bai=ID`, FA4) theo design v2.
- * Tab "Bài tập" (FA5) hiện mờ "Sắp có". Trường ẩn/hiện theo `abilities` của API (quyền thật do Policy).
+ * `/quan-tri/khoa-hoc/{id}/sua` — tab "Thông tin chung", "Chương & bài" (`?tab=chuong-bai&bai=ID`, FA4) và "Bài tập"
+ * (`?tab=bai-tap`, FA5) theo design v2. Trường ẩn/hiện theo `abilities` của API (quyền thật do Policy).
  */
 export function CourseEditScreen({ id }: { id: number }) {
   const router = useRouter();
@@ -55,15 +55,22 @@ export function CourseEditScreen({ id }: { id: number }) {
   // Xuất bản/ngừng bán khi form còn thay đổi chưa lưu → hỏi xác nhận (R3).
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const ready = state.kind === "staff";
-  const tab = searchParams.get("tab") === "chuong-bai" ? "chuong-bai" : "thong-tin";
+  const tabParam = searchParams.get("tab");
+  const tab = tabParam === "chuong-bai" || tabParam === "bai-tap" ? tabParam : "thong-tin";
+  const [quizCount, setQuizCount] = useState<number | null>(null);
   const lessonParam = searchParams.get("bai");
   const selectedLessonId = lessonParam && /^[1-9]\d{0,9}$/.test(lessonParam) ? Number(lessonParam) : null;
   // Tải video (FA4): quản lý ở đây để đổi bài/đổi tab không làm mất lượt tải đang chạy.
   const [refreshTick, setRefreshTick] = useState(0);
   const [watched, setWatched] = useState<number[]>([]);
   // Form bài (tab Chương & bài) còn thay đổi chưa lưu: hỏi trước khi sang tab Thông tin chung.
-  const lessonDirtyRef = useRef(false);
-  const [leaveToInfo, setLeaveToInfo] = useState(false);
+  // Liên kết ngoài khung nội dung (sidebar, header) cũng phải hỏi khi form bài chưa lưu; liên kết trong khung đã có cơ chế riêng.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { dirtyRef: lessonDirtyRef, dialog: unsavedDialog } = useUnsavedChangesGuard({
+    ignoreInside: contentRef,
+    description: "Thông tin bài học bạn vừa sửa chưa được lưu. Rời trang này sẽ bỏ các thay đổi đó.",
+  });
+  const [leaveTo, setLeaveTo] = useState<string | null>(null);
   const onUploadFinished = useCallback((lessonId: number, outcome: "uploaded" | "stopped") => {
     if (outcome === "uploaded") setWatched((prev) => (prev.includes(lessonId) ? prev : [...prev, lessonId]));
     setRefreshTick((n) => n + 1);
@@ -168,7 +175,8 @@ export function CourseEditScreen({ id }: { id: number }) {
   const hasStudents = course.enrollments_count > 0;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" ref={contentRef}>
+      {unsavedDialog}
       <Breadcrumb items={[{ label: listLabel, href: COURSES_PATH }, { label: course.title }]} />
       <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
@@ -201,9 +209,9 @@ export function CourseEditScreen({ id }: { id: number }) {
           href={`${COURSES_PATH}/${course.id}/sua`}
           aria-current={tab === "thong-tin" ? "page" : undefined}
           onClick={(e) => {
-            if (tab === "chuong-bai" && lessonDirtyRef.current) {
+            if ((tab === "chuong-bai" || tab === "bai-tap") && lessonDirtyRef.current) {
               e.preventDefault();
-              setLeaveToInfo(true);
+              setLeaveTo(`${COURSES_PATH}/${id}/sua`);
             }
           }}
           className={`focus-ring relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-1 text-base font-semibold ${tab === "thong-tin" ? "text-primary" : "text-ink-soft hover:text-ink"}`}
@@ -220,11 +228,21 @@ export function CourseEditScreen({ id }: { id: number }) {
           {course.lessons_count !== undefined ? <span className="num rounded-full bg-sunken px-2 text-sm text-ink-soft">{course.lessons_count}</span> : null}
           {tab === "chuong-bai" ? <span aria-hidden="true" className="absolute inset-x-0 -bottom-px h-0.75 rounded-full bg-primary" /> : null}
         </UiLink>
-        {/* Bài tập (FA5) chưa có màn: hiện mờ, không phải link (tránh 404). */}
-        <span aria-disabled="true" className={SOON_TAB}>
+        <UiLink
+          href={`${COURSES_PATH}/${course.id}/sua?tab=bai-tap`}
+          aria-current={tab === "bai-tap" ? "page" : undefined}
+          onClick={(e) => {
+            if (tab === "chuong-bai" && lessonDirtyRef.current) {
+              e.preventDefault();
+              setLeaveTo(`${COURSES_PATH}/${id}/sua?tab=bai-tap`);
+            }
+          }}
+          className={`focus-ring relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-1 text-base font-semibold ${tab === "bai-tap" ? "text-primary" : "text-ink-soft hover:text-ink"}`}
+        >
           Bài tập
-          <Badge size="sm">Sắp có</Badge>
-        </span>
+          {quizCount !== null ? <span className="num rounded-full bg-sunken px-2 text-sm text-ink-soft">{quizCount}</span> : null}
+          {tab === "bai-tap" ? <span aria-hidden="true" className="absolute inset-x-0 -bottom-px h-0.75 rounded-full bg-primary" /> : null}
+        </UiLink>
       </nav>
 
       {tab === "chuong-bai" ? (
@@ -241,6 +259,12 @@ export function CourseEditScreen({ id }: { id: number }) {
             onSelect={selectLesson}
             onStructureChanged={reload}
           />
+        </div>
+      ) : null}
+
+      {tab === "bai-tap" ? (
+        <div className="mt-5">
+          <QuizListPanel courseId={course.id} onCountChange={setQuizCount} />
         </div>
       ) : null}
 
@@ -316,22 +340,23 @@ export function CourseEditScreen({ id }: { id: number }) {
         ) : null}
 
         <p className="mt-6 text-sm text-ink-soft">
-          Hiện có {course.chapters_count ?? 0} chương, {course.lessons_count ?? 0} bài học. Soạn chương và bài ở tab “Chương &amp; bài”; bài tập sẽ có ở bản tiếp theo.
+          Hiện có {course.chapters_count ?? 0} chương, {course.lessons_count ?? 0} bài học. Soạn chương và bài ở tab “Chương &amp; bài”, bài tập trắc nghiệm ở tab “Bài tập”.
         </p>
       </div>
 
-      {leaveToInfo ? (
+      {leaveTo ? (
         <ConfirmDialog
           open
           title="Còn thay đổi chưa lưu"
-          description="Thông tin bài học bạn vừa sửa chưa được lưu. Chuyển sang “Thông tin chung” sẽ bỏ các thay đổi này."
+          description="Thông tin bài học bạn vừa sửa chưa được lưu. Chuyển tab sẽ bỏ các thay đổi này."
           confirmLabel="Bỏ thay đổi"
           cancelLabel="Ở lại để lưu"
-          onClose={() => setLeaveToInfo(false)}
+          onClose={() => setLeaveTo(null)}
           onConfirm={() => {
             lessonDirtyRef.current = false;
-            setLeaveToInfo(false);
-            router.push(`${COURSES_PATH}/${id}/sua`);
+            const to = leaveTo;
+            setLeaveTo(null);
+            router.push(to);
           }}
         />
       ) : null}

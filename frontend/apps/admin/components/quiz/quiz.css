@@ -1,0 +1,12 @@
+/* SAO CHÉP từ apps/web/components/quiz/quiz.css (FW5): công thức to hơn chữ thường 10%, \dfrac giữ cỡ đầy đủ, không tràn ngang. */
+.math-text .katex {
+  font-size: 1.1em;
+  overflow-wrap: normal;
+}
+.math-text .katex-display {
+  margin: 0;
+  text-align: left;
+}
+.math-text .katex-display > .katex {
+  text-align: left;
+}

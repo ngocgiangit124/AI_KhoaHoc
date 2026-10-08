@@ -7,7 +7,9 @@ Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) 
 - FW8 + FW9, FA6 (+91f244b), FA11-1 (57c56b7): đã commit; 91f244b, 57c56b7 chưa push.
 - FW5 (web làm quiz, katex 0.19.0) + SLN6 (nộp từ `expires_at` là tự nộp): review APPROVE, QA PASS (docs/qa/FW5.md); nợ Low: e2e hết giờ chưa assert nhãn "tự động nộp", chưa thử Safari/Firefox, CORS `max_age`.
 - SLN7 (PO 2026-10-08): API `PUT .../quizzes/{quiz}/questions/order` đổi thứ tự câu + xoá câu đánh lại position; review APPROVE, QA PASS (docs/qa/SLN7.md). FA5 cần thêm UI kéo thả sau khi commit.
-- Đang làm: FA5 (soạn quiz quản trị). Tiếp: FW6, FA7, FA10.
+- FA5 (soạn quiz quản trị + kéo thả sắp xếp câu dùng SLN7, hook `useUnsavedChangesGuard` dùng chung): review 2 vòng APPROVE, QA 2 vòng PASS (docs/qa/FA5.md). Backlog: đưa 3 file KaTeX trùng (admin/web) vào `packages/ui`; `has_attempts` cho câu hỏi; cờ `quiz_time_limit_enabled` ở `/admin/auth/me`.
+- Backlog từ FW6: `best_attempt_id` trong `quizzes[]` của `/me/courses/{course}/progress` (nút đang là "Xem kết quả lượt gần nhất"); `packages/ui` `DataTable` cần khung cuộn `relative` để `sr-only` không gây tràn ngang 375px.
+- Đang làm: FW6 (QA). Tiếp: FA7, FA10.
 - SỰ CỐ 2026-10-08 ~09:48: QA SLN7 chạy `php artisan migrate:fresh --env=testing` trong container php — không có `.env.testing` nên xoá trắng DB dev `vitaminvui` (không có bản sao lưu). Đã chạy lại `db:seed` + seed-e2e catalog/home/learn/quiz và duyệt lại ghi danh fw4-hs-none (khóa 55). QUY TẮC: agent không bao giờ chạy `migrate:fresh|refresh|reset`, `db:wipe`, `db:seed` trong container php; DB test chỉ qua `pest -c phpunit.local-{e,g,h}.xml` (RefreshDatabase tự migrate).
 
 ## Tình trạng 2026-10-07 tối (PO tạm dừng)
