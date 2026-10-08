@@ -45,7 +45,7 @@ test('reorder thanh cong: position 1..n, tra data theo thu tu moi, giu id, audit
         ->and($res->json('data.0.options.0'))->toHaveKey('is_correct')
         ->and($c->fresh()->position)->toBe(1)->and($a->fresh()->position)->toBe(2)->and($b->fresh()->position)->toBe(3);
 
-    $log = AuditLog::query()->where('action', 'quiz_question.reorder')->sole();
+    $log = AuditLog::query()->where('action', 'quiz_question.reorder')->where('subject_id', $quiz->id)->sole();
     expect($log->subject_id)->toBe($quiz->id)->and(json_encode($log->changes))->not->toContain($a->content);
 
     // GET danh sách theo thứ tự mới

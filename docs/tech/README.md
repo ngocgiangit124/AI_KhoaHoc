@@ -21,8 +21,8 @@ Thiết kế MVP (US-001 → US-014) được viết tập trung ở `docs/archi
 
 | US-015 Quên/đổi mật khẩu (chờ BA) | api-contract §2.2; ADR-003 | T27 |
 | US-016 Quản lý tài khoản staff + MFA (chờ BA) | ADR-004 §3; api-contract §2.5 | T28, T33 |
-| US-017 Đồng ý dữ liệu & xác nhận phụ huynh (chờ BA, chờ pháp chế) | data-model `consents`; api-contract §2.8 | T03, T29 |
-| US-018 Quyền dữ liệu cá nhân (chờ BA) | data-model §7; api-contract §2.8 | T30, T34 |
+| US-017 Đồng ý dữ liệu; phụ huynh chỉ nhận thông báo (ADR-006, PO 2026-10-08) | ADR-006; data-model `users`, `consents`; api-contract §2.2, §2.8.1–2.8.3 | T03, T29, FW1, FW7 |
+| US-018 Quyền dữ liệu cá nhân (ADR-006) | ADR-006; data-model §7; api-contract §2.8.4–2.8.5 | T30, T34, FW7 |
 | US-019 Trang chủ | tasks.md "Sau MVP" (FW8); không có API mới | FW8 |
 | US-020 Hồ sơ giáo viên công khai | **[US-020.md](US-020.md)**; **ADR-005**; api-contract §2.9; data-model `teacher_profiles` | T36, FW9, FA11 |
 | US-021 Kết nối Bunny Stream | **[US-021.md](US-021.md)**; ADR-002; api-contract §2.7 | T37 |

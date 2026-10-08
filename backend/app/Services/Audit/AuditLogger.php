@@ -25,6 +25,9 @@ class AuditLogger
     private const ALLOWED_KEYS = [
         'coupon_code',
         'referral_code_used',
+        // T29 (ADR-006): chỉ mang giá trị `added|changed|removed|unchanged`, KHÔNG bao giờ mang email/SĐT phụ huynh.
+        'parent_email_change',
+        'parent_phone_change',
     ];
 
     /**
@@ -68,7 +71,26 @@ class AuditLogger
      */
     public function log(string $action, ?Model $subject = null, array $changes = []): AuditLog
     {
-        $actor = Auth::user();
+        return $this->write($action, $subject, $changes, false);
+    }
+
+    /**
+     * Như `log()` nhưng actor = null dù request có người đăng nhập: sự kiện do hệ thống/bên thứ ba phát sinh
+     * (thư thông báo phụ huynh, phụ huynh huỷ nhận thông báo).
+     *
+     * @param  array<string, mixed>  $changes
+     */
+    public function logAsSystem(string $action, ?Model $subject = null, array $changes = []): AuditLog
+    {
+        return $this->write($action, $subject, $changes, true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $changes
+     */
+    private function write(string $action, ?Model $subject, array $changes, bool $asSystem): AuditLog
+    {
+        $actor = $asSystem ? null : Auth::user();
 
         return AuditLog::create([
             'actor_id' => $actor?->getKey(),
@@ -76,7 +98,7 @@ class AuditLogger
             // với thao tác qua HTTP khi không có actor đăng nhập (audit_logs
             // chưa có cột actor_type riêng — ghi tạm vào actor_role để không
             // cần thêm migration ở review này).
-            'actor_role' => $actor?->role->value ?? (app()->runningInConsole() ? 'cli' : null),
+            'actor_role' => $actor?->role->value ?? (! $asSystem && app()->runningInConsole() ? 'cli' : null),
             'action' => $action,
             'subject_type' => $subject?->getMorphClass(),
             'subject_id' => $subject?->getKey(),

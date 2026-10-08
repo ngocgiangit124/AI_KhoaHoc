@@ -11,6 +11,7 @@ use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Enrollment\EnrollmentService;
+use App\Services\Privacy\ParentNotifier;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -32,6 +33,7 @@ class OrderFulfillmentService
     public function __construct(
         private readonly OrderStateMachine $states,
         private readonly EnrollmentService $enrollments,
+        private readonly ParentNotifier $parentNotifier,
     ) {}
 
     /**
@@ -111,6 +113,12 @@ class OrderFulfillmentService
             $source === 'checkout' ? $locked->user_id : null,
             ['source' => $source] + ($reasons === [] ? [] : ['review' => array_values(array_unique($reasons))]),
         );
+
+        // ADR-006 (T29): đơn CÓ TIỀN vừa chuyển paid → thông báo phụ huynh sau commit. Chỉ chạy ở lần chuyển trạng thái này
+        // (đơn đã paid thoát sớm ở trên) nên IPN trùng không gửi lại. Đơn 0đ/miễn phí không gửi. Lỗi gửi được nuốt trong notifier.
+        if ($locked->total_amount > 0) {
+            DB::afterCommit(fn () => $this->parentNotifier->orderPaid($locked));
+        }
 
         // Dọn giỏ: bỏ các khóa đã mua, gỡ mã đã dùng (US-005 BR3).
         if ($cart !== null) {

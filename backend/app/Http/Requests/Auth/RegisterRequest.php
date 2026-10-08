@@ -5,7 +5,7 @@ namespace App\Http\Requests\Auth;
 use App\Exceptions\DomainException;
 use App\Services\Auth\Captcha\CaptchaVerifier;
 use App\Services\Auth\PhoneNumber;
-use App\Services\Auth\RegistrationService;
+use App\Services\Privacy\ParentContactInput;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -63,14 +63,7 @@ class RegisterRequest extends FormRequest
             $normalized['phone'] = $phone;
         }
 
-        $parentPhone = PhoneNumber::normalize($this->input('parent_phone'));
-        if ($parentPhone !== null) {
-            $normalized['parent_phone'] = $parentPhone;
-        }
-
-        if (is_string($this->input('parent_email'))) {
-            $normalized['parent_email'] = mb_strtolower(trim($this->input('parent_email')));
-        }
+        $normalized += ParentContactInput::normalize($this->all());
 
         $this->merge($normalized);
     }
@@ -80,8 +73,6 @@ class RegisterRequest extends FormRequest
      */
     public function rules(): array
     {
-        $needsParent = $this->isMinor();
-
         return [
             'name' => ['required', 'string', 'max:150', 'regex:/^[^\p{C}]+$/u'],
             'date_of_birth' => [
@@ -96,20 +87,9 @@ class RegisterRequest extends FormRequest
             'password' => ['required', 'string', Password::defaults(), 'max:128'],
             // AC5: lỗi xác nhận nằm ở field password_confirmation (không dùng `confirmed`).
             'password_confirmation' => ['required', 'string', 'same:password'],
-            'parent_phone' => [
-                $needsParent ? 'required_without:parent_email' : 'nullable',
-                'nullable',
-                'string',
-                'regex:/^0[35789]\d{8}$/',
-            ],
-            'parent_email' => [
-                $needsParent ? 'required_without:parent_phone' : 'nullable',
-                'nullable',
-                'string',
-                'email:rfc,strict',
-                'regex:'.self::EMAIL_SAFE_PATTERN,
-                'max:254',
-            ],
+            // ADR-006: liên hệ phụ huynh TUỲ CHỌN với mọi độ tuổi; nếu có thì phải khác email/SĐT của chính học sinh.
+            'parent_phone' => ParentContactInput::phoneRules('phone'),
+            'parent_email' => ParentContactInput::emailRules('email'),
             'referral_code' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9_-]+$/'],
             'accept_terms' => ['accepted'],
             'accept_privacy' => ['accepted'],
@@ -144,30 +124,8 @@ class RegisterRequest extends FormRequest
             'password.min' => 'Mật khẩu tối thiểu 8 ký tự.',
             'password_confirmation.required' => 'Vui lòng nhập lại mật khẩu.',
             'password_confirmation.same' => 'Xác nhận mật khẩu không khớp.',
-            'parent_phone.required_without' => 'Vui lòng nhập số điện thoại hoặc email phụ huynh.',
-            'parent_phone.regex' => 'Số điện thoại phụ huynh không đúng định dạng.',
-            'parent_email.required_without' => 'Vui lòng nhập số điện thoại hoặc email phụ huynh.',
-            'parent_email.email' => 'Email phụ huynh không đúng định dạng.',
             'accept_terms.accepted' => 'Bạn cần đồng ý với Điều khoản sử dụng.',
             'accept_privacy.accepted' => 'Bạn cần đồng ý với Chính sách bảo mật.',
-        ];
-    }
-
-    private function isMinor(): bool
-    {
-        $dob = $this->input('date_of_birth');
-
-        if (! is_string($dob) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob) !== 1 || ! $this->isRealDate($dob)) {
-            return false;
-        }
-
-        return RegistrationService::isBelowConsentAge($dob);
-    }
-
-    private function isRealDate(string $date): bool
-    {
-        [$y, $m, $d] = array_map('intval', explode('-', $date));
-
-        return checkdate($m, $d, $y);
+        ] + ParentContactInput::messages();
     }
 }

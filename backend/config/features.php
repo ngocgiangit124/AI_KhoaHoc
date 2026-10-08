@@ -24,9 +24,9 @@ return [
 
     'staff_mfa' => (bool) env('FEATURE_STAFF_MFA', true),
 
-    // Chặn checkout với HS chưa có xác nhận phụ huynh (US-017). PO tạm bỏ ngưỡng tuổi ở v1 → mặc định TẮT;
-    // T29 bật khi có luồng đồng ý + nội dung pháp lý.
-    'parent_consent_enforced' => (bool) env('FEATURE_PARENT_CONSENT_ENFORCED', false),
+    // ADR-006 (T29): gửi thư THÔNG BÁO cho phụ huynh (tạo tài khoản, thêm/đổi email phụ huynh, đơn có tiền đã thanh toán).
+    // Công tắc tắt khẩn: false → không gửi thư nào, các request gốc vẫn thành công. Mail thật phải bật trước go-live.
+    'parent_notices' => (bool) env('FEATURE_PARENT_NOTICES', true),
 
     // Checkout có tính tiền (tổng > 0). PO 2026-10-06: thanh toán chuyển V2 (chờ kết nối MoMo) → mặc định TẮT.
     // Tắt: POST /checkout tổng > 0 trả 503 PAYMENT_DISABLED, preview có can_checkout=false. Đơn 0đ/khóa miễn phí không ảnh hưởng.

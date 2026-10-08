@@ -209,7 +209,7 @@ R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọ
 Không có Critical/High. Điểm ghi nhận:
 - **T18-1 (Medium):** đơn pending bị thay (`superseded`) hoặc quá `expires_at` do checkout huỷ trực tiếp, KHÔNG đối soát attempt cũ trước khi huỷ (khác job huỷ 12h của T20). Nếu HS đã trả tiền ở link cũ thì IPN đến muộn đi đường `cancelled → paid` + `needs_review` (ADR-001 §3). Giảm nhẹ: chỉ tạo link mới khi không còn attempt chưa xác nhận.
 - **T18-2 (Low):** attempt `created` mà tiến trình chết sau khi cổng đã tạo giao dịch (trước khi ghi `pay_url`) bị đánh dấu `error` sau 45 giây; job đối soát (T20) chỉ quét attempt có `pay_url` nên link "mồ côi" không được đối soát chủ động (IPN vẫn khớp theo `gateway_order_id`).
-- **T18-3 (Low):** `parent.consent` là bản tạm, nay sau cờ `features.parent_consent_enforced` (tắt mặc định); ngưỡng tuổi/nội dung pháp lý ở T29. `POST /courses/{id}/free-enrollments` chưa gắn `parent.consent` (contract yêu cầu) — làm cùng T29.
+- **T18-3 (Low):** `parent.consent` là bản tạm, nay sau cờ `features.parent_consent_enforced` (tắt mặc định); ngưỡng tuổi/nội dung pháp lý ở T29. `POST /courses/{id}/free-enrollments` chưa gắn `parent.consent` (contract yêu cầu) — làm cùng T29. **Hết hiệu lực (PO 2026-10-08, ADR-006): T29 xoá hẳn middleware và cờ. ĐÃ ĐÓNG ở T29 (Dev 2026-10-08).**
 - **T18-4 (Low):** `link_ttl_minutes`/`min_amount`/`max_amount` của cổng `fake` không có trong config (chỉ MoMo có) nên đơn dùng cổng fake mặc định TTL 30 phút, không kiểm hạn mức; chỉ ảnh hưởng local/testing.
 - **T18-5 (Low):** HS tạo/huỷ đơn pending liên tục (10 lần/phút) để chiếm lượt mã trong `coupon_hold_minutes` (30 phút): đã giới hạn bởi hạn giữ chỗ + throttle `checkout`, chưa có trần số lần/ngày.
 - Nhắc T19/T20: thứ tự khoá `carts → orders → courses → enrollments → coupons` (courses trước coupons); `markPaid` đã có retry deadlock ở mức ngoài.
@@ -218,7 +218,7 @@ Không có Critical/High. Điểm ghi nhận:
 | T12-11 | Info | Review R3 đã xử lý: CDN không truy vấn DB mỗi segment (dựa vào sự tồn tại của `hls/{guid}/` sau rename + token), thêm `throttle:1200,1`; ghi chú limit_req/X-Accel vào README | Đã xong |
 
 - **T18-6 (Low, review R6):** `payment_attempts.create_response` lưu nguyên JSON phản hồi cổng: rà T17 `rawResponse` không chứa chữ ký/secret/PII, mask và đặt thời hạn lưu khi T19 hoàn thiện.
-- **T18-7 (Info, review R1):** cờ `FEATURE_PARENT_CONSENT_ENFORCED` (mặc định `false`, PO tạm bỏ ngưỡng tuổi phụ huynh ở v1). T29 phải bật cờ khi có luồng đồng ý phụ huynh + nội dung pháp lý, trước go-live nếu pháp chế yêu cầu.
+- **T18-7 (Info, review R1):** cờ `FEATURE_PARENT_CONSENT_ENFORCED` (mặc định `false`, PO tạm bỏ ngưỡng tuổi phụ huynh ở v1). T29 phải bật cờ khi có luồng đồng ý phụ huynh + nội dung pháp lý, trước go-live nếu pháp chế yêu cầu. **Hết hiệu lực (ADR-006): không còn luồng đồng ý phụ huynh, T29 xoá cờ. ĐÃ ĐÓNG ở T29 (Dev 2026-10-08).**
 
 ## T22 (làm quiz, API học sinh) — ghi nhận (2026-10-06), không có Critical/High
 
@@ -336,3 +336,7 @@ Còn lại (không sửa trong T36):
 | S6 | Low | Ràng IP dễ hỏng: dual-stack, IPv6 không chuẩn hoá (`inet_ntop(inet_pton())`), ràng /64 nếu Bunny hỗ trợ; FE phải gọi playback từ trình duyệt và làm mới URL trước `expires_at` (ghi ở FW4); QA thử dual-stack. Không tắt `VIDEO_BIND_IP` để chữa cháy | Hoãn V2 (phần FE ở FW4) |
 | S10 | Info | Không có DRM: người có quyền xem tải được HLS trong 15 phút; MediaCage DRM của Bunny tính phí | PO quyết |
 | Pháp chế | — | Video bài giảng (hình ảnh/giọng GV, có thể HS) lưu ở Bunny (EU) và phát qua CDN toàn cầu, IP học sinh tới edge Bunny: cần DPA với Bunny và xác định nghĩa vụ chuyển dữ liệu xuyên biên giới theo Luật BVDLCN 2025 / NĐ 356/2025/NĐ-CP; thời hạn Bunny giữ bản sao/backup sau `DELETE` | Chờ pháp chế |
+
+## T29 (security review 2026-10-08) — chuyển sang backlog
+- **T29-S4 (Low):** lỗi gửi `ParentNoticeMail` có thể ghi địa chỉ phụ huynh vào `failed_jobs.exception` và log worker (thông điệp transport SMTP). Việc cần làm: che email (regex → `***`) trong exception của `Symfony\Component\Mailer\Exception\*` hoặc `failed()` của mailable; giữ `queue:prune-failed --hours=168` (T30) chạy theo lịch. Kiểm chứng: transport giả ném exception chứa email thì `failed_jobs`/log không có `@`.
+- **T29-S6 (Low):** chưa có trần tổng/cảnh báo cho thư gửi bên thứ ba. Việc cần làm: limiter toàn cục `parent-notice:global` (ví dụ 500/giờ, vượt thì bỏ thư + `Log::warning`), cân nhắc trần 3 địa chỉ phụ huynh khác nhau/tài khoản/ngày, đưa số `parent_notice.sent`/giờ vào cảnh báo (T26).

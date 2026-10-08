@@ -3,6 +3,8 @@
 **Trạng thái:** Draft
 **Ưu tiên:** Must
 
+> **Thay đổi bởi PO 2026-10-08 (ADR-006):** KHÔNG còn yêu cầu phụ huynh đồng ý. BR3–BR10, AC3–AC9 và phần trang xác nhận phụ huynh không còn hiệu lực. Thông tin phụ huynh là tuỳ chọn; hệ thống chỉ gửi **thông báo** tới email phụ huynh (nếu có), và phụ huynh có link huỷ nhận. BR1, BR2, AC1, AC2 (2 checkbox đồng ý của học sinh) giữ nguyên. Hợp đồng mới: `docs/adr/ADR-006-bo-dong-y-phu-huynh-chi-thong-bao.md`, api-contract §2.8, tasks.md T29. BA cần viết lại story theo ADR này.
+
 ## User story
 Là học sinh, tôi muốn được thông báo rõ ràng và chủ động đồng ý với việc hệ thống xử lý dữ liệu cá nhân của mình trước khi sử dụng dịch vụ; là phụ huynh của học sinh dưới 18 tuổi, tôi muốn được xác nhận trước khi con em mình có thể mua khóa học, để quyền riêng tư của gia đình được tôn trọng.
 

@@ -22,6 +22,8 @@ use App\Http\Controllers\Api\V1\Learn\LessonController as LearnLessonController;
 use App\Http\Controllers\Api\V1\Learn\MyCourseController;
 use App\Http\Controllers\Api\V1\Learn\PlaybackController;
 use App\Http\Controllers\Api\V1\Learn\ProgressController;
+use App\Http\Controllers\Api\V1\Privacy\ParentContactController;
+use App\Http\Controllers\Api\V1\Privacy\ParentNoticeUnsubscribeController;
 use App\Http\Controllers\Api\V1\PublicConfigController;
 use App\Http\Controllers\Api\V1\Quiz\AnswerController;
 use App\Http\Controllers\Api\V1\Quiz\AttemptController;
@@ -81,6 +83,13 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
     Route::get('/csrf-token', CsrfController::class)
         ->middleware('throttle:csrf')
         ->name('api.csrf-token');
+
+    // T29 (ADR-006) — phụ huynh huỷ nhận thông báo. Công khai, không session/cookie/CSRF (như webhook): token HMAC trong
+    // thư là bằng chứng duy nhất. Luôn trả cùng một body (không lộ gì). Throttle theo IP.
+    Route::post('/parent-notices/unsubscribe', ParentNoticeUnsubscribeController::class)
+        ->withoutMiddleware(EnsureFrontendRequestsAreStateful::class)
+        ->middleware('throttle:parent-notice-unsub')
+        ->name('api.parent-notices.unsubscribe');
 
     // Đăng ký/đăng nhập (T03). Cần session (EnsureFrontendRequestsAreStateful giữ nguyên).
     // Throttle 2 lớp ở AppServiceProvider (S10).
@@ -142,8 +151,17 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             ->middleware(['throttle:password-change', 'no_store'])
             ->name('api.auth.password');
 
+        // T29 (ADR-006) — liên hệ phụ huynh của chính học sinh. Không cần `account.verified`. PUT cần mật khẩu hiện tại
+        // (CurrentPasswordGuard) và dùng chung hạn mức dò mật khẩu `password-change` với đổi liên hệ/mật khẩu.
+        Route::get('/me/parent-contact', [ParentContactController::class, 'show'])
+            ->middleware('throttle:privacy-read')
+            ->name('api.me.parent-contact.show');
+        Route::put('/me/parent-contact', [ParentContactController::class, 'update'])
+            ->middleware(['throttle:parent-contact', 'throttle:password-change'])
+            ->name('api.me.parent-contact.update');
+
         // T14 — xin học khóa miễn phí (US-012). `account.verified` chỉ gắn ở route này (US-001 AC9: chặn
-        // đăng ký miễn phí/checkout, KHÔNG chặn xem/học). `parent.consent` chưa có (US-017 chờ pháp chế).
+        // đăng ký miễn phí/checkout, KHÔNG chặn xem/học). ADR-006 (T29): không còn middleware phụ huynh đồng ý.
         Route::post('/courses/{course}/free-enrollments', [FreeEnrollmentController::class, 'store'])
             ->middleware('account.verified')
             ->name('api.courses.free-enrollments.store');
@@ -161,10 +179,10 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
             ->name('api.cart.coupon.update');
         Route::delete('/cart/coupon', [CartCouponController::class, 'destroy'])->middleware('throttle:cart')->name('api.cart.coupon.destroy');
 
-        // T18 — checkout (US-005). `account.verified` (US-001 AC9) + `parent.consent` (tạm: not_required/granted).
+        // T18 — checkout (US-005). `account.verified` (US-001 AC9). ADR-006: middleware `parent.consent` đã bị xoá.
         // Preview không ghi DB; POST /checkout tạo đơn pending + giao dịch cổng (hoặc hoàn tất đơn 0đ).
         // `/orders/{code}/pay`, `/orders/{code}/check-payment`, GET /orders: T20.
-        Route::middleware(['account.verified', 'parent.consent'])->group(function (): void {
+        Route::middleware(['account.verified'])->group(function (): void {
             Route::get('/checkout/preview', [CheckoutController::class, 'preview'])->middleware('throttle:cart')->name('api.checkout.preview');
             Route::post('/checkout', [CheckoutController::class, 'store'])
                 ->middleware('throttle:checkout')

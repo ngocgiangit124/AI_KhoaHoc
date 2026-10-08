@@ -72,7 +72,7 @@ test('Biên ngày sinh: đúng 120 tuổi trở lên bị từ chối, 29/02 nă
     vvRegister(['date_of_birth' => '2000-02-29'])->assertCreated();
 });
 
-test('AC10: SĐT/email phụ huynh sai định dạng bị từ chối khi dưới 18 tuổi', function () {
+test('AC10: SĐT/email phụ huynh sai định dạng vẫn bị từ chối khi có nhập', function () {
     $dob = now('Asia/Ho_Chi_Minh')->subYears(12)->toDateString();
 
     vvRegister(['date_of_birth' => $dob, 'parent_phone' => '12345'])
@@ -83,11 +83,11 @@ test('AC10: SĐT/email phụ huynh sai định dạng bị từ chối khi dư�
     expect(User::count())->toBe(0);
 });
 
-test('AC10: dưới 18 tuổi chỉ có SĐT phụ huynh dạng +84 -> lưu chuẩn hóa 0xxxxxxxxx, pending', function () {
+test('AC10: chỉ có SĐT phụ huynh dạng +84 -> lưu chuẩn hóa 0xxxxxxxxx, not_required', function () {
     vvRegister([
         'date_of_birth' => now('Asia/Ho_Chi_Minh')->subYears(14)->toDateString(),
         'parent_phone' => '+84 911 111 111',
-    ])->assertCreated()->assertJson(['parent_consent_status' => 'pending']);
+    ])->assertCreated()->assertJson(['parent_consent_status' => 'not_required']);
 
     expect(User::firstOrFail()->parent_phone)->toBe('0911111111');
 });

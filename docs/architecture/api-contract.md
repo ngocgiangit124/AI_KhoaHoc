@@ -32,7 +32,7 @@ Test kiến trúc bắt buộc (T02) kiểm mọi route dưới đây có đúng
 | Nhóm | Middleware |
 |---|---|
 | `public` (host api) | `throttle:<tên>` theo từng route; response công khai `Cache-Control: public, max-age=60`, **không đọc cookie** |
-| `student` (host api, cần đăng nhập) | `auth:sanctum, account.active, student.single_session, no_store` (+ `role:hoc_sinh`, `account.verified`, `parent.consent` khi route yêu cầu) |
+| `student` (host api, cần đăng nhập) | `auth:sanctum, account.active, student.single_session, no_store` (+ `role:hoc_sinh`, `account.verified` khi route yêu cầu). **ADR-006 (T29):** middleware `parent.consent` bị xoá hẳn |
 | `staff` (host admin-api, cần đăng nhập) | `admin.origin, auth:sanctum, account.active, staff.idle, staff.mfa_passed, staff.password_fresh, no_store, role:admin,quan_ly_trang,giao_vien` + Sanctum `AuthenticateSession` |
 | `webhook` | `throttle:webhook`, giới hạn body 16 KB; không có session/CSRF |
 
@@ -83,6 +83,13 @@ Ngoại lệ duy nhất: `POST /auth/logout` và `POST /admin/auth/logout` chỉ
 | `teacher-profile` (T36: PATCH hồ sơ, xoá ảnh, đồng ý/rút, bật trang chủ; `/admin/me/teacher-profile*` và `/admin/teacher-profiles/{user}*`) | 30/phút/user | — |
 | `teacher-avatar` (T36: `POST .../avatar`, lần lỗi 422 cũng tính) | 10/phút/user | — |
 | `admin-password` (T28) | 5/phút, 20/giờ/user | — |
+| `privacy-read` (T29/T34: `GET /me/consents`, `GET /me/parent-contact`, `GET /me/data-export`) | 60/phút/user | — |
+| `parent-contact` (T29: `PUT /me/parent-contact`) | 5/giờ, 10/ngày/user. Route còn gắn `throttle:password-change` (đoán mật khẩu bị chặn chung với đổi liên hệ/mật khẩu) | — |
+| `consent-accept` (T34: `POST /me/consents/accept`) | 10/phút/user | — |
+| `data-export` (T34: `POST /me/data-export`) | 5/phút/user (chống bấm liên tục). **Hạn mức nghiệp vụ** 2 lần THÀNH CÔNG/ngày lịch Asia/Ho_Chi_Minh/user là lỗi riêng 429 `DATA_EXPORT_LIMIT`, không phải limiter này. Route còn gắn `throttle:password-change` | — |
+| `account-delete` (T34: `POST /me/account/delete/otp`, `POST /me/account/delete`) | Gửi mã dùng trần `otp-send`, xác nhận dùng trần `otp-verify` (chung mọi purpose) | — |
+| `parent-notice-unsub` (T29: `POST /parent-notices/unsubscribe`, công khai) | — | 30/giờ |
+| Trần thư gửi phụ huynh (T29, không phải limiter route) | 5 thư/ngày cho mỗi địa chỉ email phụ huynh (khoá cache `sha256(email)`, tính trên mọi học sinh). Vượt trần thì bỏ thư, log `warning` không PII, request gốc vẫn thành công | — |
 
 IP thật lấy qua `TrustProxies` với danh sách IP cụ thể (không `*`).
 
@@ -101,7 +108,9 @@ Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $statu
 | 401 | `STAFF_IDLE_TIMEOUT` | Phiên quản trị quá 120 phút không hoạt động hoặc quá 12 giờ |
 | 403 | `ACCOUNT_LOCKED` | Tài khoản bị khoá — ở login **chỉ trả khi mật khẩu đúng** (S20); route đã đăng nhập: `account.active`; phiên HS bị huỷ do khoá (tombstone `locked`) |
 | 403 | `ACCOUNT_NOT_VERIFIED` | Chưa xác thực OTP mà checkout/đăng ký học miễn phí |
-| 403 | `PARENT_CONSENT_REQUIRED` | HS dưới ngưỡng tuổi chưa có xác nhận phụ huynh (US-017, chờ pháp chế) |
+| 403 | `PARENT_CONSENT_REQUIRED` | **Không còn phát ra từ T29 (ADR-006, PO 2026-10-08: không cần phụ huynh đồng ý).** Giữ trong bảng để FE cũ không vỡ; FE mới không cần xử lý |
+| 409 | `ACCOUNT_HAS_PENDING_PAYMENT` | Xoá tài khoản khi còn đơn `pending` có giao dịch cổng `pending` chưa hết hạn (T34). `context.retry_after_at` (ISO 8601) = `expires_at` muộn nhất của các link đó |
+| 429 | `DATA_EXPORT_LIMIT` | Đã tải dữ liệu cá nhân đủ 2 lần trong ngày (T34). Có header `Retry-After` (giây tới 00:00 giờ VN) và `context: {limit, resets_at}` |
 | 403 | `MFA_REQUIRED` | Staff chưa nhập OTP đăng nhập |
 | 403 | `PASSWORD_CHANGE_REQUIRED` | Staff phải đổi mật khẩu lần đầu |
 | 403 | `WRONG_PORTAL` | Đăng nhập đúng mật khẩu nhưng sai trang (HS ở admin hoặc staff ở web) |
@@ -116,7 +125,7 @@ Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $statu
 | 422 | `COURSE_NOT_FREE` | Xin học miễn phí cho khóa có phí (T14) |
 | 409 | `SUBJECT_IN_USE` | Xoá chuyên đề đang gán khóa học (T06) |
 | 409 | `TEACHER_HOMEPAGE_LIMIT` | Bật hiển thị trang chủ khi đã có `teacher_profile.homepage_max` (6) giáo viên được bật (US-020, T36) |
-| 409 | `CONSENT_VERSION_CHANGED` | Giáo viên gửi đồng ý với `version` khác câu chữ hiện hành → FE tải lại hồ sơ, hiện câu mới (US-020, T36) |
+| 409 | `CONSENT_VERSION_CHANGED` | Giáo viên gửi đồng ý với `version` khác câu chữ hiện hành → FE tải lại hồ sơ, hiện câu mới (US-020, T36). **T34:** cũng dùng khi học sinh `POST /me/consents/accept` với `policy_version` khác phiên bản hiện hành; `context.current_version` |
 | 422 | `NOT_TEACHER` | Sửa nội dung hồ sơ / bật trang chủ cho tài khoản không còn vai trò `giao_vien` (US-020, T36) |
 | 409 | `COURSE_HAS_ENROLLMENTS`, `INVALID_COURSE_STATE` | Xoá khóa đã có enrollment; ngừng bán khóa chưa xuất bản (T08) |
 | 409 | `COURSE_HAS_PENDING_ORDERS` | Xoá khóa đang nằm trong đơn `pending` chưa hết hạn (T18) |
@@ -155,11 +164,18 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
   "otp": { "ttl_minutes": 10, "resend_cooldown_seconds": 60 },
   "grades": [6, 7, 8, 9, 10, 11, 12],
   "captcha_site_key": null,
-  "policy_version": "2026-09",
+  "policy_version": "2026-10-tam",
   "parent_consent_age": 18,
+  "parent_contact_required": false,
   "paid_checkout_enabled": false
 }
 ```
+**T29 (ADR-006, 2026-10-08):**
+- `parent_consent_age` được giữ để tương thích v1 nhưng đã **deprecated**:
+  - giá trị lấy từ `privacy.parent_contact_suggest_age` (18);
+  - từ nay chỉ có nghĩa "dưới tuổi này thì FE **gợi ý** nhập liên hệ phụ huynh"; không bao giờ là bắt buộc.
+- `parent_contact_required` (mới) luôn là `false`. FE không được chặn submit vì thiếu liên hệ phụ huynh.
+- `policy_version` là phiên bản Điều khoản + Chính sách dữ liệu đang hiện hành (bản TẠM `2026-10-tam`, đổi khi có bản pháp chế). FE hiển thị văn bản đúng phiên bản này.
 `paid_checkout_enabled` (thêm 2026-10-06): `false` khi cờ `FEATURE_PAID_CHECKOUT` tắt (V2 — chờ MoMo) → FE ẩn/vô hiệu nút "Mua"/"Thanh toán" cho khóa có phí. `viewer_state` giữ nguyên (không thêm giá trị mới).
 `captcha_site_key` = `null` khi chưa cấu hình Turnstile (local).
 
@@ -167,10 +183,10 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 
 | Method | URI | Controller@action | Middleware | Request | Response |
 |---|---|---|---|---|---|
-| POST | /auth/register | `Auth\RegisterController` | guest.student (T05: đã đăng nhập hợp lệ → 403 `FORBIDDEN`; phiên cũ đã bị thay thế/đăng xuất coi như khách), throttle:register | `RegisterRequest`: name (≤150), date_of_birth, email, phone (VN), grade_level (6–12), password (min 8, confirmed), parent_phone/parent_email (≥1 khi dưới `privacy.parent_consent_age`), referral_code (chỉ khi flag bật), **accept_terms (accepted)**, **accept_privacy (accepted)**, **captcha_token**, device_id. `role`/`status`/`*_verified_at` **không nằm trong validated()** (S17) | 201 user; tự đăng nhập + bind phiên; tạo `consents` (self); gửi OTP; nếu dưới ngưỡng tuổi → `parent_consent_status=pending` + gửi email xác nhận cho phụ huynh (US-017) |
+| POST | /auth/register | `Auth\RegisterController` | guest.student (T05: đã đăng nhập hợp lệ → 403 `FORBIDDEN`; phiên cũ đã bị thay thế/đăng xuất coi như khách), throttle:register | `RegisterRequest`: name (≤150), date_of_birth, email, phone (VN), grade_level (6–12), password (min 8, confirmed), parent_phone/parent_email (**tuỳ chọn với mọi độ tuổi từ T29**, xem khối "Bổ sung từ T29"), referral_code (chỉ khi flag bật), **accept_terms (accepted)**, **accept_privacy (accepted)**, **captcha_token**, device_id. `role`/`status`/`*_verified_at` **không nằm trong validated()** (S17) | 201 user; tự đăng nhập + bind phiên; tạo `consents` (self); gửi OTP. **T29:** `parent_consent_status` luôn `not_required`; có `parent_email` (và cờ `features.parent_notices` bật) → sau commit gửi thư **thông báo** `account_created` cho phụ huynh (không cần phụ huynh làm gì) |
 | POST | /auth/login | `Auth\LoginController@store` | throttle:login (T05: **không** `guest` — đăng nhập lại khi cookie cũ còn sống là hợp lệ, ADR-003) | `LoginRequest`: login (email hoặc SĐT), password, device_id (UUID; sai định dạng bị bỏ qua, không 422) | 200 user; bind phiên 1 thiết bị, huỷ session cũ + tombstone. Sai → 422 thông điệp chung. Khoá → 403 `ACCOUNT_LOCKED` **chỉ khi mật khẩu đúng**. Vai trò không phải `hoc_sinh` → 403 `WRONG_PORTAL` (sau khi mật khẩu đúng) |
 | POST | /auth/logout | `Auth\LoginController@destroy` | auth:sanctum | — | 204 |
-| GET | /auth/me | `Auth\MeController` | student | — | **T04:** đúng shape `user` ở khối "Bổ sung từ T03" (phẳng, không `parent_*`). **T16:** thêm `cart_count` (số dòng trong giỏ, đếm cả dòng không khả dụng).  thông tin phụ huynh **đã che** thêm ở T29 (thêm field = tương thích) |
+| GET | /auth/me | `Auth\MeController` | student | — | **T04:** đúng shape `user` ở khối "Bổ sung từ T03" (phẳng, không `parent_*`). **T16:** thêm `cart_count` (số dòng trong giỏ, đếm cả dòng không khả dụng). **T29/T34 thêm** `parent_contact` (object `ParentContact` đã che, §2.8) và `needs_policy_acceptance` (boolean, §2.8). Thêm field là thay đổi tương thích |
 | POST | /auth/otp/send | `Auth\OtpController@send` | student, throttle:otp-send | `SendOtpRequest`: channel ∈ `config('auth.otp.channels')` (production MVP: chỉ `email`) | 202 `{ resend_available_at }` (ISO 8601 có offset). Mã chỉ gửi tới email/SĐT **hiện tại** của tài khoản, chưa xác thực; đã xác thực → 422 field `channel` |
 | POST | /auth/otp/verify | `Auth\OtpController@verify` | student, throttle:otp-verify | `VerifyOtpRequest`: code (6 số) | 200 user phẳng (`is_verified=true`). Tăng `attempts` nguyên tử trước khi so (data-model §3.1). Sai → 422 `OTP_INVALID` (field `code`); hết hạn/không có mã → 422 `OTP_EXPIRED` (field `code`, thông điệp hết hạn); hết 5 lượt của mã → 429 `TOO_MANY_ATTEMPTS` (phải gửi mã mới); vượt throttle → 429 + `Retry-After` |
 | PUT | /auth/contact | `Auth\ContactController@update` | student, throttle:password-change + throttle:contact | **`current_password` (BẮT BUỘC, đổi 2026-10-06 — H1 Bảo mật cụm 1)**, email/phone mới | 200 `{ resend_available_at: string\|null }`. Thiếu/sai `current_password` → 422 field `current_password` ("Mật khẩu hiện tại không đúng."), không đổi gì, ghi audit `account.contact_change_failed`; sai nhiều lần → 429 + `Retry-After` (chung hạn mức với `PUT /auth/password`). Bắt buộc cả với tài khoản chưa xác thực. Đổi email: gửi thư báo tới email CŨ nếu đã xác thực (email mới chỉ ghi dạng che) và huỷ mọi phiên khác (phiên hiện tại giữ, cookie phiên được xoay; phiên khác nhận 401 `SESSION_REVOKED`). Huỷ MỌI OTP cũ, reset `*_verified_at` tương ứng, gửi OTP mới (S9). Request: `email` và/hoặc `phone` (≥ 1; unique; chuẩn hoá như đăng ký). Không đổi gì → 200 `null`; chỉ đổi SĐT khi kênh `sms` tắt (production) → reset `phone_verified_at`, không gửi mã, `null`. Không áp cooldown 60s (sửa nhầm email sau đăng ký) nhưng vẫn áp trần 5/giờ, 10/ngày (vượt → 429 và không đổi gì); limiter `contact` 10/giờ/user |
@@ -189,6 +205,24 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 - Response register/login có `Cache-Control: no-store, private`.
 
 **Bổ sung từ T05 (2026-10-05):** `POST /auth/register` tạo tài khoản xong mới bind phiên; nếu bind lỗi (DB) thì vẫn trả **201** nhưng **không có phiên** (không Set-Cookie phiên đăng nhập). FE: sau 201, gọi `/auth/me`; nhận 401 thì chuyển sang `/dang-nhap` (không đăng ký lại vì sẽ trùng email/SĐT). `device_id` ở register/login chỉ nhận chuỗi (mảng → 422), chuỗi sai định dạng/quá dài bị bỏ qua.
+
+**Bổ sung từ T29 (ADR-006, PO 2026-10-08) — đăng ký không cần phụ huynh:**
+- `parent_phone`, `parent_email` đều **tuỳ chọn với mọi độ tuổi**. Bỏ quy tắc `required_without` theo tuổi.
+  - Chuỗi rỗng hoặc chỉ có khoảng trắng → coi như không gửi.
+  - Nếu có giá trị thì validate như cũ: SĐT `^0[35789]\d{8}$` sau chuẩn hoá, email `email:rfc,strict` + `EMAIL_SAFE_PATTERN`, ≤ 254.
+- Rule mới:
+  - `parent_email` phải khác `email` của học sinh: 422 field `parent_email`, "Email phụ huynh phải khác email của bạn.";
+  - `parent_phone` phải khác `phone`: 422 field `parent_phone`, "Số điện thoại phụ huynh phải khác số của bạn.".
+  So sánh sau chuẩn hoá. Rule này đóng một phần L3 ở `docs/security/backlog-v2.md`.
+- Liên hệ phụ huynh được lưu với **mọi** độ tuổi nếu học sinh nhập (trước đây chỉ lưu khi dưới 18).
+- Response (`user`) không đổi shape; `parent_consent_status` luôn là `"not_required"` (field giữ để tương thích v1, deprecated).
+- Thư gửi phụ huynh đi qua queue sau commit. Lỗi gửi, trần 5 thư/ngày/địa chỉ, hay cờ tắt **không** làm hỏng đăng ký và không đổi response.
+- Đoạn zod cho FE (body đăng ký, chỉ phần phụ huynh):
+  ```ts
+  // Bỏ hẳn key khi ô trống. Server tự chuẩn hoá SĐT (+84/84/dấu cách) nên FE chỉ kiểm sơ bộ.
+  parent_phone: z.string().trim().min(1).max(20).optional(),
+  parent_email: z.string().trim().toLowerCase().email().max(254).optional(),
+  ```
 
 **Bổ sung từ T27 (2026-10-05) — quên/đặt lại/đổi mật khẩu (US-015):**
 - `forgot`: captcha kiểm trước mọi rule (`CAPTCHA_FAILED` 422; thiếu Origin → 400 `ORIGIN_NOT_ALLOWED`). Luôn 202 `{ message: "Nếu thông tin tồn tại, chúng tôi đã gửi mã xác nhận đến email của bạn.", resend_available_at }`; `resend_available_at` luôn = now + 60s (không lộ gì). OTP `reset_password` gửi qua email SAU khi trả response (`defer`), chỉ cho học sinh `active`, chưa ẩn danh hoá, có email **đã xác thực** (đổi 2026-10-06, H1: email chưa xác thực, ví dụ vừa đổi qua `/auth/contact`, xử lý như không có kênh). Locked/GV/không tồn tại/email chưa xác thực → vẫn 202 y hệt, không gửi. Lỗi gửi/trần OTP của tài khoản bị nuốt (không lộ). Giới hạn: cooldown 1/phút, 5/giờ theo tài khoản (email và SĐT của cùng 1 người dùng chung hạn mức; tài khoản không tồn tại theo `LoginService::accountKey`), 30/giờ/IP → 429 `TOO_MANY_ATTEMPTS`-style + `Retry-After` (giống nhau cho tồn tại/không tồn tại). Học sinh đang đăng nhập hợp lệ gọi → 403 `FORBIDDEN`.
@@ -213,8 +247,8 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 | DELETE | /cart/items/{course} | `Cart\CartItemController@destroy` | | — | **T16:** `{course}` là id số; 200 + cart (idempotent, khóa đã xoá mềm vẫn gỡ được); tự gỡ mã nếu hết điều kiện kèm notice `COUPON_REMOVED` |
 | PUT | /cart/coupon | `Cart\CartCouponController@update` | throttle:coupon | `ApplyCouponRequest`: code (≤ 50) | **T16:** 200 + cart (idempotent; mã mới thay mã cũ; lỗi giữ nguyên mã cũ) · 422: `COUPON_INVALID` (không tồn tại/chưa bắt đầu/vô hiệu), `COUPON_EXPIRED` (hết hạn **hoặc** hết lượt — khác `message`), `COUPON_ALREADY_USED`, `COUPON_NOT_APPLICABLE` (giỏ rỗng/không khóa nào thuộc phạm vi/phạm vi rỗng/mã fixed đưa tổng về 0đ mà thiếu `max_uses`+`valid_until`; fixed lớn hơn phần áp dụng vẫn áp được, giảm = min) · 429 `TOO_MANY_ATTEMPTS` + `Retry-After` (>30 lần SAI/ngày/HS; lần đúng không tính) và throttle 10/phút. Mã chuẩn hoá `trim`+hoa. Không trừ/giữ lượt dùng ở giỏ |
 | DELETE | /cart/coupon | `Cart\CartCouponController@destroy` | | — | 200 + cart (idempotent) |
-| GET | /checkout/preview | `Checkout\CheckoutController@preview` | account.verified, parent.consent | — | **T18 chốt** (phẳng; **2026-10-06:** khi `FEATURE_PAID_CHECKOUT` tắt và `requires_payment=true` thì `can_checkout=false` + notice `PAYMENT_DISABLED`; đơn 0đ không ảnh hưởng): `{items[] (như giỏ, hợp lệ), removed_items[] (khóa không còn khả dụng, bị loại khỏi đơn), coupon, pricing:{subtotal,discount,total}, notices[], can_checkout, requires_payment}`. Không ghi DB/không khoá. Mã hết chỗ (đơn pending còn hạn giữ chỗ của HS khác tính vào `max_uses`) bị ẩn khỏi preview kèm notice `COUPON_EXHAUSTED`. Giỏ trống → 200 items rỗng, `can_checkout=false` (FE chuyển về giỏ — AC3). `parent.consent` chỉ có hiệu lực khi `FEATURE_PARENT_CONSENT_ENFORCED=true` (mặc định tắt ở v1: mọi HS qua); khi bật chỉ cho `parent_consent_status` ∈ {not_required, granted}, ngược lại 403 `PARENT_CONSENT_REQUIRED` |
-| POST | /checkout | `Checkout\CheckoutController@store` | account.verified, parent.consent, throttle:checkout | `CheckoutRequest`: expected_total (int ≥ 0, tổng HS đã thấy ở preview), gateway (tuỳ chọn, ∈ `enabled_gateways`, mặc định cổng đầu) | **T18 chốt:** **201** đơn mới / **200** dùng lại đơn pending cũ cùng nội dung (cùng khóa, số tiền từng dòng, mã, cổng; chưa quá `expires_at`): `{order_code, status: pending\|paid, total, reused, payment: {gateway, pay_url, expires_at} \| null, link_expired}`. `payment` null khi (a) đơn **0đ**: đã `paid` ngay (`payment_method=none`, `status_reason=zero_amount`, cấp enrollment + ghi `coupon_usages`, dọn giỏ), không gọi cổng; cờ `FEATURE_ZERO_TOTAL_CHECKOUT` tắt → 422 `ZERO_TOTAL_DISABLED`; (b) `link_expired=true`: link cũ hết hạn nhưng chưa được cổng xác nhận → HS gọi `POST /orders/{code}/pay` (T20, đối soát rồi tạo link mới). Lỗi: **503 `PAYMENT_DISABLED`** ("Thanh toán trực tuyến đang tạm khoá." — cờ `FEATURE_PAID_CHECKOUT` tắt và tổng > 0; không tạo đơn/attempt; kiểm sau CHECKOUT_CHANGED; đây là tắt chủ động, không phải sự cố: FE KHÔNG auto-retry, hiển thị message và dùng `paid_checkout_enabled` của `/config/public` để ẩn nút mua) · 422 `CART_EMPTY` (giỏ trống/không còn khóa hợp lệ) · 422 `VALIDATION_ERROR` (expected_total sai kiểu; `gateway` ngoài allowlist: nếu `enabled_gateways` khác rỗng thì kiểm ở request, nếu rỗng thì chỉ kiểm khi tổng > 0, sau 409 và 503 — **đơn 0đ không cần cổng nên vẫn 201 khi `PAYMENT_GATEWAYS` rỗng**, cụm 3 M1) · 422 `AMOUNT_BELOW_GATEWAY_MIN`/`AMOUNT_ABOVE_GATEWAY_MAX` (kiểm trước khi tạo đơn) · **409 `CHECKOUT_CHANGED`**: `errors = {reasons: [PRICE_CHANGED\|COUPON_REMOVED\|COUPON_EXHAUSTED\|ITEMS_CHANGED], preview: <shape của GET /checkout/preview>}` (mã hết hạn/hết lượt/hết chỗ đã bị gỡ khỏi giỏ và commit; HS xem `preview` rồi gọi lại với `expected_total` mới) · 409 `PAYMENT_IN_PROGRESS` (request khác đang tạo giao dịch, thử lại sau vài giây) · **502 `PAYMENT_GATEWAY_UNAVAILABLE`** `errors = {order_code}` (đơn vẫn `pending`, attempt `error`; gọi lại POST /checkout sẽ dùng lại đơn và tạo attempt mới). Đã có đơn pending khác nội dung hoặc quá hạn → đơn cũ `cancelled` (`status_reason=superseded`), tạo đơn mới. Quyết định giá dưới khoá `carts → orders → courses(SHARE) → coupons`; giá/số tiền chốt vào `order_items`; `coupon_hold_until` = now + min(`link_ttl`, `payments.coupon_hold_minutes`=30). `used_count`/`coupon_usages` chỉ ghi khi đơn `paid` |
+| GET | /checkout/preview | `Checkout\CheckoutController@preview` | account.verified (T29 gỡ `parent.consent`) | — | **T18 chốt** (phẳng; **2026-10-06:** khi `FEATURE_PAID_CHECKOUT` tắt và `requires_payment=true` thì `can_checkout=false` + notice `PAYMENT_DISABLED`; đơn 0đ không ảnh hưởng): `{items[] (như giỏ, hợp lệ), removed_items[] (khóa không còn khả dụng, bị loại khỏi đơn), coupon, pricing:{subtotal,discount,total}, notices[], can_checkout, requires_payment}`. Không ghi DB/không khoá. Mã hết chỗ (đơn pending còn hạn giữ chỗ của HS khác tính vào `max_uses`) bị ẩn khỏi preview kèm notice `COUPON_EXHAUSTED`. Giỏ trống → 200 items rỗng, `can_checkout=false` (FE chuyển về giỏ — AC3). ~~`parent.consent`~~ bị xoá ở T29 (ADR-006): không còn 403 `PARENT_CONSENT_REQUIRED` |
+| POST | /checkout | `Checkout\CheckoutController@store` | account.verified, throttle:checkout (T29 gỡ `parent.consent`) | `CheckoutRequest`: expected_total (int ≥ 0, tổng HS đã thấy ở preview), gateway (tuỳ chọn, ∈ `enabled_gateways`, mặc định cổng đầu) | **T18 chốt:** **201** đơn mới / **200** dùng lại đơn pending cũ cùng nội dung (cùng khóa, số tiền từng dòng, mã, cổng; chưa quá `expires_at`): `{order_code, status: pending\|paid, total, reused, payment: {gateway, pay_url, expires_at} \| null, link_expired}`. `payment` null khi (a) đơn **0đ**: đã `paid` ngay (`payment_method=none`, `status_reason=zero_amount`, cấp enrollment + ghi `coupon_usages`, dọn giỏ), không gọi cổng; cờ `FEATURE_ZERO_TOTAL_CHECKOUT` tắt → 422 `ZERO_TOTAL_DISABLED`; (b) `link_expired=true`: link cũ hết hạn nhưng chưa được cổng xác nhận → HS gọi `POST /orders/{code}/pay` (T20, đối soát rồi tạo link mới). Lỗi: **503 `PAYMENT_DISABLED`** ("Thanh toán trực tuyến đang tạm khoá." — cờ `FEATURE_PAID_CHECKOUT` tắt và tổng > 0; không tạo đơn/attempt; kiểm sau CHECKOUT_CHANGED; đây là tắt chủ động, không phải sự cố: FE KHÔNG auto-retry, hiển thị message và dùng `paid_checkout_enabled` của `/config/public` để ẩn nút mua) · 422 `CART_EMPTY` (giỏ trống/không còn khóa hợp lệ) · 422 `VALIDATION_ERROR` (expected_total sai kiểu; `gateway` ngoài allowlist: nếu `enabled_gateways` khác rỗng thì kiểm ở request, nếu rỗng thì chỉ kiểm khi tổng > 0, sau 409 và 503 — **đơn 0đ không cần cổng nên vẫn 201 khi `PAYMENT_GATEWAYS` rỗng**, cụm 3 M1) · 422 `AMOUNT_BELOW_GATEWAY_MIN`/`AMOUNT_ABOVE_GATEWAY_MAX` (kiểm trước khi tạo đơn) · **409 `CHECKOUT_CHANGED`**: `errors = {reasons: [PRICE_CHANGED\|COUPON_REMOVED\|COUPON_EXHAUSTED\|ITEMS_CHANGED], preview: <shape của GET /checkout/preview>}` (mã hết hạn/hết lượt/hết chỗ đã bị gỡ khỏi giỏ và commit; HS xem `preview` rồi gọi lại với `expected_total` mới) · 409 `PAYMENT_IN_PROGRESS` (request khác đang tạo giao dịch, thử lại sau vài giây) · **502 `PAYMENT_GATEWAY_UNAVAILABLE`** `errors = {order_code}` (đơn vẫn `pending`, attempt `error`; gọi lại POST /checkout sẽ dùng lại đơn và tạo attempt mới). Đã có đơn pending khác nội dung hoặc quá hạn → đơn cũ `cancelled` (`status_reason=superseded`), tạo đơn mới. Quyết định giá dưới khoá `carts → orders → courses(SHARE) → coupons`; giá/số tiền chốt vào `order_items`; `coupon_hold_until` = now + min(`link_ttl`, `payments.coupon_hold_minutes`=30). `used_count`/`coupon_usages` chỉ ghi khi đơn `paid` |
 | POST | /orders/{order:code}/pay | `Checkout\OrderPaymentController@store` | account.verified, throttle:pay · `OrderPolicy@pay` | — | {pay_url, expires_at}. Khoá `carts → orders` khi quyết định/tạo attempt; đối soát link cũ trước; kiểm lại sức chứa mã khi quá `coupon_hold_until` (ADR-001 §6, §7) |
 | POST | /orders/{order:code}/check-payment | `Checkout\OrderPaymentController@check` | throttle:check-payment · `OrderPolicy@view` | — | Đối soát ngay attempt mới nhất rồi trả trạng thái đơn |
 | GET | /orders | `Order\MyOrderController@index` | | page | Đơn của tôi |
@@ -226,7 +260,7 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 
 | Method | URI | Controller@action | Middleware / Policy | Request | Response |
 |---|---|---|---|---|---|
-| POST | /courses/{course}/free-enrollments | `Enrollment\FreeEnrollmentController@store` | role:hoc_sinh, account.verified, parent.consent · `EnrollmentPolicy@requestFree` | — | 201 `pending_approval` · 409 · **T14 chốt:** body rỗng (mọi field body bị bỏ qua). 201 phẳng `{id, course_id, status:"pending_approval", requested_at}`. Lỗi: 403 `ACCOUNT_NOT_VERIFIED` (middleware `account.verified` chỉ gắn ở route này, không chặn xem/học; chỉ cần 1 kênh email/SĐT đã xác thực), 404 `NOT_FOUND` (khóa không tồn tại/xoá/không `published`), 422 `COURSE_NOT_FREE` (price ≠ 0), 409 `ENROLLMENT_PENDING` (đang chờ duyệt; cả khi 2 request đồng thời — unique 1062 được dịch), 409 `ALREADY_OWNED` (đã `active`). Bị từ chối/thu hồi rồi thì xin lại được (tạo dòng mới). `parent.consent` chưa gắn (chưa có US-017) · |
+| POST | /courses/{course}/free-enrollments | `Enrollment\FreeEnrollmentController@store` | role:hoc_sinh, account.verified · `EnrollmentPolicy@requestFree` (không có `parent.consent` — ADR-006) | — | 201 `pending_approval` · 409 · **T14 chốt:** body rỗng (mọi field body bị bỏ qua). 201 phẳng `{id, course_id, status:"pending_approval", requested_at}`. Lỗi: 403 `ACCOUNT_NOT_VERIFIED` (middleware `account.verified` chỉ gắn ở route này, không chặn xem/học; chỉ cần 1 kênh email/SĐT đã xác thực), 404 `NOT_FOUND` (khóa không tồn tại/xoá/không `published`), 422 `COURSE_NOT_FREE` (price ≠ 0), 409 `ENROLLMENT_PENDING` (đang chờ duyệt; cả khi 2 request đồng thời — unique 1062 được dịch), 409 `ALREADY_OWNED` (đã `active`). Bị từ chối/thu hồi rồi thì xin lại được (tạo dòng mới). Không gắn `parent.consent` (đã bỏ, ADR-006) · |
 | GET | /me/courses | `Learn\MyCourseController@index` | role:hoc_sinh | page | Khóa có enrollment active + % tiến độ, sắp theo học gần nhất; kèm pending/rejected | **T23 chốt:** throttle `me-courses` 60/phút/người; `Cache-Control: no-store, private`. Query `page` (≥1), `per_page` (1..30, mặc định 12), sai → 422 `VALIDATION_ERROR`. Response 200 `{data:[{course:{id,title,slug,grade_level,thumbnail_url,is_published}, enrollment:{id,status:'active',activated_at,last_accessed_at}, progress:{percent 0..100 (làm tròn xuống), completed_lessons, total_lessons, is_completed (100% và total>0), has_content (total>0)}, resume_lesson_id|null, best_quiz_score|null (thang 10, max các lượt đã nộp của mọi quiz trong khóa)}], meta:{current_page,per_page,total,last_page}, pending:[{enrollment_id,status:'pending_approval',course,requested_at}], rejected:[{enrollment_id,status:'rejected',course,requested_at,rejection_reason}]}`. Sắp: `last_accessed_at` mới nhất trước, chưa học xếp sau (theo `activated_at` mới nhất). Chỉ enrollment `active` (revoked/rejected/pending không vào `data`); khóa đã gỡ xuất bản vẫn hiện (`is_published=false`); khóa xoá mềm ẩn. `pending`/`rejected` không phân trang (tối đa 20, mỗi khóa 1 dòng; khóa bị từ chối mà đã xin lại thì không còn ở `rejected`). Rỗng: `data=[]` (FE gợi ý link danh mục). |
 | GET | /me/courses/{course}/progress | `Learn\MyCourseController@progress` | `LessonAccessService::assertCanLearnCourse` (T13; không dùng Policy để có mã `COURSE_NOT_OWNED`) | — | Bài đã xong + quiz và điểm cao nhất | **T23 chốt:** 200 `{course:{id,title,slug,grade_level,thumbnail_url,is_published}, enrollment:{activated_at,last_accessed_at}, progress:{percent,completed_lessons,total_lessons,is_completed,has_content}, resume_lesson_id|null, chapters:[{id,title,position,completed_lessons,total_lessons,lessons:[{id,title,position,duration_seconds,status:'not_started'|'in_progress'|'completed',watched_seconds,completed_at|null}]}], quizzes:[{id,title,chapter_id|null,lesson_id|null,question_count,attempted,attempts_count (lượt đã nộp),best_score|null (thang 10)}]}`. Lỗi: 403 `COURSE_NOT_OWNED` (chưa có enrollment active, kể cả đang chờ duyệt/bị thu hồi), 404 (khóa không tồn tại/đã xoá; khóa chưa published mà không sở hữu), 429. Không có đáp án/giải thích/URL video. |
 | GET | /learn/courses/{course} | `Learn\LearnCourseController@show` | `LessonAccessService::assertCanLearnCourse` (T13; không dùng Policy để có mã `COURSE_NOT_OWNED`) | — | Outline + trạng thái bài + `resume_lesson_id` | **T13 chốt:** `{course:{id,title,slug}, course_percent, resume_lesson_id, chapters:[{id,title,position,quizzes[],lessons:[{id,title,position,is_preview,duration_seconds,video_ready,status:not_started\|in_progress\|completed,quizzes[]}]}]}`; quiz `{id,title,time_limit_minutes,question_count}`. Không có URL/ID video. Quyền: enrollment active, ngược lại 403 `COURSE_NOT_OWNED` (khóa không published và không sở hữu → 404). `resume_lesson_id` (AC6): bài gần nhất chưa xong; nếu bài gần nhất đã xong → bài chưa xong kế tiếp (vòng về đầu); xong hết → bài gần nhất; chưa học → bài đầu; khóa rỗng → null. Bài/chương xoá mềm bị loại. Route `whereNumber`.
@@ -372,16 +406,228 @@ CLI `staff:create|lock|unlock` dùng chung `StaffAccountService` (cùng audit, c
 - Webhook Bunny Stream → `POST /api/v1/webhooks/video/bunny?k=<BUNNY_WEBHOOK_TOKEN>` (US-021; sai/thiếu `k` → 404, không gọi mạng; asset đã `ready`/`failed` không gọi Bunny; webhook trùng cho cùng asset trong 10 giây chỉ xử lý một lần): body JSON `{VideoLibraryId, VideoGuid, Status}`, KHÔNG có chữ ký. App chỉ đọc `VideoGuid` (UUID hợp lệ) rồi gọi lại API Bunny có `AccessKey` để lấy trạng thái/thời lượng thật; payload sai định dạng hoặc `VideoGuid` lạ vẫn trả 204, không đổi dữ liệu; Bunny lỗi khi xác minh → 503 để Bunny gửi lại. Nếu `bunny` chưa bật/chưa đủ `BUNNY_*` → 404.
 - Webhook VideoLab → `POST /api/v1/webhooks/video/internal`: body `{VideoLibraryId, VideoGuid, Status}` + header `X-VideoLab-Signature = hex(HMAC_SHA256(body, VIDEOLAB_WEBHOOK_SECRET))`; sai/thiếu chữ ký → bị bỏ qua (vẫn 204). Nghiệp vụ luôn gọi lại `getVideo()`.
 
-### 2.8 Dữ liệu cá nhân & đồng ý (US-017, US-018 — **chờ BA viết story, chờ pháp chế**; hợp đồng dự kiến)
+### 2.8 Dữ liệu cá nhân, liên hệ phụ huynh & đồng ý (US-017, US-018 — T29, T34; ADR-006, thiết kế 2026-10-08)
 
-| Method | URI | Host | Ghi chú |
-|---|---|---|---|
-| GET | /parent-consents/{token} | api (public) | Token 1 lần (signed, 72h) gửi email phụ huynh; trả thông tin tối thiểu (tên HS che bớt, nội dung đồng ý) |
-| POST | /parent-consents/{token} | api (public, throttle) | Phụ huynh xác nhận/từ chối → `consents` (`granted_by=parent`), cập nhật `parent_consent_status` |
-| POST | /me/parent-consent/resend | api (student) | Gửi lại email phụ huynh (giới hạn 3/ngày) |
-| GET | /me/consents · POST /me/consents/{type}/revoke | api (student) | Xem/rút lại đồng ý |
-| GET | /me/data-export | api (student) | Xuất dữ liệu cá nhân của chính mình (JSON) |
-| POST | /me/account/delete | api (student) | Yêu cầu xoá tài khoản → xác nhận OTP → ẩn danh hoá (`anonymized_at`), giữ đơn hàng |
+**Thay đổi so với bản dự kiến (PO 2026-10-08):** không còn phụ huynh đồng ý. Các endpoint sau **bị bỏ, không làm**:
+- `GET /parent-consents/{token}` và `POST /parent-consents/{token}`;
+- `POST /me/parent-consent/resend`;
+- `POST /me/consents/{type}/revoke`.
+
+`GET /me/data-export` (tải file) đổi thành `POST /me/data-export`. `GET` giờ chỉ trả hạn mức. Nội dung chính sách là bản TẠM (`privacy.policy_version = 2026-10-tam`) và sẽ được thay khi có bản pháp chế.
+
+**Quy tắc chung:**
+- Mọi route `/me/*` dưới đây thuộc nhóm `student` (§1.3, `role:hoc_sinh`) và **không** cần `account.verified`, trừ hai route xoá tài khoản (cần email đã xác thực, xem từng dòng).
+- Response có `Cache-Control: no-store, private`. Thời gian theo ISO 8601 có offset `+07:00`.
+- Mọi request ghi dữ liệu gửi `X-CSRF-TOKEN` (§1.2), trừ `POST /parent-notices/unsubscribe`.
+- Lỗi theo envelope §1.7. `VALIDATION_ERROR` luôn có `errors.<field>[]`.
+
+#### 2.8.1 Kiểu dùng chung
+
+`ParentContact` (đã che, không bao giờ trả giá trị đầy đủ; giá trị đầy đủ chỉ có trong file xuất §2.8.4):
+```json
+{
+  "email_masked": "ng***@gmail.com",
+  "phone_masked": "*******789",
+  "has_email": true,
+  "has_phone": true,
+  "notices_enabled": true,
+  "notices_opted_out_at": null
+}
+```
+- `email_masked` dùng `ContactService::maskEmail`. `phone_masked` giữ 3 số cuối, phần còn lại là `*` (cùng quy tắc FW1 R10). Không có thì `null`.
+- `notices_enabled` = `has_email` && `notices_opted_out_at === null` && cờ `features.parent_notices` bật.
+- `notices_opted_out_at`: thời điểm phụ huynh bấm huỷ nhận thông báo (§2.8.2), hoặc `null`.
+
+```ts
+const ParentContact = z.object({
+  email_masked: z.string().nullable(), phone_masked: z.string().nullable(),
+  has_email: z.boolean(), has_phone: z.boolean(),
+  notices_enabled: z.boolean(), notices_opted_out_at: z.string().datetime({ offset: true }).nullable(),
+});
+```
+
+**`GET /auth/me` thêm 2 field** (T29/T34; thêm field = tương thích):
+- `parent_contact: ParentContact`;
+- `needs_policy_acceptance: boolean`. Giá trị `true` khi đồng ý `terms` HOẶC `privacy_policy` mới nhất (chưa thu hồi) của học sinh có `policy_version` ≠ phiên bản hiện hành. FE hiện banner "Điều khoản đã cập nhật", **không chặn** học hay mua.
+
+`parent_consent_status` trong `user` vẫn còn nhưng luôn là `"not_required"` (deprecated). FE không còn rẽ nhánh theo field này.
+
+`Consent`:
+```json
+{ "type": "terms", "policy_version": "2026-09", "granted_by": "self", "channel": "web_form",
+  "granted_at": "2026-09-30T10:00:00+07:00", "revoked_at": null, "is_current_version": false }
+```
+```ts
+const Consent = z.object({
+  type: z.enum(["terms", "privacy_policy", "marketing", "parent_consent"]),
+  policy_version: z.string(), granted_by: z.enum(["self", "parent"]),
+  channel: z.enum(["web_form", "email_otp", "email_link"]),
+  granted_at: z.string().datetime({ offset: true }), revoked_at: z.string().datetime({ offset: true }).nullable(),
+  is_current_version: z.boolean(),
+});
+```
+Không trả `ip`, `user_agent` hay `destination_masked` (các giá trị này chỉ có trong file xuất). Type `teacher_public_profile` không bao giờ xuất hiện trên host api (route chỉ cho học sinh).
+
+#### 2.8.2 Liên hệ phụ huynh & thông báo (T29)
+
+| Method | URI | Controller@action | Middleware | Request | Response / lỗi |
+|---|---|---|---|---|---|
+| GET | /me/parent-contact | `Privacy\ParentContactController@show` | student, throttle:privacy-read | — | 200 `ParentContact` |
+| PUT | /me/parent-contact | `Privacy\ParentContactController@update` | student, throttle:parent-contact, throttle:password-change (chung hạn mức với `PUT /auth/contact`, `PUT /auth/password`) | `UpdateParentContactRequest`, xem dưới | 200 `ParentContact` (sau cập nhật). Lỗi: 422 `VALIDATION_ERROR`; 429 `TOO_MANY_ATTEMPTS` + `Retry-After` |
+| POST | /parent-notices/unsubscribe | `Privacy\ParentNoticeUnsubscribeController` | **public**: `withoutMiddleware(EnsureFrontendRequestsAreStateful)` (không session/cookie/CSRF, như webhook), throttle:parent-notice-unsub (30/giờ/IP) | JSON `{ "token": string }` HOẶC (one-click RFC 8058) query `?t=<token>` + form body `List-Unsubscribe=One-Click` | 200 `{ "message": "Đã ghi nhận. Bạn sẽ không nhận thêm thông báo từ VitaminVui về học sinh này." }`. **Luôn y hệt** khi token sai, không khớp email hiện tại, tài khoản đã ẩn danh hay đã huỷ trước đó (không lộ gì). 422 `VALIDATION_ERROR` field `token` chỉ khi thiếu token, không phải chuỗi hoặc > 512 ký tự. 429 |
+
+**`PUT /me/parent-contact`, body:**
+```json
+{ "current_password": "matkhau-hien-tai", "parent_email": "me@example.com", "parent_phone": null }
+```
+- `current_password`: bắt buộc. Sai/thiếu → 422 field `current_password` ("Mật khẩu hiện tại không đúng."), không đổi gì. Dùng `CurrentPasswordGuard`, như `PUT /auth/contact`.
+- `parent_email`, `parent_phone`:
+  - **thiếu key** = giữ nguyên;
+  - `null` hoặc `""` = xoá;
+  - chuỗi = thay. Validate như đăng ký (khối "Bổ sung từ T29" ở §2.2), kể cả rule khác email/SĐT của chính học sinh.
+- Phải có ít nhất 1 trong 2 key. Không có → 422 field `parent_email` ("Vui lòng nhập thông tin cần cập nhật.").
+- Không có gì thay đổi thì vẫn 200, không ghi audit, không gửi thư.
+- Tác dụng phụ:
+  - `parent_email` đổi sang địa chỉ khác (khác giá trị cũ sau chuẩn hoá) → đặt `parent_notice_opt_out_at = NULL` và sau commit gửi thư `parent_contact_added` tới địa chỉ MỚI. Không báo địa chỉ cũ.
+  - Xoá `parent_email` → không gửi gì.
+  - Audit `parent_contact.update` với `changes = {email: "added"|"changed"|"removed"|"unchanged", phone: …}`, không có giá trị.
+- Tài khoản chưa xác thực vẫn sửa được.
+```ts
+const UpdateParentContactBody = z.object({
+  current_password: z.string().min(1).max(128),
+  parent_email: z.string().trim().toLowerCase().email().max(254).nullable().optional(),
+  parent_phone: z.string().trim().max(20).nullable().optional(),
+}).refine(b => "parent_email" in b || "parent_phone" in b);
+```
+
+**Thư thông báo phụ huynh (`App\Mail\ParentNoticeMail`; HTML + text thuần, mọi chuỗi động được làm sạch/escape, không markdown; `ShouldQueue` + `ShouldBeEncrypted`, tries 3, backoff 60/300/900 s):**
+
+| `kind` | Khi nào | Nội dung (không chứa email/SĐT/ngày sinh học sinh) |
+|---|---|---|
+| `account_created` | Học sinh có `parent_email` xác thực OTP lần đầu thành công (KHÔNG gửi lúc đăng ký; chống relay thư tới bên thứ ba) | Tên học sinh đã che (vd `Nguyễn Minh A**`: giữ mọi từ trừ từ cuối, từ cuối giữ ký tự đầu + `**`), ngày tạo, VitaminVui là gì, link chính sách (phiên bản hiện hành), email hỗ trợ, link huỷ nhận |
+| `parent_contact_added` | `PUT /me/parent-contact` đặt email phụ huynh mới | Như trên, câu mở đầu "…đã ghi địa chỉ này là liên hệ phụ huynh" |
+| `order_paid` | Đơn có `total_amount > 0` chuyển `paid` (`OrderFulfillmentService::markPaid`, T19 gọi, afterCommit). Đơn 0đ/miễn phí không gửi | Tên đã che, mã đơn, tên khóa, tổng tiền, thời điểm thanh toán, link huỷ nhận |
+
+- Điều kiện gửi:
+  - cờ `features.parent_notices` bật (`FEATURE_PARENT_NOTICES`, mặc định `true`);
+  - có `parent_email`;
+  - `parent_notice_opt_out_at` là NULL;
+  - tài khoản chưa ẩn danh;
+  - địa chỉ không nằm trong danh sách chặn `parent_notice_suppressions` (HMAC có khoá; thêm khi phụ huynh huỷ nhận, không bị gỡ khi học sinh đổi/xoá email);
+  - `parent_contact_added` chỉ gửi cho tài khoản đã xác thực;
+  - trần 5 thư/ngày/địa chỉ chưa đạt (§1.6).
+- Không thoả thì bỏ qua, không lỗi.
+- Gửi xong ghi audit `parent_notice.sent` (`changes = {kind}`, actor null, subject là user), không ghi địa chỉ.
+- Header thư:
+  - `List-Unsubscribe: <{APP_URL}/api/v1/parent-notices/unsubscribe?t={token}>`;
+  - `List-Unsubscribe-Post: List-Unsubscribe=One-Click`.
+  Thân thư có link `{FRONTEND_URL}/phu-huynh/huy-nhan-thong-bao?t={token}`. Trang FE có một nút "Ngừng nhận thông báo" và gọi POST. Không tự gọi khi mở trang, vì trình quét link của hộp thư sẽ mở trang.
+- Token:
+  - định dạng `{user_id}.{base64url(HMAC_SHA256(key, "parent-notice-unsub|{user_id}|" . sha256(lower(parent_email))))}`;
+  - `key = privacy.notice_token_key`, mặc định dẫn xuất từ `APP_KEY` bằng HMAC với nhãn riêng;
+  - không hết hạn. Chỉ có hiệu lực khi khớp `parent_email` HIỆN TẠI của user, nên đổi email phụ huynh là token cũ mất hiệu lực;
+  - so sánh bằng `hash_equals`.
+- Hợp lệ → đặt `parent_notice_opt_out_at = now()` (nếu đang NULL), thêm địa chỉ vào danh sách chặn và ghi audit `parent_notice.opt_out` (actor null).
+
+#### 2.8.3 Đồng ý của chính học sinh (T34)
+
+| Method | URI | Controller@action | Middleware | Request | Response / lỗi |
+|---|---|---|---|---|---|
+| GET | /me/consents | `Privacy\ConsentController@index` | student, throttle:privacy-read | — | 200 `{ "data": Consent[], "meta": { "current_policy_version": "2026-10-tam", "needs_acceptance": true } }`. Mọi dòng `consents` của học sinh, sắp `granted_at desc, id desc`, tối đa 100, không phân trang. `is_current_version` = (`policy_version` == hiện hành). `needs_acceptance` cùng nghĩa với `/auth/me.needs_policy_acceptance` |
+| POST | /me/consents/accept | `Privacy\ConsentController@accept` | student, throttle:consent-accept | `{ "policy_version": "2026-10-tam", "accept_terms": true, "accept_privacy": true }`: `policy_version` string ≤ 20 bắt buộc; `accept_terms`/`accept_privacy` rule `accepted` (thiếu → 422 field tương ứng, thông điệp như đăng ký) | 200, shape như `GET /me/consents`. Ghi 1 dòng `consents` cho mỗi loại (`terms`, `privacy_policy`) CHƯA có bản đồng ý còn hiệu lực ở phiên bản hiện hành (`granted_by=self`, `channel=web_form`, ip, ua). Đã đủ thì 200, không ghi gì. `policy_version` ≠ hiện hành → **409 `CONSENT_VERSION_CHANGED`** `context.current_version` (FE tải lại văn bản). Audit `privacy.policy_accepted` `{policy_version}`. 429 |
+
+Không có endpoint rút đồng ý `terms`/`privacy_policy`: học sinh muốn ngừng thì xoá tài khoản (§2.8.5). Chưa có đồng ý `marketing` nào được ghi (ngoài phạm vi US-017/018).
+
+#### 2.8.4 Xuất dữ liệu cá nhân (T34)
+
+| Method | URI | Controller@action | Middleware | Request | Response / lỗi |
+|---|---|---|---|---|---|
+| GET | /me/data-export | `Privacy\DataExportController@status` | student, throttle:privacy-read | — | 200 `{ "limit_per_day": 2, "used_today": 1, "remaining": 1, "resets_at": "2026-10-09T00:00:00+07:00", "requires_password": true }` |
+| POST | /me/data-export | `Privacy\DataExportController@store` | student, throttle:data-export, throttle:password-change (chung hạn mức như trên) | `{ "current_password": string }` | 200 file JSON (dưới). Lỗi: 422 `VALIDATION_ERROR` field `current_password`; **429 `DATA_EXPORT_LIMIT`** (`Retry-After`, `context: {limit: 2, resets_at}`); 429 `TOO_MANY_ATTEMPTS`; 500 có `request_id` (lần lỗi KHÔNG bị tính) |
+
+- **Hạn mức:** tối đa `privacy.data_export_daily_limit` (2) lần thành công mỗi ngày lịch Asia/Ho_Chi_Minh. Nguồn đếm là `audit_logs` (`actor_id` = học sinh, `action = privacy.data_export`, `created_at` ≥ 00:00 hôm nay giờ VN), dùng IX `(actor_id, created_at)` sẵn có.
+  1. Kiểm sơ bộ trước khi dựng file.
+  2. Dựng dữ liệu (chỉ đọc).
+  3. Transaction: khoá dòng `users` FOR UPDATE, đếm lại; vẫn dưới trần thì ghi audit `privacy.data_export` (`changes = {format_version: 1, bytes}`), ngược lại 429.
+  4. Trả file.
+  Hai request song song không vượt trần.
+- **Header response:**
+  - `Content-Type: application/json; charset=utf-8`;
+  - `Content-Disposition: attachment; filename="vitaminvui-du-lieu-ca-nhan-YYYYMMDD.json"` (ngày giờ VN);
+  - `Cache-Control: no-store, private`;
+  - `X-Content-Type-Options: nosniff`.
+  **CORS phải expose `Content-Disposition`** (`config/cors.php` `exposed_headers`).
+- FE dùng `authFetch` (POST) → `blob()` → tạo `<a download>`. Tên file lấy từ header, thiếu thì dùng tên mặc định như trên.
+- **Đồng bộ** (ADR-006 §5): ghi log `privacy` `duration_ms`, `bytes` (không PII). Quá 5 s thì log `warning` để xem lại phương án chạy nền.
+
+**Nội dung file (`format_version: 1`)**, `snake_case`. Thời gian ISO 8601 `+07:00`. Tiền là số nguyên VNĐ. Mảng rỗng là `[]`, không bỏ key:
+```json
+{
+  "format_version": 1,
+  "generated_at": "2026-10-08T15:00:00+07:00",
+  "policy_version": "2026-10-tam",
+  "account": {
+    "id": 123, "name": "Nguyễn Minh An", "email": "an@example.com", "phone": "0912345678",
+    "date_of_birth": "2012-05-01", "grade_level": 8, "role": "hoc_sinh", "status": "active",
+    "email_verified_at": "…", "phone_verified_at": null, "created_at": "…", "last_login_at": "…",
+    "referral_code_used": null
+  },
+  "parent_contact": { "email": "me@example.com", "phone": null, "notices_opted_out_at": null },
+  "consents": [
+    { "type": "terms", "policy_version": "2026-09", "granted_by": "self", "channel": "web_form",
+      "granted_at": "…", "revoked_at": null, "ip": "203.0.113.5", "user_agent": "Mozilla/5.0 …" }
+  ],
+  "enrollments": [
+    { "course": { "id": 55, "title": "Toán 8 nâng cao" }, "status": "active", "source": "free_approval",
+      "requested_at": "…", "activated_at": "…", "revoked_at": null, "rejection_reason": null }
+  ],
+  "orders": [
+    { "code": "VV2610ABCD", "status": "paid", "subtotal_amount": 500000, "discount_amount": 50000,
+      "total_amount": 450000, "coupon_code": "GIAM10", "payment_method": "momo",
+      "created_at": "…", "paid_at": "…", "cancelled_at": null, "refunded_at": null,
+      "items": [ { "course": { "id": 56, "title": "…" }, "price": 500000, "discount_amount": 50000, "final_amount": 450000 } ] }
+  ],
+  "learning_progress": [
+    { "course": { "id": 55, "title": "…" }, "lesson": { "id": 900, "title": "…" }, "status": "completed",
+      "watched_seconds": 610, "last_position_seconds": 0, "completed_at": "…", "last_accessed_at": "…" }
+  ],
+  "quiz_attempts": [
+    { "quiz": { "id": 12, "title": "…" }, "course": { "id": 55, "title": "…" }, "status": "submitted",
+      "started_at": "…", "submitted_at": "…", "auto_submitted": false,
+      "total_questions": 10, "correct_count": 8, "score": 8.0 }
+  ],
+  "cart": [ { "course": { "id": 57, "title": "…" }, "added_at": "…" } ],
+  "parent_notices": [ { "kind": "account_created", "sent_at": "…" } ]
+}
+```
+- Chỉ dữ liệu của chính người gọi. Mọi truy vấn lọc theo `user_id` của `$request->user()`; không nhận tham số id nào.
+- Khóa, bài và quiz đã xoá mềm vẫn hiện tiêu đề (`withTrashed`). Tên trường nguồn do dev đối chiếu với bảng thật; **tên khoá JSON ở trên là hợp đồng**.
+- **Không gồm:** mật khẩu/hash, `remember_token`, `current_session_id`, `current_device_id`, OTP, nhật ký `audit_logs` (trừ `parent_notices` lấy từ audit `parent_notice.sent` còn trong hạn lưu 24 tháng), log playback, đáp án từng câu quiz.
+- `enrollments.source`, `orders.status`, `payment_method`: giá trị như trong DB (enum hiện có).
+
+#### 2.8.5 Xoá tài khoản (ẩn danh hoá, T34)
+
+| Method | URI | Controller@action | Middleware | Request | Response / lỗi |
+|---|---|---|---|---|---|
+| POST | /me/account/delete/otp | `Privacy\AccountDeletionController@sendOtp` | student, throttle:otp-send | body rỗng (`{}`) | **202** `{ "resend_available_at": "…", "destination_masked": "an***@example.com" }`. Gửi OTP purpose `delete_account` qua **email đã xác thực** (mã cũ cùng purpose bị huỷ). Lỗi: **403 `ACCOUNT_NOT_VERIFIED`** ("Bạn cần xác thực email trước khi xoá tài khoản.") khi `email_verified_at` NULL; **409 `ACCOUNT_HAS_PENDING_PAYMENT`**; 429 `TOO_MANY_ATTEMPTS` + `Retry-After` (cooldown 60 s, 5/giờ, 10/ngày, chung mọi purpose); 503 `OTP_DELIVERY_FAILED`. Audit `privacy.account_delete_otp_sent` |
+| POST | /me/account/delete | `Privacy\AccountDeletionController@confirm` | student, throttle:otp-verify | `{ "code": "123456" }` (đúng 6 chữ số, chuỗi) | **200** `{ "message": "Tài khoản của bạn đã được xoá." }`. Phiên hiện tại bị huỷ trong cùng response (Set-Cookie phiên khách mới), mọi phiên khác nhận 401 `SESSION_REVOKED`. Lỗi: 422 `OTP_INVALID` / `OTP_EXPIRED` (field `code`; đổi email sau khi gửi mã → `OTP_EXPIRED`); 429 `TOO_MANY_ATTEMPTS` (hết 5 lượt của mã hoặc throttle); 403 `ACCOUNT_NOT_VERIFIED`; 409 `ACCOUNT_HAS_PENDING_PAYMENT` (kiểm lại trước khi tiêu mã) |
+
+```ts
+const DeleteOtpResponse = z.object({ resend_available_at: z.string().datetime({ offset: true }), destination_masked: z.string() });
+const DeleteConfirmBody = z.object({ code: z.string().regex(/^\d{6}$/) });
+const DeleteConfirmResponse = z.object({ message: z.string() });
+```
+- **FE sau 200:**
+  1. Xoá state đăng nhập.
+  2. Gọi lại `GET /csrf-token` trước request ghi tiếp theo.
+  3. Chuyển về `/` với thông báo "Tài khoản của bạn đã được xoá." (design US-018 §2.4).
+  Nút xác nhận phải khoá ngay khi bấm. Nếu request thứ hai vẫn lọt (2 tab) và nhận 401 hoặc 422 `OTP_INVALID` ngay sau một lần 200 thì FE coi như đã xoá.
+- **`ACCOUNT_HAS_PENDING_PAYMENT`:** còn đơn `pending` có `payment_attempts.status = pending` và `expires_at > now`. Khi `FEATURE_PAID_CHECKOUT` tắt thì không xảy ra. Đơn `pending` không còn link sống sẽ bị huỷ tự động ở pha B.
+- **Sau khi ẩn danh:**
+  - email/SĐT cũ **được dùng lại** để đăng ký tài khoản mới;
+  - đăng nhập bằng thông tin cũ → 422 thông điệp chung như sai mật khẩu;
+  - đơn hàng, chứng từ, tiến độ, lượt quiz vẫn giữ (gắn `user_id`, không còn PII).
+  Chi tiết các cột bị xoá/giữ ở tasks.md T34.
 
 ### 2.9 Hồ sơ giáo viên công khai (US-020, task T36 — thiết kế 2026-10-06, PO đã duyệt)
 
@@ -523,7 +769,7 @@ app/
     Controllers/Api/V1/{Auth,Catalog,Cart,Checkout,Order,Enrollment,Learn,Quiz,Webhook,Privacy}/
     Controllers/Admin/V1/{Auth,Subject,Course,Curriculum,Quiz,Enrollment,Coupon,Order,Export}/
     Middleware/         ConfigureHostContext (global), EnsureAdminOrigin, EnsureRole, EnsureAccountActive,
-                        EnsureAccountVerified, EnsureParentConsent, EnforceSingleStudentSession, StaffIdleTimeout,
+                        EnsureAccountVerified, EnforceSingleStudentSession, StaffIdleTimeout,   (EnsureParentConsent: xoá ở T29)
                         EnsureStaffMfaPassed, EnsurePasswordFresh, NoStoreForAuthenticated, AssignRequestId
     Requests/           (mỗi action ghi dữ liệu có 1 Form Request; GV/staff dùng rule khác nhau khi cần)
     Resources/          (Resource riêng cho lượt quiz đang làm — không is_correct/explanation)
@@ -537,22 +783,24 @@ app/
                         Otp/OtpSender, Otp/MailOtpSender, Otp/LogSmsOtpSender (chỉ local/testing, ghi '***'),
                         Captcha/CaptchaVerifier, Captcha/TurnstileVerifier, Captcha/FakeCaptchaVerifier (testing),
                         PhoneNumber
-    Privacy/            ConsentService, ParentConsentService, DataExportService, AccountAnonymizer (US-017/018)
+    Privacy/            ConsentService, ParentContactService, ParentNotifier (+ ParentNoticeToken), DataExportService,
+                        AccountAnonymizer, AccountDeletionFinalizer (US-017/018, ADR-006 — không còn ParentConsentService)
     Uploads/            ImageUploadService (kiểm MIME + mã hoá lại WebP + bỏ EXIF + tên UUID, disk `uploads`)
     Content/            HtmlSanitizer (Purifier profile `course_description`)
     Catalog/ Courses/ Enrollment/ Learning/ Quiz/ Cart/ Checkout/ Orders/ Payments/ Video/   (như trước)
     Orders/             ... OrderExportService (che PII, chống CSV injection), PiiMasker
   Support/              Like (escape LIKE), CsvCell (tiền tố `'` chống injection)
   Jobs/                 ExportOrdersJob, SyncVideoAssetStatusJob, ReconcilePaymentAttemptJob
-  Mail/                 OtpMail (ShouldBeEncrypted), OrderPaidMail (ShouldBeEncrypted), ParentConsentMail,
+  Mail/                 OtpMail (ShouldBeEncrypted), OrderPaidMail (ShouldBeEncrypted), ParentNoticeMail (ShouldBeEncrypted, T29),
                         StaffNewDeviceMail, EnrollmentDecisionMail
   Console/Commands/     staff:create|lock|unlock, orders:expire-pending, quizzes:auto-submit-expired,
                         payments:reconcile, payments:purge-webhook-events, counters:recount, exports:purge,
                         videos:check-stuck, otp:prune, users:purge-unverified, audit:purge
   VideoLab/             Module độc lập (ADR-002)
 routes/                 api.php (host api), admin.php (host admin-api), videolab.php, console.php
-config/                 features.php, payments.php, video.php, orders.php, privacy.php (policy_version,
-                        parent_consent_age=18, retention), auth.php (otp.channels, ttl, limits), captcha.php
+config/                 features.php (+ parent_notices; bỏ parent_consent_enforced ở T29), payments.php, video.php, orders.php,
+                        privacy.php (policy_version, parent_contact_suggest_age=18, data_export_daily_limit=2,
+                        parent_notice_daily_cap_per_address=5, notice_token_key, age_timezone), auth.php (otp.channels, ttl, limits), captcha.php
 ```
 
 **Trách nhiệm dễ đoán sai:** `LessonAccessService::canWatch` là nơi duy nhất chứa quy tắc xem video (không cache); `PricingCalculator` là hàm thuần dùng chung cho giỏ/checkout/đơn; `OrderFulfillmentService::markPaid` là đường duy nhất tạo enrollment từ đơn; `EnrollmentService` là nơi duy nhất đổi `enrollments.status`; `StudentSessionService` là nơi duy nhất ghi `current_session_id`; controller không gọi thẳng MoMo/VideoLab.

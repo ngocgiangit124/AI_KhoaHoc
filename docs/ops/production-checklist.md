@@ -84,7 +84,7 @@ Guard CHƯA kiểm (kiểm tay, hoặc thêm khi có yêu cầu): `TURNSTILE_SEC
 | `FEATURE_ZERO_TOTAL_CHECKOUT` | true | true | Đơn 0đ/khóa miễn phí không phụ thuộc cổng thanh toán |
 | `FEATURE_ENROLLMENT_DECISION_MAIL` | false | true khi SMTP đã chạy | Email báo duyệt/từ chối đăng ký (US-012). Tắt nếu SMTP chưa sẵn sàng |
 | `FEATURE_STAFF_MFA` | true | **true** | Không tắt ở production (guard chặn khi false ở mọi môi trường trừ local/testing) |
-| `FEATURE_PARENT_CONSENT_ENFORCED` | false | false | Chờ T29/T34 (pháp lý, V2) |
+| `FEATURE_PARENT_NOTICES` | true | **true** | Thư THÔNG BÁO cho phụ huynh (ADR-006, T29): khi tạo tài khoản, thêm/đổi email phụ huynh, đơn có tiền đã thanh toán. **Mail thật (SMTP + queue worker) phải chạy trước go-live.** `false` = công tắc tắt khẩn (không gửi thư, request gốc vẫn thành công). Đã bỏ `FEATURE_PARENT_CONSENT_ENFORCED` |
 | `FEATURE_EXTERNAL_VIDEO_PREVIEW_ONLY` | true | true | Link ngoài chỉ cho bài học thử |
 
 - [ ] Từng cờ đã đối chiếu bảng trên; `GET /api/v1/config/public` trả `paid_checkout_enabled=false`
@@ -271,7 +271,9 @@ Không chặn go-live MVP nếu PO chấp nhận rủi ro; ghi lại ở đây �
 
 - [ ] Thời hạn giữ `audit_logs` 24 tháng và log `playback` 90 ngày (có IP + UA): pháp chế xác nhận
 - [ ] Xoá `consents` khi `users:purge-unverified` xoá tài khoản chưa xác thực: pháp chế xác nhận
-- [ ] T29 (xác nhận phụ huynh, ngưỡng tuổi) và T34 (quyền dữ liệu cá nhân, chính sách quyền riêng tư công khai): V2; `FEATURE_PARENT_CONSENT_ENFORCED=false` cho tới khi có nội dung pháp lý
+- [ ] T29 (ADR-006): không còn luồng phụ huynh đồng ý; chỉ gửi thư thông báo (`FEATURE_PARENT_NOTICES`). Pháp chế xác nhận lại việc không cần phụ huynh đồng ý và nội dung thư. **Chỉ bật `FEATURE_PARENT_NOTICES=true` khi trang FW7 `/phu-huynh/huy-nhan-thong-bao` đã lên** (link huỷ nhận trong thư trỏ tới trang này; thiếu trang → 404, vi phạm one-click unsubscribe). T34 (quyền dữ liệu cá nhân, chính sách công khai): chưa làm
+- [ ] `PRIVACY_NOTICE_TOKEN_KEY` đặt riêng >= 32 byte (guard chặn khởi động nếu thiếu), lưu cùng secrets, **không bao giờ xoay** (xoay = danh sách huỷ nhận `parent_notice_suppressions` và token đã gửi mất hiệu lực); `PRIVACY_PARENT_NOTICE_DAILY_CAP` trong 1..20
+- [ ] Mẫu `.env` production không còn `FEATURE_PARENT_CONSENT_ENFORCED`/`PRIVACY_PARENT_CONSENT_AGE` (đã đổi thành `PRIVACY_PARENT_CONTACT_SUGGEST_AGE`)
 - [ ] `PRIVACY_POLICY_VERSION` khớp văn bản chính sách thực tế khi công bố
 - [ ] Điều khoản thanh toán, hoàn tiền và nội dung pháp lý MoMo (V2): cần trước khi bật `FEATURE_PAID_CHECKOUT`
 - [ ] Đăng ký thông báo xử lý dữ liệu cá nhân (nếu luật yêu cầu) và lưu trữ dữ liệu trong nước: pháp chế xác nhận

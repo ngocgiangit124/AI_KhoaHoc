@@ -231,6 +231,8 @@ const VV_API_GUEST_WRITE_ROUTE_NAMES = [
     'api.auth.password.forgot',
     'api.auth.password.reset',
     'api.webhooks.video',
+    // T29 (ADR-006): phụ huynh huỷ nhận thông báo bằng token HMAC trong thư, không có tài khoản.
+    'api.parent-notices.unsubscribe',
     // T19 sẽ thêm: webhook thanh toán.
 ];
 

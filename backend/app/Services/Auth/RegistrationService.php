@@ -8,7 +8,6 @@ use App\Enums\UserStatus;
 use App\Models\User;
 use App\Services\Auth\Otp\OtpService;
 use App\Services\Privacy\ConsentService;
-use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,9 +16,8 @@ use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
- * Đăng ký học sinh (US-001). Chỉ tạo tài khoản + bằng chứng đồng ý + (nếu cần)
- * đánh dấu chờ phụ huynh, rồi gửi OTP xác thực (T04). Bind phiên (T05) và email
- * phụ huynh (T29) KHÔNG nằm ở đây.
+ * Đăng ký học sinh (US-001). Tạo tài khoản + bằng chứng đồng ý, rồi gửi OTP xác thực (T04). Thư thông báo phụ huynh gửi sau
+ * khi học sinh xác thực OTP lần đầu (T29, `OtpService::verifyAccount`). Bind phiên (T05) nằm ở `LoginService`.
  */
 class RegistrationService
 {
@@ -30,26 +28,12 @@ class RegistrationService
     ) {}
 
     /**
-     * Tuổi tính theo ngày hiện tại ở múi giờ Việt Nam.
-     */
-    public static function isBelowConsentAge(string $dateOfBirth): bool
-    {
-        $timezone = (string) config('privacy.age_timezone');
-        $dob = CarbonImmutable::createFromFormat('Y-m-d', $dateOfBirth, $timezone);
-
-        return $dob !== null
-            && $dob->age < (int) config('privacy.parent_consent_age');
-    }
-
-    /**
      * @param  array<string, mixed>  $data  CHỈ `$request->validated()` (S17); email/phone đã chuẩn hoá.
      */
     public function register(array $data, Request $request): User
     {
-        $minor = self::isBelowConsentAge((string) $data['date_of_birth']);
-
         try {
-            $user = DB::transaction(function () use ($data, $request, $minor): User {
+            $user = DB::transaction(function () use ($data, $request): User {
                 $user = new User([
                     'name' => $data['name'],
                     'email' => $data['email'],
@@ -57,8 +41,9 @@ class RegistrationService
                     'password' => $data['password'],
                     'grade_level' => $data['grade_level'],
                     'date_of_birth' => $data['date_of_birth'],
-                    'parent_phone' => $minor ? ($data['parent_phone'] ?? null) : null,
-                    'parent_email' => $minor ? ($data['parent_email'] ?? null) : null,
+                    // ADR-006: liên hệ phụ huynh tuỳ chọn, lưu với mọi độ tuổi.
+                    'parent_phone' => $data['parent_phone'] ?? null,
+                    'parent_email' => $data['parent_email'] ?? null,
                     'referral_code_used' => config('features.referral_code')
                         ? ($data['referral_code'] ?? null)
                         : null,
@@ -70,9 +55,8 @@ class RegistrationService
                     'status' => UserStatus::Active,
                     'email_verified_at' => null,
                     'phone_verified_at' => null,
-                    'parent_consent_status' => $minor
-                        ? ParentConsentStatus::Pending
-                        : ParentConsentStatus::NotRequired,
+                    // ADR-006: không còn phụ huynh đồng ý; cột giữ cho tương thích API v1 và luôn là not_required.
+                    'parent_consent_status' => ParentConsentStatus::NotRequired,
                 ])->save();
 
                 $this->consents->recordSelfConsentAtRegistration($user, $request);

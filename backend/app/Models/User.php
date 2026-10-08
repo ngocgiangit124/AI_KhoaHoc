@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 
 /**
  * Larastan không tự suy ra được kiểu cast enum từ phương thức `casts()` (chỉ
@@ -29,6 +30,10 @@ use Illuminate\Notifications\Notifiable;
  * @property UserRole $role
  * @property UserStatus $status
  * @property ParentConsentStatus $parent_consent_status
+ * @property string|null $parent_email
+ * @property string|null $parent_phone
+ * @property Carbon|null $parent_notice_opt_out_at
+ * @property Carbon|null $anonymized_at
  */
 class User extends Authenticatable
 {
@@ -38,7 +43,7 @@ class User extends Authenticatable
     /**
      * S17 — mass assignment: CHỈ các trường này được gán qua create()/fill().
      * Cột trạng thái/quyền (role, status, *_verified_at, current_session_id,
-     * current_device_id, parent_consent_status, must_change_password,
+     * current_device_id, parent_consent_status, parent_notice_opt_out_at, must_change_password,
      * anonymized_at...) KHÔNG được liệt kê ở đây — chỉ đổi qua Service chuyên
      * trách (StudentSessionService, OtpService, staff:lock/unlock...).
      *
@@ -90,6 +95,7 @@ class User extends Authenticatable
             'password_changed_at' => 'datetime',
             'last_login_at' => 'datetime',
             'anonymized_at' => 'datetime',
+            'parent_notice_opt_out_at' => 'datetime',
         ];
     }
 

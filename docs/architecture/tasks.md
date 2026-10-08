@@ -246,7 +246,7 @@ Cài ở task sau:
 - [ ] **T03 Đăng ký/đăng nhập học sinh** (~2 ngày) **[SEC]** — phụ thuộc T02
   - `RegistrationService`, `LoginService`, `PhoneNumber`, bảng `consents` + `ConsentService` (đồng ý của chính HS; checkbox không tick sẵn — S7).
   - `CaptchaVerifier` (Turnstile/fake) ở đăng ký.
-  - Quy tắc tuổi theo `privacy.parent_consent_age`.
+  - Quy tắc tuổi theo `privacy.parent_consent_age`. _(Bỏ ở T29: ADR-006, liên hệ phụ huynh tuỳ chọn.)_
   - Chỉ dùng `validated()` (S17); bắt lỗi unique race → 422 đúng field.
   - Throttle 2 lớp (S10).
   - `ACCOUNT_LOCKED` chỉ khi mật khẩu đúng (S20).
@@ -355,7 +355,7 @@ Cài ở task sau:
   - _Từ review T16:_ khi tạo bảng `coupon_usages` thì bỏ nhánh `Schema::hasTable('coupon_usages')` trong `CouponEvaluator::alreadyUsedBy` (và thêm test tích hợp COUPON_ALREADY_USED với bảng thật).
   - Bảng: `orders` (+ `coupon_hold_until`), `order_items`, `order_status_logs`, `payment_attempts`.
   - **Migration thêm FK `enrollments.order_id` → `orders.id` (restrictOnDelete)** (T07 chỉ tạo cột + index vì `orders` chưa tồn tại); `down()` `dropForeign`; kèm test kiểm FK.
-  - `CheckoutService` (khoá `carts → orders → coupons`, sức chứa theo `coupon_hold_until`), middleware `parent.consent` (tạm cho qua nếu `parent_consent_status` ∈ {not_required, granted}; luồng đầy đủ ở T29).
+  - `CheckoutService` (khoá `carts → orders → coupons`, sức chứa theo `coupon_hold_until`), middleware `parent.consent` (tạm cho qua nếu `parent_consent_status` ∈ {not_required, granted}; luồng đầy đủ ở T29). _(T29 xoá middleware này: ADR-006.)_
   - Test: race 2 tab; N HS cùng mã cuối (DBA checklist §5.6).
   - **Khi có bảng `order_items`/`orders`: sửa `CourseService::delete` (T08)** kiểm thêm khóa còn nằm trong đơn đang chờ thanh toán (`pending`, chưa hết hạn) → 409 `COURSE_HAS_ENROLLMENTS` (hoặc mã riêng); xoá mềm khóa đang có đơn chờ làm IPN về sau không cấp được quyền học. Kèm test. (Review T08 R1.)
   - Khi thêm FK `enrollments.order_id`: sửa `tests/Feature/T14/ConcurrentEnrollmentTest.php` (worker `grant` dùng `order_id=42` không có FK; test nhóm `race`).
@@ -371,6 +371,9 @@ Cài ở task sau:
   - `needs_review` khi `used_count > max_uses`.
   - `OrderPaidMail` ShouldBeEncrypted.
   - Test: bảng mã, `amount` lạ, body 1 MB → 413, IPN trùng.
+  - _Từ T29/T34 (ADR-006):_
+    - `markPaid` đã gọi `ParentNotifier::orderPaid` (T29). Giữ lời gọi đó, thêm test IPN thật → đúng 1 thư phụ huynh.
+    - IPN về cho tài khoản đã ẩn danh (`users.anonymized_at` khác NULL): vẫn cấp quyền như bình thường (tiền đã thu). Không gửi `OrderPaidMail` vì không còn email; không gửi thư phụ huynh. Log `info` không PII.
   - _Từ review T18:_ (R3) test "tiền về link của đơn đã `superseded`" (`cancelled → paid` + `needs_review`); (R6) rà `PaymentInitResult::rawResponse` của T17 (đã lưu vào `payment_attempts.create_response`) không chứa chữ ký/PII, mask và đặt thời hạn lưu `create_response`.
 - [ ] **T20 Đối soát + huỷ 12h + `/pay` + đơn của tôi** (~2 ngày) **[SEC] [DBA]** — phụ thuộc T19
   - _**V2 (PO 2026-10-06):** chuyển V2, chờ kết nối MoMo; khi làm V2 bật `FEATURE_PAID_CHECKOUT=true`._
@@ -404,17 +407,188 @@ Cài ở task sau:
   - (T26 review M4) Queue `exports` cần connection Redis riêng với `retry_after` > timeout job và `--timeout` worker riêng; ngưỡng `ops.health.worker_max_age` riêng cho worker exports (tránh báo động giả "worker chết"/phát lại job).
 
 ## Giai đoạn 8 — Dữ liệu cá nhân, vận hành, phát hành
-- [ ] **T29 Đồng ý của phụ huynh** (US-017 — BA viết story; nội dung pháp lý chờ pháp chế) (~2 ngày) **[SEC]** — phụ thuộc T03, T04
-  - `ParentConsentService`, `ParentConsentMail` (link ký 72h, dùng 1 lần), endpoint `/parent-consents/{token}`.
-  - Middleware `parent.consent` đầy đủ; rút lại đồng ý; audit.
+- [ ] **T29 Liên hệ & thông báo phụ huynh** (US-017, **thiết kế lại 2026-10-08 theo ADR-006**: PO bỏ yêu cầu phụ huynh đồng ý; nội dung chính sách là bản TẠM) (~1,5 ngày) **[SEC] [DBA]** — phụ thuộc T03, T04 (đã xong). Hợp đồng: api-contract §2.2 (khối "Bổ sung từ T29"), §2.8.1–2.8.2, §1.6, §1.7.
+  - **KHÔNG làm** (đã bỏ): trang/endpoint `/parent-consents/{token}`, `POST /me/parent-consent/resend`, `ParentConsentService`, `ParentConsentMail`, link ký 72h, luồng rút đồng ý của phụ huynh.
+  - **T29.1 Migration [DBA]:**
+    - (a) `2026_10_20_100000_add_parent_notice_opt_out_at_to_users`: cột `users.parent_notice_opt_out_at` `timestamp NULL`. Thêm cột nullable nên là `ALGORITHM=INSTANT` trên 8.4. `down()` drop cột.
+    - (b) `2026_10_20_110000_backfill_parent_consent_status`: `UPDATE users SET parent_consent_status='not_required' WHERE parent_consent_status <> 'not_required' AND id BETWEEN ? AND ?`, chạy theo lô 1.000 id. `down()` không làm gì (ghi chú: không khôi phục được, dữ liệu cũ chưa từng được dùng để chặn vì cờ đã tắt).
+    - Khối lượng: production chưa có dữ liệu; local/dev vài trăm dòng.
+    - Không đụng `consents`: chưa từng có dòng `parent_consent`.
+  - **T29.2 Gỡ luồng đồng ý:**
+    - Xoá `app/Http/Middleware/EnsureParentConsent.php` và alias `parent.consent` ở `bootstrap/app.php`.
+    - Gỡ `parent.consent` khỏi nhóm route checkout ở `routes/api.php` (giữ `account.verified`).
+    - Xoá cờ `features.parent_consent_enforced` cùng `FEATURE_PARENT_CONSENT_ENFORCED` ở `backend/.env.example` và `infra/production/.env.production.example`.
+    - Xoá `OtpPurpose::ParentConsent` (chưa từng phát mã).
+    - Giữ `ConsentType::ParentConsent` và enum `ParentConsentStatus`, thêm docblock "deprecated — ADR-006, không ghi mới".
+    - Sửa test T18 đang thử nhánh `PARENT_CONSENT_REQUIRED`.
+    - Ghi chú đã đóng T18-3, T18-7 ở `docs/security/backlog-v2.md`.
+  - **T29.3 Đăng ký:**
+    - `RegisterRequest`: `parent_phone`/`parent_email` luôn `nullable` (bỏ `isMinor()`/`required_without`). Thêm rule khác email/SĐT của chính học sinh, so sau chuẩn hoá, thông điệp như api-contract.
+    - `RegistrationService`:
+      - lưu liên hệ phụ huynh với mọi độ tuổi;
+      - `parent_consent_status` luôn `NotRequired`;
+      - bỏ `isBelowConsentAge` nếu không còn nơi dùng;
+      - sau khi tạo tài khoản gọi `ParentNotifier::accountCreated($user)` trong `try/catch` + `report()`, không làm hỏng đăng ký.
+  - **T29.4 Cấu hình:**
+    - `config/privacy.php`:
+      - `policy_version` mặc định `2026-10-tam`;
+      - `parent_consent_age` → `parent_contact_suggest_age` (`PRIVACY_PARENT_CONTACT_SUGGEST_AGE`, 18);
+      - thêm `data_export_daily_limit` (2, T34 dùng), `parent_notice_daily_cap_per_address` (5), `notice_token_key` (mặc định dẫn xuất từ `APP_KEY` bằng HMAC với nhãn `parent-notice-unsub`).
+    - `config/features.php`: thêm `parent_notices` (`FEATURE_PARENT_NOTICES`, mặc định `true`).
+    - `PublicConfigController`: `parent_consent_age` lấy từ khoá mới, thêm `parent_contact_required: false`.
+    - `ProductionConfigGuard`: `privacy.policy_version` khác rỗng.
+  - **T29.5 Liên hệ phụ huynh:**
+    - `App\Services\Privacy\ParentContactService::update(User, array $validated)`:
+      - kiểm `CurrentPasswordGuard`;
+      - transaction: khoá dòng `users` FOR UPDATE, so khác biệt, ghi, đổi email thì reset `parent_notice_opt_out_at`;
+      - audit `parent_contact.update` chỉ ghi `added|changed|removed|unchanged`;
+      - `DB::afterCommit` → `ParentNotifier::contactAdded`.
+    - `UpdateParentContactRequest` (thiếu key = giữ, `null`/`""` = xoá) và `ParentContactResource` (che email/SĐT, `notices_enabled`).
+    - `Privacy\ParentContactController@show|update`. `MeController` thêm `parent_contact`.
+  - **T29.6 Thông báo:**
+    - `ParentNotifier::accountCreated|contactAdded|orderPaid(Order)`. Điều kiện và trần theo api-contract §2.8.2. Trần 5 thư/ngày/địa chỉ bằng `RateLimiter` với khoá `parent-notice:`.sha256(email). Gửi bằng `Mail::to()->queue()` sau commit. Audit `parent_notice.sent {kind}`.
+    - `ParentNoticeToken::make|verify`: HMAC + `hash_equals`; chỉ hợp lệ khi khớp `parent_email` hiện tại.
+    - `ParentNoticeMail`:
+      - `ShouldQueue`, `ShouldBeEncrypted`, tries 3, backoff 60/300/900;
+      - Markdown tiếng Việt;
+      - header `List-Unsubscribe` + `List-Unsubscribe-Post` qua `headers()`;
+      - tên học sinh che theo quy tắc trong api-contract.
+    - **Móc cho T19:** `OrderFulfillmentService::markPaid` gọi `ParentNotifier::orderPaid($order)` trong `DB::afterCommit` khi đơn vừa chuyển `paid` và `total_amount > 0`. Làm ngay ở T29 và test bằng `markPaid(..., 'ipn')` trên đơn giả. Khi cờ thanh toán tắt thì không phát sinh ở môi trường thật.
+  - **T29.7 Huỷ nhận thông báo:**
+    - `Privacy\ParentNoticeUnsubscribeController`: route công khai `POST /parent-notices/unsubscribe`, `withoutMiddleware(EnsureFrontendRequestsAreStateful)`. Nhận `token` (JSON) hoặc `?t=` + form one-click. Luôn trả cùng body.
+    - Đặt opt-out, audit `parent_notice.opt_out`.
+  - **T29.8 Limiter:** `privacy-read`, `parent-contact`, `parent-notice-unsub` ở `AppServiceProvider` (§1.6). Thêm route vào test kiến trúc `RouteMiddlewareGroupsTest`: unsubscribe là ngoại lệ công khai, như webhook.
+  - **Test (Pest, `tests/Feature/T29`):**
+    - (a) học sinh 13 tuổi đăng ký không có liên hệ phụ huynh → 201, `parent_consent_status = not_required`;
+    - (b) có `parent_email` → đúng 1 `ParentNoticeMail` (`kind = account_created`) tới đúng địa chỉ. Mail là `ShouldBeEncrypted`. Nội dung render không chứa email, SĐT hay ngày sinh học sinh. Tên đã che;
+    - (c) `parent_email` = email học sinh → 422 field `parent_email`; `parent_phone` = SĐT (dạng `+84…`) → 422;
+    - (d) 20 tuổi nhập `parent_email` → được lưu (DB là ciphertext) và có thư;
+    - (e) học sinh có dữ liệu cũ `parent_consent_status = pending|revoked` (dựng bằng `forceFill`) gọi `GET /checkout/preview`, `POST /checkout` (đơn 0đ), `POST /courses/{id}/free-enrollments` → không còn 403 `PARENT_CONSENT_REQUIRED`. Test kiến trúc: không route nào mang alias `parent.consent`, class `EnsureParentConsent` không tồn tại;
+    - (f) migration backfill: chèn dòng `pending`/`granted`/`revoked`, gọi `up()` của migration → mọi dòng `not_required`, chạy lần 2 không lỗi;
+    - (g) `PUT /me/parent-contact`:
+      - sai mật khẩu → 422, không đổi gì;
+      - thiếu key → giữ; `null` → xoá;
+      - đổi email → opt-out về NULL và thư `parent_contact_added` tới địa chỉ mới; cùng email (khác hoa thường) → không thư;
+      - `changes` của audit không chứa `@` hay chữ số SĐT;
+      - vượt 5/giờ → 429;
+    - (h) `GET /auth/me`, `GET /me/parent-contact` chỉ có bản che; chuỗi email phụ huynh đầy đủ không xuất hiện trong body;
+    - (i) unsubscribe:
+      - token đúng → `parent_notice_opt_out_at` được đặt, lần gửi sau bị bỏ;
+      - token sai / email phụ huynh đã đổi / tài khoản đã ẩn danh / gọi lần 2 → 200 cùng body, DB không đổi;
+      - one-click (form `List-Unsubscribe=One-Click` + `?t=`) → 200;
+      - response không có `Set-Cookie`;
+      - 31 lần/giờ/IP → 429;
+    - (j) 6 học sinh cùng một email phụ huynh đăng ký trong ngày → 5 thư;
+    - (k) cờ `parent_notices` tắt → không thư, đăng ký vẫn 201;
+    - (l) `markPaid` đơn `total_amount > 0` → 1 thư `order_paid`; gọi lại (IPN trùng) → không thêm thư; đơn 0đ → không thư;
+    - (m) `/config/public` có `parent_contact_required = false`, `parent_consent_age = 18`, `policy_version = 2026-10-tam`.
+  - **Xong khi:**
+    - (a)–(m) xanh, `composer ci` xanh (Pint, PHPStan, Pest);
+    - api-contract §2.8 khớp code (không field ngoài hợp đồng);
+    - `backend/README.md` và `docs/ops/production-checklist.md` có `FEATURE_PARENT_NOTICES` (mail thật phải bật trước go-live);
+    - DBA review 2 migration;
+    - Security review: thư gửi bên thứ ba, token huỷ nhận, mật khẩu ở PUT.
+  - Backlog **T29-1** (release sau / API v2, ~0,25 ngày, [DBA]): xoá cột `users.parent_consent_status` và enum `ParentConsentStatus`, field trong `UserResource` trả hằng `"not_required"` cho tới v2.
 - [ ] **T30 Job dọn dữ liệu & bộ đếm** (~1 ngày) **[DBA]** — phụ thuộc T19, T04, T25 (DBA #3)
   - _Dev 2026-10-06 (phần không liên quan thanh toán): xong `audit:purge` (giữ 24 tháng — PO uỷ quyền chọn, `OPS_AUDIT_RETENTION_MONTHS`; lô 1.000, `--dry-run`) và `users:purge-unverified` (HS chưa xác thực > 7 ngày, loại trừ có đơn/ghi danh/tiến độ/quiz/coupon_usages; xoá kèm `consents`). Lịch 03:40/03:50 ở OperationsServiceProvider. `otp:prune`, `queue:prune-failed`, `counters:recount` đã có lịch (T26). `payments:purge-webhook-events` để V2._
   - `payments:purge-webhook-events` (> 24 tháng, lô 5.000, nghỉ 200ms).
   - `audit:purge`, `otp:prune`, `users:purge-unverified` (> 7 ngày, chỉ tài khoản không có đơn/enrollment).
   - `queue:prune-failed --hours=168`; lịch trong `routes/console.php`.
   - Lên lịch `counters:recount` (T14, hiện chỉ chạy tay; thêm `coupons.used_count` ở T15).
-- [ ] **T34 Quyền dữ liệu cá nhân** (US-018 — BA viết story) (~2 ngày) **[SEC]** — phụ thuộc T29
-  - `/me/data-export`, xoá tài khoản bằng OTP → `AccountAnonymizer` (giữ đơn hàng), audit.
+- [ ] **T34 Quyền dữ liệu cá nhân** (US-018; **thiết kế 2026-10-08 theo ADR-006**) (~2,5 ngày) **[SEC] [DBA]** — phụ thuộc T29 (config `privacy`, cột `parent_notice_opt_out_at`, `ParentContactResource`), T04, T36 (`TeacherProfileService::erase()`). Hợp đồng: api-contract §2.8.1, 2.8.3–2.8.5, §1.6, §1.7. Không có migration mới.
+  - **T34.1 Đồng ý của chính học sinh:**
+    - `ConsentService::listFor`, `needsAcceptance`, `acceptCurrent`. `acceptCurrent` khoá dòng `users` FOR UPDATE rồi chỉ chèn loại chưa có ở phiên bản hiện hành, để double submit không tạo dòng trùng.
+    - `Privacy\ConsentController@index|accept`, `AcceptPolicyRequest`, `ConsentResource` (không có ip/ua).
+    - `MeController` thêm `needs_policy_acceptance`.
+    - Audit `privacy.policy_accepted`.
+  - **T34.2 Xuất dữ liệu:**
+    - `DataExportService::build(User): array` theo đúng schema §2.8.4. Mỗi mục là một truy vấn lọc `user_id`, eager load tiêu đề `withTrashed`, không N+1. `lesson_progress`/`quiz_attempts` đọc bằng `lazyById`.
+    - `Privacy\DataExportController@status|store`:
+      - hạn mức 2 lần/ngày VN theo 4 bước ở §2.8.4 (kiểm sơ → dựng → khoá `users` + đếm + audit → trả);
+      - kiểm `CurrentPasswordGuard`;
+      - log kênh `privacy` (`duration_ms`, `bytes`).
+    - `config/cors.php` thêm `Content-Disposition` vào `exposed_headers`.
+  - **T34.3 Xoá tài khoản:**
+    - `OtpPurpose::DeleteAccount = 'delete_account'`. `OtpMail` có tiêu đề/câu riêng cho purpose này ("Mã xác nhận xoá tài khoản VitaminVui", kèm cảnh báo không chia sẻ).
+    - `App\Services\Privacy\AccountAnonymizer`:
+      - `assertDeletable(User)`: email đã xác thực, ngược lại 403 `ACCOUNT_NOT_VERIFIED`; không có đơn `pending` kèm attempt `pending` chưa hết hạn, ngược lại 409 `ACCOUNT_HAS_PENDING_PAYMENT` + `retry_after_at`.
+      - `sendOtp(User)`: `assertDeletable` → `OtpService::issue($user, DeleteAccount, 'email', $user->email)` → audit `privacy.account_delete_otp_sent`.
+      - `confirm(User, code)`: `assertDeletable` → `OtpService::consume($user, DeleteAccount, $code, destinationValid: email hiện tại == destination và đã xác thực, apply: anonymizeLocked)`.
+      - **`anonymizeLocked($locked)`** chạy TRONG transaction của `consume` (dòng `users` đã khoá X). Thứ tự khoá **users → teacher_profiles → consents → otp_codes**, khớp data-model §4 đoạn hồ sơ giáo viên:
+        1. `TeacherProfileService::erase($locked)` (transaction lồng thành savepoint; không có hồ sơ thì không làm gì);
+        2. ghi cột `users` theo bảng dưới;
+        3. `consents` của user: `revoked_at = now()` cho dòng chưa thu hồi; `ip`, `user_agent`, `destination_masked` = NULL cho mọi dòng;
+        4. xoá mọi `otp_codes` của user (cột `destination` chứa email);
+        5. audit `privacy.account_anonymized` (actor = chính học sinh, `changes` rỗng);
+        6. `DB::afterCommit` → dispatch `FinalizeAccountDeletionJob($userId)`.
+      - Sau khi `consume` trả về:
+        - `StudentSessionService::revoke($user, REASON_ACCOUNT_DELETED = 'account_deleted')`. Renderer ánh xạ tombstone `account_deleted` → 401 `SESSION_REVOKED`;
+        - `Auth::guard('web')->logout()`, `session()->invalidate()`, `regenerateToken()`.
+    - **Cột `users` khi ẩn danh:**
+
+      | Cột | Giá trị |
+      |---|---|
+      | `name` | `Tài khoản đã xoá` |
+      | `email`, `phone`, `date_of_birth`, `parent_email`, `parent_phone`, `parent_notice_opt_out_at`, `referral_code_used`, `bio`, `avatar_path`, `remember_token`, `current_device_id` | `NULL` |
+      | `password` | `Hash::make(Str::random(64))` |
+      | `anonymized_at` | `now()` |
+      | `current_session_id` | `logged_out` (qua `revoke`) |
+      | Giữ nguyên | `id`, `role`, `status`, `grade_level`, `email_verified_at`, `phone_verified_at`, `created_at`, `last_login_at` (không định danh khi đứng riêng; giữ `*_verified_at` để `users:purge-unverified` không chọn nhầm) |
+
+    - `EnsureAccountActive` thêm: `anonymized_at` khác NULL → 401 `SESSION_REVOKED` (phòng thủ thêm).
+    - `users:purge-unverified` thêm `whereNull('anonymized_at')`.
+  - **T34.4 Pha B: `AccountDeletionFinalizer` + `FinalizeAccountDeletionJob`:**
+    - Job: queue `default`, tries 5, backoff 10/60/300/900, `ShouldBeUnique` theo user. Idempotent: chạy lại không lỗi, không ghi audit trùng.
+    - Mỗi bước là một transaction riêng, đi đúng đoạn con của thứ tự khoá chuẩn:
+      - (1) **giỏ:** khoá `carts` của user → xoá `cart_items`, `coupon_id = NULL`;
+      - (2) **đơn `pending` không còn link sống:** `carts → orders` (FOR UPDATE theo PK) → kiểm lại → `OrderStateMachine::transition(Cancelled, 'account_deleted', 'system')`. Có link sống (race) thì bỏ qua, log `info`; job huỷ 12h (T20) sẽ dọn;
+      - (3) **yêu cầu học miễn phí `pending_approval`:** method mới `EnrollmentService::withdrawPending(Enrollment)`. Khoá `courses → enrollments`, chỉ khi còn `pending_approval`: `status = rejected`, `rejection_reason = 'Học sinh đã xoá tài khoản'`, **không gửi mail**, audit `enrollment.withdraw` (actor null).
+    - Enrollment `active` giữ nguyên.
+  - **T34.5 Rà nơi đọc `email`/`name` của học sinh:** danh sách duyệt đăng ký FA6 / `PiiMasker` và màn đơn admin phải chịu được `email = NULL`, hiển thị `Tài khoản đã xoá`. `EnrollmentService::notifyDecision` đã bỏ qua email NULL. Viết test cho danh sách duyệt.
+  - **T34.6 Route + limiter:** `consent-accept`, `data-export`. Thêm route vào `RouteMiddlewareGroupsTest`.
+  - **Test (Pest, `tests/Feature/T34`):**
+    - (a) `GET /me/consents` chỉ có dòng của mình, không có ip/ua. `needs_acceptance = true` khi phiên bản cũ. `accept` → 2 dòng mới, gọi lại không thêm. `policy_version` sai → 409 `CONSENT_VERSION_CHANGED` + `context.current_version`. 2 `accept` song song → không trùng (nhóm `race`);
+    - (b) file xuất:
+      - khớp snapshot tập khoá §2.8.4;
+      - học sinh A và B cùng khóa/đơn → file của A không chứa id/tên/email của B;
+      - có email phụ huynh đầy đủ;
+      - không có `password`, `current_session_id`, OTP;
+      - header `Content-Disposition`, `no-store`; preflight CORS expose `Content-Disposition`;
+    - (c) hạn mức:
+      - lần 1, 2 → 200; lần 3 → 429 `DATA_EXPORT_LIMIT` + `Retry-After` + `resets_at` = 00:00 hôm sau giờ VN;
+      - `travelTo` 00:00:01 giờ VN → 200;
+      - sai mật khẩu và lỗi dựng file (mock ném lỗi) không bị tính;
+      - đã dùng 1 lần, 4 tiến trình song song → đúng 1 thành công (nhóm `race`);
+    - (d) `GET /me/data-export` trả `used_today`/`remaining` đúng;
+    - (e) xoá, bước gửi mã:
+      - chưa xác thực → 403;
+      - có đơn pending + attempt pending còn hạn → 409 có `retry_after_at`;
+      - gửi mã purpose `delete_account` tới email; gửi lại trong 60 s → 429;
+    - (f) xoá, bước xác nhận:
+      - sai/hết hạn → 422 và **mọi cột** tài khoản giữ nguyên;
+      - đúng → cột `users` khớp bảng T34.3; `consents` đã thu hồi + ip/ua NULL; `otp_codes` của user = 0;
+      - đúng 1 audit `privacy.account_anonymized`, actor = user;
+      - `erase()` được gọi: test service với user có dòng `teacher_profiles` → dòng bị xoá;
+    - (g) sau khi xoá:
+      - phiên hiện tại `/auth/me` → 401; phiên thiết bị khác → 401 `SESSION_REVOKED`;
+      - đăng nhập bằng email/SĐT cũ → 422 thông điệp chung;
+      - đăng ký lại bằng cùng email + SĐT → 201;
+      - `forgot` với email cũ → 202, không gửi mã;
+    - (h) job:
+      - đơn pending không link → `cancelled` / `account_deleted`;
+      - `pending_approval` → `rejected`, không có mail; `active` giữ;
+      - giỏ rỗng;
+      - chạy job 2 lần → không lỗi, không thêm audit;
+    - (i) 2 request xác nhận song song cùng mã → ẩn danh đúng 1 lần, 1 audit (nhóm `race`);
+    - (j) đơn đã `paid` của tài khoản đã xoá vẫn nguyên (`order_items`, `order_status_logs`); danh sách duyệt đăng ký hiện `Tài khoản đã xoá`, không 500;
+    - (k) `users:purge-unverified` không đụng tài khoản đã ẩn danh.
+  - **Xong khi:**
+    - (a)–(k) xanh, `composer ci` xanh;
+    - DBA review:
+      - thứ tự khoá pha A/pha B;
+      - `EXPLAIN` các truy vấn xuất với 1 học sinh có 5.000 `lesson_progress` + 500 `quiz_attempts`; `POST /me/data-export` < 2 s trên Docker local;
+    - Security review [SEC]: IDOR file xuất, mật khẩu, OTP purpose mới, huỷ phiên;
+    - QA PASS.
 - [ ] **T33 Quản lý tài khoản staff** (US-016 — BA viết story) (~1,5 ngày) **[SEC]** — phụ thuộc T28
   - API admin: tạo/khoá/mở khoá/đặt lại mật khẩu staff (`manage-system` chỉ admin); xem audit log (chỉ đọc).
   - _Dev 2026-10-05: xong (không migration). `StaffAccountService` dùng chung với `staff:create|lock|unlock`; `StaffSessionRevoker` (phiên bản huỷ phiên trong cache, kiểm ở `staff.idle`); API `/admin/staff*` + `/admin/audit-logs` ở api-contract §2.5; 17 test ở tests/Feature/T33, chờ Reviewer._
@@ -442,13 +616,13 @@ Cài ở task sau:
 | Mã | Nội dung | Phụ thuộc API | Ước lượng |
 |---|---|---|---|
 | FE0 | Khởi tạo (mục trên) | T01 | 2 |
-| FW1 | Đăng ký (checkbox đồng ý, Turnstile, phụ huynh), đăng nhập, OTP, quên/đổi mật khẩu, overlay phiên<br>• **Ghi chú (gom sửa lỗi nhỏ):** lỗi OTP nay là 422 với `code` = `OTP_INVALID` (sai) / `OTP_EXPIRED` (hết hạn/không có mã) thay vì `VALIDATION_ERROR` gộp; `errors.code[]` vẫn còn nên FE cũ không vỡ — FE đổi sang phân biệt theo `code` envelope (hiện thông điệp/nút "Gửi lại mã" theo `OTP_EXPIRED`)<br>• **Ghi chú (Sửa lỗi nhỏ 2, 2026-10-06):** `POST /auth/password/reset` nay trả MỌI lỗi mã (sai, hết 5 lượt, không tồn tại) là 422 `OTP_EXPIRED` cùng thông điệp "hết hạn" (không còn `OTP_INVALID`/429 `TOO_MANY_ATTEMPTS` riêng ở reset; verify tài khoản/đổi liên hệ giữ nguyên) → FE màn đặt lại hiển thị thông điệp hết hạn + nút "Gửi lại mã" cho mọi lỗi mã<br>• **Ghi chú (Bảo mật cụm 1, 2026-10-06):** **BẮT BUỘC phát hành cùng backend Bảo mật cụm 1: `ChangeContactForm.tsx` hiện tại luôn nhận 422 vì chưa gửi `current_password`.** (a) form đổi liên hệ (`PUT /auth/contact`) PHẢI có ô "Mật khẩu hiện tại" gửi kèm `current_password` (thiếu/sai → 422 field `current_password`, 429 khi sai nhiều lần; cả với tài khoản chưa xác thực); sau khi đổi email cookie phiên được xoay nên gọi `/auth/me` lại; phiên ở thiết bị khác nhận 401 `SESSION_REVOKED`. (b) Mật khẩu đăng ký/đặt lại/đổi vẫn min 8 nhưng 422 field `password` nếu thuộc danh sách phổ biến (vd `12345678`, `password123`, `matkhau123`): hiển thị `errors.password[0]`. (c) `forgot` với email chưa xác thực vẫn 202 nhưng không có mã: màn xác nhận nên nói "nếu tài khoản có email đã xác thực" (giữ thông điệp server trả)<br>• Thiếu `Accept: application/json` giờ vẫn nhận envelope JSON; lấy `/csrf-token` với cookie phiên cũ không còn 401 → FE không cần "thử lại một lần" | T03–T05, T27 | 3 |
+| FW1 | Đăng ký (checkbox đồng ý, Turnstile, phụ huynh), đăng nhập, OTP, quên/đổi mật khẩu, overlay phiên<br>• **Ghi chú (gom sửa lỗi nhỏ):** lỗi OTP nay là 422 với `code` = `OTP_INVALID` (sai) / `OTP_EXPIRED` (hết hạn/không có mã) thay vì `VALIDATION_ERROR` gộp; `errors.code[]` vẫn còn nên FE cũ không vỡ — FE đổi sang phân biệt theo `code` envelope (hiện thông điệp/nút "Gửi lại mã" theo `OTP_EXPIRED`)<br>• **Ghi chú (Sửa lỗi nhỏ 2, 2026-10-06):** `POST /auth/password/reset` nay trả MỌI lỗi mã (sai, hết 5 lượt, không tồn tại) là 422 `OTP_EXPIRED` cùng thông điệp "hết hạn" (không còn `OTP_INVALID`/429 `TOO_MANY_ATTEMPTS` riêng ở reset; verify tài khoản/đổi liên hệ giữ nguyên) → FE màn đặt lại hiển thị thông điệp hết hạn + nút "Gửi lại mã" cho mọi lỗi mã<br>• **Ghi chú (Bảo mật cụm 1, 2026-10-06):** **BẮT BUỘC phát hành cùng backend Bảo mật cụm 1: `ChangeContactForm.tsx` hiện tại luôn nhận 422 vì chưa gửi `current_password`.** (a) form đổi liên hệ (`PUT /auth/contact`) PHẢI có ô "Mật khẩu hiện tại" gửi kèm `current_password` (thiếu/sai → 422 field `current_password`, 429 khi sai nhiều lần; cả với tài khoản chưa xác thực); sau khi đổi email cookie phiên được xoay nên gọi `/auth/me` lại; phiên ở thiết bị khác nhận 401 `SESSION_REVOKED`. (b) Mật khẩu đăng ký/đặt lại/đổi vẫn min 8 nhưng 422 field `password` nếu thuộc danh sách phổ biến (vd `12345678`, `password123`, `matkhau123`): hiển thị `errors.password[0]`. (c) `forgot` với email chưa xác thực vẫn 202 nhưng không có mã: màn xác nhận nên nói "nếu tài khoản có email đã xác thực" (giữ thông điệp server trả)<br>• Thiếu `Accept: application/json` giờ vẫn nhận envelope JSON; lấy `/csrf-token` với cookie phiên cũ không còn 401 → FE không cần "thử lại một lần"<br>• **Ghi chú (T29, ADR-006, PO 2026-10-08): liên hệ phụ huynh TUỲ CHỌN, phát hành cùng T29.** (a) `RegisterForm` (bản v2 và bản cũ): khối "Thông tin phụ huynh (không bắt buộc)". Mở sẵn khi tuổi < `parent_consent_age` của `/config/public` (chỉ để gợi ý), ngược lại thu gọn. Bỏ kiểm "≥ 1 trong 2" ở `schemas.ts` và `v2/auth/RegisterForm.tsx`; vẫn kiểm định dạng khi có nhập. Ô trống thì bỏ key khỏi payload. Hiện lỗi 422 mới ở `parent_email`/`parent_phone` ("…phải khác email/số của bạn"). Câu phụ: "Nếu nhập email phụ huynh, VitaminVui sẽ gửi thư thông báo cho phụ huynh. Phụ huynh không cần làm gì thêm." (b) `config.ts` zod thêm `parent_contact_required: z.boolean()` (luôn `false`). (c) `AccountBanner`, `AccountGateRoute` bỏ nhánh `parent_consent_status === "pending"`. Zod `parent_consent_status` giữ enum 4 giá trị nhưng không dùng để rẽ nhánh. (d) `auth/me` zod thêm `parent_contact` (`ParentContact`, api-contract §2.8.1) và `needs_policy_acceptance`. Banner chấp nhận lại chính sách thuộc FW7 | T03–T05, T27, T29 | 3 |
 | FW2 | Danh mục `/khoa-hoc`, `/lop-{grade}`, chi tiết `/khoa-hoc/{slug}`:<br>• **SSR gọi catalog qua đường nội bộ (T31, ADR-004 §2.8):** production `API_INTERNAL_URL=http://<IP_NOI_BO_NGINX>:8081` (Nginx ép Host = host api, sau Sửa lỗi nhỏ 4; Node không đặt được `Host`); MỌI request catalog gửi `X-Internal-Token` (= `INTERNAL_API_TOKEN`, chỉ ở server Next); `X-Client-IP` (IP khách thật) CHỈ gửi cho truy vấn có `q` (header nằm trong khoá Data Cache). Host công khai xoá 2 header này. `INTERNAL_API_REQUIRED=true` chỉ bật sau khi FE đã gửi<br>• **Bổ sung sau ADR-004 §2.8 (~0,5 ngày):** (1) sửa chú thích `env.server.ts`, `apps/web/.env.example`, README (IP trần dùng được ở production nhờ Nginx ép Host; không khuyến nghị `/etc/hosts` trỏ tên miền công khai); mục FW2 README thay câu "Cần Architect xác nhận" bằng tham chiếu §2.8; (2) API trả 429/5xx khi SSR: trang danh mục/chi tiết hiện thông báo "Hệ thống đang bận, vui lòng thử lại" (error boundary của segment), không lỗi 500 trần; test khẳng định response 429 KHÔNG bị lưu vào Data Cache (lần gọi sau khi hết hạn mức trả dữ liệu mới); (3) phân trang không dùng `links`/`meta.path` của API (URL nội bộ `http://api…`); (4) FW8/FW9 dùng cùng quy tắc header<br>• **render động + CSP nonce** (ADR-004 §2.7 — không ISR/PPR), dữ liệu qua `publicFetch` với `revalidate: 60`, `tags: ['catalog']`<br>• `generateMetadata` + JSON-LD có `nonce`<br>• `robots.txt` / `sitemap.xml` là route handler `revalidate = 3600`<br>• `viewer-state` gọi phía client bằng `authFetch`<br>• mô tả khóa qua DOMPurify (thêm allowlist ESLint cho đúng 1 component)<br>• **load test**: p95 TTFB ≤ 500 ms ở 50 req/s khi cache ấm, ≤ 1,2 s khi cache lạnh — ghi kết quả vào `frontend/README.md` | T10 | 3,5 |
 | FW3 | Giỏ hàng, checkout, `/checkout/ket-qua` (poll, "Kiểm tra lại", link hết hạn), đơn của tôi; kiểm host `pay_url` | T16–T20 | 3 |
 | FW4 | Học video (hls.js, tự lấy lại link khi 403, heartbeat, overlay), iframe link ngoài sandbox<br>• **Ghi chú (US-021/T37):** cùng một trình phát cho VideoLab và Bunny. Khi dùng Bunny, `NEXT_PUBLIC_VIDEO_HOSTS` thêm CDN hostname của Bunny (CSP `connect-src`/`media-src`). Thử thật với video Bunny staging (+0,25 ngày)<br>• **Review security T37 (S6):** gọi `GET /learn/lessons/{id}/playback` từ TRÌNH DUYỆT (Client Component, cookie Sanctum), KHÔNG từ SSR/Route Handler (IP ký token sẽ là IP server Next và học sinh bị 403); làm mới URL trước `expires_at` (bài dài hơn 15 phút), không chờ 403 mới xin lại | T13 (và T37 để thử Bunny thật) | 3 |
 | FW5 | Quiz (KaTeX `trust:false`, đồng hồ theo `server_now`, autosave) | T22 | 2,5 |
 | FW6 | Khóa học của tôi, tiến độ | T23 | 1,5 |
-| FW7 | Xác nhận phụ huynh (trang công khai), quyền dữ liệu cá nhân | T29, T34 | 1,5 |
+| FW7 | **Phạm vi mới (ADR-006, PO 2026-10-08): KHÔNG còn trang phụ huynh đồng ý/từ chối/rút lại.** Làm: (1) **Gỡ luồng cũ:** trang `/cho-phu-huynh` (cả bản `v2-preview`), loại `parent-pending`/`parent-revoked` của `AccountGate`, nhánh `PARENT_CONSENT_REQUIRED` trong `lib/catalog/cta.ts` + `CourseCtaProvider` + `RegisterFreeButton` (lỗi 403 lạ rơi về thông báo chung), mục US-017 ở `v2/muc-luc`, cùng test tương ứng. (2) **`/tai-khoan/quyen-du-lieu-ca-nhan`** (design US-018 §2.1, cập nhật): khối *Đồng ý* (`GET /me/consents`, mỗi loại hiện phiên bản + ngày; dòng "Xác nhận của phụ huynh" bỏ). Khối *Thông tin phụ huynh*: hiện bản che từ `GET /me/parent-contact`, trạng thái "Đang nhận thông báo"/"Phụ huynh đã ngừng nhận"/"Chưa có email phụ huynh"; form sửa gồm `parent_email`, `parent_phone`, `current_password`, nút "Xoá" từng ô (gửi `null`) → `PUT /me/parent-contact`. Khối *Tải dữ liệu*: `GET /me/data-export` hiện "Còn N lượt hôm nay"; nút mở hộp thoại nhập mật khẩu → `POST /me/data-export` → blob → tải file; 429 `DATA_EXPORT_LIMIT` thì khoá nút và hiện "Bạn đã tải 2 lần hôm nay. Thử lại sau 00:00." (lấy `context.resets_at`); 422 `current_password` thì hiện lỗi dưới ô. Khối *Xoá tài khoản*: modal cảnh báo → `POST /me/account/delete/otp` (403 → hướng dẫn xác thực email; 409 `ACCOUNT_HAS_PENDING_PAYMENT` → "Bạn đang có đơn chờ thanh toán, thử lại sau {retry_after_at}") → màn OTP (`OtpInput`, đếm ngược theo `resend_available_at`, gửi lại) → `POST /me/account/delete` → xoá state, chuyển `/` kèm thông báo (§2.8.5). (3) **Banner chấp nhận lại chính sách** trong layout đã đăng nhập khi `/auth/me.needs_policy_acceptance = true`: 2 checkbox không tick sẵn → `POST /me/consents/accept` (409 `CONSENT_VERSION_CHANGED` → tải lại văn bản). Không chặn học hay mua. (4) **Trang công khai `/phu-huynh/huy-nhan-thong-bao?t=`**: không layout đăng nhập, không `authFetch`. Một nút "Ngừng nhận thông báo" → `POST /parent-notices/unsubscribe {token}` (không CSRF, `credentials: 'omit'`). Luôn hiện cùng một thông điệp thành công. KHÔNG tự POST khi tải trang. (5) **`/dieu-khoan`, `/chinh-sach-du-lieu`**: văn bản TẠM theo phiên bản (`apps/web/content/policies/<policy_version>/…`, nội dung do BA/PO cung cấp, gắn nhãn "Bản tạm — sẽ cập nhật"). Phiên bản hiển thị lấy `policy_version` từ `/config/public`; thiếu thư mục đúng phiên bản thì hiện bản mới nhất kèm cảnh báo trong log dev. `nextjs-designer` cập nhật design US-017/US-018 trước (khối phụ huynh, hộp thoại mật khẩu, trạng thái hết lượt, trang huỷ nhận) | T29, T34 | 2,5 |
 | FA1 | Layout quản trị, đăng nhập + MFA + đổi mật khẩu lần đầu, idle, menu theo vai trò, 403<br>• **Ghi chú (Bảo mật cụm 1, 2026-10-06):** mật khẩu mới của staff nay min **12** ký tự (không phải 8), 422 field `password` nếu thuộc danh sách phổ biến hoặc chứa phần trước `@` của email: form đổi mật khẩu (kể cả lần đầu) đặt `minLength` 12, hiện `errors.password[0]`; mật khẩu tạo/đặt lại do hệ thống sinh dài 20 ký tự nên không ảnh hưởng | T28 | 1,5 |
 | FA2 | Chuyên đề | T06 | 0,5 |
 | FA3 | Khóa học (multi-select GV chỉ với staff, upload ảnh) | T08 | 2 |
@@ -460,7 +634,7 @@ Cài ở task sau:
 | FA9 | Xuất file (tuỳ chọn kèm liên hệ chỉ admin + lý do), poll, tải | T25 | 0,5 |
 | FA10 | Quản lý tài khoản staff | T33 | 1,5 | _Ghi chú (Sửa lỗi nhỏ 3): `PATCH /admin/staff/{id}/role` trả thêm `released_course_ids`; nếu khác rỗng, hiển thị cảnh báo "N khóa không còn giáo viên phụ trách, hãy gán lại"._ |
 
-**Tổng frontend ≈ 35,5 ngày** (FE0 2 — đã xong; web 18; admin 15,5).
+**Tổng frontend ≈ 36,5 ngày** (FE0 2 — đã xong; web 19 (FW7 tăng 1,5 → 2,5 ngày theo ADR-006); admin 15,5).
 
 ## Sau MVP / bổ sung
 

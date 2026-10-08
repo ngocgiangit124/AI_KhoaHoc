@@ -232,7 +232,7 @@ Compose). Nhóm chính:
 - **Thanh toán:** `PAYMENT_GATEWAYS=fake` (local; **cấm** `fake`/endpoint
   sandbox ở production — `AppServiceProvider::guardProductionPayments()`).
 - **OTP/Captcha:** `AUTH_OTP_CHANNELS=email`, `CAPTCHA_DRIVER=fake`.
-- **Dữ liệu cá nhân:** `PRIVACY_POLICY_VERSION`, `PRIVACY_PARENT_CONSENT_AGE`.
+- **Dữ liệu cá nhân:** `PRIVACY_POLICY_VERSION` (bản tạm `2026-10-tam`), `PRIVACY_PARENT_CONTACT_SUGGEST_AGE`, `PRIVACY_PARENT_NOTICE_DAILY_CAP`, `PRIVACY_NOTICE_TOKEN_KEY` (tuỳ chọn). Cờ `FEATURE_PARENT_NOTICES` (mặc định `true`): thư thông báo phụ huynh (ADR-006), mail thật phải hoạt động trước go-live; tắt = công tắc khẩn.
 - **Feature flags:** `FEATURE_*` — đọc qua `config('features.*')`, `/api/v1/config/public`
   chỉ lộ ra **allowlist khoá tường minh** (không trả nguyên config).
 

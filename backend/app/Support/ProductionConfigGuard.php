@@ -104,6 +104,8 @@ class ProductionConfigGuard
         $this->guardVideoLabSecrets();
         $this->guardPaidCheckout();
         $this->guardStaffMfa();
+        $this->guardPolicyVersion();
+        $this->guardParentNotices();
     }
 
     /**
@@ -125,6 +127,40 @@ class ProductionConfigGuard
                 "Biến môi trường {$key} chứa chú thích cuối dòng (' #') hoặc khoảng trắng thừa: đưa chú thích lên dòng riêng (C4-M2)."
             );
         }
+    }
+
+    /**
+     * S2 (security T29): khoá HMAC của danh sách huỷ nhận + token huỷ nhận PHẢI là khoá riêng (≥ 32 byte), không dẫn xuất từ
+     * APP_KEY. KHÔNG ĐƯỢC XOAY sau khi chạy thật: xoay khoá làm danh sách `parent_notice_suppressions` và mọi token đã gửi mất
+     * hiệu lực, phụ huynh đã huỷ nhận sẽ lại nhận thư. Trần thư/địa chỉ phải trong 1..20.
+     */
+    private function guardParentNotices(): void
+    {
+        $key = config('privacy.notice_token_key');
+
+        throw_if(
+            ! is_string($key) || strlen($key) < 32,
+            RuntimeException::class,
+            'PRIVACY_NOTICE_TOKEN_KEY phải đặt riêng, tối thiểu 32 byte, không dẫn xuất từ APP_KEY và KHÔNG được xoay (T29).'
+        );
+
+        $cap = (int) config('privacy.parent_notice_daily_cap_per_address');
+
+        throw_if(
+            $cap < 1 || $cap > 20,
+            RuntimeException::class,
+            'PRIVACY_PARENT_NOTICE_DAILY_CAP phải trong khoảng 1..20 (T29).'
+        );
+    }
+
+    /** ADR-006 (T29): phiên bản chính sách gắn vào mọi bản ghi `consents` và `/config/public` — không được rỗng. */
+    private function guardPolicyVersion(): void
+    {
+        throw_if(
+            trim((string) config('privacy.policy_version')) === '',
+            RuntimeException::class,
+            'PRIVACY_POLICY_VERSION không được rỗng ở production/staging (T29).'
+        );
     }
 
     /** Cụm 1 L1 — MFA staff không được tắt ở production/staging (cờ chỉ để e2e local). */

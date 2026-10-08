@@ -8,7 +8,6 @@ use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureAccountVerified;
 use App\Http\Middleware\EnsureAdminOrigin;
 use App\Http\Middleware\EnsureGuestStudent;
-use App\Http\Middleware\EnsureParentConsent;
 use App\Http\Middleware\EnsurePasswordFresh;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureStaffMfaPassed;
@@ -139,7 +138,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'guest.student' => EnsureGuestStudent::class,
             'account.active' => EnsureAccountActive::class,
             'account.verified' => EnsureAccountVerified::class,
-            'parent.consent' => EnsureParentConsent::class,
             // Khung cho T28 (api-contract §1.3) — pass-through tới khi hiện thực. `student.single_session` đã hiện thực ở T05.
             'staff.idle' => StaffIdleTimeout::class,
             'staff.mfa_passed' => EnsureStaffMfaPassed::class,

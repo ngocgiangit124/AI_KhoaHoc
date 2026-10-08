@@ -8,10 +8,35 @@ use App\Models\User;
 use Illuminate\Http\Request;
 
 /**
- * Ghi bằng chứng đồng ý của CHÍNH học sinh (S7). Đồng ý của phụ huynh thuộc T29.
+ * Ghi bằng chứng đồng ý của CHÍNH học sinh (S7). ADR-006: không có đồng ý của phụ huynh.
  */
 class ConsentService
 {
+    /**
+     * `true` khi đồng ý `terms` HOẶC `privacy_policy` mới nhất (chưa thu hồi) của học sinh có `policy_version` khác phiên bản
+     * hiện hành (api-contract §2.8.1). FE chỉ hiện banner, không chặn học hay mua. Loại chưa có đồng ý nào thì không tính.
+     */
+    public function needsPolicyAcceptance(User $user): bool
+    {
+        $current = (string) config('privacy.policy_version');
+
+        $rows = Consent::query()
+            ->where('user_id', $user->getKey())
+            ->whereIn('type', [ConsentType::Terms->value, ConsentType::PrivacyPolicy->value])
+            ->whereNull('revoked_at')
+            ->orderByDesc('granted_at')
+            ->orderByDesc('id')
+            ->get(['id', 'type', 'policy_version']);
+
+        foreach ($rows->groupBy(fn (Consent $c) => $c->type->value) as $perType) {
+            if ((string) $perType->first()->policy_version !== $current) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Ghi đồng ý điều khoản + chính sách bảo mật tại thời điểm đăng ký.
      * Gọi trong cùng transaction tạo user.

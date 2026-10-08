@@ -149,8 +149,7 @@ class UserFactory extends Factory
     }
 
     /**
-     * Học sinh dưới ngưỡng tuổi cần đồng ý của phụ huynh (US-001, US-017;
-     * `privacy.parent_consent_age`, mặc định 18).
+     * Học sinh dưới 18 tuổi, có liên hệ phụ huynh (ADR-006: chỉ để gửi thông báo, không cần phụ huynh đồng ý).
      */
     public function minor(): static
     {
@@ -159,7 +158,7 @@ class UserFactory extends Factory
             'date_of_birth' => fake()->dateTimeBetween('-17 years', '-11 years')->format('Y-m-d'),
             'parent_phone' => '09'.fake()->numerify('########'),
             'parent_email' => fake()->safeEmail(),
-            'parent_consent_status' => ParentConsentStatus::Pending,
+            'parent_consent_status' => ParentConsentStatus::NotRequired,
         ]);
     }
 }

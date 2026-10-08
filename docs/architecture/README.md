@@ -192,7 +192,7 @@ Mỗi dòng gồm **mặc định đang áp dụng** và lý do.
 14. **Tên miền:**
     - staging `vitaminvui-staging.vn` (PO đã chốt dùng tên miền khác, cần chốt tên cụ thể);
     - tên miền tĩnh `vitaminvui-media.net` cho ảnh tải lên (cần mua).
-15. **Ngưỡng tuổi cần phụ huynh xác nhận:** < 18; trước khi phụ huynh xác nhận thì chặn checkout/đăng ký miễn phí — chọn mức bảo vệ cao nhất (cần pháp chế, S7).
+15. ~~**Ngưỡng tuổi cần phụ huynh xác nhận:** < 18; trước khi phụ huynh xác nhận thì chặn checkout/đăng ký miễn phí — chọn mức bảo vệ cao nhất (cần pháp chế, S7).~~ **PO 2026-10-08 (ADR-006):** không cần phụ huynh đồng ý, không chặn mua/học; liên hệ phụ huynh tuỳ chọn, chỉ gửi thông báo.
 16. **Phiên:** học sinh trượt 7 ngày; quản trị idle 120 phút, tối đa 12 giờ.
 17. **Số câu hỏi tối đa/quiz:** 200.
 18. **Email cảnh báo khi phiên HS bị thay thế:** không gửi, chỉ báo trên UI.

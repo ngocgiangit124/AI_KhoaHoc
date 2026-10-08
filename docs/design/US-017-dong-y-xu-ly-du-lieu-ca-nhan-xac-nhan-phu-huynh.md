@@ -1,5 +1,7 @@
 # Đặc tả UX — US-017: Đồng ý xử lý dữ liệu cá nhân & xác nhận của phụ huynh
 
+> **Hết hiệu lực từ 2026-10-08 (PO, ADR-006):** không còn trang phụ huynh xác nhận/từ chối/rút lại và không còn màn chặn "chờ phụ huynh". Phạm vi FE mới ở tasks.md FW1 và FW7: khối phụ huynh tuỳ chọn, trang `/phu-huynh/huy-nhan-thong-bao`. `nextjs-designer` cần cập nhật tài liệu này.
+
 Xem thêm quy ước chung tại `docs/design/design-system.md`. Phần "2 checkbox đồng ý ở đăng ký" và "màn chặn checkout khi đang chờ phụ huynh" đã đặc tả trong `docs/design/US-001-dang-ky-dang-nhap-hoc-sinh.md` mục 2.1, 2.5 — tài liệu này tập trung vào **trang công khai phụ huynh xác nhận** (không cần tài khoản) và các trạng thái liên quan.
 
 ⚠️ Nội dung pháp lý cụ thể (ngưỡng tuổi, căn cứ pháp luật, hình thức đồng ý hợp lệ) **chưa được pháp chế xác nhận** — thiết kế này chỉ mô tả cơ chế kỹ thuật theo mặc định an toàn (README §8 mục 15, US-017 mục "Câu hỏi mở").

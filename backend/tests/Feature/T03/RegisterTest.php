@@ -213,20 +213,19 @@ test('ma gioi thieu chua ky tu la -> 422', function () {
     vvRegister(['referral_code' => "x' OR 1=1 --"])->assertStatus(422)->assertJsonValidationErrors('referral_code');
 });
 
-describe('quy tac tuoi / phu huynh (AC10)', function () {
-    test('duoi 18 tuoi thieu ca SDT lan email phu huynh -> 422', function () {
+describe('lien he phu huynh tuy chon (AC10, ADR-006)', function () {
+    test('duoi 18 tuoi khong nhap lien he phu huynh -> 201, not_required', function () {
         vvRegister(['date_of_birth' => now('Asia/Ho_Chi_Minh')->subYears(15)->toDateString()])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['parent_phone', 'parent_email']);
+            ->assertCreated()->assertJson(['parent_consent_status' => 'not_required']);
 
-        expect(User::count())->toBe(0);
+        expect(User::count())->toBe(1);
     });
 
-    test('duoi 18 tuoi co 1 lien he phu huynh -> pending, luu ma hoa', function () {
+    test('duoi 18 tuoi co 1 lien he phu huynh -> not_required, luu ma hoa', function () {
         vvRegister([
             'date_of_birth' => now('Asia/Ho_Chi_Minh')->subYears(15)->toDateString(),
             'parent_email' => 'PhuHuynh@Example.com',
-        ])->assertCreated()->assertJson(['parent_consent_status' => 'pending'])
+        ])->assertCreated()->assertJson(['parent_consent_status' => 'not_required'])
             ->assertJsonMissingPath('parent_email');
 
         $user = User::firstOrFail();
@@ -236,28 +235,18 @@ describe('quy tac tuoi / phu huynh (AC10)', function () {
         expect($raw)->not->toContain('example.com');
     });
 
-    test('bien tuoi: 17 tuoi 364 ngay can phu huynh, du 18 tuoi hom nay thi khong', function () {
+    test('ranh gioi tuoi 18 khong con y nghia: ai cung dang ky khong can phu huynh', function () {
         $today = now('Asia/Ho_Chi_Minh')->startOfDay();
 
         vvRegister(['date_of_birth' => $today->copy()->subYears(18)->addDay()->toDateString()])
-            ->assertStatus(422)->assertJsonValidationErrors('parent_phone');
-
-        vvRegister(['date_of_birth' => $today->copy()->subYears(18)->toDateString()])
             ->assertCreated()->assertJson(['parent_consent_status' => 'not_required']);
     });
 
-    test('nguoi lon gui lien he phu huynh thi bi bo, khong luu', function () {
+    test('nguoi lon gui lien he phu huynh thi van duoc luu', function () {
         vvRegister(['parent_email' => 'ph@example.com', 'parent_phone' => '0911111111'])->assertCreated();
 
         $user = User::firstOrFail();
-        expect($user->parent_email)->toBeNull()->and($user->parent_phone)->toBeNull();
-    });
-
-    test('nguong tuoi doc tu config privacy.parent_consent_age', function () {
-        config(['privacy.parent_consent_age' => 16]);
-
-        vvRegister(['date_of_birth' => now('Asia/Ho_Chi_Minh')->subYears(17)->toDateString()])
-            ->assertCreated()->assertJson(['parent_consent_status' => 'not_required']);
+        expect($user->parent_email)->toBe('ph@example.com')->and($user->parent_phone)->toBe('0911111111');
     });
 
     test('ngay sinh o tuong lai hoac khong ton tai -> 422', function () {

@@ -18,6 +18,7 @@ use App\Services\Payments\Data\PaymentRequest;
 use App\Services\Payments\Exceptions\GatewayUnavailableException;
 use App\Services\Payments\Gateways\Fake\FakeGateway;
 use App\Services\Payments\PaymentGatewayManager;
+use App\Services\Privacy\ParentNotifier;
 use Illuminate\Support\Facades\DB;
 
 require_once __DIR__.'/../T04/helpers.php';
@@ -80,8 +81,7 @@ beforeEach(function () {
     $this->student = vvActAsStudent(User::factory()->student()->verified()->create());
 });
 
-test('xac thuc: khach 401, chua xac thuc OTP 403, phu huynh chua dong y 403, giao vien 403', function () {
-    config(['features.parent_consent_enforced' => true]);
+test('xac thuc: khach 401, chua xac thuc OTP 403, giao vien 403 (ADR-006: khong con chan phu huynh)', function () {
     auth()->logout();
     $this->app['auth']->forgetGuards();
     test()->flushSession();
@@ -92,9 +92,6 @@ test('xac thuc: khach 401, chua xac thuc OTP 403, phu huynh chua dong y 403, gia
     vvCoPost(0)->assertForbidden()->assertJsonPath('code', 'ACCOUNT_NOT_VERIFIED');
 
     vvActAsStudent(User::factory()->student()->verified()->create(['parent_consent_status' => ParentConsentStatus::Pending]));
-    vvCoPost(0)->assertForbidden()->assertJsonPath('code', 'PARENT_CONSENT_REQUIRED');
-
-    vvActAsStudent(User::factory()->student()->verified()->create(['parent_consent_status' => ParentConsentStatus::Granted]));
     vvCoPreview()->assertOk();
 
     vvActAsStudent(User::factory()->teacher()->create());
@@ -389,8 +386,8 @@ test('khoa da so huu khong con trong don (unavailable); khoa xoa mem -> removed'
     expect(Order::first()->items->pluck('course_id')->all())->toBe([$ok->id]);
 });
 
-test('R1: co parent_consent_enforced tat (mac dinh) -> HS pending/revoked van preview + checkout duoc', function () {
-    expect(config('features.parent_consent_enforced'))->toBeFalse();
+test('R1 (ADR-006): HS co du lieu cu parent_consent_status pending/revoked van preview + checkout duoc (khong con cong chan)', function () {
+    expect(config('features'))->not->toHaveKey('parent_consent_enforced');
 
     foreach ([ParentConsentStatus::Pending, ParentConsentStatus::Revoked] as $status) {
         $student = vvActAsStudent(User::factory()->student()->verified()->create(['parent_consent_status' => $status]));
@@ -406,7 +403,7 @@ test('R4: don 0d - markPaid nem loi sau khi tao don -> don o lai pending; checko
     vvCoCart($this->student, [vvCoCourse(100000)], $coupon);
 
     VvFlakyFulfillment::$fail = true;
-    $this->app->bind(OrderFulfillmentService::class, fn ($app) => new VvFlakyFulfillment($app->make(OrderStateMachine::class), $app->make(EnrollmentService::class)));
+    $this->app->bind(OrderFulfillmentService::class, fn ($app) => new VvFlakyFulfillment($app->make(OrderStateMachine::class), $app->make(EnrollmentService::class), $app->make(ParentNotifier::class)));
 
     $this->withoutExceptionHandling();
     expect(fn () => vvCoPost(0))->toThrow(RuntimeException::class);
@@ -538,13 +535,6 @@ test('QA: nhan vien (admin/quan ly) khong goi duoc checkout cua hoc sinh', funct
     vvCoPreview()->assertForbidden();
     vvCoPost(0)->assertForbidden();
     expect(Order::count())->toBe(0);
-});
-
-test('QA: cong bat co parent_consent_enforced -> pending 403 PARENT_CONSENT_REQUIRED o ca preview', function () {
-    config(['features.parent_consent_enforced' => true]);
-    vvActAsStudent(User::factory()->student()->verified()->create(['parent_consent_status' => ParentConsentStatus::Pending]));
-    vvCoPreview()->assertForbidden()->assertJsonPath('code', 'PARENT_CONSENT_REQUIRED');
-    vvCoPost(0)->assertForbidden()->assertJsonPath('code', 'PARENT_CONSENT_REQUIRED');
 });
 
 test('V2: cờ paid_checkout tắt -> POST tổng > 0 trả 503 PAYMENT_DISABLED, không tạo đơn/attempt; preview can_checkout=false + notice', function () {

@@ -24,6 +24,12 @@ test('GET /auth/me tra dung shape user cua contract, phang, khong lo field khac'
             'is_verified' => false,
             'parent_consent_status' => 'not_required',
             'cart_count' => 0,
+            // T29/T34 (ADR-006): chỉ bản che, không bao giờ giá trị phụ huynh đầy đủ.
+            'parent_contact' => [
+                'email_masked' => null, 'phone_masked' => null, 'has_email' => false, 'has_phone' => false,
+                'notices_enabled' => false, 'notices_opted_out_at' => null,
+            ],
+            'needs_policy_acceptance' => false,
         ])
         ->assertHeader('Cache-Control', 'no-store, private');
 });

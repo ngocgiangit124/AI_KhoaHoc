@@ -30,6 +30,10 @@
         <env name="BCRYPT_ROUNDS" value="4" force="true"/>
         <env name="BROADCAST_CONNECTION" value="null" force="true"/>
         <env name="CAPTCHA_DRIVER" value="fake" force="true"/>
+        <!-- T29: .env của máy dev có thể còn PRIVACY_POLICY_VERSION cũ; test phải thấy bản tạm hiện hành. -->
+        <env name="PRIVACY_POLICY_VERSION" value="2026-10-tam" force="true"/>
+        <!-- T29 S2: ProductionConfigGuard bắt buộc khoá riêng >= 32 byte; khoá CHỈ DÙNG CHO TEST. -->
+        <env name="PRIVACY_NOTICE_TOKEN_KEY" value="test-only-parent-notice-key-0123456789abcdef" force="true"/>
         <env name="CACHE_STORE" value="array" force="true"/>
         <!-- BUG-2 (QA T01/T02): mặc định RateLimiter::for()/`throttle` dùng
              config('cache.limiter') = 'redis-limiter' → Redis THẬT (REDIS_LIMITER_DB),
@@ -73,6 +77,8 @@
         <server name="BROADCAST_CONNECTION" value="null" force="true"/>
         <server name="CACHE_STORE" value="array" force="true"/>
         <server name="CACHE_LIMITER" value="array" force="true"/>
+        <server name="PRIVACY_POLICY_VERSION" value="2026-10-tam" force="true"/>
+        <server name="PRIVACY_NOTICE_TOKEN_KEY" value="test-only-parent-notice-key-0123456789abcdef" force="true"/>
         <server name="DB_CONNECTION" value="mysql" force="true"/>
         <server name="DB_HOST" value="mysql" force="true"/>
         <server name="DB_PORT" value="3306" force="true"/>

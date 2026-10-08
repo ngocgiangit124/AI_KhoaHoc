@@ -5,9 +5,11 @@ namespace App\Services\Auth\Otp;
 use App\Enums\OtpPurpose;
 use App\Exceptions\DomainException;
 use App\Exceptions\OtpValidationException;
+use App\Models\AuditLog;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use App\Services\Privacy\ParentNotifier;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +36,7 @@ class OtpService
     public function __construct(
         private readonly OtpSender $sender,
         private readonly AuditLogger $audit,
+        private readonly ParentNotifier $parentNotifier,
     ) {}
 
     /**
@@ -158,6 +161,14 @@ class OtpService
     {
         // Mã chỉ có giá trị cho đúng đích nó được gửi tới (S9). Kiểm 2 lần: trước khi tăng attempts
         // (loại sớm) và lại TRONG transaction dưới khoá hàng user (chống race với đổi liên hệ).
+        // S3: thư phụ huynh chỉ gửi ở lần xác thực ĐẦU TIÊN trong đời tài khoản. Đổi email rồi xác thực lại không gửi thêm
+        // (đã từng có dòng audit `account.verified`).
+        $firstVerification = ! $user->isVerified() && ! AuditLog::query()
+            ->where('action', 'account.verified')
+            ->where('subject_type', $user->getMorphClass())
+            ->where('subject_id', $user->getKey())
+            ->exists();
+
         $destinationValid = static function (OtpCode $otp, User $u): bool {
             $current = $otp->channel === 'sms' ? $u->phone : $u->email;
 
@@ -177,6 +188,12 @@ class OtpService
 
         $user->refresh();
         $this->audit->log('account.verified', $user, ['channel' => $otp->channel]);
+
+        // ADR-006 (R1 review): thư "tài khoản mới" cho phụ huynh chỉ gửi SAU lần xác thực OTP đầu tiên, để tài khoản
+        // chưa chứng minh được email không dùng hệ thống làm relay thư tới bên thứ ba. Notifier tự nuốt lỗi.
+        if ($firstVerification) {
+            $this->parentNotifier->accountCreated($user);
+        }
 
         return $user;
     }

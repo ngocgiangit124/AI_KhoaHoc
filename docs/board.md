@@ -4,6 +4,7 @@ Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) 
 
 ## Tình trạng 2026-10-08
 
+- **PO 2026-10-08 (T29/T34, thay đổi US-017):** KHÔNG cần phụ huynh đồng ý — học sinh mua/học không phải chờ phụ huynh; hệ thống chỉ GỬI THÔNG BÁO cho phụ huynh (nếu có email phụ huynh). Đăng ký KHÔNG bắt buộc nhập thông tin phụ huynh. Không có luồng rút lại đồng ý của phụ huynh. Học sinh tải dữ liệu cá nhân tối đa 2 lần/ngày. Làm T29/T34 với nội dung chính sách TẠM (thay khi có bản pháp chế). Giữ nút "Bật lại mã" (FA7). Mật khẩu khởi tạo staff: Admin tự gửi (FA10).
 - FW8 + FW9, FA6 (+91f244b), FA11-1 (57c56b7): đã commit; 91f244b, 57c56b7 chưa push.
 - FW5 (web làm quiz, katex 0.19.0) + SLN6 (nộp từ `expires_at` là tự nộp): review APPROVE, QA PASS (docs/qa/FW5.md); nợ Low: e2e hết giờ chưa assert nhãn "tự động nộp", chưa thử Safari/Firefox, CORS `max_age`.
 - SLN7 (PO 2026-10-08): API `PUT .../quizzes/{quiz}/questions/order` đổi thứ tự câu + xoá câu đánh lại position; review APPROVE, QA PASS (docs/qa/SLN7.md). FA5 cần thêm UI kéo thả sau khi commit.
@@ -12,6 +13,8 @@ Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) 
 - FA5 đã commit (f5a978c). FW6 (Khóa học của tôi + tiến độ): review APPROVE, QA PASS (docs/qa/FW6.md), đã sửa BUG-1/NIT-1/NIT-2.
 - FA7 (mã giảm giá): review APPROVE, QA PASS (docs/qa/FA7.md). Chờ PO: giữ/ẩn nút "Bật lại mã" (đang giữ). Backlog: API trả giá khóa rẻ nhất (FE đang quét ≤200 khóa).
 - FA10 (tài khoản staff): review APPROVE (không có điểm bảo mật Critical/High), QA PASS (docs/qa/FA10.md). Chờ PO: kênh gửi mật khẩu khởi tạo (đang: Admin tự gửi). Backlog: `released_course_ids` trả kèm tên khóa.
+- T29 (ADR-006: bỏ đồng ý phụ huynh, chỉ thông báo; thông tin phụ huynh tuỳ chọn; huỷ nhận + danh sách chặn HMAC): review APPROVE (sau BLOCKER R1 chèn link vào thư), DBA PASS, security PASS có điều kiện (S1–S3 đã sửa; S4/S6 backlog), QA PASS. Cần pháp chế xác nhận việc gửi thông tin học sinh tới địa chỉ phụ huynh chưa xác minh. Deploy: thêm cột → code → backfill + kiểm/bù (docs/review/T29.md mục DBA). Production bắt buộc `PRIVACY_NOTICE_TOKEN_KEY` riêng ≥32 byte, không xoay.
+- Video dev (2026-10-08, PO yêu cầu): `VIDEO_PROVIDER=bunny`, 2 asset đã `videos:migrate-provider` sang Bunny (nguồn VideoLab còn giữ); web `NEXT_PUBLIC_VIDEO_HOSTS` có `https://cdn.vitaminvui.asia`, admin upload `https://video.bunnycdn.com`. Production vẫn `internal` tới khi xong C1–C9.
 - Đã xong toàn bộ FW1–FW6, FW8, FW9, FA1–FA7, FA10, FA11. Còn: FW3/FA8/FA9 (thanh toán, đơn hàng, xuất file — phụ thuộc bật thanh toán), FW7 (xác nhận phụ huynh, quyền dữ liệu cá nhân).
 - SỰ CỐ 2026-10-08 ~09:48: QA SLN7 chạy `php artisan migrate:fresh --env=testing` trong container php — không có `.env.testing` nên xoá trắng DB dev `vitaminvui` (không có bản sao lưu). Đã chạy lại `db:seed` + seed-e2e catalog/home/learn/quiz và duyệt lại ghi danh fw4-hs-none (khóa 55). QUY TẮC: agent không bao giờ chạy `migrate:fresh|refresh|reset`, `db:wipe`, `db:seed` trong container php; DB test chỉ qua `pest -c phpunit.local-{e,g,h}.xml` (RefreshDatabase tự migrate).
 

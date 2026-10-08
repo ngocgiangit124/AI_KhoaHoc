@@ -26,7 +26,9 @@ class PublicConfigController extends Controller
             'grades' => range(6, 12),
             'captcha_site_key' => config('services.turnstile.site_key') ?: null,
             'policy_version' => config('privacy.policy_version'),
-            'parent_consent_age' => config('privacy.parent_consent_age'),
+            // ADR-006: deprecated, chỉ để FE GỢI Ý khối phụ huynh; không bao giờ bắt buộc.
+            'parent_consent_age' => (int) config('privacy.parent_contact_suggest_age'),
+            'parent_contact_required' => false,
         ])->header('Cache-Control', 'public, max-age=60');
     }
 }

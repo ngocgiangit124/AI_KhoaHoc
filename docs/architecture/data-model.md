@@ -98,9 +98,10 @@ Ký hiệu: **U** = unique, **IX** = index, **FK** = khoá ngoại (mặc địn
 | status | varchar(20) | N | `active` | | `active` / `locked` |
 | grade_level | tinyint unsigned | Y | | | 6–12; CHECK `grade_level BETWEEN 6 AND 12`; bắt buộc với học sinh (tầng app) |
 | date_of_birth | date | Y | | | Bắt buộc với học sinh (tầng app) |
-| parent_phone | text (cast `encrypted`) | Y | | | Bắt buộc ≥1 trong 2 nếu dưới ngưỡng tuổi lúc đăng ký. Ciphertext (S7) |
-| parent_email | text (cast `encrypted`) | Y | | | Ciphertext (S7). Chỉ trả ra ở `/auth/me` của chính HS và màn chi tiết HS cho Admin (có audit) |
-| parent_consent_status | varchar(20) | N | `not_required` | | `not_required` / `pending` / `granted` / `revoked` — US-017 (chờ BA viết story, chờ pháp chế) |
+| parent_phone | text (cast `encrypted`) | Y | | | **Tuỳ chọn với mọi độ tuổi** (ADR-006, T29). Ciphertext (S7) |
+| parent_email | text (cast `encrypted`) | Y | | | Tuỳ chọn. Ciphertext (S7). API chỉ trả bản che (`ParentContact`); bản đầy đủ chỉ có trong file xuất dữ liệu của chính HS (T34). Dùng để gửi thư thông báo cho phụ huynh (T29) |
+| parent_notice_opt_out_at | timestamp | Y | | | **Mới ở T29.** Phụ huynh bấm huỷ nhận thông báo. Đặt lại NULL khi `parent_email` đổi sang địa chỉ khác |
+| parent_consent_status | varchar(20) | N | `not_required` | | **Deprecated (ADR-006).** T29 backfill mọi dòng về `not_required` và từ đó luôn ghi `not_required`. Xoá cột ở T29-1 |
 | referral_code_used | varchar(50) | Y | | | **[Chờ PO]** chỉ lưu, không validate; bật/tắt bằng `features.referral_code` |
 | email_verified_at | datetime | Y | | | |
 | phone_verified_at | datetime | Y | | | |
@@ -111,7 +112,7 @@ Ký hiệu: **U** = unique, **IX** = index, **FK** = khoá ngoại (mặc địn
 | current_session_id | varchar(255) | Y | | | Chỉ dùng cho học sinh — ADR-003. Giá trị `logged_out` sau khi đăng xuất (không set NULL — S11) |
 | current_device_id | varchar(64) | Y | | | Chỉ dùng cho học sinh — ADR-003; chỉ nhận UUID hợp lệ |
 | last_login_at | datetime | Y | | | |
-| anonymized_at | datetime | Y | | | Khi xoá tài khoản theo yêu cầu (US-018): xoá/ghi đè PII, giữ `id` cho đơn hàng |
+| anonymized_at | datetime | Y | | | Khi xoá tài khoản theo yêu cầu (US-018): xoá/ghi đè PII, giữ `id` cho đơn hàng. Bảng cột bị xoá/giữ: tasks.md T34.3. Email/SĐT về NULL nên dùng lại được để đăng ký mới |
 | remember_token, created_at, updated_at | | | | | Không dùng remember-me cho mọi vai trò (ADR-003, ADR-004) |
 
 Index bổ sung: IX (email_verified_at, phone_verified_at, created_at) cho job dọn tài khoản chưa xác thực (T30).
@@ -121,7 +122,7 @@ Index bổ sung: IX (email_verified_at, phone_verified_at, created_at) cho job d
 |---|---|---|---|---|
 | id | bigint | | PK | |
 | user_id | bigint | N | FK users cascade; IX (user_id, purpose, created_at) | |
-| purpose | varchar(30) | N | | `verify_account` / `reset_password` (US-015) / `staff_login_mfa` (S15) / `parent_consent` (US-017) |
+| purpose | varchar(30) | N | | `verify_account` / `reset_password` (US-015) / `staff_login_mfa` (S15) / `delete_account` (US-018, T34). `parent_consent` bị bỏ (ADR-006, chưa từng phát mã) |
 | channel | varchar(10) | N | | `email` / `sms`. Production chỉ nhận kênh trong `config('auth.otp.channels')` (MVP: `email`) — S9 |
 | destination | varchar(254) | N | | Email/SĐT nhận mã. Mã gắn với đích: đổi email/SĐT → huỷ mã cũ, reset `*_verified_at` (S9) |
 | code_hash | varchar(255) | N | | Mã 6 số sinh bằng `random_int` (CSPRNG), lưu `Hash::make`, không bao giờ lưu/ghi log mã rõ |
@@ -133,7 +134,7 @@ Index bổ sung: IX (email_verified_at, phone_verified_at, created_at) cho job d
 
 Giới hạn (S9): verify 5 lần/phút và 20 lần/ngày theo `user_id`; gửi mã: cooldown 60s, ≤ 5/giờ, **≤ 10/ngày/user**; vượt trần ngày → khoá xác thực 24h + ghi `audit_logs`. Dọn `otp_codes` > 30 ngày (T30).
 
-Ghi chú `otp_codes.user_id`: luôn là user được xác thực; với `parent_consent` là HS, còn `destination` là email phụ huynh.
+Ghi chú `otp_codes.user_id`: luôn là user được xác thực. Ẩn danh hoá (T34) xoá mọi dòng `otp_codes` của user, vì `destination` chứa email.
 
 **sessions** — bảng mặc định Laravel 13 (chỉ dùng khi `SESSION_DRIVER=database`; mặc định Redis — ADR-004).
 **personal_access_tokens** — do `install:api` tạo, **MVP không phát hành token** (S24); khi làm app mobile phải có `abilities` + `expiration`.
@@ -162,7 +163,7 @@ Form đăng ký: checkbox đồng ý tách riêng, không tick sẵn; thiếu �
 | id | bigint | | PK | |
 | actor_id | bigint | Y | IX (actor_id, created_at) | Null = hệ thống |
 | actor_role | varchar(20) | Y | | |
-| action | varchar(60) | N | IX (action, created_at) | vd `course.publish`, `course.teachers.sync`, `course.price.change`, `coupon.create`, `coupon.deactivate`, `order.refund`, `order.view_pii`, `export.create`, `export.download`, `staff.login`, `staff.login_failed`, `staff.mfa_failed`, `user.lock`, `otp.daily_limit`, `consent.revoke` |
+| action | varchar(60) | N | IX (action, created_at) | vd `course.publish`, `course.teachers.sync`, `course.price.change`, `coupon.create`, `coupon.deactivate`, `order.refund`, `order.view_pii`, `export.create`, `export.download`, `staff.login`, `staff.login_failed`, `staff.mfa_failed`, `user.lock`, `otp.daily_limit`, `consent.revoke`; T29/T34 (ADR-006): `parent_contact.update`, `parent_notice.sent`, `parent_notice.opt_out`, `privacy.policy_accepted`, `privacy.data_export` (cũng là nguồn đếm hạn mức 2 lần/ngày), `privacy.account_delete_otp_sent`, `privacy.account_anonymized`, `enrollment.withdraw` |
 | subject_type | varchar(40) | Y | IX (subject_type, subject_id) | |
 | subject_id | bigint | Y | | |
 | changes | json | Y | | Trước/sau **đã loại PII và secret** (chỉ giữ tên trường + giá trị không nhạy cảm) |
@@ -530,4 +531,5 @@ Từ release thứ 2 trở đi áp dụng quy tắc chung: thêm cột nullable/
 | `failed_jobs` | 7 ngày | `queue:prune-failed --hours=168` hằng ngày |
 | Log ứng dụng (`laravel`, `payments`, `video`, `playback`) | 90 ngày | logrotate/`daily` channel `days=90` |
 | `orders`, `order_items`, `order_status_logs`, `payment_attempts`, `coupon_usages` | **Không xoá** (chứng từ kế toán, thường ≥ 10 năm) | Khi xoá tài khoản: ẩn danh hoá `users`, giữ đơn — cần kế toán xác nhận |
-| `consents` | Giữ suốt vòng đời tài khoản + thời hạn pháp chế chốt | |
+| `consents` | Giữ suốt vòng đời tài khoản + thời hạn pháp chế chốt | Khi ẩn danh (T34): giữ dòng (loại, phiên bản, thời điểm), đặt `revoked_at`, xoá `ip`/`user_agent`/`destination_masked` (ADR-006) |
+| Hạn mức xuất dữ liệu (T34) | Đếm từ `audit_logs` action `privacy.data_export` trong ngày | Không có bảng riêng; file xuất không lưu trên đĩa |

@@ -241,6 +241,19 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('teacher-profile', fn (Request $request) => Limit::perMinute(30)->by('teacher-profile:'.$this->identity($request)));
         RateLimiter::for('teacher-avatar', fn (Request $request) => Limit::perMinute(10)->by('teacher-avatar:'.$this->identity($request)));
 
+        // T29/T34 (ADR-006). `privacy-read`: đọc đồng ý/liên hệ phụ huynh/hạn mức xuất dữ liệu. `parent-contact`: sửa liên hệ
+        // phụ huynh 5/giờ, 10/ngày (route còn gắn `password-change`). `parent-notice-unsub`: trang huỷ nhận công khai, theo IP.
+        RateLimiter::for('privacy-read', fn (Request $request) => Limit::perMinute(60)->by('privacy-read:'.$this->identity($request)));
+        RateLimiter::for('parent-contact', function (Request $request) {
+            $identity = $this->identity($request);
+
+            return [
+                Limit::perHour(5)->by('parent-contact:'.$identity),
+                Limit::perDay(10)->by('parent-contact-day:'.$identity),
+            ];
+        });
+        RateLimiter::for('parent-notice-unsub', fn (Request $request) => Limit::perHour(30)->by('parent-notice-unsub:'.$request->ip()));
+
         RateLimiter::for('catalog', fn (Request $request) => CatalogThrottle::limits($request));
         RateLimiter::for('webhook', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
         RateLimiter::for('export', fn (Request $request) => Limit::perDay(10)->by($this->identity($request)));
