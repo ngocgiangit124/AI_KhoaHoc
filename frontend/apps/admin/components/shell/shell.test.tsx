@@ -95,7 +95,8 @@ describe("navGroups (menu v2)", () => {
     expect(courses).not.toHaveProperty("disabledNote");
     expect(items.find((i) => i.label === "Đơn hàng")).toMatchObject({ disabledNote: "V2", disabledReason: "Mở khi bật thanh toán trực tuyến" });
     expect(items.find((i) => i.label === "Mã giảm giá")).toMatchObject({ href: "/quan-tri/ma-giam-gia", current: false });
-    expect(items.find((i) => i.label === "Tài khoản staff")?.disabledNote).toBe("Sắp có");
+    expect(items.find((i) => i.label === "Tài khoản staff")).toMatchObject({ href: "/quan-tri/tai-khoan", current: false });
+    expect(items.find((i) => i.label === "Nhật ký thao tác")?.disabledNote).toBe("Sắp có");
   });
   it("giáo viên: chỉ nhóm Nội dung, ẩn hẳn mục không có quyền", () => {
     const groups = navGroups({ role: "giao_vien", permissions: null }, "/quan-tri");
