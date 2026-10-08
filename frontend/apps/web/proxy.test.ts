@@ -66,4 +66,11 @@ describe("proxy — cổng /v2", () => {
       expect(e?.missing).toBeUndefined();
     }
   });
+
+  it("trang huỷ nhận thông báo phụ huynh có Referrer-Policy no-referrer, route khác giữ strict-origin-when-cross-origin", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect((await run("/phu-huynh/huy-nhan-thong-bao?t=abc")).headers.get("Referrer-Policy")).toBe("no-referrer");
+    expect((await run("/phu-huynh/huy-nhan-thong-bao/?t=abc")).headers.get("Referrer-Policy")).toBe("no-referrer");
+    expect((await run("/khoa-hoc")).headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
+  });
 });

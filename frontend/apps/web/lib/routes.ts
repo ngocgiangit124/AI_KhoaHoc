@@ -29,6 +29,10 @@ export const routes = {
   /** Khóa học của tôi + tiến độ (FW6). `?trang=` phân trang danh sách. */
   myCourses: "/tai-khoan/khoa-hoc-cua-toi",
   myCourse: (courseId: number) => `/tai-khoan/khoa-hoc-cua-toi/${courseId}`,
+  /** Quyền dữ liệu cá nhân (FW7): đồng ý, thông tin phụ huynh, tải dữ liệu, xoá tài khoản. */
+  privacyData: "/tai-khoan/quyen-du-lieu-ca-nhan",
+  /** Công khai, link trong thư phụ huynh: `?t=<token>` (token bị gỡ khỏi URL ngay khi mở). */
+  parentUnsubscribe: "/phu-huynh/huy-nhan-thong-bao",
   /** Màn chặn khi vào thẳng (design-system-v2 §12.8); ở chi tiết khóa học cùng nội dung hiện trong hộp thoại. */
   needVerify: "/can-xac-thuc",
   terms: "/dieu-khoan",

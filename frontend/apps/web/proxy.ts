@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/env";
 import { isBlockedPreview } from "@/lib/previewGate";
-import { CAPTCHA_PATHS as RAW_CAPTCHA_PATHS } from "@/lib/routes";
+import { CAPTCHA_PATHS as RAW_CAPTCHA_PATHS, routes } from "@/lib/routes";
 
 /** Route có Turnstile — được thêm Cloudflare vào connect-src/frame-src (ADR-004 §2.6). */
 const CAPTCHA_PATHS = new Set(RAW_CAPTCHA_PATHS);
@@ -54,7 +54,11 @@ export function proxy(request: NextRequest) {
 
   response.headers.set("Content-Security-Policy", cspHeader);
   response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Trang huỷ nhận thông báo của phụ huynh có token trong URL: không gửi Referer (kể cả cùng origin).
+  response.headers.set(
+    "Referrer-Policy",
+    request.nextUrl.pathname.replace(/\/+$/, "") === routes.parentUnsubscribe ? "no-referrer" : "strict-origin-when-cross-origin",
+  );
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   if (!isDev) {
     response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");

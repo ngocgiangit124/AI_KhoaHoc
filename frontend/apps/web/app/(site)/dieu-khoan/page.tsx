@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
-import { IconFileText } from "@vitaminvui/ui/v2";
-import { InfoPlaceholder } from "@/components/shell/InfoPlaceholder";
+import { PolicyPage } from "@/components/policy/PolicyPage";
+import { TermsContent } from "@/components/policy/TermsContent";
+import { fetchPublicConfig } from "@/lib/catalog/api";
 
 export const metadata: Metadata = { title: "Điều khoản sử dụng — VitaminVui" };
 
 export const dynamic = "force-dynamic";
 
-/** `/dieu-khoan` thuộc V2 (pháp chế soạn nội dung). Giữ chỗ để ô đồng ý ở form đăng ký có đích. */
-export default function TermsPlaceholder() {
+/** Bản TẠM chờ pháp chế (ADR-006); phiên bản hiện hành lấy từ `/config/public`. */
+export default async function TermsPage() {
+  const config = await fetchPublicConfig();
   return (
-    <InfoPlaceholder
-      icon={<IconFileText size={32} />}
-      title="Điều khoản sử dụng"
-      description="Nội dung điều khoản đang được hoàn thiện cùng bộ phận pháp chế và sẽ đăng ở đây trước khi website chính thức hoạt động."
-    />
+    <PolicyPage title="Điều khoản sử dụng" version={config.policy_version}>
+      <TermsContent />
+    </PolicyPage>
   );
 }

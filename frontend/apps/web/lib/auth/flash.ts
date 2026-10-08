@@ -1,5 +1,5 @@
-/** Cờ MỘT LẦN cho trang chủ sau khi xác thực OTP thành công (sessionStorage, không chứa dữ liệu cá nhân). */
-export type AccountFlash = "verified";
+/** Cờ MỘT LẦN cho trang chủ sau khi xác thực OTP thành công (hoặc xoá tài khoản xong) (sessionStorage, không chứa dữ liệu cá nhân). */
+export type AccountFlash = "verified" | "account-deleted";
 
 const KEY = "vv:account-flash";
 
@@ -16,7 +16,7 @@ export function consumeAccountFlash(): AccountFlash | null {
   try {
     const value = sessionStorage.getItem(KEY);
     sessionStorage.removeItem(KEY);
-    return value === "verified" ? value : null;
+    return value === "verified" || value === "account-deleted" ? value : null;
   } catch {
     return null;
   }

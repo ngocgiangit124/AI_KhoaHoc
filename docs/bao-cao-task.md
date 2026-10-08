@@ -77,9 +77,11 @@ Các task đã xong trước đó: xem bảng Tóm tắt và `docs/board.md`.
 
 - QA T34 (đang chạy), rồi review + QA SLN8, FW7.
 - Security: theo dõi các điều kiện "PASS có điều kiện" (T29 S1–S3 đã sửa; T34 S1/S3/S4 đã sửa, S2 theo quyết định tạm).
-- E2E thật cần chạy lại trên staging: `markPaid` song song chỉ 1 thư phụ huynh (khi có IPN thật), Bunny C1–C9.
+- E2E thật cần chạy lại trên staging: `markPaid` song song chỉ 1 thư phụ huynh (khi có IPN thật), Bunny C1–C9; thêm kiểm token ràng IP với học sinh dùng mạng IPv6 (local đã tắt `VIDEO_BIND_IP` vì Docker che IP thật).
 
 ### 2.6 Hạ tầng / Release (`laravel-release`, ops)
+
+- FW7 review M2: access log Nginx/Next/CDN ghi `?t=<token>` của `/phu-huynh/huy-nhan-thong-bao` → log location này bằng `$uri` (không query) hoặc che `t`.
 
 - Commit cấu hình máy chủ ảnh tĩnh local `localhost:8080` (`infra/nginx/conf.d/vitaminvui.conf`, `infra/docker-compose.yml`) — đang chạy, chưa commit.
 - Staging (T35): GHCR + Docker trên server staging; giá trị thật cho T31 (tên miền, SMTP, Turnstile, IP).

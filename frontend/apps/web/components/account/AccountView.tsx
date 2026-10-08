@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, Badge, Button, ButtonLink, IconBookOpen, IconFileText, Sheet, useToast } from "@vitaminvui/ui/v2";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -12,8 +13,8 @@ import { ChangePasswordForm } from "./ChangePasswordForm";
 const H2 = "text-heading font-extrabold tracking-heading text-ink";
 
 /**
- * `/tai-khoan` (design `v2/tai-khoan`): hồ sơ · đổi email/SĐT (cần mật khẩu hiện tại) · đổi mật khẩu. Mục chưa có API
- * (dữ liệu cá nhân — FW7, khóa học của tôi đã có ở FW6) ghi "Sắp có". Khách -> đăng nhập rồi quay lại; `/auth/me` lỗi -> Thử lại.
+ * `/tai-khoan` (design `v2/tai-khoan`): hồ sơ · đổi email/SĐT (cần mật khẩu hiện tại) · đổi mật khẩu. Dữ liệu cá nhân (FW7) ở
+ * `/tai-khoan/quyen-du-lieu-ca-nhan`. Khách -> đăng nhập rồi quay lại; `/auth/me` lỗi -> Thử lại.
  */
 export function AccountView() {
   const router = useRouter();
@@ -130,10 +131,15 @@ export function AccountView() {
           Dữ liệu cá nhân
         </h2>
         <ul className="mt-3 flex flex-col">
-          <li className="flex min-h-12 items-center gap-3 rounded-control px-2 text-ink-soft">
-            <IconFileText />
-            <span className="flex-1 text-base">Tải dữ liệu, xoá tài khoản, trạng thái đồng ý</span>
-            <Badge size="sm">Sắp có</Badge>
+          <li>
+            <Link
+              href={routes.privacyData}
+              className="focus-ring flex min-h-12 items-center gap-3 rounded-control px-2 text-ink hover:bg-primary-soft"
+            >
+              <IconFileText />
+              <span className="flex-1 text-base">Đồng ý, thông tin phụ huynh, tải dữ liệu, xoá tài khoản</span>
+              <span aria-hidden="true">›</span>
+            </Link>
           </li>
         </ul>
       </Sheet>

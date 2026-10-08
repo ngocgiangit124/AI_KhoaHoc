@@ -21,7 +21,9 @@ export function AccountBanner() {
 
   useEffect(() => {
     // Đọc sessionStorage chỉ làm được sau hydrate; Strict Mode: lần 2 đọc null nên không báo hai lần.
-    if (consumeAccountFlash() === "verified") toast.show({ tone: "success", title: "Xác thực tài khoản thành công" });
+    const flash = consumeAccountFlash();
+    if (flash === "verified") toast.show({ tone: "success", title: "Xác thực tài khoản thành công" });
+    else if (flash === "account-deleted") toast.show({ tone: "success", title: "Tài khoản của bạn đã được xoá." });
   }, [toast]);
 
   if (state.status !== "user" || state.user.is_verified || pathname === routes.account) return null;

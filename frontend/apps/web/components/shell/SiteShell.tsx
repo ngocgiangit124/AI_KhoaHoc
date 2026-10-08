@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AccountBanner } from "@/components/auth/AccountBanner";
+import { PolicyAcceptanceBanner } from "@/components/privacy/PolicyAcceptanceBanner";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { ShellFooter } from "./ShellFooter";
 import { ShellHeader } from "./ShellHeader";
@@ -33,6 +34,7 @@ export function SiteShell({ children, variant = "site" }: SiteShellProps) {
       {minimal ? null : (
         <div className="mx-auto w-full max-w-6xl px-4 pt-4 empty:hidden sm:px-6">
           <AccountBanner />
+          <PolicyAcceptanceBanner />
         </div>
       )}
       {/* Nền vở ô ly nhạt cho mọi trang khách (design-system-v2 §3.1); form/đoạn dài nằm trên `Sheet`. `minimal`: cột flex để khung đăng nhập cao hết màn. */}

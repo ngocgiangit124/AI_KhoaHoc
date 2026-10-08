@@ -87,3 +87,14 @@ describe("AccountBanner", () => {
     expect(screen.queryByText("Cần xác thực tài khoản")).not.toBeInTheDocument();
   });
 });
+
+describe("AccountBanner — cờ xoá tài khoản", () => {
+  it("cờ account-deleted hiện toast một lần rồi xoá", () => {
+    sessionStorage.clear();
+    authState = { status: "guest" };
+    sessionStorage.setItem("vv:account-flash", "account-deleted");
+    render(<AccountBanner />);
+    expect(screen.getByText("Tài khoản của bạn đã được xoá.")).toBeInTheDocument();
+    expect(sessionStorage.getItem("vv:account-flash")).toBeNull();
+  });
+});
