@@ -1,7 +1,7 @@
 /**
  * Đường dẫn THẬT của web học sinh (bản xem trước v2 dùng `lib/v2/routes.ts` với tiền tố `/v2`).
  * Chỉ liệt kê những trang đã có thật: không đưa vào header/footer liên kết tới trang chưa dựng
- * (US-019 "không liên kết chết"). Khi FW3/FW4/FW5 xong thì thêm `myCourses`, `cart`, ... ở đây.
+ * (US-019 "không liên kết chết"). Khi FW3 xong thì thêm `cart`, ... ở đây.
  */
 export const routes = {
   home: "/",
@@ -26,6 +26,9 @@ export const routes = {
   forgotPassword: "/quen-mat-khau",
   resetPassword: "/quen-mat-khau/dat-lai",
   account: "/tai-khoan",
+  /** Khóa học của tôi + tiến độ (FW6). `?trang=` phân trang danh sách. */
+  myCourses: "/tai-khoan/khoa-hoc-cua-toi",
+  myCourse: (courseId: number) => `/tai-khoan/khoa-hoc-cua-toi/${courseId}`,
   /** Màn chặn khi vào thẳng (design-system-v2 §12.8); ở chi tiết khóa học cùng nội dung hiện trong hộp thoại. */
   needVerify: "/can-xac-thuc",
   parentPending: "/cho-phu-huynh",

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Badge, Button, ButtonLink, IconFileText, Sheet, useToast } from "@vitaminvui/ui/v2";
+import { Alert, Badge, Button, ButtonLink, IconBookOpen, IconFileText, Sheet, useToast } from "@vitaminvui/ui/v2";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { routes } from "@/lib/routes";
@@ -13,7 +13,7 @@ const H2 = "text-heading font-extrabold tracking-heading text-ink";
 
 /**
  * `/tai-khoan` (design `v2/tai-khoan`): hồ sơ · đổi email/SĐT (cần mật khẩu hiện tại) · đổi mật khẩu. Mục chưa có API
- * (dữ liệu cá nhân — FW7, khóa học của tôi — FW6) ghi "Sắp có". Khách -> đăng nhập rồi quay lại; `/auth/me` lỗi -> Thử lại.
+ * (dữ liệu cá nhân — FW7, khóa học của tôi đã có ở FW6) ghi "Sắp có". Khách -> đăng nhập rồi quay lại; `/auth/me` lỗi -> Thử lại.
  */
 export function AccountView() {
   const router = useRouter();
@@ -46,6 +46,12 @@ export function AccountView() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-title font-extrabold tracking-heading text-ink">Tài khoản</h1>
+
+      <div>
+        <ButtonLink href={routes.myCourses} variant="secondary" leadingIcon={<IconBookOpen size={18} />}>
+          Khóa học của tôi
+        </ButtonLink>
+      </div>
 
       {changedEmail || !user.is_verified ? (
         <Alert
