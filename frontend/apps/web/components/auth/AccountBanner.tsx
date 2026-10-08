@@ -9,8 +9,8 @@ import { routes } from "@/lib/routes";
 
 /**
  * Banner trạng thái tài khoản ở trang công khai (design US-001 §3, §2.4). Quyết định theo
- * `is_verified`/`parent_consent_status` của `/auth/me`, không theo tuổi client hay query string:
- * - chưa xác thực → nhắc + nút "Xác thực ngay" (kèm lưu ý phụ huynh nếu `pending`); không hiện ở `/tai-khoan`
+ * `is_verified` của `/auth/me`, không theo tuổi client hay query string:
+ * - chưa xác thực → nhắc + nút "Xác thực ngay"; không hiện ở `/tai-khoan`
  *   (trang đó tự có thông báo riêng, tránh hai nút "Xác thực ngay");
  * - vừa xác thực xong (cờ một lần) → toast "Xác thực tài khoản thành công" (design-system-v2 §12.8).
  */
@@ -25,7 +25,6 @@ export function AccountBanner() {
   }, [toast]);
 
   if (state.status !== "user" || state.user.is_verified || pathname === routes.account) return null;
-  const { user } = state;
 
   return (
     <Alert
@@ -38,9 +37,7 @@ export function AccountBanner() {
         </ButtonLink>
       }
     >
-      {user.parent_consent_status === "pending"
-        ? "Vui lòng xác thực tài khoản. Chúng tôi cũng đã gửi email xác nhận tới phụ huynh của bạn — bạn cần cả 2 bước hoàn tất mới mua được khóa học."
-        : "Vui lòng xác thực tài khoản để có thể mua khóa học."}
+      Vui lòng xác thực tài khoản để có thể mua khóa học.
     </Alert>
   );
 }

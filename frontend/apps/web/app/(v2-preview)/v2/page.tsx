@@ -251,7 +251,6 @@ export default async function HomePreview({ searchParams }: PageProps<"/v2">) {
         </ol>
       </section>
 
-      {/* Q10: ẩn ý "phụ huynh nhận email xác nhận" khi cờ FEATURE_PARENT_CONSENT_ENFORCED còn tắt. */}
       <section aria-labelledby="parent-title" className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
         <div className="rounded-sheet border border-line bg-surface p-6 sm:p-8">
           <h2 id="parent-title" className="text-heading font-extrabold tracking-heading text-ink">

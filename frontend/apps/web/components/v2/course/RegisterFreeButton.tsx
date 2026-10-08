@@ -6,8 +6,7 @@ import { AccountGateDialog, type GateKind } from "@/components/v2/auth/AccountGa
 
 /**
  * "Đăng ký học miễn phí" → POST /courses/{course}/free-enrollments (201 pending_approval).
- * 403 `ACCOUNT_NOT_VERIFIED` → hộp thoại "Xác thực email để tiếp tục"; 403 `PARENT_CONSENT_REQUIRED` →
- * hộp thoại "Đang chờ phụ huynh xác nhận" (giữ nguyên trang khóa học phía sau).
+ * 403 `ACCOUNT_NOT_VERIFIED` → hộp thoại "Xác thực email để tiếp tục" (giữ nguyên trang khóa học phía sau).
  * TODO(dev): gọi API; 409 ENROLLMENT_PENDING/ALREADY_OWNED → làm mới viewer-state.
  * `gate` chỉ để bản xem trước giả lập 403.
  */

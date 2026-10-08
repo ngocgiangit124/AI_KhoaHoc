@@ -22,11 +22,10 @@ const base: RegisterFormValues = {
 };
 
 describe("buildRegisterPayload", () => {
-  it("đủ tuổi: không gửi field phụ huynh; referral tắt thì bỏ; không captcha thì bỏ token", () => {
+  it("không nhập phụ huynh: không gửi field phụ huynh; referral tắt thì bỏ; không captcha thì bỏ token", () => {
     const p = buildRegisterPayload({
-      values: base,
+      values: { ...base, parent_phone: "", parent_email: "" },
       captchaToken: null,
-      parentConsentAge: 18,
       referralEnabled: false,
       deviceId: "dev-1",
     });
@@ -44,11 +43,10 @@ describe("buildRegisterPayload", () => {
     });
   });
 
-  it("dưới tuổi: gửi liên hệ phụ huynh đã nhập, referral bật, có captcha", () => {
+  it("gửi liên hệ phụ huynh đã nhập (mọi tuổi), bỏ ô trống, referral bật, có captcha", () => {
     const p = buildRegisterPayload({
       values: { ...base, date_of_birth: "2020-01-01" },
       captchaToken: "tok",
-      parentConsentAge: 18,
       referralEnabled: true,
       deviceId: "dev-1",
     });
@@ -68,28 +66,26 @@ describe("parseAuthUser", () => {
     role: "hoc_sinh",
     grade_level: 9,
     is_verified: false,
-    parent_consent_status: "pending",
+    parent_consent_status: "not_required",
   };
-  it("nhận user đúng contract", () => {
-    expect(parseAuthUser(user)?.parent_consent_status).toBe("pending");
+  it("nhận user đúng contract, kể cả parent_contact đã che và needs_policy_acceptance", () => {
+    const u = parseAuthUser({ ...user, parent_contact: { email: "p***@x.vn", phone: null }, needs_policy_acceptance: true });
+    expect(u?.parent_contact?.email).toBe("p***@x.vn");
+    expect(u?.needs_policy_acceptance).toBe(true);
+  });
+  it("thiếu field mới (backend cũ) hoặc parent_contact=null vẫn parse được", () => {
+    expect(parseAuthUser(user)).not.toBeNull();
+    expect(parseAuthUser({ ...user, parent_contact: null })?.parent_contact).toBeNull();
+  });
+  it("parent_consent_status lạ/cũ (pending) không làm vỡ", () => {
+    expect(parseAuthUser({ ...user, parent_consent_status: "pending" })).not.toBeNull();
+    const { parent_consent_status: _x, ...rest } = user;
+    void _x;
+    expect(parseAuthUser(rest)).not.toBeNull();
   });
   it("sai shape → null, không ném lỗi", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(parseAuthUser({ ...user, parent_consent_status: "x" })).toBeNull();
+    expect(parseAuthUser({ ...user, is_verified: "x" })).toBeNull();
     expect(parseAuthUser(undefined)).toBeNull();
-  });
-});
-
-describe("buildRegisterPayload forceParent", () => {
-  it("gửi liên hệ phụ huynh dù client tính đủ tuổi khi forceParent", () => {
-    const p = buildRegisterPayload({
-      values: base,
-      captchaToken: null,
-      parentConsentAge: 18,
-      referralEnabled: false,
-      deviceId: "d",
-      forceParent: true,
-    });
-    expect(p.parent_phone).toBe("0987654321");
   });
 });

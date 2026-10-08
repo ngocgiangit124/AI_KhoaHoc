@@ -31,7 +31,6 @@ export const routes = {
   myCourse: (courseId: number) => `/tai-khoan/khoa-hoc-cua-toi/${courseId}`,
   /** Màn chặn khi vào thẳng (design-system-v2 §12.8); ở chi tiết khóa học cùng nội dung hiện trong hộp thoại. */
   needVerify: "/can-xac-thuc",
-  parentPending: "/cho-phu-huynh",
   terms: "/dieu-khoan",
   privacy: "/chinh-sach-du-lieu",
 } as const;

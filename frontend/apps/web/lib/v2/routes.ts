@@ -35,7 +35,6 @@ export const routes = {
   resetPassword: `${P}/quen-mat-khau/dat-lai`,
   verifyOtp: `${P}/xac-thuc-otp`,
   needVerify: `${P}/can-xac-thuc`,
-  parentPending: `${P}/cho-phu-huynh`,
 } as const;
 
 /** Che email kiểu `m*****1@gmail.com` (giữ ký tự đầu, cuối phần tên và tên miền). */

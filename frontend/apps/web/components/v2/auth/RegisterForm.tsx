@@ -30,20 +30,20 @@ function ageOn(dob: string, today = new Date()): number | null {
 
 /**
  * Form đăng ký học sinh (POST /auth/register, US-001 + US-017).
- * - Dưới `parent_consent_age` (18): hiện thêm liên hệ phụ huynh (≥ 1 trong 2).
+ * - Dưới `parent_contact_suggest_age` (18): gợi ý mở khối liên hệ phụ huynh — KHÔNG bắt buộc (ADR-006).
  * - 2 checkbox đồng ý tách riêng, không tick sẵn; ghi rõ `policy_version`.
  * - Lỗi hiện ngay dưới ô + hộp tóm tắt lỗi đầu form (có liên kết tới từng ô), focus vào hộp tóm tắt.
  * - Turnstile: khi `captcha_site_key` null (local) hiện ghi chú thay widget.
  * TODO(dev): nối API, reset Turnstile sau mọi lỗi 422/CAPTCHA_FAILED; hiện `errors.password[0]` khi mật khẩu phổ biến.
  */
-export function RegisterForm({ parentConsentAge, policyVersion, captchaConfigured, referralEnabled }: { parentConsentAge: number; policyVersion: string; captchaConfigured: boolean; referralEnabled: boolean }) {
+export function RegisterForm({ parentSuggestAge, policyVersion, captchaConfigured, referralEnabled }: { parentSuggestAge: number; policyVersion: string; captchaConfigured: boolean; referralEnabled: boolean }) {
   const toast = useToast();
   const [dob, setDob] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const age = dob ? ageOn(dob) : null;
-  const minor = age !== null && age < parentConsentAge;
+  const minor = age !== null && age < parentSuggestAge;
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,7 +57,6 @@ export function RegisterForm({ parentConsentAge, policyVersion, captchaConfigure
     if (!v("grade_level")) next.grade_level = "Vui lòng chọn lớp đang học.";
     if (v("password").length < 8) next.password = "Mật khẩu cần tối thiểu 8 ký tự.";
     if (v("password_confirmation") !== v("password") || !v("password_confirmation")) next.password_confirmation = "Xác nhận mật khẩu không khớp.";
-    if (minor && !v("parent_phone") && !v("parent_email")) next.parent = "Vui lòng nhập ít nhất số điện thoại hoặc email phụ huynh.";
     if (!f.get("accept_terms") || !f.get("accept_privacy")) next.consent = "Vui lòng đồng ý với cả điều khoản sử dụng và chính sách xử lý dữ liệu cá nhân.";
     setErrors(next);
     if (Object.keys(next).length) {
@@ -118,12 +117,12 @@ export function RegisterForm({ parentConsentAge, policyVersion, captchaConfigure
           <legend className="sr-only">Liên hệ phụ huynh</legend>
           <p className="flex items-start gap-2 text-sm text-ink">
             <IconShieldCheck size={18} className="mt-0.5 shrink-0 text-info" />
-            Vì bạn dưới {parentConsentAge} tuổi, hãy nhập ít nhất 1 cách liên hệ phụ huynh. Chúng tôi sẽ gửi email để phụ huynh xác nhận đồng ý.
+            Thông tin phụ huynh không bắt buộc. Nếu nhập email phụ huynh, VitaminVui sẽ gửi thư thông báo cho phụ huynh; phụ huynh không cần làm gì thêm và có thể huỷ nhận.
           </p>
-          <Field id="reg-parent" label="Số điện thoại phụ huynh" error={errors.parent}>
+          <Field id="reg-parent" label="Số điện thoại phụ huynh (không bắt buộc)" error={errors.parent}>
             <TextInput name="parent_phone" type="tel" inputMode="tel" autoComplete="off" />
           </Field>
-          <Field label="Email phụ huynh">
+          <Field label="Email phụ huynh (không bắt buộc)">
             <TextInput name="parent_email" type="email" autoComplete="off" />
           </Field>
         </fieldset>

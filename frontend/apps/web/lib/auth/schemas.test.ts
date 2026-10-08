@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CONSENT_ERROR_MESSAGE, createRegisterSchema, loginSchema, type RegisterFormValues } from "./schemas";
 
-const schema = createRegisterSchema({ grades: [6, 7, 8, 9, 10, 11, 12], parentConsentAge: 18, today: "2026-10-05" });
+const schema = createRegisterSchema({ grades: [6, 7, 8, 9, 10, 11, 12], today: "2026-10-05" });
 
 const valid: RegisterFormValues = {
   name: "Nguyễn Văn A",
@@ -43,16 +43,17 @@ describe("createRegisterSchema", () => {
     expect(errorsOf({ email: "abc" }).email).toBe("Email không hợp lệ");
   });
 
-  it("dưới 18 tuổi: bắt buộc ≥ 1 liên hệ phụ huynh", () => {
+  it("phụ huynh TUỲ CHỌN: dưới 18 tuổi để trống cả 2 ô vẫn hợp lệ (ADR-006)", () => {
     const minor = { date_of_birth: "2012-05-01" };
-    expect(errorsOf(minor).parent_phone).toBe("Vui lòng nhập ít nhất số điện thoại hoặc email phụ huynh");
+    expect(errorsOf(minor)).toEqual({});
     expect(errorsOf({ ...minor, parent_email: "ph@example.com" })).toEqual({});
     expect(errorsOf({ ...minor, parent_phone: "0912345678" })).toEqual({});
-    expect(errorsOf({ ...minor, parent_email: "sai" }).parent_email).toBe("Email phụ huynh không hợp lệ");
   });
 
-  it("đủ tuổi: bỏ qua giá trị phụ huynh", () => {
-    expect(errorsOf({ parent_email: "sai" })).toEqual({});
+  it("có nhập phụ huynh thì kiểm định dạng, ở mọi độ tuổi", () => {
+    expect(errorsOf({ parent_email: "sai" }).parent_email).toBe("Email phụ huynh không hợp lệ");
+    expect(errorsOf({ date_of_birth: "2012-05-01", parent_email: "sai" }).parent_email).toBe("Email phụ huynh không hợp lệ");
+    expect(errorsOf({ parent_phone: "123" }).parent_phone).toBe("Số điện thoại phụ huynh không hợp lệ");
   });
 
   it("thiếu 1 trong 2 checkbox → thông điệp đồng ý", () => {

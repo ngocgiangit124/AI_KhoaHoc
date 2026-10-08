@@ -10,6 +10,8 @@ const VALID_RESPONSE = {
   captcha_site_key: null,
   policy_version: "2026-09",
   parent_consent_age: 18,
+  parent_contact_suggest_age: 18,
+  parent_contact_required: false,
 };
 
 describe("parsePublicConfig — validate GET /api/v1/config/public (api-contract §2.1)", () => {
@@ -21,6 +23,16 @@ describe("parsePublicConfig — validate GET /api/v1/config/public (api-contract
     const { paid_checkout_enabled: _omit, ...legacy } = VALID_RESPONSE;
     void _omit;
     expect(parsePublicConfig(legacy).paid_checkout_enabled).toBe(false);
+  });
+
+  it("backend cũ thiếu parent_contact_required/suggest_age -> required=false, không vỡ", () => {
+    const { parent_contact_required: _a, parent_contact_suggest_age: _b, ...legacy } = VALID_RESPONSE;
+    void _a;
+    void _b;
+    const r = parsePublicConfig(legacy);
+    expect(r.parent_contact_required).toBe(false);
+    expect(r.parent_contact_suggest_age).toBeUndefined();
+    expect(r.parent_consent_age).toBe(18);
   });
 
   it("chấp nhận captcha_site_key là string (Turnstile đã cấu hình)", () => {

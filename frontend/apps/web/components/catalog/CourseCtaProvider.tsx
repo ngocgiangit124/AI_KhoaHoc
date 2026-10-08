@@ -96,9 +96,6 @@ export function CourseCtaProvider({ course, children }: { course: CtaCourse; chi
         case "verify_account":
           setGate({ kind: "verify", open: true });
           break;
-        case "parent_consent":
-          setGate({ kind: auth.status === "user" && auth.user.parent_consent_status === "revoked" ? "parent-revoked" : "parent-pending", open: true });
-          break;
         case "pending":
           setViewer({ viewer_state: "pending_approval", resume_lesson_id: null });
           break;
@@ -116,7 +113,7 @@ export function CourseCtaProvider({ course, children }: { course: CtaCourse; chi
     } finally {
       setEnrolling(false);
     }
-  }, [course.id, auth, toast]);
+  }, [course.id, toast]);
 
   const run = useCallback(() => {
     switch (model.kind) {

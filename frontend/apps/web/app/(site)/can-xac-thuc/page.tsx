@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default function NeedVerifyPage() {
   return (
     <div className="px-4 py-10 sm:px-6 sm:py-16">
-      <AccountGateRoute page="verify" />
+      <AccountGateRoute />
     </div>
   );
 }

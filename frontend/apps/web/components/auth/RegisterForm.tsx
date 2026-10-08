@@ -18,7 +18,8 @@ import { ConsentCheckboxGroup } from "./ConsentCheckboxGroup";
 
 export interface RegisterFormProps {
   grades: readonly number[];
-  parentConsentAge: number;
+  /** Tuổi gợi ý mở sẵn khối phụ huynh (`parent_contact_suggest_age`, rơi về `parent_consent_age`). KHÔNG bắt buộc. */
+  parentSuggestAge: number;
   referralEnabled: boolean;
   policyVersion: string;
   /** `null` khi chưa cấu hình Turnstile (local) — bỏ qua widget, không gửi `captcha_token`. */
@@ -83,19 +84,20 @@ function summaryItems(errors: FieldErrors<RegisterFormValues>) {
 /** Form `/dang-ky` (US-001 §2.1) trên design v2. Validate client để tiện, Laravel mới là nơi quyết định. */
 export function RegisterForm({
   grades,
-  parentConsentAge,
+  parentSuggestAge,
   referralEnabled,
   policyVersion,
   captchaSiteKey,
 }: RegisterFormProps) {
   const router = useRouter();
-  const schema = useMemo(() => createRegisterSchema({ grades, parentConsentAge }), [grades, parentConsentAge]);
+  const schema = useMemo(() => createRegisterSchema({ grades }), [grades]);
 
   const {
     register,
     handleSubmit,
     setError,
     resetField,
+    clearErrors,
     control,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
@@ -105,11 +107,24 @@ export function RegisterForm({
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
   const [done, setDone] = useState(false);
-  // Server báo lỗi parent_* dù client tính là đủ tuổi (config cache/lệch ngày) → ép hiện khối phụ huynh.
+  // Khối phụ huynh: tự mở khi tuổi < ngưỡng gợi ý; người dùng có thể mở/thu gọn tay; lỗi 422 parent_* ép mở.
+  const [parentToggle, setParentToggle] = useState<boolean | null>(null);
   const [forceParent, setForceParent] = useState(false);
 
   const dateOfBirth = useWatch({ control, name: "date_of_birth" });
-  const isMinor = isBelowConsentAge(dateOfBirth, parentConsentAge) || forceParent;
+  const suggested = isBelowConsentAge(dateOfBirth, parentSuggestAge);
+  const showParent = forceParent || (parentToggle ?? suggested);
+  // Sau khi mở/đóng khối, đưa focus về phần tử còn lại (không để focus rơi về <body>).
+  const focusLater = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
+
+  function skipParent() {
+    // Bỏ giá trị đã nhập + lỗi của ô sắp ẩn: không gửi đi, không chặn submit ở ô không nhìn thấy.
+    resetField("parent_phone", { defaultValue: "" });
+    resetField("parent_email", { defaultValue: "" });
+    clearErrors(["parent_phone", "parent_email"]);
+    setParentToggle(false);
+    focusLater("reg-parent-toggle");
+  }
   // Site key rỗng ("") hoặc null = chưa cấu hình Turnstile → không bật captcha.
   const captchaEnabled = typeof captchaSiteKey === "string" && captchaSiteKey.trim() !== "";
   const captchaPending = captchaEnabled && captchaToken === null;
@@ -139,10 +154,8 @@ export function RegisterForm({
           buildRegisterPayload({
             values,
             captchaToken,
-            parentConsentAge,
             referralEnabled,
             deviceId: getDeviceId(),
-            forceParent,
           }),
         );
         markOtpSent();
@@ -230,27 +243,55 @@ export function RegisterForm({
           </Field>
         </div>
 
-        {/* Mở thêm khi dưới ngưỡng tuổi: không tải lại trang, chuyển động chỉ khi người dùng cho phép. */}
-        {isMinor ? (
+        {/* Phụ huynh TUỲ CHỌN (ADR-006): gợi ý mở sẵn khi dưới ngưỡng tuổi, không bắt buộc ở bất kỳ độ tuổi nào. */}
+        {showParent ? (
           <div
             role="group"
             aria-label="Liên hệ phụ huynh"
+            id="reg-parent-fields"
             data-testid="parent-fields"
             className="flex flex-col gap-4 rounded-card border border-info/30 bg-info-soft p-4 motion-safe:animate-rise-in"
           >
             <p className="flex items-start gap-2 text-sm text-ink">
               <IconShieldCheck size={18} className="mt-0.5 shrink-0 text-info" />
-              Bắt buộc nhập ít nhất 1 trong 2 thông tin liên hệ phụ huynh vì bạn dưới {parentConsentAge} tuổi. Chúng tôi sẽ gửi
-              email để phụ huynh xác nhận đồng ý.
+              <span>
+                <strong className="font-semibold">Thông tin phụ huynh (không bắt buộc).</strong> Nếu nhập email phụ huynh,
+                VitaminVui sẽ gửi thư thông báo cho phụ huynh khi tài khoản của bạn được tạo (sau khi bạn xác thực email) và khi
+                có đơn hàng. Phụ huynh không cần làm gì thêm và có thể huỷ nhận thư bất cứ lúc nào. Thông tin phụ huynh phải
+                khác email và số điện thoại của bạn.
+              </span>
             </p>
-            <Field id="reg-parent_phone" label="Số điện thoại phụ huynh" error={errors.parent_phone?.message}>
+            <Field id="reg-parent_phone" label="Số điện thoại phụ huynh (không bắt buộc)" error={errors.parent_phone?.message}>
               <TextInput type="tel" inputMode="tel" autoComplete="off" {...register("parent_phone")} />
             </Field>
-            <Field id="reg-parent_email" label="Email phụ huynh" error={errors.parent_email?.message}>
+            <Field id="reg-parent_email" label="Email phụ huynh (không bắt buộc)" error={errors.parent_email?.message}>
               <TextInput type="email" autoComplete="off" {...register("parent_email")} />
             </Field>
+            {!forceParent && !errors.parent_phone && !errors.parent_email ? (
+              <Button type="button" variant="ghost" size="md" className="h-auto! min-h-11 justify-start! py-2 text-left whitespace-normal!" onClick={skipParent} aria-expanded={true} aria-controls="reg-parent-fields">
+                Bỏ qua, không nhập thông tin phụ huynh
+              </Button>
+            ) : null}
           </div>
-        ) : null}
+        ) : (
+          <div>
+            <Button
+              id="reg-parent-toggle"
+              className="h-auto! min-h-11 justify-start! py-2 text-left whitespace-normal!"
+              type="button"
+              variant="ghost"
+              size="md"
+              onClick={() => {
+                setParentToggle(true);
+                focusLater("reg-parent_phone");
+              }}
+              aria-expanded={false}
+              aria-controls="reg-parent-fields"
+            >
+              Thêm thông tin phụ huynh (không bắt buộc)
+            </Button>
+          </div>
+        )}
 
         <Field id="reg-email" label="Email" required error={errors.email?.message} hint="Mã xác thực sẽ gửi tới email này.">
           <TextInput type="email" autoComplete="email" {...register("email")} />

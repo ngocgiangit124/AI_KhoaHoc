@@ -45,7 +45,7 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
   const paidEnabled = one(sp["thanh-toan"]) === "bat" ? true : publicConfig.paid_checkout_enabled;
   const loggedIn = viewer !== "guest";
   const chan = one(sp.chan);
-  const gate: GateKind | undefined = chan === "xac-thuc" ? "verify" : chan === "phu-huynh" ? "parent-pending" : undefined;
+  const gate: GateKind | undefined = chan === "xac-thuc" ? "verify" : undefined;
   const resumeLessonId = viewer === "owned" ? (getLearnCourse(course.id)?.resume_lesson_id ?? null) : null;
 
   const href = (s: string, v: Viewer, paid = false) => `${routes.course(s)}?viewer=${v}${paid ? "&thanh-toan=bat" : ""}`;
@@ -59,7 +59,6 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
     { label: "Trong giỏ – thanh toán bật", href: href(paidSlug, "in_cart", true), current: isCur(paidSlug, "in_cart", true) },
     { label: "Miễn phí", href: href(freeSlug, "can_register_free"), current: isCur(freeSlug, "can_register_free") && !chan },
     { label: "Miễn phí – chưa xác thực (403)", href: `${href(freeSlug, "can_register_free")}&chan=xac-thuc`, current: slug === freeSlug && chan === "xac-thuc" },
-    { label: "Miễn phí – chờ phụ huynh (403)", href: `${href(freeSlug, "can_register_free")}&chan=phu-huynh`, current: slug === freeSlug && chan === "phu-huynh" },
     { label: "Miễn phí – chờ duyệt", href: href(freeSlug, "pending_approval"), current: isCur(freeSlug, "pending_approval") },
     { label: "Chưa có bài", href: routes.course("khoa-moi-chua-co-bai"), current: slug === "khoa-moi-chua-co-bai" },
     { label: "Không tồn tại (404)", href: routes.course("khong-co-khoa-nay") },

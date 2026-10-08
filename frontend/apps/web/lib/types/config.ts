@@ -29,7 +29,11 @@ export const publicConfigSchema = z.object({
   grades: z.array(z.number()),
   captcha_site_key: z.string().nullable(),
   policy_version: z.string(),
-  parent_consent_age: z.number(),
+  /** Deprecated (ADR-006): chỉ để GỢI Ý khối phụ huynh. Ưu tiên `parent_contact_suggest_age` nếu có. */
+  parent_consent_age: z.number().default(18),
+  parent_contact_suggest_age: z.number().optional(),
+  /** Luôn `false` (liên hệ phụ huynh tuỳ chọn). Thiếu khoá → `false`. */
+  parent_contact_required: z.boolean().default(false),
 });
 
 export type PublicConfig = z.infer<typeof publicConfigSchema>;

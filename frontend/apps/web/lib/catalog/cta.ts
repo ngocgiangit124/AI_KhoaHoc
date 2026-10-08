@@ -67,8 +67,6 @@ export function resolveCta(input: CtaInput): CtaModel {
 
 export type FreeEnrollOutcome =
   | { type: "verify_account" }
-  /** 403 `PARENT_CONSENT_REQUIRED` (chỉ khi bật `FEATURE_PARENT_CONSENT_ENFORCED`): chờ/đã rút đồng ý của phụ huynh (US-017). */
-  | { type: "parent_consent" }
   | { type: "pending" }
   | { type: "owned" }
   | { type: "refresh"; message: string }
@@ -79,7 +77,7 @@ export function mapFreeEnrollError(err: unknown): FreeEnrollOutcome {
   if (err instanceof NetworkError) return { type: "message", message: err.message };
   if (err instanceof ApiError) {
     if (err.status === 403 && err.code === "ACCOUNT_NOT_VERIFIED") return { type: "verify_account" };
-    if (err.status === 403 && err.code === "PARENT_CONSENT_REQUIRED") return { type: "parent_consent" };
+    // `PARENT_CONSENT_REQUIRED` không còn được phát (ADR-006); nếu gặp mã cũ thì rơi xuống nhánh 403 chung bên dưới.
     if (err.status === 409 && err.code === "ENROLLMENT_PENDING") return { type: "pending" };
     if (err.status === 409 && err.code === "ALREADY_OWNED") return { type: "owned" };
     if (err.status === 422 && err.code === "COURSE_NOT_FREE") {

@@ -13,6 +13,8 @@ const CONFIG_PUBLIC_FIXTURE = {
   captcha_site_key: "mock-site-key",
   policy_version: "2026-09",
   parent_consent_age: 18,
+  parent_contact_suggest_age: 18,
+  parent_contact_required: false,
 };
 
 const server = createServer((req, res) => {

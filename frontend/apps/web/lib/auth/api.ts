@@ -2,7 +2,6 @@ import { z } from "zod";
 import { ApiError, clearCsrfToken, dispatchAuthEventIfNeeded, getDeviceId } from "@vitaminvui/api-client";
 import { authFetch } from "@/lib/api";
 import { env } from "@/env";
-import { isBelowConsentAge } from "./age";
 import type { RegisterFormValues } from "./schemas";
 
 export const authUserSchema = z.object({
@@ -13,7 +12,16 @@ export const authUserSchema = z.object({
   role: z.string(),
   grade_level: z.number().nullable(),
   is_verified: z.boolean(),
-  parent_consent_status: z.enum(["not_required", "pending", "granted", "revoked"]),
+  /** Luôn `not_required` từ ADR-006 (giữ field cho tương thích v1); KHÔNG dùng để rẽ nhánh UI. Mã lạ/thiếu không làm vỡ. */
+  parent_consent_status: z.string().optional(),
+  /** Liên hệ phụ huynh đã che (api-contract §2.8.1); `null` khi chưa khai. */
+  parent_contact: z
+    .object({ email: z.string().nullable().optional(), phone: z.string().nullable().optional() })
+    .passthrough()
+    .nullable()
+    .optional(),
+  /** `true` khi phiên bản chính sách đổi → hiện banner chấp nhận lại (FW7, chưa làm). Thiếu → `false`. */
+  needs_policy_acceptance: z.boolean().optional(),
 });
 
 /** User phẳng trong response register/login (api-contract §2.2, "Bổ sung từ T03"). */
@@ -52,21 +60,16 @@ export interface RegisterPayload {
 export interface BuildRegisterPayloadOptions {
   values: RegisterFormValues;
   captchaToken: string | null;
-  parentConsentAge: number;
   referralEnabled: boolean;
   deviceId: string;
-  /** Khối phụ huynh đang hiển thị do server báo lỗi dù client tính là đủ tuổi. */
-  forceParent?: boolean;
 }
 
-/** Chỉ gửi field có trong contract; field phụ huynh chỉ gửi khi dưới ngưỡng tuổi, referral chỉ khi flag bật. */
+/** Chỉ gửi field có trong contract; field phụ huynh tuỳ chọn (mọi tuổi): ô trống thì bỏ key, referral chỉ khi flag bật. */
 export function buildRegisterPayload({
   values,
   captchaToken,
-  parentConsentAge,
   referralEnabled,
   deviceId,
-  forceParent = false,
 }: BuildRegisterPayloadOptions): RegisterPayload {
   const payload: RegisterPayload = {
     name: values.name.trim(),
@@ -81,10 +84,8 @@ export function buildRegisterPayload({
     device_id: deviceId,
   };
 
-  if (forceParent || isBelowConsentAge(values.date_of_birth, parentConsentAge)) {
-    if (values.parent_phone.trim()) payload.parent_phone = values.parent_phone.trim();
-    if (values.parent_email.trim()) payload.parent_email = values.parent_email.trim();
-  }
+  if (values.parent_phone.trim()) payload.parent_phone = values.parent_phone.trim();
+  if (values.parent_email.trim()) payload.parent_email = values.parent_email.trim();
   if (referralEnabled && values.referral_code.trim()) {
     payload.referral_code = values.referral_code.trim();
   }

@@ -55,10 +55,18 @@ describe("AccountBanner", () => {
     expect(screen.queryByText(/phụ huynh/)).not.toBeInTheDocument();
   });
 
-  it("chưa xác thực + phụ huynh pending → thêm lưu ý phụ huynh (theo server, không theo tuổi)", () => {
+  it("mã cũ parent_consent_status=pending không còn đổi banner (ADR-006: chỉ theo is_verified)", () => {
     authState = { status: "user", user: { ...base, parent_consent_status: "pending" } };
     render(<AccountBanner />);
-    expect(screen.getByText(/email xác nhận tới phụ huynh/)).toBeInTheDocument();
+    expect(screen.getByText("Cần xác thực tài khoản")).toBeInTheDocument();
+    expect(screen.queryByText(/phụ huynh/)).not.toBeInTheDocument();
+  });
+
+  it("đã xác thực nhưng mã cũ pending → không hiện banner chờ phụ huynh", () => {
+    authState = { status: "user", user: { ...base, is_verified: true, parent_consent_status: "pending" } };
+    render(<AccountBanner />);
+    expect(screen.queryByRole("link", { name: "Xác thực ngay" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/phụ huynh/)).not.toBeInTheDocument();
   });
 
   it("đã xác thực, không cờ → không hiện; có cờ verified → báo thành công và xoá cờ", () => {

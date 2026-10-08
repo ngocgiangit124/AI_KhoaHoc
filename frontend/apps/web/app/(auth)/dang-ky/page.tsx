@@ -28,7 +28,7 @@ export default async function RegisterPage() {
     >
       <RegisterForm
         grades={config.grades}
-        parentConsentAge={config.parent_consent_age}
+        parentSuggestAge={config.parent_contact_suggest_age ?? config.parent_consent_age}
         referralEnabled={config.referral_code_enabled}
         policyVersion={config.policy_version}
         captchaSiteKey={config.captcha_site_key || env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || null}

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ageOn, isBelowConsentAge, isValidIsoDate, todayInVietnam } from "./age";
+import { ageOn, isValidIsoDate, todayInVietnam } from "./age";
 
 /** SĐT di động VN: 0xxxxxxxxx hoặc +84xxxxxxxxx (validate thật ở Laravel). */
 export const VN_PHONE_RE = /^(?:\+84|0)(?:3|5|7|8|9)\d{8}$/;
@@ -31,13 +31,12 @@ export interface RegisterFormValues {
 
 export interface RegisterSchemaOptions {
   grades: readonly number[];
-  parentConsentAge: number;
   /** Chỉ dùng cho test. */
   today?: string;
 }
 
 /** Schema đăng ký theo `RegisterRequest` (api-contract §2.2) — chỉ để UX, Laravel validate lại. */
-export function createRegisterSchema({ grades, parentConsentAge, today }: RegisterSchemaOptions) {
+export function createRegisterSchema({ grades, today }: RegisterSchemaOptions) {
   return z
     .object({
       name: z.string().trim().min(1, "Vui lòng nhập họ và tên").max(150, "Họ và tên tối đa 150 ký tự"),
@@ -69,18 +68,12 @@ export function createRegisterSchema({ grades, parentConsentAge, today }: Regist
         ctx.addIssue({ code: "custom", path: ["password_confirmation"], message: "Xác nhận mật khẩu không khớp" });
       }
 
-      if (v.date_of_birth && isBelowConsentAge(v.date_of_birth, parentConsentAge, todayStr)) {
-        if (!v.parent_phone && !v.parent_email) {
-          const message = "Vui lòng nhập ít nhất số điện thoại hoặc email phụ huynh";
-          ctx.addIssue({ code: "custom", path: ["parent_phone"], message });
-          ctx.addIssue({ code: "custom", path: ["parent_email"], message });
-        }
-        if (v.parent_phone && !VN_PHONE_RE.test(v.parent_phone)) {
-          ctx.addIssue({ code: "custom", path: ["parent_phone"], message: "Số điện thoại phụ huynh không hợp lệ" });
-        }
-        if (v.parent_email && !z.email().safeParse(v.parent_email).success) {
-          ctx.addIssue({ code: "custom", path: ["parent_email"], message: "Email phụ huynh không hợp lệ" });
-        }
+      // Liên hệ phụ huynh TUỲ CHỌN ở mọi độ tuổi (ADR-006): chỉ kiểm định dạng khi có nhập.
+      if (v.parent_phone && !VN_PHONE_RE.test(v.parent_phone)) {
+        ctx.addIssue({ code: "custom", path: ["parent_phone"], message: "Số điện thoại phụ huynh không hợp lệ" });
+      }
+      if (v.parent_email && !z.email().safeParse(v.parent_email).success) {
+        ctx.addIssue({ code: "custom", path: ["parent_email"], message: "Email phụ huynh không hợp lệ" });
       }
 
       if (!v.accept_terms || !v.accept_privacy) {

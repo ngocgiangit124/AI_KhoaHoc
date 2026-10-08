@@ -107,11 +107,11 @@ test.describe("màn chặn", () => {
     await ok.ctx.close();
   });
 
-  test("/cho-phu-huynh: học sinh không thuộc diện chờ phụ huynh -> về danh mục (không có gì để chặn)", async ({ browser }) => {
+  test("/cho-phu-huynh đã bỏ (ADR-006) -> 404", async ({ browser }) => {
     const ok = await device(browser);
     await login(ok.page, "fw2-hs-ok@example.com");
-    await ok.page.goto("/cho-phu-huynh");
-    await expect(ok.page).toHaveURL(/\/khoa-hoc$/, { timeout: 15_000 });
+    const res = await ok.page.goto("/cho-phu-huynh");
+    expect(res?.status()).toBe(404);
     await ok.ctx.close();
   });
 

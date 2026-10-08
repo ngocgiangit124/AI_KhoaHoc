@@ -99,21 +99,49 @@ test.describe("đăng ký", () => {
     await expect(page.getByText("Vui lòng xác thực tài khoản để có thể mua khóa học")).toHaveCount(0);
   });
 
-  test("AC10: dưới 18 tuổi hiện khối phụ huynh, thiếu -> lỗi, có -> banner chờ phụ huynh", async ({ page }) => {
+  // ADR-006 (T29): phụ huynh TUỲ CHỌN. Các ca đánh dấu [T29] cần backend T29 đã migrate trên DB dev
+  // (chạy với E2E_T29=1); trước đó backend cũ vẫn bắt phụ huynh khi dưới 18 tuổi.
+  const needT29 = process.env.E2E_T29 !== "1";
+
+  test("AC10: khối phụ huynh ghi không bắt buộc; tự mở khi dưới 18, đủ tuổi thì thu gọn + mở tay được", async ({ page }) => {
     await openPage(page, "/dang-ky");
     await expect(page.getByTestId("parent-fields")).toHaveCount(0);
     await page.getByLabel("Ngày sinh").fill(dobYearsAgo(15));
     await expect(page.getByTestId("parent-fields")).toBeVisible();
+    await expect(page.getByTestId("parent-fields")).toContainText("không bắt buộc");
+    await expect(page.getByTestId("parent-fields")).toContainText("huỷ nhận");
+    await page.getByLabel("Ngày sinh").fill(dobYearsAgo(25));
+    await expect(page.getByTestId("parent-fields")).toHaveCount(0);
+    await page.getByRole("button", { name: /Thêm thông tin phụ huynh/ }).click();
+    await expect(page.getByTestId("parent-fields")).toBeVisible();
+  });
 
-    await fillRegister(page, { dob: dobYearsAgo(15) });
-    await submitRegister(page);
-    await expect(page.getByText(/ít nhất 1|phụ huynh/i).first()).toBeVisible();
-    await expect(page).toHaveURL(/dang-ky/);
-
+  test("AC10b: dưới 18 có email phụ huynh -> vào trang chủ, KHÔNG có banner/gate chờ phụ huynh", async ({ page }) => {
+    await openPage(page, "/dang-ky");
     await fillRegister(page, { dob: dobYearsAgo(15), parentEmail: "ph@example.com" });
     await submitRegister(page);
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByText(/email xác nhận tới phụ huynh/)).toBeVisible();
+    await expect(page.getByText("Vui lòng xác thực tài khoản để có thể mua khóa học")).toBeVisible();
+    await expect(page.getByText(/email xác nhận tới phụ huynh|chờ phụ huynh/i)).toHaveCount(0);
+    expect((await page.goto("/cho-phu-huynh"))?.status()).toBe(404);
+  });
+
+  test("AC10c [T29]: dưới 18, bỏ trống phụ huynh -> vẫn đăng ký được", async ({ page }) => {
+    test.skip(needT29, "Cần backend T29 trên DB dev (E2E_T29=1)");
+    await openPage(page, "/dang-ky");
+    await fillRegister(page, { dob: dobYearsAgo(15) });
+    await submitRegister(page);
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test("AC10d [T29]: email phụ huynh trùng email học sinh -> 422 hiện dưới ô Email phụ huynh", async ({ page }) => {
+    test.skip(needT29, "Cần backend T29 trên DB dev (E2E_T29=1)");
+    await openPage(page, "/dang-ky");
+    const u = unique();
+    await fillRegister(page, { dob: dobYearsAgo(15), email: u.email, parentEmail: u.email });
+    await submitRegister(page);
+    await expect(page).toHaveURL(/dang-ky/);
+    await expect(page.getByLabel(/Email phụ huynh/)).toHaveAttribute("aria-invalid", "true");
   });
 
   test("AC2: email/SĐT trùng -> lỗi dưới field, giữ dữ liệu, xoá mật khẩu", async ({ page, browser }) => {
@@ -204,7 +232,7 @@ test.describe("đăng nhập / đăng xuất", () => {
   test("WRONG_PORTAL: tài khoản giáo viên đăng nhập ở cổng học sinh", async ({ page }) => {
     await openPage(page, "/dang-nhap");
     await page.getByLabel("Email hoặc số điện thoại").fill("teacher@vitaminvui.test");
-    await page.getByLabel(/^Mật khẩu/).fill("password");
+    await page.getByLabel(/^Mật khẩu/).fill("Demo-VitaminVui-2026");
     await page.getByRole("button", { name: "Đăng nhập" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "không đăng nhập ở trang học sinh" })).toBeVisible();
     await expect(page).toHaveURL(/dang-nhap/);
@@ -269,11 +297,20 @@ test.describe("CSP và giao diện", () => {
   for (const path of ["/dang-ky", "/dang-nhap", "/"]) {
     test(`375px: ${path} không tràn ngang`, async ({ page }, info) => {
       await page.setViewportSize({ width: 375, height: 800 });
-      await page.goto(path);
-      if (path === "/dang-ky") await page.getByLabel("Ngày sinh").fill(dobYearsAgo(15));
-      await page.waitForTimeout(500);
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-      expect(overflow).toBeLessThanOrEqual(0);
+      await openPage(page, path); // chờ hydrate xong rồi mới thao tác
+      const measure = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (path === "/dang-ky") {
+        // Thu gọn (đủ tuổi): nút "Thêm thông tin phụ huynh" không làm tràn.
+        await page.getByLabel("Ngày sinh").fill(dobYearsAgo(25));
+        await expect(page.getByRole("button", { name: /Thêm thông tin phụ huynh/ })).toBeVisible();
+        expect(await measure()).toBeLessThanOrEqual(0);
+        // Mở (dưới 18): khối + nút "Bỏ qua" không làm tràn.
+        await page.getByLabel("Ngày sinh").fill(dobYearsAgo(15));
+        await expect(page.getByTestId("parent-fields")).toBeVisible();
+        await expect(page.getByRole("button", { name: /Bỏ qua/ })).toBeVisible();
+      }
+      await page.waitForTimeout(300);
+      expect(await measure()).toBeLessThanOrEqual(0);
       await page.screenshot({
         path: info.outputPath(`375${path.replace("/", "-") || "-home"}.png`),
         fullPage: true,

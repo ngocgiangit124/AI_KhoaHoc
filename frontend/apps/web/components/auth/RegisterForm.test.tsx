@@ -21,7 +21,7 @@ import { RegisterForm } from "./RegisterForm";
 
 const props = {
   grades: [6, 7, 8, 9, 10, 11, 12],
-  parentConsentAge: 18,
+  parentSuggestAge: 18,
   referralEnabled: false,
   policyVersion: "2026-09",
   captchaSiteKey: null,
@@ -32,7 +32,7 @@ type U = ReturnType<typeof userEvent.setup>;
 async function fillValid(user: U, dob = "2000-01-01") {
   await user.type(screen.getByLabelText(/Họ và tên/), "Nguyễn Văn A");
   await user.type(screen.getByLabelText(/Ngày sinh/), dob);
-  await user.type(screen.getByLabelText(/^Email/), "a@example.com");
+  await user.type(screen.getByLabelText(/^Email(?! phụ huynh)/), "a@example.com");
   await user.type(screen.getByLabelText(/^Số điện thoại \*/), "0912345678");
   await user.selectOptions(screen.getByLabelText(/Lớp đang học/), "9");
   await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
@@ -68,7 +68,104 @@ describe("RegisterForm", () => {
     expect(registerStudent).not.toHaveBeenCalled();
   });
 
-  it("field phụ huynh chỉ hiện khi dưới 18 tuổi", async () => {
+  it("khối phụ huynh ghi 'không bắt buộc'; mở sẵn khi dưới ngưỡng gợi ý, có nút mở tay khi đủ tuổi", async () => {
+    const user = userEvent.setup();
+    render(<RegisterForm {...props} />);
+    await user.type(screen.getByLabelText(/Ngày sinh/), "2000-01-01");
+    expect(screen.queryByTestId("parent-fields")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Thêm thông tin phụ huynh \(không bắt buộc\)/ }));
+    expect(screen.getByTestId("parent-fields")).toHaveTextContent("không bắt buộc");
+    expect(screen.getByTestId("parent-fields")).toHaveTextContent(/huỷ nhận/);
+    expect(screen.getByLabelText(/Email phụ huynh \(không bắt buộc\)/)).not.toBeRequired();
+  });
+
+  it("dưới 18 tuổi để trống phụ huynh vẫn gửi được, payload không có key parent_*", async () => {
+    registerStudent.mockResolvedValue({});
+    const user = userEvent.setup();
+    render(<RegisterForm {...props} />);
+    await fillValid(user, "2012-05-01");
+    expect(screen.getByTestId("parent-fields")).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/Điều khoản sử dụng/));
+    await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
+    await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+    await waitFor(() => expect(registerStudent).toHaveBeenCalled());
+    const payload = registerStudent.mock.calls[0]?.[0];
+    expect(payload).not.toHaveProperty("parent_email");
+    expect(payload).not.toHaveProperty("parent_phone");
+  });
+
+  it("đủ tuổi mà nhập email phụ huynh (mở tay) vẫn được gửi đi", async () => {
+    registerStudent.mockResolvedValue({});
+    const user = userEvent.setup();
+    render(<RegisterForm {...props} />);
+    await fillValid(user);
+    await user.click(screen.getByRole("button", { name: /Thêm thông tin phụ huynh/ }));
+    await user.type(screen.getByLabelText(/Email phụ huynh/), "ph@example.com");
+    await user.click(screen.getByLabelText(/Điều khoản sử dụng/));
+    await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
+    await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+    await waitFor(() => expect(registerStudent).toHaveBeenCalled());
+    expect(registerStudent.mock.calls[0]?.[0]).toMatchObject({ parent_email: "ph@example.com" });
+  });
+
+  it("nhập phụ huynh -> Bỏ qua -> gửi: payload không có parent_*, focus về nút Thêm", async () => {
+    registerStudent.mockResolvedValue({});
+    const user = userEvent.setup();
+    render(<RegisterForm {...props} />);
+    await fillValid(user, "2012-05-01");
+    await user.type(screen.getByLabelText(/Email phụ huynh/), "ph@example.com");
+    await user.click(screen.getByRole("button", { name: /Bỏ qua/ }));
+    const toggle = screen.getByRole("button", { name: /Thêm thông tin phụ huynh/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", "reg-parent-fields");
+    await waitFor(() => expect(toggle).toHaveFocus());
+    await user.click(screen.getByLabelText(/Điều khoản sử dụng/));
+    await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
+    await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+    await waitFor(() => expect(registerStudent).toHaveBeenCalled());
+    const payload = registerStudent.mock.calls[0]?.[0];
+    expect(payload).not.toHaveProperty("parent_email");
+    expect(payload).not.toHaveProperty("parent_phone");
+  });
+
+  it("nhập sai định dạng phụ huynh -> Bỏ qua -> gửi được, không lỗi ở ô ẩn; mở lại thì ô trống", async () => {
+    registerStudent.mockResolvedValue({});
+    const user = userEvent.setup();
+    render(<RegisterForm {...props} />);
+    await fillValid(user, "2012-05-01");
+    await user.type(screen.getByLabelText(/Email phụ huynh/), "sai");
+    await user.click(screen.getByRole("button", { name: /Bỏ qua/ }));
+    await user.click(screen.getByLabelText(/Điều khoản sử dụng/));
+    await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
+    await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+    await waitFor(() => expect(registerStudent).toHaveBeenCalled());
+    expect(screen.queryByText("Email phụ huynh không hợp lệ")).not.toBeInTheDocument();
+  });
+
+  it("mở khối bằng nút Thêm -> focus vào ô đầu tiên", async () => {
+    const user = userEvent.setup();
+    render(<RegisterForm {...props} />);
+    await user.type(screen.getByLabelText(/Ngày sinh/), "2000-01-01");
+    await user.click(screen.getByRole("button", { name: /Thêm thông tin phụ huynh/ }));
+    await waitFor(() => expect(screen.getByLabelText(/Số điện thoại phụ huynh/)).toHaveFocus());
+  });
+
+  it("422 parent_email trùng email học sinh -> lỗi dưới ô email phụ huynh", async () => {
+    registerStudent.mockRejectedValue(
+      new ApiError(422, { message: "x", errors: { parent_email: ["Email phụ huynh phải khác email của bạn."] } }),
+    );
+    const user = userEvent.setup();
+    render(<RegisterForm {...props} />);
+    await fillValid(user, "2012-05-01");
+    await user.type(screen.getByLabelText(/Email phụ huynh/), "a@example.com");
+    await user.click(screen.getByLabelText(/Điều khoản sử dụng/));
+    await user.click(screen.getByLabelText(/Chính sách xử lý dữ liệu cá nhân/));
+    await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+    expect(await screen.findAllByText("Email phụ huynh phải khác email của bạn.")).not.toHaveLength(0);
+    expect(screen.getByLabelText(/Email phụ huynh/)).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("khối phụ huynh tự mở theo tuổi khi đổi ngày sinh", async () => {
     const user = userEvent.setup();
     render(<RegisterForm {...props} />);
     await user.type(screen.getByLabelText(/Ngày sinh/), "2000-01-01");

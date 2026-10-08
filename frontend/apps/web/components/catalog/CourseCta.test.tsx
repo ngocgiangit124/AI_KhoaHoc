@@ -166,11 +166,11 @@ describe("CourseCta", () => {
       await waitFor(() => expect(push).toHaveBeenCalledWith("/xac-thuc-otp"));
     });
 
-    it("403 PARENT_CONSENT_REQUIRED -> hộp thoại chờ phụ huynh; email phụ huynh chưa có API nên nút gửi lại bị khoá", async () => {
+    it("mã cũ 403 PARENT_CONSENT_REQUIRED -> không có hộp thoại chờ phụ huynh, chỉ báo lỗi chung", async () => {
       setup(new ApiError(403, { message: "x", code: "PARENT_CONSENT_REQUIRED" }));
       await userEvent.click(await screen.findByRole("button", { name: "Đăng ký học miễn phí" }));
-      expect(await screen.findByText("Đang chờ phụ huynh xác nhận")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Gửi lại email cho phụ huynh" })).toBeDisabled();
+      expect(await screen.findByRole("alert")).toHaveTextContent("không thể đăng ký");
+      expect(screen.queryByText(/chờ phụ huynh/i)).not.toBeInTheDocument();
     });
 
     it("409 ENROLLMENT_PENDING -> Đang chờ duyệt", async () => {
