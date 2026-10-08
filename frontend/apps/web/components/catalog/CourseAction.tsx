@@ -32,13 +32,10 @@ export function CourseAction({ compact = false }: { compact?: boolean }) {
       break;
     case "owned":
       content = (
-        // TODO(FW4): khi có route `/hoc/{course}/bai/{lesson}` thì đổi lại thành <ButtonLink href={model.href}> "Tiếp tục học".
-        // Hiện chưa có trang học nên nút vô hiệu + chữ giải thích (không để link chết sang 404).
         <div className="flex flex-col gap-2">
-          <Button size="lg" block disabled>
+          <ButtonLink href={model.href} size="lg" block>
             {model.label}
-          </Button>
-          <p className="text-sm text-ink-soft">Sắp mở trang học.</p>
+          </ButtonLink>
           {!compact ? (
             <p className="flex items-center gap-1.5 text-sm text-success">
               <IconCheckCircle size={16} />

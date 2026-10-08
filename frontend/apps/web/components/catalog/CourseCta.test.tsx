@@ -49,6 +49,16 @@ function renderCta(isFree: boolean, paidCheckoutEnabled = true) {
   );
 }
 
+function renderCompact() {
+  return render(
+    <ToastProvider>
+      <CourseCtaProvider course={{ id: 7, slug: "toan-9", isFree: false, paidCheckoutEnabled: true }}>
+        <CourseAction compact />
+      </CourseCtaProvider>
+    </ToastProvider>,
+  );
+}
+
 function viewerState(state: string, resume: number | null = null) {
   authFetch.mockImplementation((path: string) => {
     if (path.endsWith("/viewer-state")) return Promise.resolve({ viewer_state: state, resume_lesson_id: resume });
@@ -91,13 +101,19 @@ describe("CourseCta", () => {
     expect(screen.queryByRole("button", { name: /Mua khóa học/ })).not.toBeInTheDocument();
   });
 
-  it("owned -> nút Tiếp tục học vô hiệu + 'Sắp mở trang học' (chưa có trang học, FW4), kể cả khi thanh toán tạm khoá", async () => {
+  it("owned -> liên kết Tiếp tục học tới trang học đúng bài, kể cả khi thanh toán tạm khoá", async () => {
     viewerState("owned", 42);
     renderCta(false, false);
-    expect(await screen.findByRole("button", { name: "Tiếp tục học" })).toBeDisabled();
-    expect(screen.queryByRole("link", { name: "Tiếp tục học" })).not.toBeInTheDocument();
-    expect(screen.getByText("Sắp mở trang học.")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Tiếp tục học" })).toHaveAttribute("href", "/hoc/7/bai/42");
+    expect(screen.queryByText("Sắp mở trang học.")).not.toBeInTheDocument();
     expect(authFetch).toHaveBeenCalledWith("/api/v1/courses/toan-9/viewer-state");
+  });
+
+  it("owned + compact (thanh dính mobile) -> vẫn là liên kết Tiếp tục học", async () => {
+    viewerState("owned", 42);
+    renderCompact();
+    expect(await screen.findByRole("link", { name: "Tiếp tục học" })).toHaveAttribute("href", "/hoc/7/bai/42");
+    expect(screen.queryByText("Sắp mở trang học.")).not.toBeInTheDocument();
   });
 
   it("pending_approval -> khối trạng thái Đang chờ duyệt (không phải nút)", async () => {
@@ -224,6 +240,17 @@ describe("CourseOutline", () => {
     expect(screen.getByText(/Bài có biểu tượng khoá mở khi bạn sở hữu khóa học/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Bài khoá/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Bài khoá/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Bài xem thử/ })).not.toBeInTheDocument();
+  });
+
+  it("người chưa sở hữu (đã đăng nhập, viewer_state không phải owned): bài khoá và bài học thử không phải liên kết", async () => {
+    authState = { status: "user", user: student };
+    viewerState("can_register_free");
+    renderOutline();
+    await waitFor(() => expect(authFetch).toHaveBeenCalled());
+    expect(screen.getByText(/Bài có biểu tượng khoá mở khi bạn sở hữu khóa học/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Bài khoá/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Bài xem thử/ })).not.toBeInTheDocument();
   });
 
   it("outline rỗng -> thông báo đang cập nhật", () => {
@@ -237,12 +264,11 @@ describe("CourseOutline", () => {
     expect(screen.getByText("Nội dung khóa học đang được cập nhật")).toBeInTheDocument();
   });
 
-  it("đã sở hữu -> bài là hàng tĩnh (chưa có trang học, không link chết)", async () => {
+  it("đã sở hữu -> bài là liên kết tới trang học", async () => {
     authState = { status: "user", user: student };
     authFetch.mockResolvedValue({ viewer_state: "owned", resume_lesson_id: 10 });
     renderOutline();
     await waitFor(() => expect(screen.queryByText(/Bài có biểu tượng khoá/)).not.toBeInTheDocument());
-    expect(screen.getByText("Bài khoá")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Bài khoá/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Bài khoá/ })).toHaveAttribute("href", "/hoc/7/bai/11");
   });
 });

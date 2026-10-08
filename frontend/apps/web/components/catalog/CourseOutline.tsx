@@ -2,6 +2,8 @@
 
 import { Badge, EmptyState, IconChevronDown, IconLayers, IconLock, IconPlayCircle, formatClock, formatDurationLong } from "@vitaminvui/ui/v2";
 import type { ChapterOutline } from "@/lib/catalog/schemas";
+import { AppLink } from "@/components/shell/AppLink";
+import { routes } from "@/lib/routes";
 import { useCourseCta } from "./CourseCtaProvider";
 
 /**
@@ -9,10 +11,10 @@ import { useCourseCta } from "./CourseCtaProvider";
  * đọc màn hình dùng sẵn. Mọi người xem được tên bài + thời lượng (US-003 BR1).
  * - Chưa sở hữu: bài có khoá là hàng tĩnh + biểu tượng ổ khoá, câu giải thích nằm phía trên danh sách (không bật
  *   thông báo khi bấm).
- * - Bài học thử: nhãn "Học thử". TODO(FW4): bấm để phát video (`GET /preview/lessons/{lesson}/playback`) — cần hls.js, chưa cài.
- * - Đã sở hữu: hàng tĩnh cho tới khi có trang học (FW4) — không để liên kết chết.
+ * - Bài học thử: nhãn "Học thử", chưa bấm được vì trang học (FW4) chưa có cách phát preview cho người chưa sở hữu.
+ * - Đã sở hữu: mỗi bài là liên kết tới trang học `/hoc/{course}/bai/{lesson}`.
  */
-export function CourseOutline({ chapters }: { chapters: ChapterOutline[]; courseId?: number }) {
+export function CourseOutline({ chapters, courseId }: { chapters: ChapterOutline[]; courseId: number }) {
   const { owned } = useCourseCta();
 
   if (chapters.length === 0 || chapters.every((c) => c.lessons.length === 0)) {
@@ -55,12 +57,11 @@ export function CourseOutline({ chapters }: { chapters: ChapterOutline[]; course
                 return (
                   <li key={lesson.id}>
                     {owned ? (
-                      // TODO(FW4): bài là liên kết `/hoc/${courseId}/bai/${lesson.id}` khi trang học có thật.
-                      <div className="flex min-h-12 items-center gap-3 px-3 py-2">
+                      <AppLink href={routes.lesson(courseId, lesson.id)} className="focus-ring flex min-h-12 items-center gap-3 rounded-card px-3 py-2 hover:bg-sunken">
                         <IconPlayCircle className="text-ink-soft" />
                         <span className="flex-1 text-base text-ink">{lesson.title}</span>
                         {time}
-                      </div>
+                      </AppLink>
                     ) : lesson.is_preview ? (
                       <div className="flex min-h-12 items-center gap-3 px-3 py-2">
                         <IconPlayCircle className="text-primary" />
