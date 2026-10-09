@@ -210,6 +210,15 @@ class AppServiceProvider extends ServiceProvider
         // US-022 (T38): đơn của tôi (đọc) 60/phút, học sinh tự huỷ đơn 10/phút (api-contract §1.6).
         RateLimiter::for('orders-read', fn (Request $request) => Limit::perMinute(60)->by('orders-read:'.$this->identity($request)));
         RateLimiter::for('order-cancel', fn (Request $request) => Limit::perMinute(10)->by('order-cancel:'.$this->identity($request)));
+        // US-022 (T24-V1): quản trị đơn hàng. Đọc 120/phút/user, ghi (hoàn tiền; T39: duyệt/huỷ/ghi chú) 30/phút/user.
+        RateLimiter::for('admin-order-read', fn (Request $request) => Limit::perMinute(120)->by('admin-order-read:'.$this->identity($request)));
+        RateLimiter::for('admin-order-action', fn (Request $request) => Limit::perMinute(30)->by('admin-order-action:'.$this->identity($request)));
+        // S1 (security T24-V1): tìm đơn theo email/SĐT (tra ngược ra họ tên) giới hạn riêng 30/phút + 300/ngày/user; kiểm và đếm trong
+        // `OrderController::index` (chỉ khi `q` thuộc dạng liên hệ), quá hạn → 429 + Retry-After.
+        RateLimiter::for('admin-order-contact-search', fn (Request $request) => [
+            Limit::perMinute(30)->by('admin-order-contact-min:'.$this->identity($request)),
+            Limit::perDay(300)->by('admin-order-contact-day:'.$this->identity($request)),
+        ]);
         RateLimiter::for('pay', fn (Request $request) => Limit::perMinute(10)->by($this->identity($request)));
 
         RateLimiter::for('check-payment', function (Request $request) {

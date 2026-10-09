@@ -7,6 +7,7 @@ Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) 
 ### 2026-10-08 tối: FW7 commit `0487dc0` (chưa push). PO yêu cầu mới: thanh toán "Liên hệ Quản trị viên" (MoMo ẩn), QTV liên hệ rồi duyệt đơn
 - Story `docs/stories/US-022-...md` (BA, 16 câu hỏi PO, đang dùng mặc định), ADR-007 (Proposed), `docs/tech/US-022.md`, api-contract §2.3.1/§2.5.1, task T38 → (T24-V1 ∥ FW3) → T39 → FA8 trong tasks.md.
 - Đang chạy: DBA review mô hình dữ liệu (`docs/review/T38-dba.md`), nextjs-designer dựng màn US-022. Sau DBA: laravel-dev làm T38 [SEC][DBA].
+- 2026-10-09 sáng: commit (chưa push) `7ddf063` T38, `bb5c394` T38-1 (xoá customer_note sau 90 ngày), `c353b88` Design US-022. DB dev đã migrate 3 migration T38; `backend/.env` local bật `FEATURE_MANUAL_PAYMENT` + kênh liên hệ thật. Đang chạy: T24-V1 (laravel-dev, admin đơn hàng phần đọc), FW3 (nextjs-dev, giỏ/thanh toán/đơn của tôi, seed riêng `fw3-*`). Sau: T39 → FA8.
 - PO 2026-10-09 đã quyết (xem story mục "Quyết định PO 2026-10-09"): SĐT/Zalo 0915592224, 8h–17h; không STK/QR; 72h; chấp nhận rủi ro duyệt không thu tiền; không giới hạn giữ chỗ mã; chấp nhận spam thư QTV; link thư → "Đơn đã gửi". FW7 đã push (`0487dc0`).
 - (cũ) Chờ PO: Q1 kênh liên hệ thật (SĐT/Zalo/email/giờ), Q2 có hiện STK/QR không (mặc định không), Q3 hạn chờ (mặc định 72h), duyệt ADR-007 + chấp nhận rủi ro QTV duyệt không thu tiền (chỉ giảm nhẹ bằng audit/`confirmed_by`).
 

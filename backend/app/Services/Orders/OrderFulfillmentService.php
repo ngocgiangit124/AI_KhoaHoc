@@ -97,7 +97,9 @@ class OrderFulfillmentService
         }
 
         if ($locked->coupon_id !== null) {
-            $needsReview = $this->recordCouponUsage($locked) || $needsReview;
+            $couponReasons = $this->recordCouponUsage($locked);
+            $needsReview = $couponReasons !== [] || $needsReview;
+            $reasons = [...$reasons, ...$couponReasons];
         }
 
         if ($paymentReference !== null) {
@@ -131,12 +133,15 @@ class OrderFulfillmentService
         return $locked;
     }
 
-    /** @return bool true nếu cần `needs_review` (vượt max_uses hoặc vi phạm unique lượt dùng) */
-    private function recordCouponUsage(Order $order): bool
+    /**
+     * @return list<string> lý do cần `needs_review` (rỗng = không): `coupon_already_used` (HS đã dùng mã này ở đơn khác, vi phạm unique
+     *                      lượt dùng; không tăng `used_count`), `coupon_over_limit` (vượt `max_uses`), `coupon_missing` (không xảy ra: FK restrict)
+     */
+    private function recordCouponUsage(Order $order): array
     {
         $coupon = Coupon::query()->whereKey($order->coupon_id)->lockForUpdate()->first();
         if ($coupon === null) {
-            return true;
+            return ['coupon_missing'];
         }
 
         $usage = new CouponUsage;
@@ -146,7 +151,7 @@ class OrderFulfillmentService
             $usage->save();
         } catch (QueryException $e) {
             if ((int) ($e->errorInfo[1] ?? 0) === 1062) {
-                return true; // HS đã dùng mã này (đơn khác) hoặc đơn đã ghi lượt: không tăng used_count
+                return ['coupon_already_used']; // HS đã dùng mã này (đơn khác) hoặc đơn đã ghi lượt: không tăng used_count
             }
 
             throw $e;
@@ -154,6 +159,6 @@ class OrderFulfillmentService
 
         Coupon::query()->whereKey($coupon->getKey())->increment('used_count');
 
-        return $coupon->max_uses !== null && $coupon->used_count + 1 > $coupon->max_uses;
+        return $coupon->max_uses !== null && $coupon->used_count + 1 > $coupon->max_uses ? ['coupon_over_limit'] : [];
     }
 }

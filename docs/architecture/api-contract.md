@@ -547,14 +547,14 @@ Khoá: `carts` (của HS) → `orders` (FOR UPDATE) → kiểm lại; đua với
 **`GET /admin/orders`** — query (`OrderFilterRequest`, sai → 422 `VALIDATION_ERROR`):
 | Tham số | Quy tắc |
 |---|---|
-| `from`, `to` | `YYYY-MM-DD` theo `created_at` (giờ app, gồm cả ngày `to`), `to − from ≤ 366` ngày. **Bắt buộc**, TRỪ khi `status[]` đúng bằng `["pending"]` (tab "Chờ duyệt": đơn chờ ít và tự hết hạn) |
+| `from`, `to` | `YYYY-MM-DD` theo `created_at` (giờ app, gồm cả ngày `to`), `to − from ≤ 366` ngày (**366 ngày chênh lệch = 367 ngày lịch**, tức `from=2026-01-01`, `to=2027-01-02` vẫn hợp lệ). **Bắt buộc**, TRỪ khi `status[]` đúng bằng `["pending"]` (tab "Chờ duyệt": đơn chờ ít và tự hết hạn) |
 | `status[]` | ⊂ `pending, paid, failed, cancelled, refunded` |
 | `payment_method` | `none` \| `manual` \| `momo` (mới) |
-| `q` | Như bảng §2.5 (mã đơn / email chính xác / SĐT chuẩn hoá / tên `LIKE 'từ%'` escape) |
+| `q` | Như bảng §2.5 (mã đơn / email chính xác / SĐT chuẩn hoá / tên `LIKE 'từ%'` escape). **Tìm theo email/SĐT** (tra ngược ra họ tên) giới hạn riêng **30/phút + 300/ngày/user** (429 `TOO_MANY_ATTEMPTS` + `Retry-After`) và ghi audit `order.search_contact` (`changes`: `kind` = `email`\|`phone`, `hit`, `q_hash` = HMAC; KHÔNG lưu giá trị gốc). Tìm theo mã đơn/tên không ghi |
 | `needs_review` | `0`\|`1` |
 | `pending_older_than_hours` | int 1..720 (như cũ) |
 | `sort` | `newest` (mặc định: `created_at desc, id desc`) \| `oldest` (`created_at asc, id asc` — tab Chờ duyệt dùng giá trị này, US-022 AC15) (mới) |
-| `cursor`, `per_page` | Cursor theo `sort`; `per_page` 25 \| 50 |
+| `cursor`, `per_page` | Cursor theo `sort` (chuỗi do server trả; bị sửa/hỏng → **422** `errors.cursor`, không 500); `per_page` 25 \| 50 |
 
 Response:
 ```json
@@ -584,10 +584,11 @@ Response:
 }
 ```
 - `items_count` (tổng số khóa) + `first_item_title` (bản chụp `order_items.course_title` của dòng `id` nhỏ nhất; FE hiện "Toán 9 nâng cao +1"): lấy bằng `withCount` + subquery chọn cột, không N+1, không đổi index.
-- `expiring_soon` = `status = pending` VÀ `expires_at − now < orders.manual.expiring_soon_hours` (12 giờ) (AC15 nhãn "Sắp hết hạn"). FE tự tính "còn bao lâu" từ `expires_at`.
+- `expiring_soon` = `payment_method = manual` VÀ `status = pending` VÀ `expires_at − now < orders.manual.expiring_soon_hours` (12 giờ; đơn MoMo `pending` sống 12 giờ nên luôn `false`) (AC15 nhãn "Sắp hết hạn"). FE tự tính "còn bao lâu" từ `expires_at`.
 - `confirmed_by`: `{id, name}` người duyệt đơn `manual`, hoặc `null`.
 - `student.is_deleted = true` khi tài khoản đã ẩn danh: `name = "Tài khoản đã xoá"`, email/SĐT `null`.
-- Email/SĐT luôn **che** ở danh sách (S14).
+- Email/SĐT luôn **che** ở danh sách (S14). Các mẫu `ng***@gmail.com`, `09****123` trong ví dụ chỉ là **minh hoạ**; mẫu thật là `App\Support\Mask` (`n***@gmail.com`, `******4123`), FE không hard-code theo ví dụ.
+- `meta.total` = `COUNT(*)` riêng trên cùng bộ lọc, tính ở MỌI trang cursor (kể cả trang kế tiếp/trước).
 
 **`GET /admin/orders/pending-count`** — badge menu (US-022 AC15/Q14). Không cache; FE gọi khi tải layout, mỗi 60 giây khi tab đang mở và sau mỗi thao tác duyệt/huỷ.
 ```json
@@ -649,13 +650,14 @@ Chỉ đếm đơn `payment_method = manual`, `status = pending` (đơn MoMo đa
 - `student.phone_verified` / `email_verified`: boolean theo `*_verified_at` (SĐT chưa xác thực → FE gắn nhãn "chưa xác thực"). `student.account_status` ∈ `active|locked` (cột `users.status`); tài khoản đã ẩn danh: `is_deleted = true`, `account_status` giữ giá trị cột, `name = "Tài khoản đã xoá"`, email/SĐT `null`. Chi tiết luôn đầy đủ (không che), danh sách luôn che — không đổi.
 - `items[].course_status` ∈ `published|unpublished|draft|deleted` (khóa hiện tại, `withTrashed`), `current_price` = giá hiện tại (null nếu đã xoá) để FE hiện "giá hiện tại khác giá chốt" (Could).
 - `status_logs` cũ nhất trước; `actor` null với `system`/`gateway`; `meta` chỉ có khoá allowlist (`source`, `late`, `review`, `items`).
-- `notes` cũ nhất trước (append-only). `attempts` chỉ có với đơn cổng (shape T24), `[]` với `manual`.
-- `needs_review_reasons`: lấy từ `meta.review` của lần chuyển `paid` gần nhất (`late_payment`, `already_owned`, `coupon_over_limit`, `coupon_already_used`, `course_unavailable`); `[]` khi chưa `paid` hoặc không có.
+- `notes` cũ nhất trước (append-only). `attempts` chỉ có với đơn cổng, `[]` với `manual`; mỗi phần tử có đúng 9 khoá `{id, gateway, gateway_order_id, amount, status, result_code, result_message, expires_at, created_at}` (tối đa 20, KHÔNG có `pay_url`/`create_response`).
+- `needs_review_reasons` (chỉ nhận 5 giá trị liệt kê; giá trị nội bộ `coupon_missing` bị lọc): lấy từ `meta.review` của lần chuyển `paid` gần nhất (`late_payment`, `already_owned`, `coupon_over_limit`, `coupon_already_used`, `course_unavailable`); `[]` khi chưa `paid` hoặc không có.
 - `approval` (một nguồn sự thật với guard của approve/cancel, `ManualOrderService::approvalState`):
   - `can_approve` = `manual` VÀ `pending`;
   - `can_approve_late` = `manual` VÀ `cancelled` VÀ `status_reason ≠ account_deleted` VÀ `now ≤ cancelled_at + approval_window_days`;
-  - `approval_window_until` = `cancelled_at + approval_window_days` khi đơn `manual` `cancelled`, ngược lại `null`;
+  - `approval_window_until` = `cancelled_at + approval_window_days` khi đơn `manual` `cancelled` VÀ `approval_window_days > 0`, ngược lại `null` (cửa sổ = 0 tắt duyệt muộn, `can_approve_late` luôn `false`);
   - `can_cancel` = `manual` VÀ `pending`;
+  - `warnings` chỉ tính cho đơn `manual` đang `pending`/`cancelled`; đơn khác (đã `paid`/`refunded`, đơn cổng) là `[]`. Quyết định thuần (`can_*`, `approval_window_until`, mã 409) do `ManualOrderService::decide()` (guard dưới khoá của T39), cảnh báo do `approvalState()`.
   - `warnings[].code` ∈ `COURSE_UNPUBLISHED` (vẫn duyệt được, AC23), `COURSE_DELETED` (duyệt sẽ bị 409, AC24), `ALREADY_OWNED` (HS đã có enrollment `active` cho khóa này từ nguồn khác), `ACCOUNT_LOCKED`, `ACCOUNT_DELETED`. Mỗi phần tử có `course_id`/`title` khi liên quan khóa.
   - `late_approval_warnings[]` (chốt 2026-10-08 theo design §7): **dự báo** những gì sẽ thành cờ "Cần xem lại" nếu duyệt muộn **ngay lúc này**, để FE hiện trong hộp Duyệt muộn TRƯỚC khi bấm. Chỉ khác `[]` khi `can_approve_late = true`. Phần tử `{code, course_id?, title?, coupon_code?}`, `code` ∈ `ALREADY_OWNED` (HS đã có enrollment `active` cho khóa từ đơn/nguồn khác → giữ quyền cũ, hoàn tiền phần trùng ngoài hệ thống), `COUPON_OVER_LIMIT` (`used_count ≥ max_uses`), `COUPON_ALREADY_USED` (HS đã có `coupon_usages` cho mã này ở đơn khác). Khóa đã xoá KHÔNG nằm ở đây (là `warnings` `COURSE_DELETED`, duyệt sẽ bị 409). Đây là ảnh chụp đọc thường, không khoá: lúc duyệt server tính lại dưới khoá và `needs_review_reasons` sau duyệt là kết quả cuối (có thể khác nếu dữ liệu đổi giữa chừng). Cùng hàm tính với guard (`ManualOrderService::approvalState`).
 

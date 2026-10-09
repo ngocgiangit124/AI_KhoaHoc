@@ -35,6 +35,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $customer_note Ghi chú của học sinh khi đặt đơn `manual` (US-022 BR9); không sửa được
  * @property string|null $cancel_reason_public Lý do Quản trị viên huỷ, hiển thị cho học sinh (BR13); chỉ khi `admin_cancelled`
  * @property int|null $confirmed_by Người duyệt đơn `manual` (BR12)
+ * @property int|null $refunded_by Người hoàn tiền (T24-V1)
+ * @property string|null $refund_note
  */
 class Order extends Model
 {
@@ -117,6 +119,14 @@ class Order extends Model
     public function confirmedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'confirmed_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function refundedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'refunded_by');
     }
 
     /**

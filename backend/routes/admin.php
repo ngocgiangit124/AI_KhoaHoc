@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\V1\Admin\EnrollmentRequestController;
 use App\Http\Controllers\Api\V1\Admin\LessonController;
 use App\Http\Controllers\Api\V1\Admin\LessonVideoUploadController;
 use App\Http\Controllers\Api\V1\Admin\MyTeacherProfileController;
+use App\Http\Controllers\Api\V1\Admin\OrderController;
+use App\Http\Controllers\Api\V1\Admin\OrderRefundController;
 use App\Http\Controllers\Api\V1\Admin\QuizController;
 use App\Http\Controllers\Api\V1\Admin\QuizQuestionController;
 use App\Http\Controllers\Api\V1\Admin\StaffAccountController;
@@ -172,6 +174,13 @@ Route::domain(config('app.admin_api_host'))
             Route::post('/admin/coupons/{coupon}/deactivate', [CouponController::class, 'deactivate'])->name('admin.coupons.deactivate');
             Route::post('/admin/coupons/{coupon}/activate', [CouponController::class, 'activate'])->name('admin.coupons.activate');
             Route::delete('/admin/coupons/{coupon}', [CouponController::class, 'destroy'])->name('admin.coupons.destroy');
+
+            // T24-V1 (US-022, US-010) — Đơn hàng quản trị. Quyền `OrderPolicy` (admin, quản lý trang; giáo viên 403 TRƯỚC validate/tìm đơn,
+            // nên `{code}` là chuỗi chứ không bind model). `pending-count` khai báo trước `{code}`. Duyệt/huỷ/ghi chú thêm ở T39.
+            Route::get('/admin/orders', [OrderController::class, 'index'])->middleware('throttle:admin-order-read')->name('admin.orders.index');
+            Route::get('/admin/orders/pending-count', [OrderController::class, 'pendingCount'])->middleware('throttle:admin-order-read')->name('admin.orders.pending-count');
+            Route::get('/admin/orders/{code}', [OrderController::class, 'show'])->middleware('throttle:admin-order-read')->name('admin.orders.show');
+            Route::post('/admin/orders/{code}/refund', [OrderRefundController::class, 'store'])->middleware('throttle:admin-order-action')->name('admin.orders.refund');
 
             // T33 — Tài khoản staff + nhật ký thao tác (US-016). Chỉ admin (Gate `manage-system`, kiểm trước validate).
             Route::get('/admin/staff', [StaffAccountController::class, 'index'])->name('admin.staff.index');

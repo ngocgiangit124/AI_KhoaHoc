@@ -57,6 +57,7 @@ Các task đã xong trước đó: xem bảng Tóm tắt và `docs/board.md`.
 |---|---|---|
 | **SLN8** Trang chi tiết khóa: nút "Tiếp tục học" và mục lục bài thành liên kết vào trang học | PO báo lỗi 2026-10-08 (TODO FW4 còn sót); **dev đang làm** | 0,25 |
 | **FW7** Quyền dữ liệu cá nhân + trang công khai `/phu-huynh/huy-nhan-thong-bao` + banner chấp nhận lại chính sách + `/dieu-khoan`, `/chinh-sach-du-lieu` (bản TẠM) | Làm sau T34. **Bắt buộc lên production trước khi bật `FEATURE_PARENT_NOTICES`**. Màn OTP xoá tài khoản phải xử lý 429 `TOO_MANY_ATTEMPTS` (hết 5 lượt sai) và đọc `errors.*` (không phải `context.*`) | 2,5 |
+| Backlog FW3 (review 2026-10-09) | `pending_order` trong `GET /cart` để cảnh báo đơn chờ ngay ở giỏ (BE + FE); sửa type `ApiError.errors` → `Record<string, unknown>` ở `packages/api-client` và gộp `domainValue`/`errorField`; nút "Thêm vào giỏ" ở thẻ khóa danh mục/trang chủ; code trùng `components/v2/orders` (preview) với `components/orders` | 0,75 |
 | Gộp 3 file KaTeX trùng (web/admin) vào `packages/ui` | Backlog FA5 | 0,25 |
 | `DataTable` (`packages/ui`) cần khung cuộn `relative` để `sr-only` không gây tràn 375px | Backlog FW6 | 0,25 |
 | **V2:** FW3 giỏ hàng, thanh toán, đơn của tôi | Chờ MoMo | 3 |

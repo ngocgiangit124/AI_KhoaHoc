@@ -340,3 +340,11 @@ Còn lại (không sửa trong T36):
 ## T29 (security review 2026-10-08) — chuyển sang backlog
 - **T29-S4 (Low):** lỗi gửi `ParentNoticeMail` có thể ghi địa chỉ phụ huynh vào `failed_jobs.exception` và log worker (thông điệp transport SMTP). Việc cần làm: che email (regex → `***`) trong exception của `Symfony\Component\Mailer\Exception\*` hoặc `failed()` của mailable; giữ `queue:prune-failed --hours=168` (T30) chạy theo lịch. Kiểm chứng: transport giả ném exception chứa email thì `failed_jobs`/log không có `@`.
 - **T29-S6 (Low):** chưa có trần tổng/cảnh báo cho thư gửi bên thứ ba. Việc cần làm: limiter toàn cục `parent-notice:global` (ví dụ 500/giờ, vượt thì bỏ thư + `Log::warning`), cân nhắc trần 3 địa chỉ phụ huynh khác nhau/tài khoản/ngày, đưa số `parent_notice.sent`/giờ vào cảnh báo (T26).
+
+## US-022 (T38, T24-V1 — 2026-10-09) — chuyển sang backlog
+- **T38-S5 (Low, PO chấp nhận V1):** nhiều tài khoản có thể spam hộp thư QTV (5 thư/ngày/tài khoản). Việc cần làm: trần toàn cục thư "đơn mới" + gộp thư theo lô.
+- **T38-S2 (Medium, PO chấp nhận không giới hạn giữ chỗ):** nhiều tài khoản giữ hết lượt mã giảm giá 72h; giảm nhẹ bằng QTV huỷ đơn (T39). Chỉ bật `FEATURE_MANUAL_PAYMENT` ở production sau T39.
+- **T24-V1 index (DBA/review):** thêm `orders(payment_method, created_at)` (INPLACE, không khoá) khi `orders` > 500k dòng, slow log lọc `payment_method` > 300 ms, hoặc khi bật MoMo; cùng lúc cân nhắc `users(name)` cho tìm theo tên (137 ms ở 30k HS).
+- **T24-V1-S3 (Low, chờ PO):** quản lý trang hoàn tiền không ngưỡng/không duyệt 2 bước.
+- **T24-V1-S4 (Low):** mẫu che email lộ tên miền (ví dụ tên miền trường).
+- **T24-V1-S6 (Pháp chế):** thời hạn lưu `refund_note`, `order_notes.body`, audit `view_pii` (IP staff); `refund_note` chưa xoá khi xoá tài khoản.
