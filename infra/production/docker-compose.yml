@@ -1,0 +1,286 @@
+# VitaminVui — compose production/staging (T35-1, ADR-008 §8.3). Project `vvstack`, 1 server, Nginx ở HOST (mẫu T31).
+# Chạy bằng `deploy.sh` (không gọi tay trừ khi xử lý sự cố). TUYỆT ĐỐI KHÔNG `docker compose down`: xoá mạng làm Nginx host
+# mất địa chỉ 10.231.10.1 của listener :8081. Chỉ dùng `up -d --no-deps <service>`, `pull`, `run --rm`, `exec`.
+#
+# Biến nội suy (đặt trong /opt/vitaminvui/.env, mẫu compose.env.example):
+#   VV_ENV, VV_REGISTRY, IMAGE_TAG, PREVIOUS_TAG, VV_SUBNET_FRONT|APP|VIDEO.
+# Đường dẫn mặc định = đường dẫn production (quy tắc ADR-008 §8.5: thư mục Nginx host đọc phải TRÙNG tên trong container).
+# Bản smoke local (smoke/docker-compose.smoke.yml) chỉ đổi các biến VV_HOME/VV_*_DIR, KHÔNG sửa file này.
+name: vvstack
+
+# Tăng số này cùng `COMPOSE_VERSION` trong docker-bake.hcl khi đổi hợp đồng giữa image và compose (deploy.sh kiểm label).
+x-vv-compose-version: "1"
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 20m
+    max-file: "5"
+
+x-hardening: &hardening
+  restart: unless-stopped
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  logging: *logging
+
+# Thư mục dữ liệu của app (host = container). storage/framework KHÔNG mount: mỗi container tự sinh cache lúc khởi động.
+x-backend-volumes: &backend-volumes
+  - ${VV_STORAGE_APP:-/var/www/backend/storage/app}:/var/www/backend/storage/app
+  - ${VV_STORAGE_LOGS:-/var/www/backend/storage/logs}:/var/www/backend/storage/logs
+  - ${VV_UPLOADS_DIR:-/var/www/uploads}:/var/www/uploads
+
+x-backend: &backend
+  <<: *hardening
+  image: ${VV_REGISTRY:?}/vitaminvui-backend:${IMAGE_TAG:?}
+  environment:
+    HOME: /tmp
+  env_file:
+    - ${VV_HOME:-/opt/vitaminvui}/env/app.env
+  volumes: *backend-volumes
+
+services:
+  php:
+    <<: *backend
+    command: ["php-fpm"]
+    # Giới hạn là mức khởi điểm (20 child x ~80 MB); đo bằng `docker stats` ở staging rồi chỉnh. Tránh một service rò RAM làm MySQL bị OOM.
+    mem_limit: ${VV_PHP_MEM:-2g}
+    pids_limit: 512
+    environment:
+      HOME: /tmp
+      FPM_MAX_CHILDREN: ${VV_FPM_CHILDREN:-20}
+      FPM_START_SERVERS: ${VV_FPM_START:-4}
+      FPM_MIN_SPARE: ${VV_FPM_MIN_SPARE:-2}
+      FPM_MAX_SPARE: ${VV_FPM_MAX_SPARE:-6}
+      OPCACHE_MEMORY: ${VV_OPCACHE_MB:-192}
+    ports:
+      - "127.0.0.1:9000:9000"
+    networks: [app]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "SCRIPT_NAME=/fpm-ping SCRIPT_FILENAME=/fpm-ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 | grep -q pong"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+
+  queue:
+    <<: *backend
+    command: ["php", "artisan", "queue:work", "redis", "--queue=default,exports", "--tries=3", "--sleep=1", "--timeout=60", "--max-time=3600"]
+    deploy:
+      replicas: ${VV_QUEUE_REPLICAS:-2}
+    mem_limit: ${VV_QUEUE_MEM:-768m}
+    pids_limit: 256
+    stop_grace_period: 70s
+    networks: [app]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  scheduler:
+    <<: *backend
+    command: ["php", "artisan", "schedule:work"]
+    mem_limit: ${VV_SCHED_MEM:-512m}
+    pids_limit: 256
+    networks: [app]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Chạy một lần mỗi deploy bằng `docker compose run --rm migrate` (profile tools): user vv_migrate (DDL), KHÔNG phải vv_app.
+  # env_file sau ghi đè trước: migrate.env đè DB_USERNAME/DB_PASSWORD của app.env.
+  migrate:
+    <<: *backend
+    restart: "no"
+    profiles: [tools]
+    command: ["php", "artisan", "migrate", "--force"]
+    environment:
+      HOME: /tmp
+      VV_OPTIMIZE: "0"
+    env_file:
+      - ${VV_HOME:-/opt/vitaminvui}/env/app.env
+      - ${VV_HOME:-/opt/vitaminvui}/env/migrate.env
+    volumes:
+      - ${VV_STORAGE_LOGS:-/var/www/backend/storage/logs}:/var/www/backend/storage/logs
+    networks: [app]
+
+  # ADR-002 §3a.3: sandbox. Chỉ mạng `video` (internal: không ra Internet, chỉ tới mysql + redis-video), rootfs chỉ đọc, không
+  # capability, giới hạn tài nguyên, chỉ mount thư mục videolab. Env riêng (worker-video.env), không có secret của app.
+  # stop_grace_period 3660s > --timeout 3600: SIGTERM cho ffmpeg đang chạy xong job hiện tại (checklist §7 R9).
+  worker-video:
+    <<: *hardening
+    # V1 dùng Bunny: VideoLab TẮT. Bật bằng VV_VIDEOLAB=1 trong .env (deploy.sh đặt COMPOSE_PROFILES=videolab).
+    profiles: [videolab]
+    image: ${VV_REGISTRY:?}/vitaminvui-worker-video:${IMAGE_TAG:?}
+    read_only: true
+    tmpfs:
+      # noexec/nosuid/nodev (S5): kẻ chiếm worker qua lỗi ffmpeg không thả binary chạy được từ /tmp.
+      - /tmp:rw,noexec,nosuid,nodev,size=512m
+    init: true
+    cpus: 2
+    mem_limit: 2g
+    pids_limit: 256
+    stop_grace_period: 3660s
+    environment:
+      HOME: /tmp
+      VV_OPTIMIZE: "0"
+    env_file:
+      - ${VV_HOME:-/opt/vitaminvui}/env/worker-video.env
+    volumes:
+      - ${VV_STORAGE_APP:-/var/www/backend/storage/app}/videolab:/var/www/backend/storage/app/videolab
+    networks: [video]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis-video:
+        condition: service_healthy
+
+  # MySQL 8.4 trong container, dữ liệu bind mount trên host. KHÔNG publish cổng; quản trị bằng `docker compose exec mysql`.
+  # Không đặt MYSQL_USER: user vv_app/vv_migrate/vv_worker_video do mysql/grants-users.sql tạo (host theo mạng app/video).
+  # Healthcheck qua TCP: server tạm của entrypoint (lúc khởi tạo dữ liệu lần đầu) chỉ mở socket, không nghe TCP. Ping socket báo healthy quá sớm.
+  mysql:
+    <<: *hardening
+    image: mysql:8.4.11@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    # Buffer pool theo môi trường (my.cnf không nội suy được biến). mem_limit = pool + ~1 GB cho kết nối/redo/performance_schema (DBA D1).
+    command:
+      - mysqld
+      - --innodb-buffer-pool-size=${VV_MYSQL_BUFFER_POOL:-2G}
+      - --max-connections=${VV_MYSQL_MAX_CONN:-100}
+      - --innodb-redo-log-capacity=${VV_MYSQL_REDO:-1G}
+      - --performance-schema=${VV_MYSQL_PERF_SCHEMA:-ON}
+    mem_limit: ${VV_MYSQL_MEM_LIMIT:-3g}
+    env_file:
+      - ${VV_HOME:-/opt/vitaminvui}/env/mysql.env
+    volumes:
+      - ${VV_DATA_DIR:-/srv/vitaminvui}/mysql:/var/lib/mysql
+      - ${VV_HOME:-/opt/vitaminvui}/conf/my.cnf:/etc/mysql/conf.d/90-vitaminvui.cnf:ro
+    networks: [app, video]
+    stop_grace_period: 120s
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping --protocol=tcp -h 127.0.0.1 -uroot --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  redis:
+    <<: *hardening
+    image: redis:7.4.11@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85
+    cap_add: [CHOWN, SETUID, SETGID]
+    # maxmemory 0 = không giới hạn (large); small đặt 64mb (noeviction: đầy thì từ chối ghi, không mất job).
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--maxmemory", "${VV_REDIS_MAXMEM:-0}"]
+    mem_limit: ${VV_REDIS_MEM:-1g}
+    volumes:
+      - ${VV_DATA_DIR:-/srv/vitaminvui}/redis:/data
+      - ${VV_HOME:-/opt/vitaminvui}/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ${VV_HOME:-/opt/vitaminvui}/conf/users.acl:/usr/local/etc/redis/users.acl:ro
+    networks: [app]
+    healthcheck:
+      # User vv_healthcheck (nopass, chỉ +ping) trong file ACL: PING sau AUTH vẫn trả LOADING khi đang nạp AOF; không mang secret nào.
+      test: ["CMD-SHELL", "redis-cli --user vv_healthcheck --pass x --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # Redis RIÊNG cho queue `video` (R2): worker bị chiếm chỉ chạm được instance này (ACL users.video-instance.acl).
+  redis-video:
+    <<: *hardening
+    profiles: [videolab]
+    image: redis:7.4.11@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85
+    cap_add: [CHOWN, SETUID, SETGID]
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - ${VV_DATA_DIR:-/srv/vitaminvui}/redis-video:/data
+      - ${VV_HOME:-/opt/vitaminvui}/conf/redis-video.conf:/usr/local/etc/redis/redis.conf:ro
+      - ${VV_HOME:-/opt/vitaminvui}/conf/users.video-instance.acl:/usr/local/etc/redis/users.acl:ro
+    networks: [app, video]
+    healthcheck:
+      # User vv_healthcheck (nopass, chỉ +ping) trong file ACL: PING sau AUTH vẫn trả LOADING khi đang nạp AOF; không mang secret nào.
+      test: ["CMD-SHELL", "redis-cli --user vv_healthcheck --pass x --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # --- web + admin (T35-2 sở hữu image/Dockerfile; khối này chỉ đổi khi T35-2 cần) ---
+  web:
+    <<: *hardening
+    image: ${VV_REGISTRY:?}/vitaminvui-web:${VV_ENV:?}-${IMAGE_TAG:?}
+    command: ["node", "apps/web/server.js"]
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      NODE_OPTIONS: ${VV_WEB_NODE_OPTIONS:-}
+    env_file:
+      - ${VV_HOME:-/opt/vitaminvui}/env/web.env
+    # Rootfs chỉ đọc (S7): mã thuộc root; chỉ /tmp và cache ảnh của Next ghi được (tmpfs, uid 1000 = user node).
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+      - /app/apps/web/.next/cache:rw,nosuid,nodev,size=256m,uid=1000,gid=1000
+    mem_limit: ${VV_WEB_MEM:-1g}
+    pids_limit: 256
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [front]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/robots.txt').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  admin:
+    <<: *hardening
+    image: ${VV_REGISTRY:?}/vitaminvui-admin:${VV_ENV:?}-${IMAGE_TAG:?}
+    command: ["node", "apps/admin/server.js"]
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: "3001"
+      NODE_OPTIONS: ${VV_ADMIN_NODE_OPTIONS:-}
+    env_file:
+      - ${VV_HOME:-/opt/vitaminvui}/env/admin.env
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+      - /app/apps/admin/.next/cache:rw,nosuid,nodev,size=256m,uid=1000,gid=1000
+    mem_limit: ${VV_ADMIN_MEM:-768m}
+    pids_limit: 256
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks: [front]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/dang-nhap').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  # web, admin. Gateway (.1) là địa chỉ listener :8081 của Nginx host cho SSR.
+  front:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${VV_SUBNET_FRONT:-10.231.10.0/24}
+  # php, queue, scheduler, migrate, mysql, redis, redis-video. grants-users.sql: <APP_HOST>/<MIGRATE_HOST> = 10.231.11.%
+  app:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${VV_SUBNET_APP:-10.231.11.0/24}
+  # worker-video + mysql + redis-video. Không ra Internet (ADR-002 §3a.3). grants-users.sql: <WORKER_HOST> = 10.231.12.%
+  video:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: ${VV_SUBNET_VIDEO:-10.231.12.0/24}

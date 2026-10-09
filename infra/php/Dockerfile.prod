@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1
+# Image backend staging/production (T35-1, ADR-008 §8.8). Context = GỐC REPO (docker buildx bake -f infra/production/docker-bake.hcl).
+# KHÔNG sửa infra/php/Dockerfile (local dùng tiếp): bake build nó thành target `php-base` (UID/GID 10001, base ghim digest),
+# rồi file này kế thừa qua named context `vv-php-base`. Giữ php.ini-production + zz-vitaminvui.ini của image gốc, KHÔNG có xdebug.
+ARG BASE_IMAGE=vv-php-base
+
+# ---- vendor: cài phụ thuộc production (cần composer + git của image gốc; hai thứ này KHÔNG vào image cuối) ----
+FROM ${BASE_IMAGE} AS vendor
+USER root
+WORKDIR /var/www/backend
+COPY backend/composer.json backend/composer.lock ./
+RUN composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader
+COPY backend/ ./
+RUN composer dump-autoload --optimize --no-dev --no-scripts
+
+# ---- runtime ----
+FROM ${BASE_IMAGE} AS runtime
+ARG VV_REVISION=unknown
+ARG VV_COMPOSE_VERSION=1
+USER root
+
+# libfcgi-bin: `cgi-fcgi` cho healthcheck FPM. Gỡ composer + git: image chạy thật không cần, bớt bề mặt tấn công.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libfcgi-bin \
+    && apt-get purge -y --auto-remove git \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && rm -f /usr/bin/composer \
+    && docker-php-ext-enable opcache
+
+COPY infra/php/prod/zz-opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
+COPY infra/php/prod/zz-fpm-pool.conf /usr/local/etc/php-fpm.d/zz-fpm-pool.conf
+COPY infra/php/prod/entrypoint.sh /usr/local/bin/vv-entrypoint
+# Số tiến trình FPM (đổi qua env của container php nếu cần). KHÔNG đặt APP_ENV/APP_KEY/secret nào trong image.
+ENV FPM_MAX_CHILDREN=20 \
+    FPM_START_SERVERS=4 \
+    FPM_MIN_SPARE=2 \
+    FPM_MAX_SPARE=6
+
+WORKDIR /var/www/backend
+# Mã thuộc root, chỉ đọc với UID 10001 (bất biến). Chỉ storage và bootstrap/cache ghi được.
+COPY --from=vendor /var/www/backend/ /var/www/backend/
+
+# package:discover cần boot app: dùng biến tạm CHỈ trong lệnh RUN này (ProductionConfigGuard coi thiếu APP_ENV là production).
+# Khoá giả bên dưới không vào image (không phải ENV/ARG). Không config:cache/route:cache lúc build (phụ thuộc env runtime).
+RUN mkdir -p bootstrap/cache \
+        storage/app/private storage/app/public storage/app/purifier storage/app/uploads storage/app/videolab \
+        storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs \
+    && APP_ENV=local APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= php artisan package:discover --ansi \
+    && chown -R 10001:10001 storage bootstrap/cache \
+    && chmod 0755 /usr/local/bin/vv-entrypoint
+
+LABEL org.opencontainers.image.title="vitaminvui-backend" \
+      org.opencontainers.image.revision="${VV_REVISION}" \
+      vv.compose-version="${VV_COMPOSE_VERSION}"
+
+USER 10001:10001
+ENTRYPOINT ["vv-entrypoint"]
+CMD ["php-fpm"]

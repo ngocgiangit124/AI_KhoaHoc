@@ -1,6 +1,9 @@
--- VitaminVui — user MySQL production/staging (MẪU, T31). Chạy bằng tài khoản quản trị DB, KHÔNG commit mật khẩu thật.
--- Thay <DB>, <APP_HOST>, <WORKER_HOST>, <MIGRATE_HOST> và mật khẩu (openssl rand -base64 32). Tên bảng kiểm lại bằng
--- `SHOW TABLES` sau khi migrate (bảng vl_* của VideoLab bắt đầu bằng `vl_`).
+-- VitaminVui — user MySQL production/staging, PHẦN 1 (MẪU, T31; tách đôi ở T35-1/D4). Chạy MỘT lần bằng root TRƯỚC deploy đầu tiên.
+-- Phần 2 (`grants-worker.sql`: quyền bảng của vv_worker_video) do `deploy.sh` tự chạy sau mỗi lần migrate (bảng vl_videos/failed_jobs
+-- chưa tồn tại trước migrate nên GRANT bảng đó lỗi 1146).
+-- Thay <DB>, <APP_HOST>, <MIGRATE_HOST>, <WORKER_HOST> và mật khẩu (openssl rand -hex 32; KHÔNG dùng ký tự ' hoặc \). Điền file trong /dev/shm hoặc
+-- qua stdin rồi xoá/shred ngay; không để file đã điền mật khẩu trên đĩa. KHÔNG commit mật khẩu thật.
+-- Đổi mật khẩu về sau: `ALTER USER ... IDENTIFIED BY ...` (CREATE USER IF NOT EXISTS KHÔNG đổi mật khẩu của user đã có).
 
 -- 1) User ứng dụng (php-fpm, queue, scheduler): DML trên mọi bảng, KHÔNG có DDL (CREATE/ALTER/DROP).
 --    DELETE trên audit_logs là CỐ Ý: `audit:purge` (T30) xoá bản ghi quá 24 tháng. Không thu hồi nếu không đổi chính sách.
@@ -21,15 +24,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES, TR
 -- chỉ trong lúc migrate rồi trả về 0 (không ghi vào my.cnf), nếu không CREATE TRIGGER lỗi 1419. Trigger mang DEFINER=vv_migrate:
 -- không xoá user này (lỗi 1449 trên mọi UPDATE/DELETE audit_logs).
 
--- 3) User worker-video (T12-6, T12-10): CHỈ bảng vl_videos (+ failed_jobs nếu QUEUE_FAILED_DRIVER=database-uuids,
---    để ghi job thất bại). Queue/cache nằm ở Redis nên không cần quyền bảng jobs/cache.
---    Worker KHÔNG đọc được users, orders, enrollments...
-CREATE USER IF NOT EXISTS 'vv_worker_video'@'<WORKER_HOST>' IDENTIFIED BY '<MAT_KHAU_WORKER>';
-GRANT SELECT, INSERT, UPDATE ON `<DB>`.`vl_videos` TO 'vv_worker_video'@'<WORKER_HOST>';
-GRANT INSERT ON `<DB>`.`failed_jobs` TO 'vv_worker_video'@'<WORKER_HOST>';
--- Đã xác minh (review T31): TranscodeVideoJob/TranscodeService không DELETE vl_videos nên worker không cần quyền DELETE.
--- `videolab:cleanup` (scheduler) chạy bằng vv_app nên vv_app cần DELETE trên vl_videos (đã có qua `<DB>`.*).
+-- 3) User worker-video (T12-6, T12-10): CHỈ khi bật VideoLab (VV_VIDEOLAB=1; V1 dùng Bunny nên MẶC ĐỊNH KHÔNG TẠO). Bỏ tiền tố `-- VIDEOLAB: ` ở dòng
+--    CREATE USER bên dưới khi bật. Quyền bảng (vl_videos, failed_jobs) cấp bởi grants-worker.sql sau migrate. Worker KHÔNG đọc được users, orders...
+-- VIDEOLAB: CREATE USER IF NOT EXISTS 'vv_worker_video'@'<WORKER_HOST>' IDENTIFIED BY '<MAT_KHAU_WORKER>';
 
--- Kiểm sau khi cấp (đều phải bị từ chối khi đăng nhập bằng vv_worker_video):
---   SELECT * FROM `<DB>`.`users` LIMIT 1;   -- ERROR 1142
+-- D5 (DBA T35): trigger audit_logs (migration 2026_10_16_100000) mang DEFINER = vv_migrate@'<MIGRATE_HOST>'. KHÔNG xoá, đổi tên (RENAME USER),
+-- đổi host hay thu hồi TRIGGER của user này: xoá/đổi tên -> mọi UPDATE/DELETE audit_logs lỗi 1449; thu hồi TRIGGER -> lỗi 1142 (audit:purge hỏng).
+-- Đổi dải mạng Docker (VV_SUBNET_APP) = đổi host của user này VÀ tạo lại trigger. deploy.sh kiểm tình trạng này sau mỗi migrate.
 FLUSH PRIVILEGES;

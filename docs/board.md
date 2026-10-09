@@ -4,6 +4,22 @@ Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) 
 
 ## Tình trạng 2026-10-08
 
+### 2026-10-10: chuẩn bị go-live — chạy tiếp từ đây
+- Commit chưa push (9): `a43b07c` T16-1, `66ff847` T33-1, `35d62f9` FW3-1, `b500ba6` FA12, `0109129` ảnh tĩnh local, `6783c71` GL-A1, `f4588b1` BE-backlog-1 + GL-A34, `910bb26` GL-1 + GL-A2, `9603b02` GL-A2-FE. `origin/main` = `51114b5`. Nhóm bảo mật bắt buộc trước go-live A1–A5 xong.
+- **T35 (đóng gói & triển khai, ADR-008 Accepted)** chưa commit: T35-2 frontend image APPROVE; T35-3 CI GitHub Actions APPROVE; T35-1 backend image/compose/deploy APPROVE vòng 3, đang **sửa vòng 4** (cấu hình máy nhỏ `VV_SIZE=small` 2 GB, rate limit/timeout Nginx api/admin-api V3-1, chuẩn hoá header proxy V3-3, cosign mặc định V3-4, bỏ `--ack-snapshot`, R17–R20 + dọn tài liệu). Sau đó: QA → CI sạch → commit T35 (có thể 1 commit chung T35-1/2/3 vì đụng chung docs).
+- Quyết định PO 2026-10-10 (chi tiết cuối ADR-008): video qua Bunny (`cdn.vitaminvui.asia`, upload `video.bunnycdn.com`), VideoLab tuỳ chọn tắt; **bỏ Cloudflare proxy** (DNS-only; Turnstile vẫn dùng); **bỏ script backup**, snapshot nhà cung cấp chỉ là khuyến nghị (PO chấp nhận rủi ro); số giới hạn đăng nhập giữ mặc định (200/giờ không captcha, 1000/giờ có captcha, 10 captcha sai/phút).
+- Server: PO có Vultr $12 (1 vCPU/2 GB) → dùng `VV_SIZE=small` cho staging/giai đoạn đầu; production khi đông 4 vCPU/8 GB. Vultr không có region VN → pháp chế cần xác nhận.
+- Chờ PO: allow-list IP cho admin (V3-2, đề xuất giữ mở), MFA tài khoản Vultr (V3-5), tài khoản sở hữu PAT (S9), tên miền/SMTP/Turnstile thật, cấu hình GitHub (docs/ops/ci.md) + push, pháp chế (Turnstile, Bunny, Vultr ngoài VN, văn bản chính sách).
+- Trên staging (QA): deploy bằng `vvdeploy`, digest/cosign với image thật, Bunny C1–C9, ufw + IP thật, load test.
+- `phpunit.local-a..h.xml`: mẫu sed đúng là `"vitaminvui_testing"` có nháy kép.
+
+### 2026-10-09 tối: PO yêu cầu hoàn thành việc còn lại để chuẩn bị go-live production
+- Đã commit (chưa push): `a43b07c` T16-1, `66ff847` T33-1, `35d62f9` FW3-1, `b500ba6` FA12 (màn Nhật ký thao tác). `origin/main` = `51114b5`.
+- Đang chạy: security phân loại nợ bảo mật trước go-live → `docs/security/go-live-triage.md`; release lập `docs/ops/go-live-readiness.md`; dev gói BE-backlog-1 (`best_attempt_id`, `has_attempts`, giá khóa rẻ nhất, `released_courses`, T29-S4/S6, race test T18 rò dữ liệu).
+- Sau đó: giao dev sửa nhóm A của triage, rồi các việc code trong readiness; việc hạ tầng/PO gom thành danh sách hỏi PO.
+- Triage xong (`docs/security/go-live-triage.md`): nhóm A = A1 nâng Next (GL-A1, nextjs-dev), A2 captcha đăng nhập (PO chọn captcha, làm sau GL-A34), A3 log QueryException + A4 throttle (GL-A34), A5 guard (gộp GL-1). PO chấp nhận nhóm C, trần thư phụ huynh 500/giờ.
+- ADR-008 (Proposed) đóng gói/triển khai: image GHCR + compose `vvstack` trên Ubuntu, Nginx host; task T35-1/2/3 trong tasks.md. Chờ PO trả lời 7 điểm (DB container hay managed, cấu hình server, nơi backup, LB/Cloudflare, người deploy, PAT, chấp nhận gián đoạn ngắn).
+
 ### 2026-10-09 chiều: US-022 XONG (thanh toán "Liên hệ Quản trị viên") — 8 commit chưa push
 - `7ddf063` T38, `bb5c394` T38-1, `c353b88` Design, `ff3a8c7` T24-V1, `333e910` FW3, `fd7f31b` T39, `37a0a65` FA8, `c4ce8cc` sửa tên trường tiếng Việt. Mục TẠM DỪNG bên dưới đã xử lý.
 - QA FA8 chạy trọn luồng HS đặt đơn → QTV duyệt → HS vào học + thư; huỷ có lý do; nhả mã; duyệt muộn.

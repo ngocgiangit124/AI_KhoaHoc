@@ -22,7 +22,7 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 - [ ] `SESSION_ENCRYPT=true` (C4-M1; guard chặn khi false ngoài local/testing). **Bật/đổi giá trị này làm mọi phiên đang mở không giải mã được: người dùng (học sinh và staff) bị đăng xuất một lần** (Laravel coi payload phiên hỏng như phiên mới, không lỗi 500). Làm ngoài giờ cao điểm; ghi vào thông báo bảo trì. Kiểm sau khi bật: đăng nhập thử, rồi `redis-cli -n 1 --scan | head -1` + `GET` một khoá phiên phải ra chuỗi mã hoá (JSON base64 có `iv`, `value`, `mac`), không thấy `login_web_` rõ
 - [ ] Mật khẩu/secret sinh ngẫu nhiên (`openssl rand`), KHÔNG có khoảng trắng ở đầu/cuối và KHÔNG có dấu cách đứng trước `#` (guard chặn ` #` và khoảng trắng đầu/cuối); ký tự `#` được phép nếu dính liền chữ (`ab#cd`, `#abc`)
 - [ ] File env/Supervisor/systemd KHÔNG có chú thích cuối dòng `KEY=value # ghi chú` (C4-M2): `docker --env-file` và systemd `EnvironmentFile` giữ nguyên phần ghi chú trong giá trị. Guard chặn giá trị env quan trọng chứa ` #` hoặc khoảng trắng đầu/cuối; kiểm tay: `docker run --rm --env-file <file> <image> php -r 'var_dump(getenv("APP_ENV"));'` phải ra đúng `production`/`staging`
-- [ ] Trigger `audit_logs` (L2, migration `2026_10_16_100000`): `vv_migrate` phải có quyền `TRIGGER` (đã có trong `grants.sql`). MySQL bật binary log (mặc định của 8.4) mà user không có SUPER/SET_USER_ID thì cần `log_bin_trust_function_creators=1` (`SET GLOBAL` bằng tài khoản quản trị trước khi migrate); thiếu thì migrate lỗi 1419. **Production: `log_bin_trust_function_creators` chỉ `SET GLOBAL ... = 1` trong lúc chạy migrate (bằng tài khoản quản trị) rồi trả về `0`; KHÔNG ghi cố định vào `my.cnf`** (bản compose local có ghi cố định là chỉ cho dev). Trigger mang `DEFINER = vv_migrate`: KHÔNG xoá/đổi tên user này, nếu không mọi UPDATE/DELETE trên `audit_logs` (kể cả `audit:purge`) báo lỗi 1449 (fail-closed nhưng purge ngừng); nếu bắt buộc đổi thì tạo lại trigger với DEFINER mới. Kiểm sau migrate: `SHOW TRIGGERS LIKE 'audit_logs'` có `audit_logs_block_update` và `audit_logs_block_delete`; bằng `vv_app`, `UPDATE audit_logs SET action='x' LIMIT 1` phải lỗi. Trigger ghi cứng 24 tháng: đổi `OPS_AUDIT_RETENTION_MONTHS` xuống dưới 24 làm `audit:purge` từ chối chạy
+- [ ] Trigger `audit_logs` (L2, migration `2026_10_16_100000`): `vv_migrate` phải có quyền `TRIGGER` (đã có trong `grants-users.sql`/`grants-worker.sql`). MySQL bật binary log (mặc định của 8.4) mà user không có SUPER/SET_USER_ID thì cần `log_bin_trust_function_creators=1` (`SET GLOBAL` bằng tài khoản quản trị trước khi migrate); thiếu thì migrate lỗi 1419. **Production: `log_bin_trust_function_creators` chỉ `SET GLOBAL ... = 1` trong lúc chạy migrate (bằng tài khoản quản trị) rồi trả về `0`; KHÔNG ghi cố định vào `my.cnf`** (bản compose local có ghi cố định là chỉ cho dev). Trigger mang `DEFINER = vv_migrate`: KHÔNG xoá/đổi tên user này, nếu không mọi UPDATE/DELETE trên `audit_logs` (kể cả `audit:purge`) báo lỗi 1449 (fail-closed nhưng purge ngừng); nếu bắt buộc đổi thì tạo lại trigger với DEFINER mới. Kiểm sau migrate: `SHOW TRIGGERS LIKE 'audit_logs'` có `audit_logs_block_update` và `audit_logs_block_delete`; bằng `vv_app`, `UPDATE audit_logs SET action='x' LIMIT 1` phải lỗi. Trigger ghi cứng 24 tháng: đổi `OPS_AUDIT_RETENTION_MONTHS` xuống dưới 24 làm `audit:purge` từ chối chạy
 - [ ] `SUPPORT_EMAIL` (địa chỉ hỗ trợ ghi trong thư báo đổi email tài khoản, H1) đã đặt và có người đọc
 - [ ] Tên cookie có tiền tố `__Host-` (L3, chống cookie tossing từ subdomain cùng site): production `SESSION_COOKIE=__Host-vv_session` / `SESSION_ADMIN_COOKIE=__Host-vv_admin_session`; staging `__Host-vvstg_session` / `__Host-vvstg_admin_session`. Trình duyệt chỉ nhận tiền tố này khi Secure + `Path=/` + không có Domain (đã đúng nhờ `SESSION_SECURE_COOKIE=true`, `SESSION_PATH=/`, `SESSION_DOMAIN=null`). Local/test giữ `vv_session` (http). Sau khi bật: mọi phiên đang mở bị đăng xuất một lần (đổi tên cookie). Kiểm: `curl -sI https://api.<domain>/api/v1/csrf-token -H 'Origin: https://<domain>'` phải có `Set-Cookie: __Host-vv_session=...; secure; path=/` và KHÔNG có `domain=`; tương tự `__Host-vv_admin_session` ở admin-api. Nginx/CDN không được thêm `Domain=` vào Set-Cookie (`proxy_cookie_domain`)
 - [ ] `SANCTUM_STATEFUL_DOMAINS` đúng bằng host của `FRONTEND_URL` và `ADMIN_URL`, không thừa không thiếu (guard so khớp chính xác; chặn `*`, `localhost`, `127.0.0.1`, `::1`, `0.0.0.0`, tên miền lạ). `APP_URL`/`FRONTEND_URL`/`ADMIN_URL` phải `https` (C4-L5). Env worker-video cũng phải có `FRONTEND_URL`/`ADMIN_URL` (xem mẫu)
@@ -31,7 +31,7 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 - [ ] FE (ADR-004 §2.8): env của app web có `INTERNAL_API_TOKEN` (giống hệt backend) và `API_INTERNAL_URL=http://<IP_NOI_BO_NGINX>:8081` (IP trần). `fetch` của Node **không đặt được header `Host`** (hostname trong URL chính là Host). Vì vậy listener `:8081` phải **ép** `fastcgi_param HTTP_HOST api.<domain>` (mẫu `infra/production/nginx/conf.d/vitaminvui.conf`, từ Sửa lỗi nhỏ 4). KHÔNG dùng cách đặt `Host` bằng tay (chỉ curl làm được). KHÔNG khuyến nghị trỏ `api.<domain>` về IP nội bộ bằng `/etc/hosts`/`extra_hosts`/DNS nội bộ: cách này đổi đích mọi lời gọi tới tên miền công khai từ máy Next. Nếu hạ tầng buộc phải dùng DNS nội bộ thì `API_INTERNAL_URL=http://api.<domain>:8081`; cách này vẫn chạy vì Host bị ép ở Nginx. Kiểm từ máy Next, không đặt Host: `curl -s -o /dev/null -w '%{http_code}' http://<IP_NOI_BO_NGINX>:8081/api/v1/subjects` phải ra `200` (nếu ra `404` hoặc mã lỗi host thì Nginx chưa ép Host). Token chỉ ở server Next, không xuống trình duyệt
 - [ ] Next.js (`next start`) chỉ nghe loopback/mạng nội bộ, KHÔNG mở cổng 3000/3001 ra Internet: Next lấy IP khách từ `X-Forwarded-For` do Nginx ghi đè, gọi thẳng Next thì khách giả được IP (né hạn mức tìm kiếm theo IP)
 - [ ] `DB_*` dùng user `vv_app` (không root), `REDIS_PASSWORD` đã đặt (app dùng user Redis `default` trong `redis/users.acl`)
-- [ ] PHP: `php -i | grep -E '^(display_errors|display_startup_errors|log_errors|expose_php)'` ra `Off`, `Off`, `On`, `Off` trên CẢ CLI và FPM (`php-fpm -i`) (C4-L3). Image build từ `infra/php/Dockerfile` (có `php.ini-production`); nếu dựng PHP kiểu khác thì tự làm tương đương. Lỗi trước khi Laravel boot (vendor hỏng khi đổi symlink release, lỗi cú pháp) phải chỉ vào log, không vào response
+- [ ] PHP: `php -i | grep -E '^(display_errors|display_startup_errors|log_errors|expose_php)'` ra `Off`, `Off`, `On`, `Off` trên CẢ CLI và FPM (`php-fpm -i`) (C4-L3). Chạy bằng Docker (ADR-008): kiểm trong container, `docker compose -p vvstack exec php php -i` và `docker compose -p vvstack exec php php-fpm -i` (image `infra/php/Dockerfile.prod` kế thừa `php.ini-production`; `smoke/check-images.sh` kiểm sẵn). Lỗi trước khi Laravel boot (lỗi cú pháp, vendor hỏng) phải chỉ vào log, không vào response
 - [ ] `MAIL_*` là SMTP thật, `MAIL_MAILER` KHÔNG là `log`/`array` (guard chặn, GL-1/D6); gửi thử một OTP về hộp thư thật
 - [ ] `CAPTCHA_DRIVER=turnstile`, `TURNSTILE_SITE_KEY` và `TURNSTILE_SECRET` là key thật của Cloudflare (không phải key test `1x0000...`). Guard chặn `TURNSTILE_SECRET` rỗng hoặc chỉ khoảng trắng khi `CAPTCHA_DRIVER=turnstile` (GL-1/D6); guard không phân biệt được key test với key thật nên vẫn kiểm tay bằng đăng ký thử
 - [ ] Widget Turnstile chỉ cho phép hostname production; staging dùng widget và key riêng (server không kiểm `hostname`/`action`, nên giới hạn ở phía Cloudflare). Guard chặn khoá test `1x0000…`/`2x0000…`/`3x0000…` (site key lẫn secret) và `TURNSTILE_SECRET` rỗng (GL-1/A5)
@@ -41,7 +41,7 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 - [ ] Thư thông báo phụ huynh (ADR-006/T29): `PRIVACY_NOTICE_TOKEN_KEY` đặt riêng >= 32 byte, không xoay (guard chặn khi thiếu/ngắn); `PRIVACY_PARENT_NOTICE_DAILY_CAP` trong 1..20 (guard); `PRIVACY_PARENT_NOTICE_GLOBAL_HOURLY_CAP` (mẫu 500); `PRIVACY_POLICY_VERSION` không rỗng (guard); `PRIVACY_PARENT_CONTACT_SUGGEST_AGE`. Mẫu: `infra/production/.env.production.example`
 - [ ] Đơn thủ công (US-022/T38), các biến `ORDERS_*` do guard kiểm khi khởi động: `ORDERS_CUSTOMER_NOTE_RETENTION_DAYS` (30..3650, mẫu 90) và `ORDERS_STAFF_TEXT_RETENTION_DAYS` (1..3650, mẫu 7) luôn được kiểm (độc lập cờ). Khi `FEATURE_MANUAL_PAYMENT=true` thì thêm: `ORDERS_MANUAL_PENDING_TTL_HOURS` (1..168), `ORDERS_MANUAL_APPROVAL_WINDOW_DAYS` (0..90), `ORDERS_MANUAL_PER_DAY` (1..50) phải là số nguyên không dấu (guard so chuỗi thô, `abc` bị chặn); `ORDERS_MANUAL_NOTIFY_EMAILS` (danh sách email hợp lệ, không rỗng; nếu bỏ trống code lùi về `SUPPORT_EMAIL`); ít nhất một kênh `PAYMENT_CONTACT_PHONE` / `PAYMENT_CONTACT_ZALO_URL` (dạng `https://zalo.me/<id>`) / `PAYMENT_CONTACT_EMAIL` (hợp lệ); `PAYMENT_CONTACT_HOURS` tối đa 100 ký tự, không HTML. Code lùi `PAYMENT_CONTACT_EMAIL` về `SUPPORT_EMAIL` nên kênh email gần như luôn có: xác nhận số điện thoại/Zalo thật trước khi bật. Mẫu env để `FEATURE_MANUAL_PAYMENT=false`
 - [ ] `QUEUE_CONNECTION=redis`, `CACHE_STORE=redis`
-- [ ] `VIDEO_PROVIDER=internal`, `VIDEO_ENABLED_PROVIDERS=internal`
+- [ ] V1: `VIDEO_PROVIDER=bunny`, `VIDEO_ENABLED_PROVIDERS=bunny`, `VIDEOLAB_ENABLED=false` (Bunny; mục 2.1). `internal`/VideoLab chỉ khi PO bật lại
 - [ ] `VIDEOLAB_*`: xem mục 2
 - [ ] Dùng Bunny (US-021/T37): `VIDEO_PROVIDER=bunny`, `VIDEO_ENABLED_PROVIDERS=bunny,internal` (bỏ `internal` khi hết video VideoLab cũ), đủ `BUNNY_LIBRARY_ID`, `BUNNY_API_KEY`, `BUNNY_CDN_HOST`, `BUNNY_TOKEN_KEY`: xem mục 2.1
 
@@ -100,14 +100,16 @@ Guard CHƯA kiểm (kiểm tay): `MAIL_HOST` rỗng khi `MAIL_MAILER=smtp`, kho�
 
 - [ ] Từng cờ đã đối chiếu bảng trên; `GET /api/v1/config/public` trả `paid_checkout_enabled=false`
 
-**Thứ tự bật cờ (K3).** Deploy với `FEATURE_PAID_CHECKOUT=false`, `FEATURE_MANUAL_PAYMENT=false`, `FEATURE_PARENT_NOTICES=false`, `VIDEO_PROVIDER=internal`; migration xong và smoke test đăng nhập/học đạt; sau đó từng bước, mỗi bước có người ký:
+**Thứ tự bật cờ (K3).** Deploy với `FEATURE_PAID_CHECKOUT=false`, `FEATURE_MANUAL_PAYMENT=false`, `FEATURE_PARENT_NOTICES=false`, `VIDEO_PROVIDER=bunny` (đủ `BUNNY_*`); migration xong và smoke test đăng nhập/học đạt; sau đó từng bước, mỗi bước có người ký:
 
 - [ ] Bước 1 `FEATURE_PARENT_NOTICES=true`, chỉ khi: SMTP gửi thật OK + queue worker chạy, trang FW7 `/phu-huynh/huy-nhan-thong-bao` đã lên, `PRIVACY_NOTICE_TOKEN_KEY` đã đặt, Nginx đã che `?t=` (mục 3, GL-1/D1) và log Next/LB đã kiểm, pháp chế đã xem nội dung thư. Sau khi đổi: `config:cache` + `queue:restart`
 - [ ] Bước 2 `FEATURE_MANUAL_PAYMENT=true`, điều kiện ở dòng cờ trên
-- [ ] Bước 3 `VIDEO_PROVIDER=bunny`, chỉ sau khi Bunny C1–C9 đạt trên staging (mục 2.1); giữ `internal` ở V1
+- [ ] Bước 3 `VIDEO_PROVIDER=bunny` là mặc định V1 (Bunny C1–C9 đạt trên staging là điều kiện go-live, mục 2.1)
 - [ ] `FEATURE_PAID_CHECKOUT` KHÔNG bật ở V1
 
 ## 2. Secret và khoá VideoLab
+
+> **V1 dùng Bunny Stream (quyết định PO 2026-10-10)**: `VIDEO_PROVIDER=bunny`, `VIDEOLAB_ENABLED=false`, CDN `BUNNY_CDN_HOST=cdn.vitaminvui.asia`, production KHÔNG mở host `video.` và không chạy VideoLab/worker-video/redis-video (compose profile `videolab`, `VV_VIDEOLAB=0`). **Điều kiện go-live: Bunny C1–C9 (mục 2.1, `docs/qa/T37.md`) đạt trên staging.** Các mục `VIDEOLAB_*`, §3.1 và §7 chỉ áp dụng khi PO bật lại VideoLab.
 
 - [ ] Secret (`APP_KEY`, `DB_PASSWORD`, `REDIS_PASSWORD`, `MAIL_PASSWORD`, `TURNSTILE_SECRET`, `INTERNAL_API_TOKEN`, `VIDEOLAB_*`, `MOMO_*`) nằm trong biến môi trường server hoặc secret manager; không có trong git, ảnh Docker, log
 - [ ] File env trên server `chmod 600`, thuộc user chạy dịch vụ, nằm ngoài web root
@@ -169,12 +171,17 @@ Mẫu: `infra/production/nginx/`. Sáu server block: 4 host ứng dụng (web, a
 - [ ] Firewall chặn cổng 8081 từ ngoài mạng nội bộ
 - [ ] Host web `vitaminvui.vn` có `limit_req` zone `vv_web` theo IP khách thật (ADR-004 §2.8; khởi điểm 10r/s, burst 200). `/_next/static/` không bị giới hạn. Trên staging, thử một lớp học chung NAT (hoặc k6 ~40 người dùng từ 1 IP): không bị 429. Theo dõi số 429 ở access log của host web và của listener `:8081`; 429 ở `:8081` khi không có `X-Client-IP` nghĩa là trần tổng SSR bị cạn (bot phân tán), cần báo Architect xem lại phương án (c) của §2.8
 
-### 3.1 VideoLab (T12-4, T12-5, review T12 R7)
+### 3.0 Chung cho mọi host (V1)
+
+- [ ] IP khách thật (ADR-008 "TẠM BỎ Cloudflare proxy", PO 2026-10-10: DNS-only, Nginx là lớp ngoài cùng): `infra/production/nginx/snippets/vv-real-ip.conf` KHÔNG có `set_real_ip_from` và không tin `CF-Connecting-IP`/`X-Forwarded-For` (IP thật = `$remote_addr`); `update-cloudflare-ips.sh` không có trong cron. Kiểm: đăng nhập sai từ 2 máy khác mạng thì access log/audit thấy 2 IP khác nhau (đúng IP máy khách); gửi thử `curl -H 'CF-Connecting-IP: 1.2.3.4'` rồi xem log: IP ghi vẫn là IP thật; 200 lượt sai/giờ từ máy A không làm máy B bị 429. Bật proxy sau này: README mục 12 "Bật Cloudflare proxy".
+- [ ] **GL-A2: BE chỉ deploy cùng FE** (form đăng nhập web và admin đã có widget Turnstile, gửi `captcha_token` khi `captcha_required`/`CAPTCHA_*`). BE lên trước thì người ngoài chỉ cần 5 lượt sai/giờ để chặn người thật đăng nhập từ UI. Giá trị `AUTH_LOGIN_*`/`AUTH_STAFF_LOGIN_*` (ngưỡng 5, trần tài khoản 100, trần IP 200 — chờ PO xác nhận) nằm trong khoảng guard cho phép
+- [ ] `TRUSTED_PROXIES` chỉ chứa dải mạng Docker nội bộ (`10.231.10.0/24`), KHÔNG `*` và không IP khách; (chỉ khi bật VideoLab) `Location` trả về từ TUS (`POST /videolab/tus`) dùng `https://`
+- [ ] (V3-1) `api.`/`admin-api.`: `limit_req` (`vv_api` 50r/s burst 200; `vv_api_auth` 10r/s burst 80 cho `/auth/*`), `limit_conn vv_conn 300`, timeout header 10s/body 15s; ngưỡng đã tính cho lớp ~40 học sinh chung một IP NAT (không 429 oan). Đo lại với một buổi học thật ở staging, chỉnh nếu thấy 429 trong log; hỏi nhà cung cấp về chống DDoS tầng mạng. Gọi thẳng `/index.php` từ ngoài trả 404
+- [ ] (V3-3) Mọi khối proxy tới Next ghi đè `X-Forwarded-Host $host`, `X-Real-IP $remote_addr`, `Forwarded ""`
+
+### 3.1 VideoLab (T12-4, T12-5, review T12 R7): CHỈ khi bật VideoLab (V1 không mở host `video.`; file `nginx/optional/videolab.conf` không nạp mặc định)
 
 - [ ] `/videolab/library/` chỉ cho IP app server CỤ THỂ (`allow <IP_APP_SERVER>; deny all;`), không dải private rộng như local
-- [ ] `real_ip` đúng (ADR-008 "Quyết định PO 2026-10-09", có Cloudflare proxy): `infra/production/nginx/snippets/vv-real-ip.conf` có `set_real_ip_from` đủ dải IPv4 + IPv6 Cloudflare hiện hành và `real_ip_header CF-Connecting-IP`; cron hàng tuần chạy `infra/production/scripts/update-cloudflare-ips.sh /etc/nginx/snippets/vv-real-ip.conf` (tự `nginx -t` + reload, lỗi thì khôi phục). Firewall origin CHỈ mở 80/443 cho dải Cloudflare (nếu không, ai cũng tự đặt được `CF-Connecting-IP` để giả IP). Mẫu đã qua `nginx -t` (nginx:1.27). Kiểm: gọi `/videolab/library/` từ máy ngoài app server trả 403; (GL-A2/S3) đăng nhập sai từ 2 máy khác mạng thì access log/audit thấy 2 IP khác nhau và không phải IP Cloudflare; 200 lượt sai/giờ từ máy A không làm máy B bị 429
-- [ ] **GL-A2: BE chỉ deploy cùng FE** (form đăng nhập web và admin đã có widget Turnstile, gửi `captcha_token` khi `captcha_required`/`CAPTCHA_*`). BE lên trước thì người ngoài chỉ cần 5 lượt sai/giờ để chặn người thật đăng nhập từ UI. Giá trị `AUTH_LOGIN_*`/`AUTH_STAFF_LOGIN_*` (ngưỡng 5, trần tài khoản 100, trần IP 200 — chờ PO xác nhận) nằm trong khoảng guard cho phép
-- [ ] `TRUSTED_PROXIES` khớp IP load balancer: kiểm `Location` trả về từ TUS (`POST /videolab/tus`) dùng `https://`
 - [ ] `VIDEOLAB_ACCEL_REDIRECT=true` và có `location /_protected_hls/ { internal; alias .../videolab/hls/; }`; kiểm: gọi trực tiếp `/_protected_hls/<guid>/playlist.m3u8` từ ngoài trả 404
 - [ ] `limit_req` cho `/videolab/cdn/` (mẫu: 30 r/s, burst 60) và `/videolab/tus`; đo lại với một buổi học thật ở staging rồi chỉnh để player không bị 429
 - [ ] Host video: mọi đường dẫn khác (kể cả `/`, `/index.php`, `/videolab/tusXYZ`) trả 404 ngay tại Nginx; chỉ `/videolab/tus` (+ `/videolab/tus/{guid}`) và `/videolab/cdn/*` mở ra Internet
@@ -194,7 +201,7 @@ Mẫu: `infra/production/nginx/`. Sáu server block: 4 host ứng dụng (web, a
 
 ## 5. MySQL
 
-Mẫu: `infra/production/mysql/grants.sql`.
+Mẫu: `infra/production/mysql/grants-users.sql` (user, một lần) và `grants-worker.sql` (quyền bảng worker, `deploy.sh` chạy sau mỗi migrate).
 
 - [ ] MySQL 8.4; chỉ nghe mạng nội bộ; không dùng `root` cho app
 - [ ] User `vv_app` (php-fpm, queue, scheduler): SELECT/INSERT/UPDATE/DELETE, không DDL
@@ -205,14 +212,14 @@ Mẫu: `infra/production/mysql/grants.sql`.
 - [ ] Charset/collation `utf8mb4`; `sql_mode` mặc định strict; múi giờ máy chủ UTC hoặc đúng `APP_TIMEZONE`
 - [ ] Đo p95 `GET /me/courses` (log kênh `learning`, `slow`) trên staging với dữ liệu thật, mốc 300 ms (T23-3, DBA #10)
 
-## 6. Queue, scheduler, Supervisor
+## 6. Queue, scheduler (Docker Compose)
 
-Mẫu: `infra/production/supervisor/vitaminvui.conf`.
+Chạy bằng service compose (ADR-008): `queue` (2 bản, `deploy.replicas`), `scheduler`, `worker-video`; Supervisor (`infra/production/supervisor/vitaminvui.conf`) chỉ còn là tham chiếu. Ánh xạ: `numprocs` -> `deploy.replicas`, `stopwaitsecs` -> `stop_grace_period`, `autorestart` -> `restart: unless-stopped`.
 
-- [ ] Worker `queue:work redis --queue=default,exports` chạy bằng Supervisor, `autorestart=true`, user `www-data`, `numprocs>=2`
+- [ ] Service `queue` chạy 2 bản (`docker compose -p vvstack ps queue`), `restart: unless-stopped`, user 10001 (không root)
 - [ ] Worker `worker-video` (`queue:work redis_video --queue=video --timeout=3600`) chạy tách máy/container với image build sẵn (mục 7); `retry_after` (3900) > `--timeout` (3600)
 - [ ] Scheduler: một tiến trình `schedule:work` (hoặc cron `* * * * * php artisan schedule:run`) mỗi máy; các lệnh đã `onOneServer`, cần cache Redis dùng chung
-- [ ] Deploy xong chạy `php artisan queue:restart`
+- [ ] Deploy xong KHÔNG cần `queue:restart`: `deploy.sh` tạo lại container `queue`/`scheduler` với image mới (worker cũ nhận SIGTERM, xử lý xong job hiện tại, `stop_grace_period` 70 s)
 - [ ] `php artisan schedule:list` có đủ: `counters:recount`, `videos:check-stuck`, `videos:prune-orphans`, `videolab:notify` (mỗi phút, C4-M1), `images:prune-orphans` (04:10, US-020), `videolab:cleanup`, `quizzes:auto-submit-expired`, `orders:expire-manual` (mỗi 15 phút, US-022), `otp:prune`, `audit:purge`, `orders:purge-customer-notes` (03:45), `orders:purge-staff-notes` (03:46), `users:purge-unverified`, `queue:prune-failed`, `queue:monitor`, `ops:health` (đối chiếu `OperationsServiceProvider`)
 - [ ] `php artisan ops:health` báo worker và scheduler còn sống; cảnh báo của kênh log lỗi được nối vào kênh thông báo của hạ tầng (email/chat)
 - [ ] Probe sống/sẵn sàng của LB và giám sát dùng `ops:health`, KHÔNG dùng `/api/v1/health` (luôn trả `ok` kể cả khi DB sập)
@@ -220,7 +227,9 @@ Mẫu: `infra/production/supervisor/vitaminvui.conf`.
 - [ ] Cảnh báo khi log `Gửi OTP thất bại.` vượt N lần/giờ (SMTP hỏng hoặc bị dò mã) và khi số log `parent_notice.sent` vượt ngưỡng/giờ (thư gửi cho bên thứ ba)
 - [ ] `failed_jobs` trống hoặc dưới ngưỡng `OPS_FAILED_JOBS_MAX`; có người xem hằng ngày
 
-## 7. worker-video (image build sẵn)
+## 7. worker-video (CHỈ khi bật VideoLab: `VV_VIDEOLAB=1`, profile compose `videolab`; V1/Bunny bỏ qua mục này)
+
+Ghi chú ADR-008: image `vitaminvui-worker-video:<sha>` build từ `infra/worker-video/Dockerfile` với `BASE_IMAGE` = image backend cùng SHA (bake). Service đã đặt sẵn `read_only`, `cap_drop: ALL`, `no-new-privileges`, `cpus: 2`, `mem_limit: 2g`, `pids_limit: 256`, mạng `video` (`internal`), chỉ mount `videolab`, Redis riêng `redis-video`; `smoke.sh` kiểm các điều này. Chỉ cần xác nhận lại trên server thật.
 
 - [ ] Image build sẵn từ `infra/worker-video/Dockerfile` (hoặc tương đương), mã nguồn COPY vào image, KHÔNG mount thư mục mã nguồn như local
 - [ ] Chạy user không phải root; rootfs chỉ đọc; `cap_drop: ALL`; `no-new-privileges`; `cpus: 2`, `mem_limit: 2g`, `pids_limit: 256`
@@ -277,17 +286,18 @@ Mẫu: `infra/production/supervisor/vitaminvui.conf`.
 
 ## 11. Backup và rollback
 
-- [ ] MySQL: sao lưu đầy đủ hằng ngày + binlog (khôi phục theo thời điểm); lưu ở nơi khác máy chủ DB; mã hoá; giữ tối thiểu 30 ngày
-- [ ] Đã thử khôi phục một bản sao lưu lên máy trống và chạy được (ghi ngày thử); lặp lại mỗi quý
-- [ ] Thư mục `uploads` (ảnh khoá học) sao lưu; `videolab` (hls, source) sao lưu hoặc có phương án transcode lại từ bản gốc (`VIDEOLAB_KEEP_SOURCE`)
+- [ ] **Backup = snapshot ổ đĩa tự động hằng ngày của nhà cung cấp (PO 2026-10-10): KHUYẾN NGHỊ, không còn là điều kiện go-live.** Nên bật cho mọi ổ chứa dữ liệu, giữ >= 7 ngày; rủi ro khi dùng/không có: khôi phục cả máy, mất tối đa ~1 ngày, không theo thời điểm, snapshot cùng nhà cung cấp. (V3-5) MFA cho mọi tài khoản nhà cung cấp, user/API key quyền tối thiểu, hạn chế quyền xoá snapshot và tạo server từ snapshot (snapshot chứa `env/*.env`), khoá chống xoá nếu có, xác nhận mã hoá lúc lưu và vị trí Việt Nam. Binlog MySQL giữ 7 ngày trên đĩa, không sao lưu ngoài.
+- [ ] Khuyến nghị diễn tập khôi phục snapshot MỘT lần trên staging (ghi ngày, người làm, thời gian khôi phục): sau khi khôi phục `deploy.sh status` thoát 0, `SHOW TRIGGERS LIKE 'audit_logs'` đủ 2, đăng nhập thử; chạy lại các lệnh purge (dữ liệu đã xoá có thể sống lại)
+
+- [ ] Thư mục `uploads` (ảnh khoá học) nằm trong snapshot ổ đĩa (cùng ổ `/var/www/uploads`); (chỉ khi bật VideoLab) `videolab` (hls, source) cùng ổ hoặc có phương án transcode lại (`VIDEOLAB_KEEP_SOURCE`)
 - [ ] Sao lưu `.env`/secret ở nơi an toàn riêng (không chung kho mã), có quy trình khôi phục
-- [ ] Triển khai theo release có symlink (`current` -> `releases/<id>`): giữ >= 3 bản release gần nhất
-- [ ] Trước deploy: bản sao lưu DB mới; `php artisan down` nếu có migration phá cấu trúc
+- [ ] Triển khai bằng image theo SHA (`deploy.sh deploy <sha>`): giữ >= 3 tag image gần nhất trên server (`deploy.sh` tự dọn phần còn lại); `releases.log` ghi mỗi lần deploy/rollback
+- [ ] Trước deploy có migration: KHUYẾN NGHỊ chụp snapshot nhà cung cấp (deploy.sh chỉ in nhắc, không đòi cờ; migration `VV-IRREVERSIBLE` cần `--ack-irreversible`); migration phá cấu trúc/khoá bảng thì thêm `--maintenance` (`php artisan down` dùng chung qua driver cache) và chạy giờ thấp điểm. (R8) `vvdeploy` chạy được `deploy.sh status`/deploy với quyền thư mục theo README (`/opt/vitaminvui` thuộc `vvdeploy`)
 - [ ] (K7, T29) Chỉ khi bảng `users` đã có dữ liệu: TRƯỚC migration backfill T29 tạo bảng sao `users_parent_consent_bak_t29` (id, parent_consent_status) theo script ở `docs/review/T29.md` mục DBA; giữ khoảng 30 ngày. SAU deploy: `SELECT COUNT(*) FROM users WHERE parent_consent_status <> 'not_required';` phải bằng 0 (còn thì chạy lại UPDATE theo lô). Lần go-live đầu (DB trống) bỏ qua bước sao
 - [ ] (K7, T36) Trước deploy: `SELECT COUNT(*) FROM users WHERE role='giao_vien' AND (bio IS NOT NULL OR avatar_path IS NOT NULL);` (xem mục 3)
 - [ ] Bật `SESSION_ENCRYPT` và đổi tên cookie `__Host-` (mục 1.1) trong CÙNG một lần deploy để học sinh/staff chỉ bị đăng xuất một lần; thông báo bảo trì trước
 - [ ] Migration luôn có `down()`; migration phá dữ liệu (xoá cột/bảng) phải tách thành hai bước (deploy mã trước, xoá cột sau)
-- [ ] Quy trình rollback đã diễn tập ở staging: đổi symlink về release trước -> `php artisan queue:restart` -> (nếu cần) `php artisan migrate:rollback --step=N` bằng user `vv_migrate` -> xoá cache cấu hình -> kiểm `ops:health`
+- [ ] Quy trình rollback đã diễn tập ở staging: `deploy.sh rollback` (về `PREVIOUS_TAG`, KHÔNG migrate; dừng nếu DB có migration image cũ không biết, chỉ `--force-schema-ahead` khi chắc tương thích ngược) -> xem `failed_jobs` -> kiểm `ops:health`. Migration có dòng `// VV-IRREVERSIBLE` (backfill T29): rollback = khôi phục snapshot; `deploy.sh` đòi `--ack-irreversible` và `--ack-snapshot` trước khi chạy nó. Không `migrate:rollback` tự động trên server
 - [ ] Rollback KHÔNG chạy `migrate:fresh`, `migrate:reset`, `db:wipe` trên môi trường thật
 - [ ] Kiểm sau deploy (smoke test): đăng ký/đăng nhập, danh mục khóa học, vào học một bài, upload video nhỏ (admin), `ops:health` xanh
 
@@ -316,13 +326,15 @@ Không chặn go-live MVP nếu PO chấp nhận rủi ro; ghi lại ở đây �
 
 ## 13b. Frontend production (K9)
 
-Chi tiết đóng gói còn chờ D2/D3 của `docs/ops/go-live-readiness.md`; các điều kiện dưới đây áp dụng bất kể cách đóng gói.
+Đóng gói theo ADR-008 §8.9 (T35-2): image `vitaminvui-web|admin:<env>-<sha>` build từ `frontend/Dockerfile` bằng `frontend/docker-bake.hcl`, chạy `output: "standalone"` bằng user `node`, một image cho mỗi môi trường. Mẫu env: `frontend/apps/web/.env.production.example` và `frontend/apps/admin/.env.production.example` (phần BUILD = `vars` của GitHub Environment, phần RUNTIME = `/opt/vitaminvui/env/{web,admin}.env`).
 
-- [ ] `apps/web` và `apps/admin` build với `NODE_ENV=production`; `NEXT_PUBLIC_*` được nhúng LÚC BUILD (đổi giá trị = build lại). `apps/web`: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_STATIC_URL` (bắt buộc, URL hợp lệ, https), `NEXT_PUBLIC_VIDEO_HOSTS`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (key thật), `NEXT_PUBLIC_MOMO_HOSTS` (mặc định trong code là host sandbox `test-payment.momo.vn`: đặt giá trị đúng hoặc xác nhận CSP không còn host sandbox, D5). `apps/admin`: `NEXT_PUBLIC_ADMIN_API_URL`, `NEXT_PUBLIC_ADMIN_URL`, `NEXT_PUBLIC_STATIC_URL`, `NEXT_PUBLIC_VIDEO_UPLOAD_URL`
+- [ ] `apps/web` và `apps/admin` build với `NODE_ENV=production`; `NEXT_PUBLIC_*` được nhúng LÚC BUILD (đổi giá trị = build lại). `apps/web`: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_STATIC_URL` (bắt buộc, URL hợp lệ, https), `NEXT_PUBLIC_VIDEO_HOSTS`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (key thật), `NEXT_PUBLIC_MOMO_HOSTS` (mặc định trong code đã là RỖNG, D5; V1 để trống, KHÔNG đặt `test-payment.momo.vn` ở staging/production). `apps/admin`: `NEXT_PUBLIC_ADMIN_API_URL`, `NEXT_PUBLIC_ADMIN_URL`, `NEXT_PUBLIC_STATIC_URL`, `NEXT_PUBLIC_VIDEO_UPLOAD_URL`
 - [ ] GL-A2: `apps/admin` build với `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = site key Turnstile THẬT, trùng `TURNSTILE_SITE_KEY` của backend (nhúng lúc build; thiếu thì người bị đòi captcha sau khi sai mật khẩu nhiều lần không đăng nhập được từ giao diện). Release CÙNG backend GL-A2 (web đã lấy khoá từ `/config/public`)
 - [ ] `V2_PREVIEW` để TRỐNG ở production (bản xem trước design v2 `/v2/...` chỉ mở khi `V2_PREVIEW=1`, dành cho staging); biến chỉ ở server, không dùng tiền tố `NEXT_PUBLIC_`
 - [ ] Biến chỉ-server của web: `INTERNAL_API_TOKEN` (giống backend) và `API_INTERNAL_URL` (mục 1.1); không biến bí mật nào mang tiền tố `NEXT_PUBLIC_`
-- [ ] `next start` nghe loopback/mạng nội bộ (mục 1.1), chạy dưới Supervisor/systemd/container bằng user không phải root, tự khởi động lại
+- [ ] Container web/admin chạy `node apps/<app>/server.js` bằng user `node` (không root), `restart: unless-stopped`, publish chỉ `127.0.0.1:3000`/`127.0.0.1:3001` (mục 1.1); healthcheck web `/robots.txt`, admin `/dang-nhap` (admin không có `/robots.txt`, trả 404)
+- [ ] Kiểm image trước khi dùng: `docker run --rm --entrypoint sh <image> -c 'find /app -name ".env*"'` rỗng; `grep -rE "test-payment\.momo\.vn|api\.localhost|localhost:8000|video\.localhost|1x00000000000000000000AA" /app` rỗng; `docker history --no-trunc <image>` không có `INTERNAL_API_TOKEN`; `curl -sI` trang chủ có CSP với `nonce-`, không có `momo`/`localhost`; label `vv.env` đúng môi trường
+- [ ] Sau khi khởi động web, gọi thử `/khoa-hoc` (SSR tới `API_INTERNAL_URL`): 200, nếu API chưa sẵn sàng sẽ là trang "Hệ thống đang bận" có `noindex`, không được 500
 - [ ] Log của Next.js không ghi URL đầy đủ của `/phu-huynh/huy-nhan-thong-bao` (mục 3)
 
 ## 14. Cần PO hoặc hạ tầng cung cấp trước khi làm các mục trên

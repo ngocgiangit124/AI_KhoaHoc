@@ -47,6 +47,10 @@ function qaRunGuardWithEnv(array $overrides, string $appEnv): array
         'TURNSTILE_SITE_KEY' => '0x4AAAAAAAsite',
         'TURNSTILE_SECRET' => '0x4AAAAAAAsecret',
         'REDIS_PASSWORD' => 'redis-secret-test',
+        'REDIS_VIDEO_PASSWORD' => 'redis-video-secret-test',
+        // T35-1: mẫu env V1 dùng Bunny (VIDEO_PROVIDER=bunny): guard đòi đủ 5 biến Bunny.
+        'BUNNY_LIBRARY_ID' => '12345', 'BUNNY_API_KEY' => 'bunny-api-key-for-test',
+        'BUNNY_TOKEN_KEY' => 'bunny-token-key-for-test', 'BUNNY_WEBHOOK_TOKEN' => '0123456789abcdef0123456789abcdef0123',
         // GL-A2 V2-5: phpunit ép CACHE_LIMITER=array; production mặc định redis-limiter (env mẫu không đặt).
         'CACHE_LIMITER' => 'redis-limiter',
         'TRUSTED_PROXIES' => '10.0.0.1,10.0.0.2',
@@ -94,16 +98,16 @@ test('env mau production, sau khi thay placeholder hop le, qua guard', function 
 
     expect($error)->toBeNull()
         ->and($cfg['secure'])->toBeTrue()
-        ->and($cfg['videolab'])->toBeTrue()
+        ->and($cfg['videolab'])->toBeFalse()
         ->and($cfg['captcha'])->toBe('turnstile')
         ->and($cfg['relaxed'])->toBeFalse()
         ->and($cfg['debug'])->toBeFalse();
 })->with(['production', 'staging'])->skip($missing, $skipReason);
 
 test('env mau production giu nguyen placeholder (khoa rong, TRUSTED_PROXIES dang <IP>) thi guard chan', function () {
-    // Thieu khoa VideoLab / token noi bo: phai bi chan, khong the vo tinh deploy file mau nguyen ban.
-    [$error] = qaRunGuardWithEnv(['VIDEOLAB_API_KEY' => ''], 'production');
-    expect($error)->toContain('VIDEOLAB_API_KEY');
+    // Thieu khoa Bunny (V1 dung Bunny, VideoLab tat) / token noi bo: phai bi chan, khong the vo tinh deploy file mau nguyen ban.
+    [$error] = qaRunGuardWithEnv(['BUNNY_API_KEY' => ''], 'production');
+    expect($error)->toContain('BUNNY_API_KEY');
 
     [$error] = qaRunGuardWithEnv(['INTERNAL_API_TOKEN' => ''], 'production');
     expect($error)->toContain('INTERNAL_API_TOKEN');

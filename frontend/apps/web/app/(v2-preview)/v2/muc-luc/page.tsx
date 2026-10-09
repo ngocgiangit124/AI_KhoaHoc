@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { IconArrowRight, IconExternalLink } from "@vitaminvui/ui/v2";
+import { env } from "@/env";
 import { PreviewBar } from "@/components/v2/PreviewBar";
 import { routes } from "@/lib/v2/routes";
 
@@ -30,7 +31,7 @@ const WEB: Array<{ title: string; href: string; story: string; note: string }> =
   { title: "Thành phần giao diện", href: routes.gallery, story: "design system", note: "Màu, chữ, công thức, nút, ô nhập, nhãn, hộp thoại, toast." },
 ];
 
-const ADMIN_ORIGIN = "http://admin-api.localhost:3001";
+const ADMIN_ORIGIN = env.NEXT_PUBLIC_ADMIN_URL.replace(/\/+$/, "");
 const ADMIN: Array<{ title: string; path: string; note: string }> = [
   { title: "Mục lục quản trị (đầy đủ)", path: "/v2", note: "Danh sách mọi màn quản trị xem trước." },
   { title: "Danh sách / tạo / sửa khóa học", path: "/v2/quan-tri/khoa-hoc", note: "US-009 — menu theo vai trò, cây chương bài, trạng thái video." },

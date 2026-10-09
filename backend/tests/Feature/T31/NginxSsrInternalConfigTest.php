@@ -44,6 +44,14 @@ function ngxServers(): array
     return array_map(fn ($x) => ngxBlockAt($src, $x[1] + strlen($x[0]) - 1), $m[0]);
 }
 
+function ngxVideoServer(): string
+{
+    $src = ngxStrip(file_get_contents(dirname(ngxPath(), 2).'/optional/videolab.conf'));
+    preg_match('/^server\s*\{/m', $src, $m, PREG_OFFSET_CAPTURE);
+
+    return ngxBlockAt($src, $m[0][1] + strlen($m[0][0]) - 1);
+}
+
 function ngxServerByName(string $name): string
 {
     foreach (ngxServers() as $block) {
@@ -136,8 +144,9 @@ test('S4-N4 moi host cong khai xoa X-Internal-Token va X-Client-IP', function ()
         expect(ngxServerByName($h))->toContain('include /etc/nginx/snippets/vv-api-common.conf');
     }
 
-    // host video: moi location vao PHP xoa 2 header
-    $video = ngxServerByName('video.vitaminvui.vn');
+    // host video (TUY CHON, nginx/optional/videolab.conf, khong nap mac dinh): moi location vao PHP xoa 2 header
+    expect(file_get_contents(ngxPath()))->not->toContain('server_name video.');
+    $video = ngxVideoServer();
     preg_match_all('/^\s*location\s+([^{]+)\{/m', $video, $locs, PREG_OFFSET_CAPTURE);
     foreach ($locs[0] as $i => $l) {
         $body = ngxBlockAt($video, $l[1] + strlen($l[0]) - 1);
@@ -192,4 +201,41 @@ test('R-1 T37: webhook Bunny log theo $uri (khong query), thang ^~ webhooks, giu
 
     // Khong con access_log mac dinh o cap server cho host api (se ghi query)
     expect(ngxServerByName('api.vitaminvui.vn'))->not->toMatch('/access_log\s+\S+\s+(combined|main)/');
+})->skip(ngxMissing(), 'Can mount infra/production.');
+
+test('V3-3 moi khoi proxy toi Next chuan hoa X-Forwarded-Host, X-Real-IP, Forwarded', function () {
+    foreach (['vitaminvui.vn', 'admin.vitaminvui.vn'] as $h) {
+        $s = ngxServerByName($h);
+        preg_match_all('/^\s*location\s+([^{]+)\{/m', $s, $locs, PREG_OFFSET_CAPTURE);
+        $count = 0;
+        foreach ($locs[0] as $i => $l) {
+            $body = ngxBlockAt($s, $l[1] + strlen($l[0]) - 1);
+            if (str_contains($body, 'proxy_pass')) {
+                $count++;
+                expect($body)->toMatch('/proxy_set_header\s+X-Forwarded-Host\s+\$host\s*;/', "{$h} {$locs[1][$i][0]}")
+                    ->toMatch('/proxy_set_header\s+X-Real-IP\s+\$remote_addr\s*;/', "{$h} {$locs[1][$i][0]}")
+                    ->toMatch('/proxy_set_header\s+Forwarded\s+""\s*;/', "{$h} {$locs[1][$i][0]}");
+            }
+        }
+        expect($count)->toBeGreaterThan(0);
+    }
+})->skip(ngxMissing(), 'Can mount infra/production.');
+
+test('V3-1 host API co limit_req/limit_conn/timeout; zone khai bao o http level; /index.php internal', function () {
+    $conf = ngxStrip(file_get_contents(ngxPath()));
+    $snippet = ngxStrip(file_get_contents(dirname(ngxPath(), 2).'/snippets/vv-api-common.conf'));
+
+    expect($conf)->toMatch('/^limit_req_zone\s+\$binary_remote_addr\s+zone=vv_api:\d+m\s+rate=\d+r\/s\s*;/m')
+        ->toMatch('/^limit_req_zone\s+\$binary_remote_addr\s+zone=vv_api_auth:\d+m\s+rate=\d+r\/s\s*;/m')
+        ->toMatch('/^limit_conn_zone\s+\$binary_remote_addr\s+zone=vv_conn:\d+m\s*;/m');
+    expect($snippet)->toMatch('/limit_req\s+zone=vv_api\s+burst=\d+\s+nodelay\s*;/')
+        ->toMatch('/limit_req\s+zone=vv_api_auth\s+burst=\d+\s+nodelay\s*;/')
+        ->toMatch('/limit_req_status\s+429\s*;/')
+        ->toMatch('/limit_conn\s+vv_conn\s+\d+\s*;/')
+        ->toMatch('/client_header_timeout\s+\d+s\s*;/')
+        ->toMatch('/client_body_timeout\s+\d+s\s*;/');
+    expect(ngxLocation($snippet, '= /index.php'))->toContain('internal;');
+
+    // Khong ap limit len listener :8081 (SSR da co tran tong rieng) va khong include snippet nay o do.
+    expect(ngxInternalServer())->not->toContain('limit_req')->not->toContain('vv-api-common.conf');
 })->skip(ngxMissing(), 'Can mount infra/production.');

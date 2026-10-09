@@ -100,6 +100,11 @@ function c4ValidInfra(): array
         'TURNSTILE_SITE_KEY' => '0x4AAAAAAAsite',
         'TURNSTILE_SECRET' => '0x4AAAAAAAsecret',
         'REDIS_PASSWORD' => 'redis-secret-test',
+        // T35-1: env mẫu bật Redis video riêng (REDIS_VIDEO_PASSWORD để trống chờ điền).
+        'REDIS_VIDEO_PASSWORD' => 'redis-video-secret-test',
+        // T35-1: mẫu env V1 dùng Bunny (VIDEO_PROVIDER=bunny): guard đòi đủ 5 biến Bunny.
+        'BUNNY_LIBRARY_ID' => '12345', 'BUNNY_API_KEY' => 'bunny-api-key-for-test',
+        'BUNNY_TOKEN_KEY' => 'bunny-token-key-for-test', 'BUNNY_WEBHOOK_TOKEN' => '0123456789abcdef0123456789abcdef0123',
         // GL-A2 V2-5: phpunit ép CACHE_LIMITER=array; production mặc định redis-limiter (env mẫu không đặt).
         'CACHE_LIMITER' => 'redis-limiter',
         'TRUSTED_PROXIES' => '10.0.0.1,10.0.0.2',
@@ -194,17 +199,21 @@ test('M1: guard bat buoc SESSION_ENCRYPT=true ngoai local/testing', function () 
     expect(fn () => (new ProductionConfigGuard)->check())->not->toThrow(RuntimeException::class);
 });
 
-test('M1: env mau bat SESSION_ENCRYPT, worker-video co REDIS_USERNAME/REDIS_PASSWORD rieng va khong con REDIS_DB_SESSION', function () {
+test('M1: env mau bat SESSION_ENCRYPT, worker-video dung user Redis rieng tren Redis video va khong con REDIS_DB_SESSION', function () {
     $app = c4ParseRawEnv((string) file_get_contents(c4Infra('.env.production.example')));
     $worker = c4ParseRawEnv((string) file_get_contents(c4Infra('.env.worker-video.example')));
 
+    // T35-1 (ADR-008): worker chỉ có đường tới Redis video; KHÔNG mang mật khẩu/host của Redis chính.
     expect($app)->toHaveKey('SESSION_ENCRYPT', 'true')
-        ->and($worker)->toHaveKey('REDIS_USERNAME', 'vv_worker_video')
-        ->and($worker)->toHaveKey('REDIS_PASSWORD')
+        ->and($worker)->toHaveKey('REDIS_VIDEO_USERNAME', 'vv_worker_video')
+        ->and($worker)->toHaveKey('REDIS_VIDEO_PASSWORD')
+        ->and($worker)->not->toHaveKey('REDIS_PASSWORD')
+        ->and($worker)->not->toHaveKey('REDIS_HOST')
+        ->and($worker)->not->toHaveKey('REDIS_USERNAME')
         ->and($worker)->not->toHaveKey('REDIS_DB_SESSION')
         ->and($worker)->not->toHaveKey('REDIS_LIMITER_DB')
-        ->and($worker['REDIS_PREFIX'])->toBe($app['REDIS_PREFIX'])
-        ->and($worker['REDIS_PASSWORD'])->not->toBe($app['REDIS_PASSWORD'] ?: 'x');
+        ->and($worker['CACHE_STORE'])->toBe('array')
+        ->and($worker['REDIS_PREFIX'])->toBe($app['REDIS_PREFIX']);
 })->skip(c4InfraMissing(), 'Cần mount infra/production.');
 
 test('M1: config/database.php doc REDIS_USERNAME cho moi ket noi Redis', function () {
@@ -315,13 +324,29 @@ test('R2: TranscodeVideoJob (TusUploadService) dispatch qua connection redis_vid
     Queue::assertPushed(SendVideoLabWebhookJob::class, fn ($j) => $j->queue === null && $j->connection === null);
 });
 
-test('R2: env mau co huong dan Redis rieng cho video (REDIS_VIDEO_*) o ca app va worker', function (string $file) {
-    $content = (string) file_get_contents(c4Infra($file));
+test('R2: env worker bat Redis video rieng; env app chi huong dan (comment) vi V1 tat VideoLab, dung Bunny', function () {
+    $app = (string) file_get_contents(c4Infra('.env.production.example'));
+    $worker = c4ParseRawEnv((string) file_get_contents(c4Infra('.env.worker-video.example')));
 
     foreach (['REDIS_VIDEO_HOST', 'REDIS_VIDEO_PORT', 'REDIS_VIDEO_USERNAME', 'REDIS_VIDEO_PASSWORD'] as $key) {
-        expect($content)->toContain("# {$key}=");
+        expect($worker)->toHaveKey($key)
+            ->and($app)->toContain("# {$key}=")
+            ->and(c4ParseRawEnv($app))->not->toHaveKey($key);
     }
-})->with(['.env.production.example', '.env.worker-video.example'])->skip(c4InfraMissing(), 'Cần mount infra/production.');
+    expect($worker['REDIS_VIDEO_HOST'])->toBe('redis-video');
+})->skip(c4InfraMissing(), 'Cần mount infra/production.');
+
+test('T35-1: mau env app V1 dung Bunny, tat VideoLab', function () {
+    $app = c4ParseRawEnv((string) file_get_contents(c4Infra('.env.production.example')));
+
+    expect($app)->toHaveKey('VIDEO_PROVIDER', 'bunny')
+        ->and($app)->toHaveKey('VIDEO_ENABLED_PROVIDERS', 'bunny')
+        ->and($app)->toHaveKey('VIDEOLAB_ENABLED', 'false')
+        ->and($app)->toHaveKey('BUNNY_CDN_HOST', 'cdn.vitaminvui.asia');
+    foreach (['BUNNY_LIBRARY_ID', 'BUNNY_API_KEY', 'BUNNY_CDN_HOST', 'BUNNY_TOKEN_KEY', 'BUNNY_WEBHOOK_TOKEN'] as $key) {
+        expect($app)->toHaveKey($key);
+    }
+})->skip(c4InfraMissing(), 'Cần mount infra/production.');
 
 test('M1: worker-video (connection redis_video) khong ghi heartbeat vao cache; worker cua app van ghi', function () {
     $reset = fn () => (function () {

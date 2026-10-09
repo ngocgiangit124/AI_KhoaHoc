@@ -73,6 +73,8 @@
         <!-- US-022: .env.example bật cờ này cho local; test cũ không được phụ thuộc vào đó. Test T38 tự config(). -->
         <env name="FEATURE_MANUAL_PAYMENT" value="false" force="true"/>
         <env name="VIDEO_BIND_IP" value="true" force="true"/>
+        <!-- T35-3: .env.example liệt kê thêm host MoMo sandbox; guard/test production cần giá trị cố định, không phụ thuộc .env. -->
+        <env name="MOMO_PAY_URL_HOSTS" value="payment.momo.vn" force="true"/>
 
         <server name="APP_ENV" value="testing" force="true"/>
         <server name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
@@ -109,5 +111,6 @@
         <server name="NIGHTWATCH_ENABLED" value="false" force="true"/>
         <server name="FEATURE_MANUAL_PAYMENT" value="false" force="true"/>
         <server name="VIDEO_BIND_IP" value="true" force="true"/>
+        <server name="MOMO_PAY_URL_HOSTS" value="payment.momo.vn" force="true"/>
     </php>
 </phpunit>

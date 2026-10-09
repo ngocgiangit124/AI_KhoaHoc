@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Cập nhật dải IP Cloudflare trong nginx/snippets/vv-real-ip.conf từ nguồn chính thức (GL-A2/S3, ADR-008).
-# Dùng: update-cloudflare-ips.sh [đường-dẫn-vv-real-ip.conf]   (mặc định: /etc/nginx/snippets/vv-real-ip.conf)
+# TUỲ CHỌN, CHỈ KHI BẬT CLOUDFLARE PROXY (hiện tạm bỏ proxy, PO 2026-10-10; KHÔNG cron mặc định). Cập nhật dải IP Cloudflare trong
+# nginx/snippets/vv-real-ip.cloudflare.conf (sau khi copy thành vv-real-ip.conf) từ nguồn chính thức (GL-A2/S3, ADR-008).
+# Dùng: update-cloudflare-ips.sh [đường-dẫn-file-real-ip]   (mặc định: /etc/nginx/snippets/vv-real-ip.conf, file phải có marker BEGIN/END cloudflare-ips)
 # Cron hàng tuần, sau đó script tự chạy `nginx -t` và reload; lỗi thì khôi phục bản cũ. Không thay đổi gì nếu tải lỗi/rỗng.
 set -euo pipefail
 

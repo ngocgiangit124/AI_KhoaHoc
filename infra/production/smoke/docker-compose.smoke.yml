@@ -1,0 +1,64 @@
+# Ghi đè cho stack smoke `vvsmoke` (T35-1). Dùng CÙNG docker-compose.yml của production (COMPOSE_FILE=prod:smoke); file này chỉ đổi:
+# cổng publish (tránh 3000/3001/9000 của dev), dữ liệu MySQL/Redis sang volume có tên, và thêm nginx-smoke + mailpit.
+# Subnet 10.231.20-22.0/24 và đường dẫn nằm ở $VV_HOME/.env do make-env.sh sinh.
+services:
+  php:
+    ports: !reset []
+    # IP cố định để nginx-smoke (upstream php_fpm) khởi động được trước cả khi container php tồn tại.
+    networks: !override
+      app:
+        ipv4_address: 10.231.21.10
+
+  web:
+    ports: !override
+      - "127.0.0.1:13000:3000"
+
+  admin:
+    ports: !override
+      - "127.0.0.1:13001:3001"
+
+  # Volume có tên thay bind mount /srv/vitaminvui/* (Docker Desktop macOS xử lý chown dữ liệu MySQL kém trên bind mount).
+  mysql:
+    volumes: !override
+      - smoke-mysql:/var/lib/mysql
+      - ${VV_HOME}/conf/my.cnf:/etc/mysql/conf.d/90-vitaminvui.cnf:ro
+
+  redis:
+    volumes: !override
+      - smoke-redis:/data
+      - ${VV_HOME}/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ${VV_HOME}/conf/users.acl:/usr/local/etc/redis/users.acl:ro
+
+  redis-video:
+    volumes: !override
+      - smoke-redis-video:/data
+      - ${VV_HOME}/conf/redis-video.conf:/usr/local/etc/redis/redis.conf:ro
+      - ${VV_HOME}/conf/users.video-instance.acl:/usr/local/etc/redis/users.acl:ro
+
+  # Nginx đứng thay Nginx host: dùng NGUYÊN snippet production (đã điền placeholder), host api/admin-api qua 127.0.0.1:18080,
+  # listener SSR :8081 trong mạng front. Nối cả front (web SSR) lẫn app (fastcgi tới php).
+  nginx-smoke:
+    image: nginx:1.27.5@sha256:6784fb0834aa7dbbe12e3d7471e69c290df3e6ba810dc38b34ae33d3c1c05f7d
+    restart: unless-stopped
+    volumes:
+      - ${VV_HOME}/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${VV_HOME}/nginx/snippets:/etc/nginx/snippets:ro
+      - ${VV_UPLOADS_DIR}:/var/www/uploads:ro
+    ports:
+      - "127.0.0.1:18080:80"
+    networks:
+      front:
+        # web (mạng front) gọi ảnh qua tên miền tĩnh giả này (build arg NEXT_PUBLIC_STATIC_URL của smoke).
+        aliases: [static.vvsmoke-media.internal]
+      app:
+
+  # SMTP giả: thay SMTP thật (env app có MAIL_HOST=mailpit). Không publish cổng; kiểm bằng container curl trong mạng app.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    networks: [app]
+
+volumes:
+  smoke-mysql:
+  smoke-redis:
+  smoke-redis-video:

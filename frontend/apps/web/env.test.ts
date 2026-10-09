@@ -38,15 +38,20 @@ describe("env.ts — validate biến môi trường công khai bằng zod", () =
     }
   });
 
-  it("dùng mặc định NEXT_PUBLIC_MOMO_HOSTS khi không đặt", async () => {
+  it("NEXT_PUBLIC_MOMO_HOSTS mặc định rỗng khi không đặt hoặc đặt chuỗi rỗng (D5)", async () => {
     Object.assign(process.env, REQUIRED_ENV);
     delete process.env.NEXT_PUBLIC_MOMO_HOSTS;
     delete process.env.NEXT_PUBLIC_VIDEO_HOSTS;
 
     const { env } = await import("./env");
 
-    expect(env.NEXT_PUBLIC_MOMO_HOSTS).toEqual(["test-payment.momo.vn"]);
+    expect(env.NEXT_PUBLIC_MOMO_HOSTS).toEqual([]);
     expect(env.NEXT_PUBLIC_VIDEO_HOSTS).toEqual([]);
+
+    process.env.NEXT_PUBLIC_MOMO_HOSTS = "";
+    vi.resetModules();
+    const { env: env2 } = await import("./env");
+    expect(env2.NEXT_PUBLIC_MOMO_HOSTS).toEqual([]);
   });
 
   it("ném lỗi rõ ràng khi thiếu biến bắt buộc", async () => {

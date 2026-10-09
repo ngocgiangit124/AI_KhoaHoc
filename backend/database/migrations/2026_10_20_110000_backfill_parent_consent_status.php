@@ -1,5 +1,7 @@
 <?php
 
+// VV-IRREVERSIBLE: backfill không hoàn tác (T29)
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 

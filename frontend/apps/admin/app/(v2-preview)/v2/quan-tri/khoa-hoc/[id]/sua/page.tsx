@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { env } from "@/env";
 import { notFound } from "next/navigation";
 import {
   Alert,
@@ -72,7 +73,7 @@ export default async function AdminCourseEditPreview({ params, searchParams }: P
             {course.status === "published" ? (
               <>
                 {" · "}
-                <a href={`http://api.localhost:3000/v2/khoa-hoc/${course.slug}`} className="focus-ring inline-flex items-center gap-1 rounded font-semibold text-primary hover:underline">
+                <a href={`${env.NEXT_PUBLIC_WEB_URL.replace(/\/+$/, "")}/v2/khoa-hoc/${course.slug}`} className="focus-ring inline-flex items-center gap-1 rounded font-semibold text-primary hover:underline">
                   Xem trang khóa học
                   <IconExternalLink size={14} />
                 </a>

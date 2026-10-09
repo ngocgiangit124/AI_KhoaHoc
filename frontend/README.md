@@ -136,7 +136,7 @@ Next.js ném lỗi rõ ràng ngay khi thiếu/sai biến (chạy lúc `next dev`
 | web | `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_STATIC_URL` | |
 | web | `NEXT_PUBLIC_VIDEO_HOSTS` | Danh sách host, phân tách dấu phẩy (CSP `connect-src`/`media-src`) |
 | web | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Để trống ở local (chờ PO — G4) |
-| web | `NEXT_PUBLIC_MOMO_HOSTS` | Allowlist mở `pay_url` (S23); non-prod `test-payment.momo.vn` |
+| web | `NEXT_PUBLIC_MOMO_HOSTS` | Allowlist mở `pay_url` (S23). Mặc định RỖNG (MoMo tắt, D5); chỉ `.env.example` local đặt `test-payment.momo.vn` |
 | web | `API_INTERNAL_URL` **(server-only)** | Laravel gọi từ SSR (`lib/api.server.ts`). Trong Docker Compose dùng `host.docker.internal:8000`; chạy `next dev` thẳng trên máy (không qua Docker) thì đổi lại `http://api.localhost:8000` |
 | admin | `NEXT_PUBLIC_ADMIN_API_URL`, `NEXT_PUBLIC_ADMIN_URL` | |
 | admin | `NEXT_PUBLIC_STATIC_URL`, `NEXT_PUBLIC_VIDEO_UPLOAD_URL` | |
@@ -144,6 +144,29 @@ Next.js ném lỗi rõ ràng ngay khi thiếu/sai biến (chạy lúc `next dev`
 
 Biến mới thêm sau này: cập nhật `.env.example` tương ứng + báo PO/Architect (không bao
 giờ đặt secret vào biến `NEXT_PUBLIC_*`).
+
+## Production image (T35-2, ADR-008 §8.9)
+
+`next.config.ts` của 2 app có `output: "standalone"` + `outputFileTracingRoot` = `frontend/` (không ảnh hưởng `next dev`). `frontend/Dockerfile` (đa tầng: `deps` -> `build` -> `runner`, Node 22 ghim digest, pnpm 9.15.9, user `node`) chỉ chép `.next/standalone` + `.next/static` + `public`; không có `.env*`, test, e2e.
+
+- `NEXT_PUBLIC_*` nhúng LÚC BUILD nên mỗi môi trường một image: `vitaminvui-web:<env>-<sha>`, `vitaminvui-admin:<env>-<sha>`, `<env>` là `staging` hoặc `production`, label `vv.env`.
+- Build (từ thư mục gốc repo; giá trị BUILD lấy từ phần BUILD của `apps/web/.env.production.example` và `apps/admin/.env.production.example`, CI lấy từ `vars` của GitHub Environment):
+
+```bash
+export VV_REGISTRY=vv-local IMAGE_TAG=dev VV_ENV=production   # + các NEXT_PUBLIC_* của môi trường
+docker buildx bake -f frontend/docker-bake.hcl --load web admin
+```
+
+- Chạy (web cổng 3000, admin cổng 3001; biến RUNTIME qua `--env-file`, không có trong image):
+
+```bash
+docker run --rm -p 127.0.0.1:3000:3000 --env-file web.env vv-local/vitaminvui-web:production-dev
+docker run --rm -p 127.0.0.1:3001:3001 -e V2_PREVIEW= vv-local/vitaminvui-admin:production-dev
+```
+
+- Biến BUILD web: `NEXT_PUBLIC_API_URL`, `_SITE_URL`, `_STATIC_URL`, `_VIDEO_HOSTS`, `_TURNSTILE_SITE_KEY`, `_MOMO_HOSTS` (để trống). Admin: `NEXT_PUBLIC_ADMIN_API_URL`, `_ADMIN_URL`, `_STATIC_URL`, `_VIDEO_UPLOAD_URL`, `_TURNSTILE_SITE_KEY` (GL-A2, site key THẬT). Biến RUNTIME: web `API_INTERNAL_URL`, `INTERNAL_API_TOKEN`, `V2_PREVIEW`; admin `V2_PREVIEW`. Không bao giờ truyền secret làm build arg.
+- Build không cần backend. Image không chứa host test MoMo, khoá thử Turnstile, host `*.localhost`. Build stage xoá file `*.test.*` (một số test admin import chéo sang `apps/web`) và cắt 2 origin local còn hardcode ở trang xem trước `/v2` (xem ghi chú trong Dockerfile).
+- Sau khi khởi động web, gọi `/khoa-hoc` để kiểm SSR tới `API_INTERNAL_URL` (200, hoặc trang "Hệ thống đang bận" có `noindex` nếu API chưa sẵn sàng). Healthcheck: web `/robots.txt`, admin `/dang-nhap`.
 
 ## Bảo mật đã dựng ở FE0 (ADR-004)
 
