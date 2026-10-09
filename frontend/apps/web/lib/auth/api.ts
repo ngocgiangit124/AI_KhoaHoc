@@ -111,11 +111,16 @@ export async function registerStudent(payload: RegisterPayload): Promise<AuthUse
   return parseAuthUser(raw);
 }
 
-export async function loginStudent(input: { login: string; password: string }): Promise<AuthUser | null> {
+export async function loginStudent(input: { login: string; password: string; captchaToken?: string | null }): Promise<AuthUser | null> {
   const raw = await authFetch<unknown>("/api/v1/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ login: input.login.trim(), password: input.password, device_id: getDeviceId() }),
+    body: JSON.stringify({
+      login: input.login.trim(),
+      password: input.password,
+      device_id: getDeviceId(),
+      ...(input.captchaToken ? { captcha_token: input.captchaToken } : {}),
+    }),
   });
   resetCsrf();
   return parseAuthUser(raw);

@@ -25,7 +25,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     const next = encodeURIComponent(pathname);
     if (state.kind === "guest") {
       const reason = state.reason ? `&reason=${state.reason}` : "";
-      router.replace(`/dang-nhap?next=${next}${reason}`);
+      // Điều hướng CỨNG: CSP (Turnstile) gắn theo tài liệu, trang đăng nhập cần CSP của chính nó (GL-A2).
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- cố ý: cần tải lại tài liệu để nhận CSP Turnstile
+      window.location.assign(`/dang-nhap?next=${next}${reason}`);
     } else if (state.kind === "mfa_required") router.replace(`/xac-thuc-mfa?next=${next}`);
     else if (state.kind === "password_change_required") router.replace(`/doi-mat-khau?next=${next}`);
   }, [state, pathname, router]);

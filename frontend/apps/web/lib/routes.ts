@@ -51,12 +51,12 @@ export function isCatalogPath(pathname: string): boolean {
 }
 
 /**
- * Route có Cloudflare Turnstile. CSP (nonce + frame-src/connect-src Cloudflare) gắn vào TÀI LIỆU HTML đầu tiên, nên mọi liên
+ * Route có Cloudflare Turnstile (GL-A2: gồm /dang-nhap — widget hiện khi sai mật khẩu nhiều lần). CSP (nonce + frame-src/connect-src Cloudflare) gắn vào TÀI LIỆU HTML đầu tiên, nên mọi liên
  * kết tới các route này phải là điều hướng CỨNG (`<a href>`, tải lại tài liệu) — điều hướng mềm của App Router giữ CSP của
  * trang trước và iframe Turnstile bị chặn. Dùng chung cho `proxy.ts` và `AppLink`. Lý do không mở Cloudflare cho mọi trang khách:
  * giữ CSP chặt nhất có thể (ADR-004 §2.6), chi phí chỉ là một lần tải lại tài liệu khi vào 3 trang này.
  */
-export const CAPTCHA_PATHS: readonly string[] = [routes.register, routes.forgotPassword, routes.resetPassword];
+export const CAPTCHA_PATHS: readonly string[] = [routes.login, routes.register, routes.forgotPassword, routes.resetPassword];
 
 /** `href` (có thể kèm query/hash) trỏ tới route cần CSP Turnstile. */
 export function isCaptchaHref(href: string): boolean {

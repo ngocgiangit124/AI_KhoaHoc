@@ -33,9 +33,9 @@ describe("errors", () => {
     expect(loginErrorMessage(err(403, { code: "WRONG_PORTAL" }))).toBe("Vui lòng đăng nhập tại trang dành cho bạn.");
     expect(loginErrorMessage(err(403, { code: "ACCOUNT_LOCKED" }))).toMatch(/bị khóa/);
   });
-  it("422 đăng nhập không lộ field; 429 dùng thông điệp server", () => {
+  it("422 đăng nhập không lộ field; 429 hiện thời gian chờ theo Retry-After", () => {
     expect(loginErrorMessage(err(422, { errors: { login: ["x"] } }))).toBe("Thông tin đăng nhập hoặc mật khẩu không đúng");
-    expect(loginErrorMessage(err(429, { code: "TOO_MANY_ATTEMPTS" }, 30))).toBe("msg server");
+    expect(loginErrorMessage(err(429, { code: "TOO_MANY_ATTEMPTS" }, 30))).toBe("Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau 30 giây.");
     expect(loginErrorMessage(new NetworkError(null))).toMatch(/kết nối/);
   });
   it("MFA: 422 lấy field code, 429 báo sai quá nhiều", () => {

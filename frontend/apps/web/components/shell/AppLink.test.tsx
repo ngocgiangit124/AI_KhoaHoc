@@ -26,16 +26,16 @@ describe("AppLink: điều hướng cứng tới route có Turnstile (CSP gắn 
       <>
         <AppLink href="/dang-ky?next=%2F">a</AppLink>
         <AppLink href="/khoa-hoc">b</AppLink>
-        <AppLink href="/dang-nhap">c</AppLink>
+        <AppLink href="/dang-nhap?next=%2F">c</AppLink>
       </>,
     );
     expect(screen.getByRole("link", { name: "a" })).not.toHaveAttribute("data-soft");
     expect(screen.getByRole("link", { name: "b" })).toHaveAttribute("data-soft");
-    expect(screen.getByRole("link", { name: "c" })).toHaveAttribute("data-soft");
+    expect(screen.getByRole("link", { name: "c" })).not.toHaveAttribute("data-soft"); // GL-A2: /dang-nhap có widget
   });
 
-  it("CAPTCHA_PATHS gồm đúng đăng ký, quên mật khẩu, đặt lại; isCaptchaHref không khớp tiền tố gần giống", () => {
-    expect([...CAPTCHA_PATHS]).toEqual([routes.register, routes.forgotPassword, routes.resetPassword]);
+  it("CAPTCHA_PATHS gồm đúng đăng nhập (GL-A2), đăng ký, quên mật khẩu, đặt lại; isCaptchaHref không khớp tiền tố gần giống", () => {
+    expect([...CAPTCHA_PATHS]).toEqual([routes.login, routes.register, routes.forgotPassword, routes.resetPassword]);
     expect(isCaptchaHref("/dang-ky-2")).toBe(false);
     expect(isCaptchaHref("/quen-mat-khau/dat-lai#x")).toBe(true);
   });

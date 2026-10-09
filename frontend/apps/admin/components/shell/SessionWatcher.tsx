@@ -46,7 +46,8 @@ export function SessionWatcher({ now = Date.now, idleLimitMs }: SessionWatcherPr
     function onLoginRequired(e: Event) {
       if (onAuthPage) return;
       const code = (e as CustomEvent<AuthEventDetail>).detail?.code;
-      router.replace(loginUrl(pathname, code === "STAFF_IDLE_TIMEOUT" ? "idle" : "expired"));
+      // Điều hướng cứng tới /dang-nhap để nhận CSP Turnstile của trang đó (GL-A2).
+      window.location.assign(loginUrl(pathname, code === "STAFF_IDLE_TIMEOUT" ? "idle" : "expired"));
     }
     function onGate(e: Event) {
       const code = (e as CustomEvent<{ code: StaffGateCode }>).detail?.code;
@@ -84,7 +85,7 @@ export function SessionWatcher({ now = Date.now, idleLimitMs }: SessionWatcherPr
         expiredHandled = true;
         void logoutStaff()
           .catch(() => undefined)
-          .finally(() => router.replace(loginUrl(pathname, "idle")));
+          .finally(() => window.location.assign(loginUrl(pathname, "idle")));
       }
     };
 

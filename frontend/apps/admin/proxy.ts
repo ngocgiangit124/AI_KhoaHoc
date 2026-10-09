@@ -5,7 +5,7 @@ import { isBlockedPreview } from "@/lib/previewGate";
 
 /**
  * Proxy sinh nonce CSP + header bảo mật cho app admin (ADR-004 §2.5–2.6). Khác app web:
- * `frame-src 'none'` (không nhúng video ngoài ở khu quản trị).
+ * `frame-src 'none'` (không nhúng video ngoài ở khu quản trị), trừ `/dang-nhap` có Cloudflare Turnstile (GL-A2).
  * Cũng chặn bản xem trước `/v2/...` ở production (xem `lib/previewGate.ts`): rewrite sang route không tồn tại để có 404 thật
  * (layout `notFound()` đơn lẻ trả 200 vì đã stream), vẫn đi qua đường đặt header bảo mật bên dưới.
  */
@@ -13,15 +13,18 @@ export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
 
+  // GL-A2: Turnstile chỉ ở trang đăng nhập (script nạp được nhờ strict-dynamic; cần connect-src + frame-src Cloudflare).
+  const captchaSrc = request.nextUrl.pathname === "/dang-nhap" ? " https://challenges.cloudflare.com" : "";
+
   const cspHeader = `
     default-src 'self';
     script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""};
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: ${env.NEXT_PUBLIC_STATIC_URL};
     font-src 'self';
-    connect-src 'self' ${env.NEXT_PUBLIC_ADMIN_API_URL} ${env.NEXT_PUBLIC_VIDEO_UPLOAD_URL};
+    connect-src 'self' ${env.NEXT_PUBLIC_ADMIN_API_URL} ${env.NEXT_PUBLIC_VIDEO_UPLOAD_URL}${captchaSrc};
     media-src 'self' blob:;
-    frame-src 'none';
+    frame-src ${captchaSrc ? captchaSrc.trim() : "'none'"};
     object-src 'none';
     base-uri 'none';
     frame-ancestors 'none';

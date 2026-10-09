@@ -14,6 +14,8 @@ export {
   errorField,
   errorString,
   errorMessages,
+  loginNeedsCaptcha,
+  isStaleDocument,
   FORCED_LOGOUT_EVENT,
   LOGIN_REQUIRED_EVENT,
 } from "./errors";

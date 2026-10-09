@@ -27,8 +27,10 @@ function setSession(state: SessionState) {
   vi.mocked(useSession).mockReturnValue({ state, refresh: vi.fn() });
 }
 
+const assign = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
+  Object.defineProperty(window, "location", { value: { pathname: "/quan-tri/khoa-hoc", search: "", assign }, writable: true });
   pathname = "/quan-tri/khoa-hoc";
   localStorage.clear();
 });
@@ -42,7 +44,7 @@ describe("AuthGate", () => {
   ])("chuyển hướng theo trạng thái %o", (state, url) => {
     setSession(state);
     render(<AuthGate>nội dung</AuthGate>);
-    expect(replace).toHaveBeenCalledWith(url);
+    expect((url.startsWith("/dang-nhap") ? assign : replace)).toHaveBeenCalledWith(url);
     expect(screen.queryByText("nội dung")).toBeNull();
   });
 
@@ -143,18 +145,19 @@ describe("SessionWatcher", () => {
   it("401 STAFF_IDLE_TIMEOUT → /dang-nhap kèm reason=idle và next", () => {
     render(<SessionWatcher />);
     fire(LOGIN_REQUIRED_EVENT, { code: "STAFF_IDLE_TIMEOUT" });
-    expect(replace).toHaveBeenCalledWith("/dang-nhap?next=%2Fquan-tri%2Fkhoa-hoc&reason=idle");
+    expect(assign).toHaveBeenCalledWith("/dang-nhap?next=%2Fquan-tri%2Fkhoa-hoc&reason=idle");
   });
   it("401 khác → reason=expired", () => {
     render(<SessionWatcher />);
     fire(LOGIN_REQUIRED_EVENT, { code: "UNAUTHENTICATED" });
-    expect(replace).toHaveBeenCalledWith("/dang-nhap?next=%2Fquan-tri%2Fkhoa-hoc&reason=expired");
+    expect(assign).toHaveBeenCalledWith("/dang-nhap?next=%2Fquan-tri%2Fkhoa-hoc&reason=expired");
   });
   it("không chuyển hướng khi đang ở trang đăng nhập", () => {
     pathname = "/dang-nhap";
     render(<SessionWatcher />);
     fire(LOGIN_REQUIRED_EVENT, { code: "UNAUTHENTICATED" });
     expect(replace).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
   });
   it("403 cổng: MFA / đổi mật khẩu → trang tương ứng; khoá → overlay", () => {
     render(<SessionWatcher />);
@@ -182,7 +185,7 @@ describe("SessionWatcher", () => {
         await vi.advanceTimersByTimeAsync(30_000);
       });
       expect(logoutStaff).toHaveBeenCalled();
-      expect(replace).toHaveBeenCalledWith("/dang-nhap?next=%2Fquan-tri%2Fkhoa-hoc&reason=idle");
+      expect(assign).toHaveBeenCalledWith("/dang-nhap?next=%2Fquan-tri%2Fkhoa-hoc&reason=idle");
     } finally {
       vi.useRealTimers();
     }
@@ -219,5 +222,18 @@ describe("SessionWatcher", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("LogoutButton (GL-A2: điều hướng cứng để nhận CSP Turnstile của /dang-nhap)", () => {
+  it("đăng xuất xong thì window.location.assign('/dang-nhap')", async () => {
+    const { LogoutButton } = await import("./LogoutButton");
+    render(<LogoutButton />);
+    await act(async () => {
+      screen.getByRole("button", { name: "Đăng xuất" }).click();
+    });
+    expect(logoutStaff).toHaveBeenCalled();
+    expect(assign).toHaveBeenCalledWith("/dang-nhap");
+    expect(replace).not.toHaveBeenCalled();
   });
 });

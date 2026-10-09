@@ -34,9 +34,9 @@ describe("proxy — cổng /v2", () => {
     expect((await run("/khoa-hoc")).headers.get("x-middleware-rewrite")).toBeNull();
   });
 
-  it("/dang-ky, /quen-mat-khau và bước 2 có Cloudflare Turnstile trong CSP, route khác không", async () => {
+  it("/dang-nhap (GL-A2), /dang-ky, /quen-mat-khau và bước 2 có Cloudflare Turnstile trong CSP, route khác không", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    for (const path of ["/dang-ky", "/quen-mat-khau", "/quen-mat-khau/dat-lai"]) {
+    for (const path of ["/dang-nhap", "/dang-ky", "/quen-mat-khau", "/quen-mat-khau/dat-lai"]) {
       expect((await run(path)).headers.get("Content-Security-Policy"), path).toContain("challenges.cloudflare.com");
     }
     expect((await run("/khoa-hoc")).headers.get("Content-Security-Policy")).not.toContain("challenges.cloudflare.com");

@@ -17,11 +17,13 @@ export interface LoginResult {
 }
 
 /** `POST /admin/auth/login` (field `login`, `password`) → 200 `{ mfa_required: true }` cho Admin/QLT. */
-export async function loginStaff(input: { login: string; password: string }): Promise<LoginResult> {
+export async function loginStaff(input: { login: string; password: string; captchaToken?: string | null }): Promise<LoginResult> {
   const raw = await authFetch<unknown>("/api/v1/admin/auth/login", {
     method: "POST",
     headers: JSON_HEADERS,
-    body: JSON.stringify({ login: input.login.trim(), password: input.password, device_id: getDeviceId() }),
+    body: JSON.stringify({ login: input.login.trim(), password: input.password, device_id: getDeviceId(),
+      ...(input.captchaToken ? { captcha_token: input.captchaToken } : {}),
+    }),
   });
   resetCsrf();
   const mfa = typeof raw === "object" && raw !== null && "mfa_required" in raw ? (raw as { mfa_required: unknown }).mfa_required : false;

@@ -8,6 +8,8 @@ export interface ApiErrorBody {
   code?: string;
   errors?: Record<string, unknown>;
   request_id?: string;
+  /** GL-A2: mọi 422 của đăng nhập — lần gửi sau có cần `captcha_token` không (thiếu = false). */
+  captcha_required?: boolean;
 }
 
 /** Phân trang length-aware (danh mục, đơn của tôi, danh sách quản trị nhỏ). */

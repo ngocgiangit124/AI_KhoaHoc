@@ -8,6 +8,8 @@ export class ApiError extends Error {
   readonly requestId: string | undefined;
   /** Giây chờ theo header `Retry-After` (429), nếu server gửi dạng số giây. */
   readonly retryAfterSeconds: number | undefined;
+  /** GL-A2: cờ top-level `captcha_required` của 422 đăng nhập (thiếu = false). */
+  readonly captchaRequired: boolean;
 
   constructor(status: number, body: ApiErrorBody, retryAfterSeconds?: number) {
     super(body.message || "Đã có lỗi xảy ra, vui lòng thử lại sau.");
@@ -17,7 +19,28 @@ export class ApiError extends Error {
     this.errors = body.errors;
     this.requestId = body.request_id;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.captchaRequired = body.captcha_required === true;
   }
+}
+
+/**
+ * CSP của trang gắn lúc TẢI TÀI LIỆU: nếu trang hiện tại đến bằng điều hướng mềm (tài liệu gốc khác đường dẫn hiện tại) thì CSP
+ * là của trang trước và iframe Turnstile bị chặn. Trả `true` khi cần tải lại tài liệu. Không có Navigation Timing -> `false`.
+ */
+export function isStaleDocument(): boolean {
+  if (typeof performance === "undefined" || typeof window === "undefined") return false;
+  const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+  if (!nav?.name) return false;
+  try {
+    return new URL(nav.name).pathname !== window.location.pathname;
+  } catch {
+    return false;
+  }
+}
+
+/** Đăng nhập GL-A2: lần gửi sau phải kèm `captcha_token` (cờ `captcha_required` hoặc code `CAPTCHA_*`). */
+export function loginNeedsCaptcha(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 422 && (err.captchaRequired || err.code === "CAPTCHA_REQUIRED" || err.code === "CAPTCHA_INVALID");
 }
 
 /**

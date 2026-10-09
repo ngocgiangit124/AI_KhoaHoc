@@ -11,6 +11,8 @@ const publicEnvSchema = z.object({
   NEXT_PUBLIC_ADMIN_URL: z.string().url(),
   NEXT_PUBLIC_STATIC_URL: z.string().url(),
   NEXT_PUBLIC_VIDEO_UPLOAD_URL: z.string().url(),
+  /** GL-A2: site key Turnstile (đăng nhập sai nhiều lần). Rỗng = không hiện widget. Là khoá công khai, không phải secret. */
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().default(""),
 });
 
 function parsePublicEnv() {
@@ -19,6 +21,7 @@ function parsePublicEnv() {
     NEXT_PUBLIC_ADMIN_URL: process.env.NEXT_PUBLIC_ADMIN_URL,
     NEXT_PUBLIC_STATIC_URL: process.env.NEXT_PUBLIC_STATIC_URL,
     NEXT_PUBLIC_VIDEO_UPLOAD_URL: process.env.NEXT_PUBLIC_VIDEO_UPLOAD_URL,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   });
 
   if (!result.success) {
