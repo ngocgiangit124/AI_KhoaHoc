@@ -98,7 +98,8 @@ describe("navGroups (menu v2)", () => {
     expect(items.find((i) => i.label === "Đơn hàng")).not.toHaveProperty("count");
     expect(items.find((i) => i.label === "Mã giảm giá")).toMatchObject({ href: "/quan-tri/ma-giam-gia", current: false });
     expect(items.find((i) => i.label === "Tài khoản staff")).toMatchObject({ href: "/quan-tri/tai-khoan", current: false });
-    expect(items.find((i) => i.label === "Nhật ký thao tác")?.disabledNote).toBe("Sắp có");
+    expect(items.find((i) => i.label === "Nhật ký thao tác")).toMatchObject({ href: "/quan-tri/nhat-ky", current: false });
+    expect(items.find((i) => i.label === "Nhật ký thao tác")).not.toHaveProperty("disabledNote");
   });
   it("Đơn hàng: số đơn chờ gắn vào mục kèm câu đọc cho trình đọc màn hình; 0/null thì không hiện số", () => {
     const find = (n: number | null) =>

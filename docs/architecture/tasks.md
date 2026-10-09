@@ -640,6 +640,7 @@ Cài ở task sau:
 | FA8 | Đơn hàng: cursor Trước/Tiếp + tổng, PII che, chi tiết, hoàn tiền. **US-022: phạm vi mới, xem mục "FA8 (US-022)"** (thêm tab Chờ duyệt + badge, Duyệt/Duyệt muộn/Huỷ, ghi chú nội bộ) | T24-V1, T39 | 3 |
 | FA9 | Xuất file (tuỳ chọn kèm liên hệ chỉ admin + lý do), poll, tải | T25 | 0,5 |
 | FA10 | Quản lý tài khoản staff | T33 | 1,5 | _Ghi chú (Sửa lỗi nhỏ 3): `PATCH /admin/staff/{id}/role` trả thêm `released_course_ids`; nếu khác rỗng, hiển thị cảnh báo "N khóa không còn giáo viên phụ trách, hãy gán lại"._ |
+| FA12 | Nhật ký thao tác (chỉ admin, chỉ đọc): `/quan-tri/nhat-ky`, bộ lọc trên URL (khoảng ngày mặc định 7 ngày, hành động, người làm, loại + mã đối tượng, số dòng), phân trang Trước/Sau theo `links.next` (simplePaginate, không có tổng), hộp chi tiết `changes` dạng key–value text | T33 | 1 | _Ghi chú: dùng `page` trên URL thay cho con trỏ (simplePaginate không có cursor). Link tới đơn hàng dùng `changes.code` (T33-1); bản ghi cũ không có mã thì hiện "Đơn hàng #id", không link._ |
 
 **Tổng frontend ≈ 36,5 ngày** (FE0 2 — đã xong; web 19 (FW7 tăng 1,5 → 2,5 ngày theo ADR-006); admin 15,5).
 

@@ -52,7 +52,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     ready: true,
   },
   { href: "/quan-tri/tai-khoan", permission: "manage_system", label: "Tài khoản staff", group: "system", icon: "shield", roles: ADMIN, ready: true },
-  { href: "/quan-tri/nhat-ky", permission: "manage_system", label: "Nhật ký thao tác", group: "system", icon: "file", roles: ADMIN, ready: false },
+  { href: "/quan-tri/nhat-ky", permission: "manage_system", label: "Nhật ký thao tác", group: "system", icon: "file", roles: ADMIN, ready: true },
 ];
 
 const AUTH_PATH_RE = /^\/(dang-nhap|xac-thuc-mfa|doi-mat-khau)(?:[/?#]|$)/;
