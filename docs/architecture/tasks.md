@@ -788,6 +788,12 @@ Phụ thuộc T18, T34 (đã xong). Thiết kế: `docs/tech/US-022.md`, ADR-007
   - (o) guard: bật `FEATURE_MANUAL_PAYMENT` ở `production` với 0 kênh, Zalo `http://`/`https://evil.com`, email sai, `notify_emails` rỗng, TTL 0/200, per_day 0 → `RuntimeException`; cấu hình đúng + `FEATURE_PAID_CHECKOUT=false` + `ipn_ready=false` → khởi động được (mẫu `StagingGuardTest`).
 - **Xong khi:** (a)–(o) xanh; `composer ci` xanh (Pint, PHPStan, Pest gồm nhóm `race`); DBA review T38.1 (INSTANT/COPY, CHECK) và thứ tự khoá; Security review (IDOR, PII thư quản trị, `customer_note`, guard); QA PASS.
 
+### T38-1 — Tự xoá lời nhắn học sinh sau 90 ngày (backend, ~0,5 ngày) (US-022, quyết định PO 2026-10-09)
+Phụ thuộc T38. Thiết kế: `docs/tech/US-022.md` mục "Lưu giữ dữ liệu". Test ở `tests/Feature/T38/CustomerNoteRetentionTest.php`.
+- Lệnh `orders:purge-customer-notes` (idempotent, theo lô theo PK, đọc id rồi UPDATE có điều kiện lại) đặt `orders.customer_note = NULL` sau `orders.manual.customer_note_retention_days` ngày kể từ khi đơn kết thúc (`paid_at`/`cancelled_at`/`refunded_at`; `failed` dùng `updated_at`). Đơn pending không bị xoá; mọi đơn có ghi chú đều áp. Lịch 03:45 hằng ngày ở `OperationsServiceProvider`.
+- Config + env `ORDERS_CUSTOMER_NOTE_RETENTION_DAYS` (90, 30..3650) trong `.env.example`, `.env.production.example`; `ProductionConfigGuard` kiểm chuỗi thô là số nguyên và khoảng hợp lệ.
+- **Xong khi:** mốc 89/90/91 ngày đúng cho paid/cancelled/refunded/failed; pending giữ; chạy 2 lần không đổi; chỉ cột `customer_note` đổi (kể cả `updated_at`), `order_notes` giữ; guard chặn ngoài khoảng/chuỗi rác; EXPLAIN ghi ở `docs/review/T38-1.md` (không cần index mới); `composer ci` xanh; reviewer + QA PASS.
+
 ### T24-V1 — Admin đơn hàng, thu gọn cho thanh toán thủ công (backend, ~2 ngày) **[SEC] [DBA]** (US-022, US-010)
 Thay phạm vi T24 ở Giai đoạn 7 cho V1. Phụ thuộc T38 (T38.1 migration + factory; `ManualOrderService` để thêm `approvalState`), T28. **Không phụ thuộc T19.** Hợp đồng api-contract §2.5.1. Test ở `tests/Feature/T24`.
 - `OrderFilterRequest` + `AdminOrderQuery`: bộ lọc §2.5.1 (khoảng ngày bắt buộc ≤ 366 trừ `status[] = [pending]`; `payment_method`; `sort` newest/oldest; `q` 4 dạng, escape LIKE); luôn áp ngày/trạng thái trước; `cursorPaginate` theo `sort` + `COUNT(*)` riêng (DBA #9).

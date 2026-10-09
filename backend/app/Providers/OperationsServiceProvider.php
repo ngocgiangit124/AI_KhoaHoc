@@ -6,6 +6,7 @@ use App\Console\Commands\AuditPurgeCommand;
 use App\Console\Commands\ExpireManualOrders;
 use App\Console\Commands\OpsHealthCommand;
 use App\Console\Commands\OtpPruneCommand;
+use App\Console\Commands\PurgeOrderCustomerNotes;
 use App\Console\Commands\UsersPurgeUnverifiedCommand;
 use App\Support\Heartbeat;
 use Illuminate\Console\Scheduling\Schedule;
@@ -28,7 +29,7 @@ class OperationsServiceProvider extends ServiceProvider
             Log::warning('INTERNAL_API_TOKEN rỗng: throttle catalog dùng chung 1 bucket theo IP kết nối (SSR sẽ dễ bị 429).');
         }
 
-        $this->commands([OpsHealthCommand::class, OtpPruneCommand::class, AuditPurgeCommand::class, UsersPurgeUnverifiedCommand::class, ExpireManualOrders::class]);
+        $this->commands([OpsHealthCommand::class, OtpPruneCommand::class, AuditPurgeCommand::class, UsersPurgeUnverifiedCommand::class, ExpireManualOrders::class, PurgeOrderCustomerNotes::class]);
 
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->command('counters:recount')->dailyAt('03:30')->withoutOverlapping(180)->onOneServer();
@@ -43,6 +44,8 @@ class OperationsServiceProvider extends ServiceProvider
             $schedule->command('orders:expire-manual')->everyFifteenMinutes()->withoutOverlapping(10)->onOneServer();
             $schedule->command('otp:prune')->dailyAt('03:00')->withoutOverlapping(30)->onOneServer();
             $schedule->command('audit:purge')->dailyAt('03:40')->withoutOverlapping(120)->onOneServer();
+            // US-022 (T38-1): xoá lời nhắn học sinh quá hạn lưu giữ (đặt NULL), sau audit:purge.
+            $schedule->command('orders:purge-customer-notes')->dailyAt('03:45')->withoutOverlapping(120)->onOneServer();
             $schedule->command('users:purge-unverified')->dailyAt('03:50')->withoutOverlapping(120)->onOneServer();
             $schedule->command('queue:prune-failed', ['--hours' => config('ops.failed_jobs_retention_hours')])
                 ->dailyAt('03:10')->withoutOverlapping(30)->onOneServer();

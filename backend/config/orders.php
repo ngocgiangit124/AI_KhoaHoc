@@ -26,6 +26,9 @@ return [
         // Q13: số đơn `manual` MỚI tối đa mỗi ngày lịch (giờ VN) mỗi học sinh, tính cả đơn đã huỷ. Guard production 1..50.
         'per_day' => (int) env('ORDERS_MANUAL_PER_DAY', 5),
 
+        // T38-1: số ngày giữ `orders.customer_note` kể từ khi đơn kết thúc rồi tự xoá (đặt NULL). Guard production 30..3650.
+        'customer_note_retention_days' => (int) env('ORDERS_CUSTOMER_NOTE_RETENTION_DAYS', 90),
+
         // Nhãn "Sắp hết hạn" ở danh sách quản trị (AC15). Hằng, không có env.
         'expiring_soon_hours' => 12,
 
