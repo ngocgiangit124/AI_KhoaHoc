@@ -11,6 +11,7 @@ use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Enrollment\EnrollmentService;
+use App\Services\Orders\Data\FulfillmentOptions;
 use App\Services\Privacy\ParentNotifier;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -34,19 +35,21 @@ class OrderFulfillmentService
         private readonly OrderStateMachine $states,
         private readonly EnrollmentService $enrollments,
         private readonly ParentNotifier $parentNotifier,
+        private readonly ManualOrderNotifier $mailer,
     ) {}
 
     /**
-     * @param  string  $source  `checkout` (đơn 0đ) | `ipn` | `query` — ghi vào log trạng thái
+     * @param  string  $source  `checkout` (đơn 0đ) | `ipn` | `query` | `manual` (Quản trị viên duyệt, US-022) — ghi vào log trạng thái
+     * @param  FulfillmentOptions|null  $options  null = hành vi cũ (checkout/ipn/query). `manual` dùng `guard`/`after`/`strictCourses`.
      *
-     * @throws DomainException ALREADY_PROCESSED 409 nếu đơn đã hoàn tiền
+     * @throws DomainException ALREADY_PROCESSED 409 nếu đơn đã hoàn tiền; mã khác do `guard`/`strictCourses` ném
      */
-    public function markPaid(Order $order, string $source, ?string $paymentReference = null): Order
+    public function markPaid(Order $order, string $source, ?string $paymentReference = null, ?FulfillmentOptions $options = null): Order
     {
         // grantPurchase tự retry deadlock chỉ khi là transaction ngoài cùng, nên retry ở mức này (T14 ghi chú).
         for ($attempt = 1; ; $attempt++) {
             try {
-                return DB::transaction(fn (): Order => $this->apply($order, $source, $paymentReference));
+                return DB::transaction(fn (): Order => $this->apply($order, $source, $paymentReference, $options));
             } catch (QueryException $e) {
                 if ($attempt >= self::DEADLOCK_ATTEMPTS || ! in_array((int) ($e->errorInfo[1] ?? 0), [1213, 1205], true)) {
                     throw $e;
@@ -55,13 +58,18 @@ class OrderFulfillmentService
         }
     }
 
-    private function apply(Order $order, string $source, ?string $paymentReference): Order
+    private function apply(Order $order, string $source, ?string $paymentReference, ?FulfillmentOptions $options): Order
     {
         // carts trước orders (chuỗi khoá chuẩn); giỏ có thể không tồn tại (HS chưa từng có giỏ) → bỏ qua.
         // Đọc thường lấy id rồi khoá theo PK: không khoá khoảng rỗng (gap lock) khi HS không có giỏ.
         $cartId = Cart::query()->where('user_id', $order->user_id)->value('id');
         $cart = $cartId === null ? null : Cart::query()->whereKey($cartId)->lockForUpdate()->first();
         $locked = Order::query()->whereKey($order->getKey())->lockForUpdate()->firstOrFail();
+
+        // Guard dưới khoá, TRƯỚC nhánh "đã paid → trả về": duyệt lần 2 nhận 409 thay vì 200 im lặng.
+        if ($options?->guard !== null) {
+            ($options->guard)($locked);
+        }
 
         if ($locked->status === OrderStatus::Paid) {
             return $locked;
@@ -71,11 +79,14 @@ class OrderFulfillmentService
             throw new DomainException('ALREADY_PROCESSED', 'Đơn hàng này đã được hoàn tiền.', 409);
         }
 
-        $needsReview = $locked->status !== OrderStatus::Pending; // tiền đến muộn
+        $late = $locked->status !== OrderStatus::Pending;
+        $needsReview = $late; // tiền đến muộn
         $reasons = $needsReview ? ['late_payment'] : [];
 
         $student = User::query()->findOrFail($locked->user_id);
         $items = $locked->items()->with('course')->orderBy('course_id')->get();
+
+        $unavailable = [];
 
         foreach ($items as $item) {
             try {
@@ -90,10 +101,22 @@ class OrderFulfillmentService
                 if ($e->code() !== 'COURSE_UNAVAILABLE') {
                     throw $e;
                 }
+
+                if ($options?->strictCourses === true) {
+                    $unavailable[] = ['id' => (int) $item->course_id, 'title' => (string) $item->course_title];
+
+                    continue;
+                }
+
                 $needsReview = true;
                 $reasons[] = 'course_unavailable';
                 Log::channel('payments')->critical('Không cấp được quyền học: khóa đã xoá.', ['order' => $locked->code, 'course_id' => $item->course_id]);
             }
+        }
+
+        if ($unavailable !== []) {
+            // Rollback toàn bộ (không duyệt một phần): enrollment đã cấp ở vòng trước cũng bị huỷ cùng transaction.
+            throw new DomainException('COURSE_UNAVAILABLE', 'Có khóa học trong đơn đã bị xoá nên không duyệt được đơn.', 409, ['courses' => $unavailable]);
         }
 
         if ($locked->coupon_id !== null) {
@@ -107,19 +130,34 @@ class OrderFulfillmentService
         }
 
         $locked->forceFill(['needs_review' => $locked->needs_review || $needsReview]);
+        if ($options !== null && $options->attributes !== []) {
+            $locked->forceFill($options->attributes);
+        }
+
+        $reviewList = array_values(array_unique($reasons));
+        $manual = $source === 'manual';
         $this->states->transition(
             $locked,
             OrderStatus::Paid,
-            $source === 'checkout' ? 'zero_amount' : null,
-            $source === 'checkout' ? OrderStateMachine::ACTOR_USER : OrderStateMachine::ACTOR_GATEWAY,
-            $source === 'checkout' ? $locked->user_id : null,
-            ['source' => $source] + ($reasons === [] ? [] : ['review' => array_values(array_unique($reasons))]),
+            $options->statusReason ?? ($source === 'checkout' ? 'zero_amount' : null),
+            $options->actorType ?? ($source === 'checkout' ? OrderStateMachine::ACTOR_USER : OrderStateMachine::ACTOR_GATEWAY),
+            $options !== null ? $options->actorId : ($source === 'checkout' ? $locked->user_id : null),
+            ['source' => $source] + ($manual ? ['late' => $late] : []) + ($reviewList === [] ? [] : ['review' => $reviewList]),
         );
+
+        if ($options?->after !== null) {
+            ($options->after)($locked, $reviewList);
+        }
 
         // ADR-006 (T29): đơn CÓ TIỀN vừa chuyển paid → thông báo phụ huynh sau commit. Chỉ chạy ở lần chuyển trạng thái này
         // (đơn đã paid thoát sớm ở trên) nên IPN trùng không gửi lại. Đơn 0đ/miễn phí không gửi. Lỗi gửi được nuốt trong notifier.
         if ($locked->total_amount > 0) {
             DB::afterCommit(fn () => $this->parentNotifier->orderPaid($locked));
+        }
+
+        // Thư xác nhận cho học sinh (đơn CÓ TIỀN; đơn 0đ `checkout` không gửi). Cùng điều kiện "chỉ ở lần chuyển trạng thái này".
+        if ($locked->total_amount > 0 && $source !== 'checkout') {
+            DB::afterCommit(fn () => $this->mailer->orderPaid($locked, $source));
         }
 
         // Dọn giỏ: bỏ các khóa đã mua, gỡ mã đã dùng (US-005 BR3).

@@ -5,10 +5,12 @@ namespace App\Services\Orders;
 use App\Mail\ManualOrderCancelledMail;
 use App\Mail\ManualOrderReceivedMail;
 use App\Mail\NewManualOrderStaffMail;
+use App\Mail\OrderPaidMail;
 use App\Models\Order;
 use App\Models\User;
 use DateTimeInterface;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -65,11 +67,17 @@ class ManualOrderNotifier
         });
     }
 
-    /** @param  'expired'|'admin_cancelled'  $variant */
-    public function cancelled(Order $order, User $student, string $variant, ?string $publicReason = null): void
+    /**
+     * Học sinh được đọc lại SAU commit (như `orderPaid()`): tài khoản vừa ẩn danh giữa chừng thì không gửi.
+     *
+     * @param  'expired'|'admin_cancelled'  $variant
+     */
+    public function cancelled(Order $order, int $studentId, string $variant, ?string $publicReason = null): void
     {
-        $this->safely('cancelled', $order, function () use ($order, $student, $variant, $publicReason): void {
-            if (! $this->canMailStudent($student)) {
+        $this->safely('cancelled', $order, function () use ($order, $studentId, $variant, $publicReason): void {
+            $student = User::query()->find($studentId);
+
+            if ($student === null || ! $this->canMailStudent($student)) {
                 return;
             }
 
@@ -79,6 +87,42 @@ class ManualOrderNotifier
                 orderCode: $order->code,
                 publicReason: $publicReason,
                 contact: $this->contact(),
+                orderUrl: $this->studentOrderUrl($order),
+            ));
+        });
+    }
+
+    /**
+     * Thư "đã thanh toán" cho MỌI nguồn có tiền (`manual`, `ipn`, `query`; không phải riêng đơn thủ công — tên class là di sản,
+     * dùng chung với T19). Gọi trong `DB::afterCommit`. Tên khóa lấy từ bản chụp `order_items.course_title`;
+     * học sinh được đọc lại SAU commit nên tài khoản vừa ẩn danh không nhận thư.
+     */
+    public function orderPaid(Order $order, string $source): void
+    {
+        $this->safely('paid', $order, function () use ($order, $source): void {
+            if ($order->total_amount <= 0) {
+                return;
+            }
+
+            $student = User::query()->find($order->user_id);
+
+            if ($student !== null && $student->anonymized_at !== null && $source === 'manual') {
+                // Vận hành cần biết để hoàn tiền (không ghi PII).
+                Log::warning('manual_order.approved_deleted_account', ['order' => $order->code]);
+            }
+
+            if ($student === null || ! $this->canMailStudent($student)) {
+                return;
+            }
+
+            $titles = DB::table('order_items')->where('order_id', $order->getKey())->orderBy('id')->pluck('course_title')
+                ->map(fn ($t) => (string) $t)->all();
+
+            Mail::to((string) $student->email)->queue(new OrderPaidMail(
+                studentName: (string) $student->name,
+                orderCode: $order->code,
+                courseTitles: $titles,
+                total: (int) $order->total_amount,
                 orderUrl: $this->studentOrderUrl($order),
             ));
         });

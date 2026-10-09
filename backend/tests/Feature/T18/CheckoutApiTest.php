@@ -11,6 +11,8 @@ use App\Models\Order;
 use App\Models\PaymentAttempt;
 use App\Models\User;
 use App\Services\Enrollment\EnrollmentService;
+use App\Services\Orders\Data\FulfillmentOptions;
+use App\Services\Orders\ManualOrderNotifier;
 use App\Services\Orders\OrderFulfillmentService;
 use App\Services\Orders\OrderStateMachine;
 use App\Services\Payments\Data\PaymentInitResult;
@@ -66,13 +68,13 @@ class VvFlakyFulfillment extends OrderFulfillmentService
 {
     public static bool $fail = true;
 
-    public function markPaid(Order $order, string $source, ?string $paymentReference = null): Order
+    public function markPaid(Order $order, string $source, ?string $paymentReference = null, ?FulfillmentOptions $options = null): Order
     {
         if (self::$fail) {
             throw new RuntimeException('boom');
         }
 
-        return parent::markPaid($order, $source, $paymentReference);
+        return parent::markPaid($order, $source, $paymentReference, $options);
     }
 }
 
@@ -403,7 +405,7 @@ test('R4: don 0d - markPaid nem loi sau khi tao don -> don o lai pending; checko
     vvCoCart($this->student, [vvCoCourse(100000)], $coupon);
 
     VvFlakyFulfillment::$fail = true;
-    $this->app->bind(OrderFulfillmentService::class, fn ($app) => new VvFlakyFulfillment($app->make(OrderStateMachine::class), $app->make(EnrollmentService::class), $app->make(ParentNotifier::class)));
+    $this->app->bind(OrderFulfillmentService::class, fn ($app) => new VvFlakyFulfillment($app->make(OrderStateMachine::class), $app->make(EnrollmentService::class), $app->make(ParentNotifier::class), $app->make(ManualOrderNotifier::class)));
 
     $this->withoutExceptionHandling();
     expect(fn () => vvCoPost(0))->toThrow(RuntimeException::class);

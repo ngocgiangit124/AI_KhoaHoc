@@ -5,9 +5,11 @@ use App\Mail\ManualOrderCancelledMail;
 use App\Models\Course;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use App\Services\Courses\CourseService;
 use App\Services\Orders\ManualOrderNotifier;
 use App\Services\Orders\ManualOrderService;
+use App\Services\Orders\OrderFulfillmentService;
 use App\Services\Orders\OrderStateMachine;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Artisan;
@@ -86,7 +88,7 @@ test('(l) đơn vừa được duyệt (paid) giữa lúc lấy danh sách và l
     {
         public function __construct(OrderStateMachine $s, ManualOrderNotifier $n, private Order $o)
         {
-            parent::__construct($s, $n);
+            parent::__construct($s, $n, app(OrderFulfillmentService::class), app(AuditLogger::class));
         }
 
         public function expireDue(int $limit = 500): int

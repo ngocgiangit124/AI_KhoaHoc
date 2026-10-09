@@ -654,7 +654,7 @@ Chỉ đếm đơn `payment_method = manual`, `status = pending` (đơn MoMo đa
 - `needs_review_reasons` (chỉ nhận 5 giá trị liệt kê; giá trị nội bộ `coupon_missing` bị lọc): lấy từ `meta.review` của lần chuyển `paid` gần nhất (`late_payment`, `already_owned`, `coupon_over_limit`, `coupon_already_used`, `course_unavailable`); `[]` khi chưa `paid` hoặc không có.
 - `approval` (một nguồn sự thật với guard của approve/cancel, `ManualOrderService::approvalState`):
   - `can_approve` = `manual` VÀ `pending`;
-  - `can_approve_late` = `manual` VÀ `cancelled` VÀ `status_reason ≠ account_deleted` VÀ `now ≤ cancelled_at + approval_window_days`;
+  - `can_approve_late` = `manual` VÀ `cancelled` VÀ `status_reason ≠ account_deleted` VÀ tài khoản học sinh chưa ẩn danh (`users.anonymized_at IS NULL`; đã ẩn danh → `false`, guard trả 409 `ORDER_APPROVAL_WINDOW_PASSED` với thông điệp "Tài khoản học sinh đã bị xoá nên không duyệt muộn được.") VÀ `now ≤ cancelled_at + approval_window_days`;
   - `approval_window_until` = `cancelled_at + approval_window_days` khi đơn `manual` `cancelled` VÀ `approval_window_days > 0`, ngược lại `null` (cửa sổ = 0 tắt duyệt muộn, `can_approve_late` luôn `false`);
   - `can_cancel` = `manual` VÀ `pending`;
   - `warnings` chỉ tính cho đơn `manual` đang `pending`/`cancelled`; đơn khác (đã `paid`/`refunded`, đơn cổng) là `[]`. Quyết định thuần (`can_*`, `approval_window_until`, mã 409) do `ManualOrderService::decide()` (guard dưới khoá của T39), cảnh báo do `approvalState()`.

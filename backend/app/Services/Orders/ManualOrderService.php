@@ -13,15 +13,19 @@ use App\Models\Coupon;
 use App\Models\CouponUsage;
 use App\Models\Enrollment;
 use App\Models\Order;
+use App\Models\OrderNote;
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
+use App\Services\Orders\Data\FulfillmentOptions;
+use App\Support\VnTime;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Vòng đời đơn thủ công ngoài checkout (US-022, ADR-007, docs/tech/US-022.md): học sinh tự huỷ, hết hạn. (Duyệt/huỷ bởi quản
- * trị ở T39 thêm vào đây.)
+ * Vòng đời đơn thủ công ngoài checkout (US-022, ADR-007, docs/tech/US-022.md): học sinh tự huỷ, hết hạn, và (T39) Quản trị viên
+ * duyệt / duyệt muộn / huỷ / ghi chú nội bộ.
  *
  * Quy tắc khoá (DBA 2026-10-08): mọi luồng ghi đơn đi `carts (PK, nếu có) → orders (PK) → courses → enrollments → coupons`.
  * `cancel` đọc `user_id` bằng đọc thường, lấy id giỏ bằng đọc thường rồi khoá theo PK (không `where('user_id')->lockForUpdate()`
@@ -37,7 +41,12 @@ class ManualOrderService
     public function __construct(
         private readonly OrderStateMachine $states,
         private readonly ManualOrderNotifier $notifier,
+        private readonly OrderFulfillmentService $fulfillment,
+        private readonly AuditLogger $audit,
     ) {}
+
+    /** Các nhóm trường PII mà response chi tiết đơn trả (docs/tech/US-022.md, quy ước PII trong audit). */
+    private const PII_FIELDS = ['contact', 'customer_note', 'internal_notes'];
 
     /**
      * Quyết định THUẦN (không I/O): chỉ dựa vào các cột của hàng `orders` đã nạp/khoá, config và `now()`. T39 gọi hàm này dưới khoá làm
@@ -118,7 +127,8 @@ class ManualOrderService
         $manual = $order->payment_method === PaymentMethods::MANUAL;
         $pending = $d['can_approve'];
         $cancelled = $manual && $order->status === OrderStatus::Cancelled;
-        $canLate = $d['can_approve_late'];
+        // Tài khoản đã ẩn danh: guard của approve từ chối duyệt muộn → `approval` phản ánh đúng (một nguồn sự thật).
+        $canLate = $d['can_approve_late'] && $order->user?->anonymized_at === null;
         $windowUntil = $d['approval_window_until'];
 
         $warnings = [];
@@ -194,6 +204,126 @@ class ManualOrderService
     }
 
     /**
+     * Quản trị viên duyệt đơn `manual` (đã nhận đủ tiền) hoặc duyệt muộn đơn đã huỷ trong cửa sổ (`$late = true`). Đi qua
+     * `OrderFulfillmentService::markPaid` nguồn `manual`: guard dưới khoá `orders` (`decide()`) chạy TRƯỚC nhánh "đã paid", nên duyệt
+     * lần 2 nhận 409. KHÔNG mở transaction ngoài (retry deadlock nằm trong `markPaid`; `guard`/`after` có thể chạy lại).
+     *
+     * @throws DomainException ORDER_NOT_MANUAL · ALREADY_PROCESSED · ORDER_STATUS_CHANGED · ORDER_APPROVAL_WINDOW_PASSED ·
+     *                         COURSE_UNAVAILABLE (đều 409)
+     */
+    public function approve(Order $order, User $staff, bool $late, ?string $paymentReference, ?string $note): Order
+    {
+        $from = null;
+
+        $options = new FulfillmentOptions(
+            actorType: OrderStateMachine::ACTOR_STAFF,
+            actorId: (int) $staff->getKey(),
+            statusReason: 'manual_confirmed',
+            strictCourses: true,
+            attributes: ['confirmed_by' => (int) $staff->getKey()],
+            guard: function (Order $locked) use ($late, &$from): void {
+                $from = $locked->status->value;
+                $d = $this->decide($locked);
+                $code = $late ? $d['late_error'] : $d['approve_error'];
+
+                $deletedAccount = false;
+
+                if ($code === null && $late) {
+                    // Tài khoản đã ẩn danh (xoá) thì không duyệt muộn. Đọc thường, không khoá `users` (khoá `users` sau `orders` đảo thứ tự
+                    // khoá với xoá tài khoản). Connection chạy READ COMMITTED nên đọc này thấy dữ liệu đã commit mới nhất; cửa sổ còn lại chỉ là
+                    // từ lúc đọc tới lúc commit của duyệt (xoá tài khoản commit đúng khoảng đó), hậu quả đã chấp nhận (docs/security/T39.md S2).
+                    $anonymized = User::query()->whereKey($locked->user_id)->value('anonymized_at');
+
+                    if ($anonymized !== null) {
+                        $code = 'ORDER_APPROVAL_WINDOW_PASSED';
+                        $deletedAccount = true;
+                    }
+                }
+
+                if ($code !== null) {
+                    throw $this->conflict($code, $locked, $d, $deletedAccount);
+                }
+            },
+            after: function (Order $locked, array $reasons) use ($staff, $late, $paymentReference, $note, &$from): void {
+                if ($note !== null) {
+                    $this->insertNote($locked, $staff, $note);
+                }
+
+                // Không ghi nội dung ghi chú/mã giao dịch. Response là chi tiết đơn (PII đầy đủ) không kèm `order.view_pii` → `pii_fields`.
+                $this->audit->log('order.manual_approve', $locked, [
+                    'status' => ['from' => $from, 'to' => OrderStatus::Paid->value],
+                    'late' => $late,
+                    'needs_review' => (bool) $locked->needs_review,
+                    'has_reference' => $paymentReference !== null,
+                    'pii_fields' => self::PII_FIELDS,
+                ]);
+            },
+        );
+
+        return $this->fulfillment->markPaid($order, 'manual', $paymentReference, $options);
+    }
+
+    /**
+     * Quản trị viên huỷ đơn `manual` `pending` kèm lý do công khai (hiện cho học sinh + trong thư), ghi chú nội bộ tuỳ chọn.
+     *
+     * @throws DomainException ORDER_NOT_MANUAL · ALREADY_PROCESSED · ORDER_STATUS_CHANGED (409)
+     */
+    public function cancelByStaff(Order $order, User $staff, string $publicReason, ?string $note): Order
+    {
+        return $this->cancel(
+            (int) $order->getKey(), 'admin_cancelled', OrderStateMachine::ACTOR_STAFF, (int) $staff->getKey(), onlyIfExpired: false,
+            mailVariant: ManualOrderCancelledMail::VARIANT_ADMIN_CANCELLED, publicReason: $publicReason, staff: $staff, note: $note,
+        );
+    }
+
+    /**
+     * Ghi chú nội bộ (append-only) cho đơn ở mọi trạng thái. Chỉ INSERT (FK lấy khoá S trên `orders`): không khoá `carts`, không đổi
+     * trạng thái.
+     */
+    public function addNote(Order $order, User $staff, string $body): OrderNote
+    {
+        return DB::transaction(function () use ($order, $staff, $body): OrderNote {
+            if (! Order::query()->whereKey($order->getKey())->exists()) {
+                throw new DomainException('NOT_FOUND', 'Không tìm thấy đơn hàng.', 404);
+            }
+
+            $note = $this->insertNote($order, $staff, $body);
+            $this->audit->log('order.note_add', $order, ['note_id' => $note->getKey(), 'pii_fields' => ['internal_notes']]);
+
+            return $note;
+        }, self::DEADLOCK_ATTEMPTS);
+    }
+
+    private function insertNote(Order $order, User $staff, string $body): OrderNote
+    {
+        $note = new OrderNote;
+        $note->forceFill(['order_id' => $order->getKey(), 'author_id' => $staff->getKey(), 'body' => $body, 'created_at' => now()])->save();
+
+        return $note;
+    }
+
+    /**
+     * @param  array<string, mixed>  $d  kết quả `decide()`
+     */
+    private function conflict(string $code, Order $locked, array $d, bool $deletedAccount = false): DomainException
+    {
+        $until = VnTime::iso($d['approval_window_until']);
+
+        return match ($code) {
+            'ORDER_NOT_MANUAL' => new DomainException($code, 'Đơn hàng này không phải đơn thanh toán thủ công.', 409),
+            'ALREADY_PROCESSED' => new DomainException($code, 'Đơn hàng đã được xử lý trước đó.', 409, ['status' => $locked->status->value, 'status_reason' => $locked->status_reason]),
+            'ORDER_APPROVAL_WINDOW_PASSED' => new DomainException($code, $deletedAccount || $locked->status_reason === 'account_deleted' ? 'Tài khoản học sinh đã bị xoá nên không duyệt muộn được.' : 'Đã quá thời hạn duyệt muộn của đơn này.', 409, ['cancelled_at' => VnTime::iso($locked->cancelled_at), 'approval_window_until' => $until]),
+            default => new DomainException('ORDER_STATUS_CHANGED', 'Trạng thái đơn hàng vừa thay đổi. Vui lòng tải lại.', 409, [
+                'status' => $locked->status->value,
+                'status_reason' => $locked->status_reason,
+                'cancelled_at' => VnTime::iso($locked->cancelled_at),
+                'can_approve_late' => $d['can_approve_late'],
+                'approval_window_until' => $until,
+            ]),
+        };
+    }
+
+    /**
      * Học sinh tự huỷ đơn `manual` `pending` của mình (BR14). Không gửi thư, không audit (chỉ `order_status_logs`, actor `user`).
      *
      * @throws DomainException ORDER_NOT_MANUAL 409 · ALREADY_PROCESSED 409 · ORDER_STATUS_CHANGED 409
@@ -241,9 +371,9 @@ class ManualOrderService
      *
      * @param  'expired'|'admin_cancelled'|null  $mailVariant
      */
-    private function cancel(int $orderId, string $reason, string $actorType, ?int $actorId, bool $onlyIfExpired, ?string $mailVariant, ?string $publicReason = null): Order
+    private function cancel(int $orderId, string $reason, string $actorType, ?int $actorId, bool $onlyIfExpired, ?string $mailVariant, ?string $publicReason = null, ?User $staff = null, ?string $note = null): Order
     {
-        return DB::transaction(function () use ($orderId, $reason, $actorType, $actorId, $onlyIfExpired, $mailVariant, $publicReason): Order {
+        return DB::transaction(function () use ($orderId, $reason, $actorType, $actorId, $onlyIfExpired, $mailVariant, $publicReason, $staff, $note): Order {
             $userId = Order::query()->whereKey($orderId)->value('user_id');
 
             if ($userId === null) {
@@ -265,6 +395,16 @@ class ManualOrderService
             if ($locked->status !== OrderStatus::Pending) {
                 $context = ['status' => $locked->status->value, 'status_reason' => $locked->status_reason];
 
+                if ($staff !== null) {
+                    // admin-api: đủ khoá theo contract §2.5.1 (FE quyết định hiện nút "Duyệt muộn" ngay).
+                    $d = $this->decide($locked);
+                    $context += [
+                        'cancelled_at' => VnTime::iso($locked->cancelled_at),
+                        'can_approve_late' => $d['can_approve_late'],
+                        'approval_window_until' => VnTime::iso($d['approval_window_until']),
+                    ];
+                }
+
                 throw $locked->status === OrderStatus::Cancelled
                     ? new DomainException('ALREADY_PROCESSED', 'Đơn hàng đã được huỷ trước đó.', 409, $context)
                     : new DomainException('ORDER_STATUS_CHANGED', 'Trạng thái đơn hàng vừa thay đổi. Vui lòng tải lại.', 409, $context);
@@ -274,14 +414,27 @@ class ManualOrderService
                 throw new DomainException('ORDER_NOT_EXPIRED', 'Đơn hàng chưa hết hạn.', 409);
             }
 
+            if ($staff !== null) {
+                $locked->forceFill(['cancel_reason_public' => $publicReason]);
+            }
+
             $this->states->transition($locked, OrderStatus::Cancelled, $reason, $actorType, $actorId);
 
-            if ($mailVariant !== null) {
-                $student = User::query()->find($userId);
-
-                if ($student !== null) {
-                    DB::afterCommit(fn () => $this->notifier->cancelled($locked, $student, $mailVariant, $publicReason));
+            if ($staff !== null) {
+                if ($note !== null) {
+                    $this->insertNote($locked, $staff, $note);
                 }
+
+                // Không ghi lý do/ghi chú. Response là chi tiết đơn (PII đầy đủ) không kèm `order.view_pii` → `pii_fields`.
+                $this->audit->log('order.manual_cancel', $locked, [
+                    'status' => ['from' => OrderStatus::Pending->value, 'to' => OrderStatus::Cancelled->value],
+                    'pii_fields' => self::PII_FIELDS,
+                ]);
+            }
+
+            if ($mailVariant !== null) {
+                // Chỉ truyền id: notifier đọc lại học sinh SAU commit (tài khoản vừa ẩn danh giữa chừng thì không gửi thư).
+                DB::afterCommit(fn () => $this->notifier->cancelled($locked, (int) $userId, $mailVariant, $publicReason));
             }
 
             return $locked;

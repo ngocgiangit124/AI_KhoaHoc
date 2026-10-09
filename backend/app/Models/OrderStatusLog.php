@@ -23,6 +23,13 @@ class OrderStatusLog extends Model
 {
     public const UPDATED_AT = null;
 
+    /** Chỉ thêm (append-only): chặn sửa/xoá qua Eloquent (bằng chứng ai duyệt/huỷ, khi nào). Xoá cascade do FK ở DB không đi qua đây. */
+    protected static function booted(): void
+    {
+        static::updating(fn () => throw new \LogicException('order_status_logs là append-only: không được sửa.'));
+        static::deleting(fn () => throw new \LogicException('order_status_logs là append-only: không được xoá.'));
+    }
+
     /**
      * @var list<string>
      */

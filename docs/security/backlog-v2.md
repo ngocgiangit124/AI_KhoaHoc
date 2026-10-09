@@ -348,3 +348,6 @@ Còn lại (không sửa trong T36):
 - **T24-V1-S3 (Low, chờ PO):** quản lý trang hoàn tiền không ngưỡng/không duyệt 2 bước.
 - **T24-V1-S4 (Low):** mẫu che email lộ tên miền (ví dụ tên miền trường).
 - **T24-V1-S6 (Pháp chế):** thời hạn lưu `refund_note`, `order_notes.body`, audit `view_pii` (IP staff); `refund_note` chưa xoá khi xoá tài khoản.
+- **T39-S3 (Pháp chế/PO):** `order_notes.body`, `cancel_reason_public`, `payment_reference` có thể chứa PII, chưa có thời hạn lưu và không xoá khi xoá tài khoản (gộp với T24-V1-S6).
+- **T39-S4 mở rộng (DBA):** `order_notes`, `order_status_logs` chỉ chặn sửa/xoá qua Eloquent; cân nhắc trigger MySQL chặn UPDATE/DELETE như bằng chứng bất biến.
+- **T39-S2 (chấp nhận):** duyệt muộn đọc `anonymized_at` không khoá (READ COMMITTED) → cửa sổ ngắn có thể cấp quyền cho tài khoản vừa ẩn danh; có `Log::warning('manual_order.approved_deleted_account')` để vận hành hoàn tiền.

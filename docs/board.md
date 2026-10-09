@@ -4,6 +4,16 @@ Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) 
 
 ## Tình trạng 2026-10-08
 
+### TẠM DỪNG 2026-10-09 ~09:40 (PO yêu cầu) — chạy tiếp từ đây
+- Commit chưa push: `7ddf063` T38, `bb5c394` T38-1, `c353b88` Design US-022. Push khi PO bảo.
+- **T24-V1 (admin đơn hàng phần đọc + hoàn tiền):** review APPROVE, security PASS có điều kiện (S1, S2 đã sửa), QA PASS. Toàn bộ file T24-V1 ĐÃ NẰM TRONG GIT INDEX (30 file, kèm `docs/bao-cao-task.md`). CI sạch bị dừng giữa chừng (Pint/PHPStan đã sạch) → chạy lại CI backend từ index (`git write-tree`) rồi commit.
+- **T39 (duyệt/duyệt muộn/huỷ/ghi chú, thư):** laravel-dev bị DỪNG giữa chừng — file đang sửa dở trong working tree (backend, `docs/review/T39.md` nếu có). Việc tiếp: giao laravel-dev kiểm `git diff` (working tree so với index) + `tests/Feature/T39`, hoàn tất theo "Xong khi", chạy test → review → security → QA. KHÔNG `git add` T39 trước khi commit T24-V1.
+- **FW3 (giỏ/thanh toán/đơn của tôi web):** dev xong, review APPROVE; dev bị DỪNG giữa lúc sửa R1 (AuthProvider.refresh giữ state user khi lỗi tạm), R2 (test AC28 trùng), R3 (mailto regex), R4 (role=alert), R5 (test zalo_url sai). Việc tiếp: giao nextjs-dev kiểm phần đã sửa, làm nốt, vitest + eslint + tsc + e2e phần giỏ → QA → CI frontend → commit.
+- Sau đó: FA8 (quản trị đơn hàng, cần T24-V1 + T39). Chỉ bật `FEATURE_MANUAL_PAYMENT` ở production sau T39 (security T38 S2).
+- Chờ PO: quyền hoàn tiền cho quản lý trang (S3); cho tìm theo SĐT/email (đã có audit + 30/phút, 300/ngày); thời hạn lưu `refund_note`, `order_notes.body`, audit `view_pii` (đề xuất 24 tháng).
+- Máy: tiến trình macOS (`knowledgeconstructiond`, `trustd`) đẩy load 60–160 → race test timeout giả; chỉ chạy race khi load < 20.
+
+
 ### 2026-10-08 tối: FW7 commit `0487dc0` (chưa push). PO yêu cầu mới: thanh toán "Liên hệ Quản trị viên" (MoMo ẩn), QTV liên hệ rồi duyệt đơn
 - Story `docs/stories/US-022-...md` (BA, 16 câu hỏi PO, đang dùng mặc định), ADR-007 (Proposed), `docs/tech/US-022.md`, api-contract §2.3.1/§2.5.1, task T38 → (T24-V1 ∥ FW3) → T39 → FA8 trong tasks.md.
 - Đang chạy: DBA review mô hình dữ liệu (`docs/review/T38-dba.md`), nextjs-designer dựng màn US-022. Sau DBA: laravel-dev làm T38 [SEC][DBA].
