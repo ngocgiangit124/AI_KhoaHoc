@@ -6,21 +6,11 @@ import {
   classifyExportError,
   classifyParentContactError,
   classifyUnsubscribeError,
-  domainValue,
   EXPORT_LIMIT_TEXT,
 } from "./errors";
 
 // `errors` của lỗi nghiệp vụ chứa chuỗi (không phải mảng) — ép kiểu như thực tế JSON.
 const err = (status: number, body: Record<string, unknown>, retry?: number) => new ApiError(status, body as unknown as ConstructorParameters<typeof ApiError>[1], retry);
-
-describe("domainValue", () => {
-  it("đọc chuỗi và phần tử đầu của mảng", () => {
-    const e = err(429, { message: "x", errors: { resets_at: "2026-10-09T00:00:00+07:00", current_password: ["Sai"] } });
-    expect(domainValue(e, "resets_at")).toBe("2026-10-09T00:00:00+07:00");
-    expect(domainValue(e, "current_password")).toBe("Sai");
-    expect(domainValue(e, "khong_co")).toBeUndefined();
-  });
-});
 
 describe("classifyExportError", () => {
   it("429 DATA_EXPORT_LIMIT lấy errors.resets_at", () => {

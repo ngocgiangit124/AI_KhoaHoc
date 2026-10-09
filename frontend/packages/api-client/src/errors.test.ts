@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   FORCED_LOGOUT_EVENT,
   LOGIN_REQUIRED_EVENT,
+  ApiError,
   dispatchAuthEventIfNeeded,
+  errorField,
+  errorMessages,
+  errorString,
 } from "./errors";
 
 describe("dispatchAuthEventIfNeeded — ánh xạ mã lỗi (api-contract §1.7)", () => {
@@ -45,5 +49,29 @@ describe("dispatchAuthEventIfNeeded — ánh xạ mã lỗi (api-contract §1.7)
     dispatchAuthEventIfNeeded(undefined);
     expect(listener).not.toHaveBeenCalled();
     window.removeEventListener(LOGIN_REQUIRED_EVENT, listener);
+  });
+});
+
+describe("errorField / errorString / errorMessages", () => {
+  const e = new ApiError(422, {
+    message: "x",
+    errors: { email: ["Sai email", "khác"], resets_at: "2026-10-09T00:00:00+07:00", items_count: 3, preview: { total: 1 }, rong: "" },
+  });
+  it("errorField trả nguyên giá trị (chuỗi/số/object/mảng), thiếu -> undefined", () => {
+    expect(errorField(e, "items_count")).toBe(3);
+    expect(errorField(e, "preview")).toEqual({ total: 1 });
+    expect(errorField(e, "khong_co")).toBeUndefined();
+    expect(errorField(new ApiError(500, { message: "x" }), "a")).toBeUndefined();
+  });
+  it("errorString lấy chuỗi hoặc phần tử đầu của mảng chuỗi; bỏ số/object/rỗng", () => {
+    expect(errorString(e, "email")).toBe("Sai email");
+    expect(errorString(e, "resets_at")).toBe("2026-10-09T00:00:00+07:00");
+    expect(errorString(e, "items_count")).toBeUndefined();
+    expect(errorString(e, "preview")).toBeUndefined();
+    expect(errorString(e, "rong")).toBeUndefined();
+  });
+  it("errorMessages chỉ giữ mảng chuỗi", () => {
+    expect(errorMessages(e)).toEqual({ email: ["Sai email", "khác"] });
+    expect(errorMessages(new ApiError(500, { message: "x" }))).toEqual({});
   });
 });

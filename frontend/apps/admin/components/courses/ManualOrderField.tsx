@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ApiError } from "@vitaminvui/api-client";
+import { ApiError, errorString } from "@vitaminvui/api-client";
 import { Button, Field, TextInput, useToast } from "@vitaminvui/ui/v2";
 import { setManualOrder } from "@/lib/courses/api";
 import { courseActionError } from "@/lib/courses/errors";
@@ -52,7 +52,8 @@ export function ManualOrderField({ courseId, value, onSaved, onGone }: ManualOrd
       toast.show({ tone: "success", title: "Đã lưu thứ tự nổi bật" });
       onSaved();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 422 && err.errors?.manual_order?.[0]) setError(err.errors.manual_order[0]);
+      const fieldError = err instanceof ApiError && err.status === 422 ? errorString(err, "manual_order") : undefined;
+      if (fieldError) setError(fieldError);
       else {
         setError(courseActionError(err));
         if (err instanceof ApiError && err.status === 404) onGone();

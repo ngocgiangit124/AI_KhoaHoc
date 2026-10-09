@@ -1,22 +1,7 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorField, errorString } from "@vitaminvui/api-client";
 import { retryAfterText, UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 import { formatVnDateTime } from "@/lib/privacy/format";
 import { checkoutPreviewSchema, pendingOrderConflictSchema, type CheckoutPreview, type PendingOrderConflict } from "./schemas";
-
-/**
- * Chi tiết lỗi nghiệp vụ nằm trong `errors.*` (api-contract §1.7), KHÔNG phải `context.*`. Ở các lỗi đơn hàng giá trị có thể là
- * chuỗi, số hoặc object (`errors.preview`) nên đọc qua `unknown` (kiểu `ApiError.errors` khai báo `string[]` là chưa đủ).
- */
-export function errorField(err: ApiError, key: string): unknown {
-  return (err.errors as Record<string, unknown> | undefined)?.[key];
-}
-
-function errorString(err: ApiError, key: string): string | undefined {
-  const raw = errorField(err, key);
-  if (typeof raw === "string" && raw !== "") return raw;
-  if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0];
-  return undefined;
-}
 
 function fallbackMessage(err: unknown): string {
   if (err instanceof NetworkError) return err.message;

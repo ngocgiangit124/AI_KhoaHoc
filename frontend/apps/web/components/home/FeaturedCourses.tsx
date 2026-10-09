@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Alert, ButtonLink, CourseCard, IconArrowRight, IconRotateCcw } from "@vitaminvui/ui/v2";
+import { CardCartProvider } from "@/components/catalog/CardCartProvider";
+import { CourseCardAction } from "@/components/catalog/CourseCardAction";
 import { CourseImage } from "@/components/catalog/CourseImage";
 import type { CourseListItem } from "@/lib/catalog/schemas";
 import { routes } from "@/lib/routes";
@@ -52,19 +54,22 @@ export function FeaturedCourses({ courses, paidCheckoutEnabled }: FeaturedCourse
               </Link>
             </p>
           ) : (
-            <ul /* grid-cols-1 + min-w-0 ở <li>: tên giáo viên dài (truncate) không kéo rộng cột, tránh cuộn ngang ở 375px */ className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {courses.map((c) => (
-                <li key={c.id} className="min-w-0">
-                  <CourseCard
-                    course={c}
-                    href={routes.course(c.slug)}
-                    paidCheckoutEnabled={paidCheckoutEnabled}
-                    className="h-full"
-                    image={c.thumbnail_url ? <CourseImage url={c.thumbnail_url} sizes="(min-width: 1024px) 280px, (min-width: 640px) 50vw, 100vw" /> : undefined}
-                  />
-                </li>
-              ))}
-            </ul>
+            <CardCartProvider paidCheckoutEnabled={paidCheckoutEnabled}>
+              <ul /* grid-cols-1 + min-w-0 ở <li>: tên giáo viên dài (truncate) không kéo rộng cột, tránh cuộn ngang ở 375px */ className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {courses.map((c) => (
+                  <li key={c.id} className="min-w-0">
+                    <CourseCard
+                      course={c}
+                      href={routes.course(c.slug)}
+                      paidCheckoutEnabled={paidCheckoutEnabled}
+                      action={<CourseCardAction course={{ id: c.id, slug: c.slug, title: c.title, isFree: c.is_free }} />}
+                      className="h-full"
+                      image={c.thumbnail_url ? <CourseImage url={c.thumbnail_url} sizes="(min-width: 1024px) 280px, (min-width: 640px) 50vw, 100vw" /> : undefined}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </CardCartProvider>
           )}
         </div>
       </div>

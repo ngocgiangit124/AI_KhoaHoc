@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorString, errorMessages } from "@vitaminvui/api-client";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 
 export type SubjectFormFailure = { nameError: string | null; banner: string | null };
@@ -8,8 +8,8 @@ export function classifySubjectFormError(err: unknown): SubjectFormFailure {
   if (err instanceof NetworkError) return { nameError: null, banner: err.message };
   if (err instanceof ApiError) {
     if (err.status === 422 && err.errors) {
-      const nameError = err.errors.name?.[0] ?? null;
-      const others = Object.entries(err.errors)
+      const nameError = errorString(err, "name") ?? null;
+      const others = Object.entries(errorMessages(err))
         .filter(([field]) => field !== "name")
         .map(([, msgs]) => msgs[0])
         .filter((m): m is string => Boolean(m));

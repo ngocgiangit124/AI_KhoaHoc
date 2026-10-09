@@ -4,7 +4,7 @@ import type { ApiErrorBody } from "./types";
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | undefined;
-  readonly errors: Record<string, string[]> | undefined;
+  readonly errors: Record<string, unknown> | undefined;
   readonly requestId: string | undefined;
   /** Giây chờ theo header `Retry-After` (429), nếu server gửi dạng số giây. */
   readonly retryAfterSeconds: number | undefined;
@@ -80,4 +80,29 @@ export function dispatchAuthEventIfNeeded(code: string | undefined): void {
       }),
     );
   }
+}
+
+/**
+ * Đọc `errors.<key>` của ApiError (api-contract §1.7). Giá trị thật có thể là mảng chuỗi (lỗi field 422), chuỗi, số hoặc object
+ * (`errors.preview`, `errors.reasons`...), nên trả về `unknown` để nơi gọi tự kiểm (zod/typeof).
+ */
+export function errorField(err: ApiError, key: string): unknown {
+  return err.errors?.[key];
+}
+
+/** Chuỗi đầu tiên của `errors.<key>` (chấp nhận chuỗi rỗng-không, hoặc mảng chuỗi); không phải chuỗi -> undefined. */
+export function errorString(err: ApiError, key: string): string | undefined {
+  const raw = errorField(err, key);
+  if (typeof raw === "string" && raw !== "") return raw;
+  if (Array.isArray(raw) && typeof raw[0] === "string" && raw[0] !== "") return raw[0];
+  return undefined;
+}
+
+/** Chỉ các `errors.*` có dạng mảng chuỗi (lỗi validate theo field); bỏ qua giá trị object/số/chuỗi lẻ. */
+export function errorMessages(err: ApiError): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [key, raw] of Object.entries(err.errors ?? {})) {
+    if (Array.isArray(raw) && raw.every((m) => typeof m === "string")) out[key] = raw as string[];
+  }
+  return out;
 }

@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorMessages } from "@vitaminvui/api-client";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 
 export const FORBIDDEN_MESSAGE = "Bạn không có quyền thực hiện thao tác này.";
@@ -26,7 +26,7 @@ export function classifyCreateError(err: unknown): CreateFailure {
   if (err.status === 422 && err.errors) {
     const fields: CreateErrors = {};
     const others: string[] = [];
-    for (const [key, msgs] of Object.entries(err.errors)) {
+    for (const [key, msgs] of Object.entries(errorMessages(err))) {
       const message = msgs[0];
       if (!message) continue;
       if ((CREATE_FIELDS as readonly string[]).includes(key)) {

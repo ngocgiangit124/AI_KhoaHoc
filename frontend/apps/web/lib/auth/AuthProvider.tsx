@@ -13,7 +13,7 @@ export type AuthState =
   | { status: "error" }
   | { status: "guest" } | { status: "user"; user: AuthUser };
 
-interface AuthContextValue {
+export interface AuthContextValue {
   state: AuthState;
   /** Hỏi lại `/auth/me` (sau đổi liên hệ, hoặc nút "Thử lại" khi lỗi tạm thời). */
   refresh: () => Promise<AuthState>;

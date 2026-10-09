@@ -70,6 +70,28 @@ export function resolveCta(input: CtaInput): CtaModel {
   }
 }
 
+/** Tập khóa của người dùng lấy 1 lần cho cả trang danh mục (thay cho `viewer-state` từng khóa). */
+export interface CardOwnership {
+  ownedIds: ReadonlySet<number>;
+  pendingIds: ReadonlySet<number>;
+  cartIds: ReadonlySet<number>;
+}
+
+/**
+ * Suy ra `viewer_state` của một khóa CÓ PHÍ từ các tập trên, cùng thứ tự ưu tiên với server
+ * (`owned` > `pending_approval` > `in_cart` > `can_buy`; api-contract viewer-state) để thẻ khóa dùng lại `resolveCta`.
+ */
+export function viewerFromOwnership(courseId: number, own: CardOwnership): ViewerState {
+  const viewer_state = own.ownedIds.has(courseId)
+    ? "owned"
+    : own.pendingIds.has(courseId)
+      ? "pending_approval"
+      : own.cartIds.has(courseId)
+        ? "in_cart"
+        : "can_buy";
+  return { viewer_state, resume_lesson_id: null };
+}
+
 export type FreeEnrollOutcome =
   | { type: "verify_account" }
   | { type: "pending" }

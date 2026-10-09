@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorString, errorMessages } from "@vitaminvui/api-client";
 
 export const UNKNOWN_ERROR_MESSAGE = "Đã có lỗi xảy ra, vui lòng thử lại sau.";
 export const LOGIN_GENERIC_ERROR = "Thông tin đăng nhập hoặc mật khẩu không đúng";
@@ -34,7 +34,7 @@ export function mfaErrorMessage(err: unknown): string {
       // Backend (OtpService) chỉ trả ValidationException field `code` với CHUỖI khác nhau, không có mã lỗi riêng
       // phân biệt sai/hết hạn → buộc phải khớp chuỗi. Nếu backend thêm mã (vd `code: "OTP_INVALID"`) thì chuyển sang so mã.
       // Sai mã: luôn dùng hằng (khớp nhãn "Mã xác nhận"); hết hạn/đã xác thực: giữ thông điệp server vì có hướng dẫn riêng.
-      const msg = err.errors?.code?.[0];
+      const msg = errorString(err, "code");
       return msg && !/không đúng/i.test(msg) ? msg : MFA_WRONG_MESSAGE;
     }
     return err.message || UNKNOWN_ERROR_MESSAGE;
@@ -57,7 +57,7 @@ export function classifyPasswordError(err: unknown): PasswordFailure {
     if (err.status === 422 && err.errors && Object.keys(err.errors).length > 0) {
       const fields: Record<string, string> = {};
       const extra: string[] = [];
-      for (const [field, messages] of Object.entries(err.errors)) {
+      for (const [field, messages] of Object.entries(errorMessages(err))) {
         const first = messages[0];
         if (!first) continue;
         if (PASSWORD_FIELDS.has(field)) fields[field] = first;

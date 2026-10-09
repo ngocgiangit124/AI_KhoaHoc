@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorMessages } from "@vitaminvui/api-client";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 
 export const FORBIDDEN_MESSAGE = "Bạn không có quyền sửa nội dung khóa học này.";
@@ -41,7 +41,7 @@ export function curriculumError(err: unknown): string {
 export function lessonFieldErrors(err: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (err instanceof ApiError && err.status === 422 && err.errors) {
-    for (const [key, msgs] of Object.entries(err.errors)) if (msgs[0]) out[key.replace(/\.\d+$/, "")] = msgs[0];
+    for (const [key, msgs] of Object.entries(errorMessages(err))) if (msgs[0]) out[key.replace(/\.\d+$/, "")] = msgs[0];
   }
   return out;
 }

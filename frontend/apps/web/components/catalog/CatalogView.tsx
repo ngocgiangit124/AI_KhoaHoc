@@ -15,7 +15,9 @@ import {
 import type { CourseList, Subject } from "@/lib/catalog/schemas";
 import { GRADES, MAX_Q_LENGTH, hasActiveFilters, toPageHref, type CatalogQuery } from "@/lib/catalog/query";
 import { routes } from "@/lib/routes";
+import { CardCartProvider } from "./CardCartProvider";
 import { CatalogFilters, SortSelect } from "./CatalogFilters";
+import { CourseCardAction } from "./CourseCardAction";
 import { CourseImage } from "./CourseImage";
 
 export interface CatalogViewProps {
@@ -200,20 +202,23 @@ export function CatalogView({ basePath, query, fixedGrade, subjects, courses, ti
                 }
               />
             ) : (
-              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {data.map((course, i) => (
-                  <li key={course.id} className="flex min-w-0">
-                    <CourseCard
-                      course={course}
-                      href={routes.course(course.slug)}
-                      headingLevel="h3"
-                      className="w-full"
-                      paidCheckoutEnabled={paidCheckoutEnabled}
-                      image={course.thumbnail_url ? <CourseImage url={course.thumbnail_url} priority={i < 2} /> : undefined}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <CardCartProvider paidCheckoutEnabled={paidCheckoutEnabled}>
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {data.map((course, i) => (
+                    <li key={course.id} className="flex min-w-0">
+                      <CourseCard
+                        course={course}
+                        href={routes.course(course.slug)}
+                        headingLevel="h3"
+                        className="w-full"
+                        paidCheckoutEnabled={paidCheckoutEnabled}
+                        action={<CourseCardAction course={{ id: course.id, slug: course.slug, title: course.title, isFree: course.is_free }} />}
+                        image={course.thumbnail_url ? <CourseImage url={course.thumbnail_url} priority={i < 2} /> : undefined}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </CardCartProvider>
             )}
           </div>
 

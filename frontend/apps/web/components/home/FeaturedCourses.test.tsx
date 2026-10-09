@@ -9,6 +9,10 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// CardCartProvider kéo `@/lib/api` (cần biến NEXT_PUBLIC_*); test này chỉ kiểm phần render nên mock gọn.
+vi.mock("@/lib/api", () => ({ authFetch: vi.fn(), publicFetch: vi.fn() }));
+vi.mock("@/lib/auth/AuthProvider", () => ({ useOptionalAuth: () => null }));
+
 import type { CourseListItem } from "@/lib/catalog/schemas";
 import { FeaturedCourses } from "./FeaturedCourses";
 

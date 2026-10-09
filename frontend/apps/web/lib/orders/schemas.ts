@@ -35,18 +35,6 @@ export type CartCoupon = z.infer<typeof cartCouponSchema>;
 
 const noticeSchema = z.object({ code: z.string(), message: z.string() });
 
-export const cartSchema = z.object({
-  items: z.array(cartItemSchema),
-  coupon: cartCouponSchema.nullable(),
-  pricing: pricingSchema,
-  notices: z.array(noticeSchema).default([]),
-});
-export type Cart = z.infer<typeof cartSchema>;
-
-/** Mã phương thức: `manual` (Liên hệ Quản trị viên), tên cổng (`momo`) khi bật; mã lạ vẫn hiển thị theo nhãn server. */
-export const paymentMethodOptionSchema = z.object({ code: z.string(), label: z.string(), description: z.string().nullable().optional() });
-export type PaymentMethodOption = z.infer<typeof paymentMethodOptionSchema>;
-
 export const pendingOrderSchema = z.object({
   code: z.string(),
   payment_method: z.string(),
@@ -55,6 +43,21 @@ export const pendingOrderSchema = z.object({
   expires_at: z.string().nullable(),
 });
 export type PendingOrderRef = z.infer<typeof pendingOrderSchema>;
+
+export const cartSchema = z.object({
+  items: z.array(cartItemSchema),
+  coupon: cartCouponSchema.nullable(),
+  pricing: pricingSchema,
+  notices: z.array(noticeSchema).default([]),
+  /** Chỉ `GET /cart` có (T16-1): đơn `pending` hiện có của HS; các route ghi giỏ và backend cũ -> thiếu/`null`. */
+  pending_order: pendingOrderSchema.nullable().optional(),
+});
+export type Cart = z.infer<typeof cartSchema>;
+
+/** Mã phương thức: `manual` (Liên hệ Quản trị viên), tên cổng (`momo`) khi bật; mã lạ vẫn hiển thị theo nhãn server. */
+export const paymentMethodOptionSchema = z.object({ code: z.string(), label: z.string(), description: z.string().nullable().optional() });
+export type PaymentMethodOption = z.infer<typeof paymentMethodOptionSchema>;
+
 
 export const checkoutPreviewSchema = z.object({
   items: z.array(cartItemSchema),

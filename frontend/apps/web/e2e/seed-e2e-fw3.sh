@@ -16,6 +16,8 @@
 #   fw3-hs-limit    5 đơn manual huỷ trong hôm nay + giỏ [toan]: 429 MANUAL_ORDER_LIMIT
 #   fw3-hs-zero     giỏ [anh]; mã E2EFW3FREE giảm 100% -> đơn 0đ paid ngay
 #   fw3-hs-unv      CHƯA xác thực + giỏ [toan]: checkout 403 ACCOUNT_NOT_VERIFIED
+#   fw3-hs-warn     có đơn chờ [toan] (VVFW3WARN001) + giỏ [van]: cảnh báo đơn chờ ở /gio-hang (chỉ đọc)
+#   fw3-hs-card     giỏ [van], đã sở hữu [anh], toan chưa có: nút trên thẻ khóa ở danh mục (Thêm vào giỏ / Xem giỏ hàng / Vào học)
 #   fw3-hs-other    học sinh khác (xem đơn của fw3-hs-orders -> 404)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
@@ -99,6 +101,9 @@ $lim = $mkUser("limit"); for ($i = 1; $i <= 5; $i++) { $mkOrder($lim, $anh, "VVF
 $cartFor($mkUser("zero"), [$anh]);
 $cartFor($mkUser("unv", ["email_verified_at"=>null,"phone_verified_at"=>null]), [$toan]);
 $mkUser("other");
+$warn = $mkUser("warn"); $mkOrder($warn, $toan, "VVFW3WARN001", "manual"); $cartFor($warn, [$van]);
+$card = $mkUser("card"); $cartFor($card, [$van]);
+\App\Models\Enrollment::factory()->create(["user_id"=>$card->id,"course_id"=>$anh->id]);
 echo "SEED ok";
 PHP
 )"

@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorString } from "@vitaminvui/api-client";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 
 export const FORBIDDEN_MESSAGE = "Bạn không có quyền xử lý yêu cầu này (chỉ giáo viên phụ trách khóa, Quản lý trang và Admin).";
@@ -24,8 +24,8 @@ export function classifyDecisionError(err: unknown): DecisionFailure {
   if (err.status === 422 && err.code === "COURSE_NOT_FREE") {
     return { message: "Khóa học đã chuyển sang có phí nên không duyệt được (vẫn có thể từ chối).", reasonError: null, stale: false };
   }
-  if (err.status === 422 && err.errors?.["reason"]?.[0]) {
-    const reasonError = err.errors["reason"][0];
+  const reasonError = err.status === 422 ? errorString(err, "reason") : undefined;
+  if (reasonError) {
     return { message: reasonError, reasonError, stale: false };
   }
   if (err.status === 403) return { message: `${FORBIDDEN_MESSAGE} Danh sách đã được tải lại.`, reasonError: null, stale: true };

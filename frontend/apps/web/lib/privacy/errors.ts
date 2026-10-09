@@ -1,18 +1,6 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorString } from "@vitaminvui/api-client";
 import { classifyOtpSendError, retryAfterText, UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 import { formatVnDateTime } from "./format";
-
-/**
- * Chi tiết lỗi nghiệp vụ nằm trong `errors.*` (api-contract §1.7), KHÔNG phải `context.*`. Giá trị có thể là chuỗi
- * (`resets_at`, `retry_after_at`, `current_version`) hoặc mảng chuỗi (lỗi field 422); `ApiError.errors` khai báo là `string[]` nhưng thực tế
- * là JSON tuỳ ý nên đọc qua `unknown`.
- */
-export function domainValue(err: ApiError, key: string): string | undefined {
-  const raw: unknown = (err.errors as Record<string, unknown> | undefined)?.[key];
-  if (typeof raw === "string" && raw !== "") return raw;
-  if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0];
-  return undefined;
-}
 
 function fallbackMessage(err: unknown): string {
   if (err instanceof NetworkError) return err.message;
@@ -39,7 +27,7 @@ export function classifyParentContactError(err: unknown): ParentContactFailure {
     if (err.status === 422 && err.errors) {
       const errors: Partial<Record<"parent_email" | "parent_phone" | "current_password", string>> = {};
       for (const f of ["parent_email", "parent_phone", "current_password"] as const) {
-        const m = domainValue(err, f);
+        const m = errorString(err, f);
         if (m) errors[f] = m;
       }
       if (Object.keys(errors).length > 0) return { kind: "fields", errors };
@@ -58,11 +46,11 @@ export type ExportFailure =
 export function classifyExportError(err: unknown): ExportFailure {
   if (err instanceof ApiError) {
     if (err.status === 429) {
-      if (err.code === "DATA_EXPORT_LIMIT") return { kind: "limit", resetsAt: domainValue(err, "resets_at") ?? null };
+      if (err.code === "DATA_EXPORT_LIMIT") return { kind: "limit", resetsAt: errorString(err, "resets_at") ?? null };
       return { kind: "throttled", message: `Bạn đã thử quá nhiều lần. ${retryAfterText(err.retryAfterSeconds)}` };
     }
     if (err.status === 422) {
-      const m = domainValue(err, "current_password");
+      const m = errorString(err, "current_password");
       if (m) return { kind: "password", message: m };
     }
     return { kind: "banner", message: err.message || UNKNOWN_ERROR_MESSAGE, requestId: err.requestId };
@@ -85,14 +73,14 @@ export type DeleteSendFailure =
 
 /** US-022: đơn thủ công đang chờ -> `errors.pending_order_code` (liên kết tới đơn để tự huỷ trong "Đơn của tôi"). */
 export function pendingOrderCode(err: ApiError): string | undefined {
-  const code = domainValue(err, "pending_order_code");
+  const code = errorString(err, "pending_order_code");
   return code && /^[A-Za-z0-9]{6,32}$/.test(code) ? code : undefined;
 }
 
 export function pendingPaymentMessage(err: ApiError): string {
   // Có đơn thủ công chờ duyệt: dùng thông điệp server ("Hãy huỷ đơn trong Đơn của tôi nếu không còn muốn mua, rồi thử lại").
   if (pendingOrderCode(err) && err.message) return err.message;
-  const when = formatVnDateTime(domainValue(err, "retry_after_at"));
+  const when = formatVnDateTime(errorString(err, "retry_after_at"));
   return when ? `Bạn đang có đơn chờ thanh toán. Hãy thử lại sau ${when}.` : "Bạn đang có đơn chờ thanh toán. Hãy hoàn tất hoặc đợi đơn hết hạn rồi thử lại.";
 }
 
@@ -113,9 +101,9 @@ export type ConsentAcceptFailure =
 
 export function classifyAcceptError(err: unknown): ConsentAcceptFailure {
   if (err instanceof ApiError) {
-    if (err.code === "CONSENT_VERSION_CHANGED") return { kind: "version-changed", currentVersion: domainValue(err, "current_version") ?? null };
+    if (err.code === "CONSENT_VERSION_CHANGED") return { kind: "version-changed", currentVersion: errorString(err, "current_version") ?? null };
     if (err.status === 429) return { kind: "throttled", message: `Bạn thao tác quá nhanh. ${retryAfterText(err.retryAfterSeconds)}` };
-    if (err.status === 422) return { kind: "fields", message: domainValue(err, "accept_terms") ?? domainValue(err, "accept_privacy") ?? err.message };
+    if (err.status === 422) return { kind: "fields", message: errorString(err, "accept_terms") ?? errorString(err, "accept_privacy") ?? err.message };
   }
   return { kind: "other", message: fallbackMessage(err) };
 }

@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorField } from "@vitaminvui/api-client";
 import { isValidCourseSlug } from "@/lib/catalog/query";
 
 /** Phân loại lỗi `GET /learn/lessons/{id}/playback` để UI chọn đúng thông điệp (api-contract §2.4). */
@@ -49,7 +49,7 @@ export const PLAYBACK_MESSAGES: Record<PlaybackErrorKind, string> = {
  */
 export function courseRefFromError(err: unknown): { slug: string; title: string } | null {
   if (!(err instanceof ApiError) || err.status !== 403) return null;
-  const course = (err.errors as Record<string, unknown> | undefined)?.course;
+  const course = errorField(err, "course");
   if (typeof course !== "object" || course === null) return null;
   const { slug, title } = course as { slug?: unknown; title?: unknown };
   if (typeof slug !== "string" || !isValidCourseSlug(slug)) return null;

@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorString } from "@vitaminvui/api-client";
 import { UNKNOWN_ERROR_MESSAGE } from "./errors";
 
 export const OTP_LENGTH = 6;
@@ -41,7 +41,7 @@ export function formatCountdown(seconds: number): string {
 export function otpErrorMessage(err: unknown): string {
   if (err instanceof NetworkError) return err.message;
   if (err instanceof ApiError) {
-    if (err.status === 422) return err.errors?.code?.[0] ?? OTP_WRONG_MESSAGE;
+    if (err.status === 422) return errorString(err, "code") ?? OTP_WRONG_MESSAGE;
     return err.message || UNKNOWN_ERROR_MESSAGE;
   }
   return UNKNOWN_ERROR_MESSAGE;

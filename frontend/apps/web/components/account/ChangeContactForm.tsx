@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { ApiError } from "@vitaminvui/api-client";
+import { ApiError, errorString } from "@vitaminvui/api-client";
 import { Alert, Button, Field, PasswordInput, TextInput } from "@vitaminvui/ui/v2";
 import { updateContact, type ContactPayload } from "@/lib/auth/api";
 import { retryAfterText, UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
@@ -73,11 +73,14 @@ export function ChangeContactForm({ email, phone, onDone }: ChangeContactFormPro
     } catch (err) {
       setCurrentPassword(""); // không giữ mật khẩu sau khi lỗi — nhập lại
       if (err instanceof ApiError && err.status === 422 && err.errors) {
-        setErrors({ email: err.errors.email?.[0], phone: err.errors.phone?.[0], current_password: err.errors.current_password?.[0] });
+        const emailError = errorString(err, "email");
+        const phoneError = errorString(err, "phone");
+        const passwordError = errorString(err, "current_password");
+        setErrors({ email: emailError, phone: phoneError, current_password: passwordError });
         focusFirstError([
-          ["contact-email", !!err.errors.email?.[0]],
-          ["contact-phone", !!err.errors.phone?.[0]],
-          ["contact-password", !!err.errors.current_password?.[0]],
+          ["contact-email", !!emailError],
+          ["contact-phone", !!phoneError],
+          ["contact-password", !!passwordError],
         ]);
         if (!err.errors.email && !err.errors.phone && !err.errors.current_password) setBanner(err.message || UNKNOWN_ERROR_MESSAGE);
       } else if (err instanceof ApiError && err.status === 429) {

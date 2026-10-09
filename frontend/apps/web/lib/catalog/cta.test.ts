@@ -1,6 +1,6 @@
 import { ApiError, NetworkError } from "@vitaminvui/api-client";
 import { describe, expect, it } from "vitest";
-import { learnHref, mapFreeEnrollError, resolveCta, type CtaInput } from "./cta";
+import { learnHref, mapFreeEnrollError, resolveCta, viewerFromOwnership, type CtaInput } from "./cta";
 
 const base: CtaInput = { auth: "user", viewerStatus: "ready", viewer: null, isFree: false, courseId: 7, enrolling: false, paidCheckoutEnabled: true };
 const viewer = (state: "owned" | "pending_approval" | "can_register_free" | "can_buy" | "in_cart", resume: number | null = null) => ({
@@ -79,5 +79,21 @@ describe("mapFreeEnrollError", () => {
     expect(mapFreeEnrollError(new NetworkError(new Error("x"))).type).toBe("message");
     expect(mapFreeEnrollError(new ApiError(500, { message: "x" })).type).toBe("message");
     expect(mapFreeEnrollError(new Error("?")).type).toBe("message");
+  });
+});
+
+describe("viewerFromOwnership (thẻ khóa)", () => {
+  const own = { ownedIds: new Set([1]), pendingIds: new Set([2]), cartIds: new Set([1, 3]) };
+  it("ưu tiên owned > pending_approval > in_cart > can_buy như server", () => {
+    expect(viewerFromOwnership(1, own).viewer_state).toBe("owned");
+    expect(viewerFromOwnership(2, own).viewer_state).toBe("pending_approval");
+    expect(viewerFromOwnership(3, own).viewer_state).toBe("in_cart");
+    expect(viewerFromOwnership(4, own).viewer_state).toBe("can_buy");
+  });
+  it("đi qua resolveCta: can_buy -> thêm vào giỏ, in_cart -> xem giỏ, owned -> không phải nút mua", () => {
+    const m = (id: number) => resolveCta({ ...base, courseId: id, viewer: viewerFromOwnership(id, own) }).kind;
+    expect(m(4)).toBe("add_to_cart");
+    expect(m(3)).toBe("in_cart");
+    expect(m(1)).toBe("owned");
   });
 });

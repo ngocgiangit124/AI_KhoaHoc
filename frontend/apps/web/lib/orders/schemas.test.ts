@@ -46,3 +46,13 @@ describe("schema theo api-contract §2.1/§2.3/§2.3.1", () => {
     expect(paymentConfigSchema.parse({})).toEqual({ paid_checkout_enabled: false, payment_methods: [], manual_payment: null });
   });
 });
+
+describe("cartSchema.pending_order (T16-1)", () => {
+  it("optional+nullable: thiếu, null và đủ shape đều parse; sai shape bị từ chối", () => {
+    expect(cartSchema.parse(cart()).pending_order).toBeUndefined();
+    expect(cartSchema.parse({ ...cart(), pending_order: null }).pending_order).toBeNull();
+    const po = { code: "VV261008K7M2QX", payment_method: "manual", total: 1, created_at: "2026-10-08T10:15:00+07:00", expires_at: null };
+    expect(cartSchema.parse({ ...cart(), pending_order: po }).pending_order?.code).toBe("VV261008K7M2QX");
+    expect(() => cartSchema.parse({ ...cart(), pending_order: { code: 1 } })).toThrow();
+  });
+});

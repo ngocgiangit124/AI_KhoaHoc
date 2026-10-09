@@ -8,7 +8,7 @@ set -euo pipefail
 WEB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FRONTEND_DIR="$(cd "$WEB_DIR/../.." && pwd)"
 IMAGE="mcr.microsoft.com/playwright:v1.63.0-noble"
-DIST="${E2E_DIST:-.next-fw3}"
+DIST="${E2E_DIST:-.next-qa-fw3-1}"
 [ "${E2E_REUSE_BUILD:-}" = "1" ] || rm -rf "$WEB_DIR/$DIST"
 # Né `.next/dev/types` của dev server dùng chung (có thể còn import trang đã gỡ làm `next build` lỗi type): trong CONTAINER chồng một
 # tsconfig tạm (bỏ dòng đó) lên tsconfig.json. File trên host không đổi, không đụng `.next` dùng chung.
@@ -23,5 +23,5 @@ docker run --rm \
   bash -c '
     node -e "const n=require(\"net\");n.createServer(c=>{const u=n.connect(8000,\"host.docker.internal\");c.pipe(u).pipe(c);u.on(\"error\",()=>c.destroy());c.on(\"error\",()=>u.destroy())}).listen(8000,\"127.0.0.1\")" &
     sleep 1
-    exec ./node_modules/.bin/playwright test --config playwright.fw3.config.ts --workers=1 --trace=off "$@"
+    exec ./node_modules/.bin/playwright test --config playwright.qa-fw3-1.config.ts --workers=1 --trace=off "$@"
   ' playwright "$@"

@@ -23,9 +23,9 @@ import {
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { applyCoupon, fetchCart, removeCartItem, removeCoupon } from "@/lib/orders/api";
 import { classifyCartError, classifyCouponError } from "@/lib/orders/errors";
-import { payableCount } from "@/lib/orders/format";
+import { deadlineText, payableCount } from "@/lib/orders/format";
 import { usePaymentConfig } from "@/lib/orders/usePaymentConfig";
-import type { Cart, CartItem } from "@/lib/orders/schemas";
+import type { Cart, CartItem, PendingOrderRef } from "@/lib/orders/schemas";
 import { routes } from "@/lib/routes";
 import { fromCartItem, ItemCover, PriceCell, PricingSummary } from "./OrderParts";
 import { OrdersNotice } from "./OrdersNotice";
@@ -67,6 +67,8 @@ export function CartView({ initial }: { initial: Cart }) {
   const { refresh } = useAuth();
   const payment = usePaymentConfig();
   const [cart, setCart] = useState(initial);
+  // Các route ghi giỏ không trả `pending_order` nên giữ lại giá trị của lần tải đầu (`GET /cart`).
+  const [pendingOrder] = useState(initial.pending_order ?? null);
   const [code, setCode] = useState("");
   const [couponError, setCouponError] = useState<string>();
   const [error, setError] = useState<string>();
@@ -121,7 +123,7 @@ export function CartView({ initial }: { initial: Cart }) {
   }
 
   const coupon = cart.coupon;
-  if (cart.items.length === 0) return <EmptyCart />;
+  if (cart.items.length === 0) return <EmptyCart pendingOrder={pendingOrder} />;
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
       <div className="flex min-w-0 flex-col gap-4">
@@ -131,6 +133,7 @@ export function CartView({ initial }: { initial: Cart }) {
             {n.message}
           </Alert>
         ))}
+        <PendingOrderAlert order={pendingOrder} />
         {!paymentsOpen ? (
           <Alert tone="info" title="Đặt mua đang tạm đóng">
             Giỏ hàng của bạn vẫn được giữ. Bạn có thể quay lại đặt mua sau.
@@ -301,8 +304,29 @@ function NextStepNote({ available, paymentsOpen }: { available: boolean; payment
   );
 }
 
-function EmptyCart() {
+/** Cảnh báo "đang có đơn chờ duyệt" (T16-1): dùng cho giỏ có hàng lẫn giỏ trống (vừa đặt đơn xong giỏ rỗng). Không chặn thanh toán. */
+function PendingOrderAlert({ order }: { order: PendingOrderRef | null }) {
+  if (!order) return null;
   return (
+    <Alert
+      tone="info"
+      title={`Bạn đang có đơn ${order.code} chờ Quản trị viên duyệt`}
+      action={
+        <ButtonLink href={routes.orderSent(order.code)} variant="secondary" size="sm">
+          Xem đơn
+        </ButtonLink>
+      }
+    >
+      {order.expires_at ? `Hạn chờ: ${deadlineText(order.expires_at)}. ` : ""}
+      Nếu bạn đã chuyển khoản cho đơn đó, đừng đặt đơn mới — hãy chờ Quản trị viên xác nhận. Bạn vẫn có thể tiếp tục thanh toán giỏ này.
+    </Alert>
+  );
+}
+
+function EmptyCart({ pendingOrder }: { pendingOrder: PendingOrderRef | null }) {
+  return (
+    <div className="flex flex-col gap-4">
+    <PendingOrderAlert order={pendingOrder} />
     <Sheet>
       <EmptyState
         icon={<IconCart size={32} />}
@@ -311,6 +335,7 @@ function EmptyCart() {
         action={<ButtonLink href={routes.catalog}>Khám phá khóa học</ButtonLink>}
       />
     </Sheet>
+    </div>
   );
 }
 
@@ -318,7 +343,7 @@ function CartContent() {
   const [state, retry] = useOrderLoad(fetchCart, 0);
   if (state.status === "loading") return <CartSkeleton />;
   if (state.status === "failed") return <OrdersNotice kind={state.kind} onRetry={retry} what="cart" />;
-  if (state.data.items.length === 0) return <EmptyCart />;
+  if (state.data.items.length === 0) return <EmptyCart pendingOrder={state.data.pending_order ?? null} />;
   return <CartView initial={state.data} />;
 }
 

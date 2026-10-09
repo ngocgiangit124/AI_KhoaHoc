@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorField, errorMessages } from "@vitaminvui/api-client";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 import { FIELD_ORDER, type FieldErrors, type FieldKey } from "./form";
 
@@ -34,7 +34,8 @@ export function classifyCouponFormError(err: unknown): CouponFormFailure {
   if (err.status === 404) return { ...empty, banner: `${COUPON_GONE_MESSAGE} Vui lòng quay lại danh sách.`, gone: true };
   if (err.status === 429) return { ...empty, banner: `Bạn thao tác quá nhanh.${retryText(err)}` };
   if (err.status === 422 && err.code === "COUPON_LOCKED") {
-    const raw = err.errors?.fields ?? [];
+    const rawFields = errorField(err, "fields");
+    const raw = Array.isArray(rawFields) ? rawFields.filter((f): f is string => typeof f === "string") : [];
     const names = raw.map((f) => LOCKED_FIELD_LABELS[f] ?? f).join(", ");
     return {
       ...empty,
@@ -45,7 +46,7 @@ export function classifyCouponFormError(err: unknown): CouponFormFailure {
   if (err.status === 422 && err.errors) {
     const fields: FieldErrors = {};
     const others: string[] = [];
-    for (const [key, msgs] of Object.entries(err.errors)) {
+    for (const [key, msgs] of Object.entries(errorMessages(err))) {
       const message = msgs[0];
       if (!message) continue;
       const field = normalizeErrorKey(key);

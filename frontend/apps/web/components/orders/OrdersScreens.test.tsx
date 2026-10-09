@@ -258,3 +258,40 @@ describe("Đơn hàng của tôi (AC10)", () => {
     expect(await screen.findByText("Bạn chưa có đơn hàng nào")).toBeInTheDocument();
   });
 });
+
+describe("Giỏ hàng: cảnh báo đơn chờ (T16-1)", () => {
+  const pending = { code: "VV261008K7M2QX", payment_method: "manual", total: 500000, created_at: "2026-10-08T10:00:00+07:00", expires_at: "2099-10-11T10:00:00+07:00" };
+
+  it("có pending_order -> khối cảnh báo + link Xem đơn tới Đơn đã gửi, không chặn nút thanh toán", async () => {
+    mocks.fetchCart.mockResolvedValue(cart({ pending_order: pending }));
+    wrap(<CartScreen />);
+    expect(await screen.findByText(/Bạn đang có đơn VV261008K7M2QX chờ Quản trị viên duyệt/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Xem đơn" })).toHaveAttribute("href", "/thanh-toan/da-gui/VV261008K7M2QX");
+    expect(screen.getAllByRole("link", { name: /Thanh toán|Tiếp tục/ }).length).toBeGreaterThan(0);
+  });
+
+  it("thiếu field (backend cũ) hoặc null -> không có khối cảnh báo", async () => {
+    mocks.fetchCart.mockResolvedValue(cart());
+    wrap(<CartScreen />);
+    await screen.findByText("Khóa 1");
+    expect(screen.queryByText(/chờ Quản trị viên duyệt/)).not.toBeInTheDocument();
+  });
+
+  it("giữ cảnh báo sau khi xoá khóa (response ghi giỏ không có pending_order)", async () => {
+    mocks.fetchCart.mockResolvedValue(cart({ pending_order: pending }));
+    mocks.removeCartItem.mockResolvedValue(cart({ items: [item(2)] }));
+    wrap(<CartScreen />);
+    await screen.findByText("Khóa 1");
+    await userEvent.click(screen.getByRole("button", { name: "Xoá khóa Khóa 1 khỏi giỏ" }));
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Khóa 1" })).not.toBeInTheDocument());
+    expect(screen.getByText(/chờ Quản trị viên duyệt/)).toBeInTheDocument();
+  });
+
+  it("giỏ TRỐNG vẫn hiện cảnh báo đơn chờ (vừa đặt đơn xong)", async () => {
+    mocks.fetchCart.mockResolvedValue(cart({ items: [], pricing: { subtotal: 0, discount: 0, total: 0 }, pending_order: pending }));
+    wrap(<CartScreen />);
+    expect(await screen.findByText("Giỏ hàng đang trống")).toBeInTheDocument();
+    expect(screen.getByText(/Bạn đang có đơn VV261008K7M2QX chờ Quản trị viên duyệt/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Xem đơn" })).toHaveAttribute("href", "/thanh-toan/da-gui/VV261008K7M2QX");
+  });
+});

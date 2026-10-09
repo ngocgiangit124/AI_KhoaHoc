@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorMessages } from "@vitaminvui/api-client";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 import type { FieldErrors } from "./form";
 import { HOMEPAGE_MAX_DEFAULT } from "./types";
@@ -38,7 +38,7 @@ export function classifyProfileError(err: unknown, ctx: { hadFile?: boolean } = 
   if (err.status === 422 && err.errors) {
     const fields: FieldErrors = {};
     const others: string[] = [];
-    for (const [key, msgs] of Object.entries(err.errors)) {
+    for (const [key, msgs] of Object.entries(errorMessages(err))) {
       const message = msgs[0];
       if (!message) continue;
       if (key === "headline" || key === "bio" || key === "avatar") fields[key] ??= message;

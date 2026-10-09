@@ -33,6 +33,11 @@ export interface CourseCardProps {
    * Mặc định true để không đổi chỗ dùng cũ.
    */
   paidCheckoutEnabled?: boolean;
+  /**
+   * Hành động phụ dưới giá (ví dụ "Thêm vào giỏ"). Nằm trên lớp phủ liên kết của thẻ (z-10) nên bấm được riêng;
+   * `null`/bỏ trống = thẻ như cũ.
+   */
+  action?: ReactNode;
   className?: string;
 }
 
@@ -42,7 +47,7 @@ export interface CourseCardProps {
  * Hover: viền chuyển `primary`, tiêu đề đổi màu — không phóng to/nhấc thẻ.
  * Không hiện số bài/thời lượng: `GET /courses` không trả 2 trường này (xem Phân tích §1.3).
  */
-export function CourseCard({ course, href, image, headingLevel = "h3", paidCheckoutEnabled = true, className }: CourseCardProps) {
+export function CourseCard({ course, href, image, headingLevel = "h3", paidCheckoutEnabled = true, action, className }: CourseCardProps) {
   const Heading = headingLevel;
   const subjects = course.subjects.map((s) => s.name).join(" · ");
   const teachers = course.teachers.map((t) => t.name).join(", ");
@@ -80,6 +85,7 @@ export function CourseCard({ course, href, image, headingLevel = "h3", paidCheck
               {!course.is_free && !paidCheckoutEnabled ? <span className="text-sm font-semibold text-info">Sắp mở bán</span> : null}
             </span>
           </div>
+          {action ? <div className="relative z-10">{action}</div> : null}
         </div>
       </div>
     </article>

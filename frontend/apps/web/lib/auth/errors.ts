@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorMessages, errorString } from "@vitaminvui/api-client";
 
 export const LOGIN_GENERIC_ERROR = "Thông tin đăng nhập hoặc mật khẩu không đúng";
 export const ACCOUNT_LOCKED_MESSAGE = "Tài khoản của bạn đã bị khoá. Vui lòng liên hệ hỗ trợ.";
@@ -37,7 +37,7 @@ export function classifyRegisterError(err: unknown): RegisterFailure {
 
     if (err.status === 422 && err.errors && Object.keys(err.errors).length > 0) {
       const errors: Record<string, string> = {};
-      for (const [field, messages] of Object.entries(err.errors)) {
+      for (const [field, messages] of Object.entries(errorMessages(err))) {
         if (messages[0]) errors[field] = messages[0];
       }
       return { kind: "fields", errors };
@@ -110,8 +110,8 @@ export function classifyOtpVerifyError(err: unknown): OtpVerifyFailure {
   if (err instanceof NetworkError) return { kind: "other", message: err.message };
   if (err instanceof ApiError) {
     if (err.status === 422) {
-      if (err.code === "OTP_EXPIRED") return { kind: "must-resend", message: err.errors?.code?.[0] ?? OTP_EXPIRED_MESSAGE };
-      return { kind: "invalid", message: err.errors?.code?.[0] ?? OTP_INVALID_MESSAGE };
+      if (err.code === "OTP_EXPIRED") return { kind: "must-resend", message: errorString(err, "code") ?? OTP_EXPIRED_MESSAGE };
+      return { kind: "invalid", message: errorString(err, "code") ?? OTP_INVALID_MESSAGE };
     }
     if (err.status === 429) {
       if (err.retryAfterSeconds) {
@@ -168,8 +168,10 @@ export function classifyResetError(err: unknown): ResetFailure {
     if (err.status === 422) {
       const errors: Partial<Record<"password" | "password_confirmation", string>> = {};
       // Mật khẩu phổ biến: hiện nguyên `errors.password[0]` của server.
-      if (err.errors?.password?.[0]) errors.password = err.errors.password[0];
-      if (err.errors?.password_confirmation?.[0]) errors.password_confirmation = err.errors.password_confirmation[0];
+      const passwordError = errorString(err, "password");
+      const confirmError = errorString(err, "password_confirmation");
+      if (passwordError) errors.password = passwordError;
+      if (confirmError) errors.password_confirmation = confirmError;
       if (errors.password || errors.password_confirmation) return { kind: "fields", errors };
       // Mọi lỗi còn lại ở 422 (OTP_EXPIRED, field `code`, lỗi lạ) đều là lỗi mã: không phân biệt để không lộ tài khoản.
       return { kind: "code" };
@@ -195,7 +197,7 @@ export function classifyChangePasswordError(err: unknown): ChangePasswordFailure
     if (err.status === 422 && err.errors) {
       const errors: Partial<Record<"current_password" | "password" | "password_confirmation", string>> = {};
       for (const f of ["current_password", "password", "password_confirmation"] as const) {
-        const m = err.errors[f]?.[0];
+        const m = errorString(err, f);
         if (m) errors[f] = m;
       }
       if (Object.keys(errors).length > 0) return { kind: "fields", errors };
@@ -217,7 +219,7 @@ export function classifyForgotError(err: unknown): ForgotFailure {
   if (err instanceof ApiError) {
     if (err.code === "CAPTCHA_FAILED") return { kind: "captcha", message: CAPTCHA_FAILED_MESSAGE };
     if (err.status === 429) return { kind: "throttled", message: `Bạn đã yêu cầu mã quá nhiều lần. ${retryAfterText(err.retryAfterSeconds)}` };
-    if (err.status === 422) return { kind: "field", message: err.errors?.login?.[0] ?? err.message ?? UNKNOWN_ERROR_MESSAGE };
+    if (err.status === 422) return { kind: "field", message: errorString(err, "login") ?? err.message ?? UNKNOWN_ERROR_MESSAGE };
     return { kind: "banner", message: err.message || UNKNOWN_ERROR_MESSAGE };
   }
   return { kind: "banner", message: UNKNOWN_ERROR_MESSAGE };

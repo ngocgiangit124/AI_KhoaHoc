@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorMessages } from "@vitaminvui/api-client";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 import { THUMBNAIL_FORMAT_ERROR } from "./image";
 import type { FieldErrors } from "./form";
@@ -39,7 +39,7 @@ export function classifyCourseFormError(err: unknown, ctx: { hadFile: boolean })
   if (err.status === 422 && err.errors) {
     const fields: FieldErrors = {};
     const others: string[] = [];
-    for (const [key, msgs] of Object.entries(err.errors)) {
+    for (const [key, msgs] of Object.entries(errorMessages(err))) {
       const message = msgs[0];
       if (!message) continue;
       const field = normalizeErrorKey(key);
@@ -84,7 +84,7 @@ export const isForbidden = (err: unknown) => err instanceof ApiError && err.stat
 /** 422 của PUT .../teachers: lỗi giáo viên mới bị khoá nằm ở `errors.teacher_ids` (không phải `teacher_ids.N`). */
 export function teacherAssignError(err: unknown): string {
   if (err instanceof ApiError && err.status === 422 && err.errors) {
-    const hit = Object.entries(err.errors).find(([k]) => normalizeErrorKey(k) === "teacher_ids");
+    const hit = Object.entries(errorMessages(err)).find(([k]) => normalizeErrorKey(k) === "teacher_ids");
     if (hit?.[1][0]) return hit[1][0];
   }
   return courseActionError(err);

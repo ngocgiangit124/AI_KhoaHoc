@@ -390,3 +390,49 @@ test("chưa xác thực tài khoản → trang thanh toán hướng dẫn xác t
   await expect(page.getByText("Cần xác thực tài khoản")).toBeVisible({ timeout: 90_000 });
   await expect(page.getByRole("link", { name: "Xác thực ngay" })).toBeVisible();
 });
+
+test("giỏ: đơn chờ → cảnh báo (cả giỏ có hàng lẫn giỏ trống), không chặn thanh toán", async ({ page }) => {
+  await login(page, "warn");
+  await page.goto("/gio-hang");
+  await expect(page.getByText(/Bạn đang có đơn VVFW3WARN001 chờ Quản trị viên duyệt/)).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByRole("link", { name: "Xem đơn" })).toHaveAttribute("href", "/thanh-toan/da-gui/VVFW3WARN001");
+  await expect(page.getByRole("link", { name: "Tiếp tục đặt mua" }).first()).toBeVisible();
+  await page.context().clearCookies();
+  await login(page, "orders"); // có đơn chờ VVFW3PEND001, giỏ trống
+  await page.goto("/gio-hang");
+  await expect(page.getByText("Giỏ hàng đang trống")).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText(/Bạn đang có đơn VVFW3PEND001 chờ Quản trị viên duyệt/)).toBeVisible();
+});
+
+test("thẻ khóa ở danh mục: Thêm vào giỏ → số giỏ header tăng → Xem giỏ hàng; khóa đã sở hữu → Vào học; 375px", async ({ page }) => {
+  await login(page, "card");
+  await expect(page.getByRole("link", { name: "Giỏ hàng, 1 khóa" })).toBeVisible({ timeout: 90_000 });
+  await page.goto("/khoa-hoc?q=E2E+FW3");
+  const add = page.getByRole("button", { name: "Thêm vào giỏ: E2E FW3 Toán 9 nâng cao" });
+  await expect(add).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByRole("link", { name: "Xem giỏ hàng: E2E FW3 Ngữ văn 9" })).toHaveAttribute("href", "/gio-hang");
+  const own = page.getByRole("link", { name: "Vào học: E2E FW3 Tiếng Anh 9" });
+  await expect(own).toHaveAttribute("href", /^\/hoc\/\d+/);
+  await expect(page.getByRole("button", { name: /^Thêm vào giỏ: E2E FW3 Tiếng Anh/ })).toHaveCount(0);
+  await add.click();
+  await expect(page.getByText("Đã thêm E2E FW3 Toán 9 nâng cao vào giỏ")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("link", { name: "Xem giỏ hàng: E2E FW3 Toán 9 nâng cao" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Giỏ hàng, 2 khóa" })).toBeVisible({ timeout: 60_000 });
+  await page.reload();
+  await expect(page.getByRole("link", { name: "Xem giỏ hàng: E2E FW3 Toán 9 nâng cao" })).toBeVisible({ timeout: 90_000 });
+
+  await page.setViewportSize({ width: 375, height: 800 });
+  await expect(page.getByRole("link", { name: "Xem giỏ hàng: E2E FW3 Ngữ văn 9" })).toBeVisible();
+  await expectNoHScroll(page);
+  const box = await page.getByRole("link", { name: "Vào học: E2E FW3 Tiếng Anh 9" }).boundingBox();
+  expect(box!.height).toBeGreaterThanOrEqual(43);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(375);
+});
+
+test("thẻ khóa: khách thấy 'Mua khóa học' → đăng nhập kèm next về trang khóa", async ({ page }) => {
+  await page.goto("/khoa-hoc?q=E2E+FW3");
+  const buy = page.getByRole("link", { name: "Mua khóa học: E2E FW3 Toán 9 nâng cao" });
+  await expect(buy).toBeVisible({ timeout: 90_000 });
+  await buy.click();
+  await expect(page).toHaveURL(/\/dang-nhap\?next=%2Fkhoa-hoc%2Fe2e-fw3-toan/);
+});

@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@vitaminvui/api-client";
+import { ApiError, NetworkError, errorMessages } from "@vitaminvui/api-client";
 import { UNKNOWN_ERROR_MESSAGE } from "@/lib/auth/errors";
 
 export const QUIZ_FORBIDDEN_MESSAGE = "Bạn không có quyền sửa bài tập của khóa học này.";
@@ -38,7 +38,7 @@ export function questionFieldErrors(err: unknown): { fields: QuestionErrors; unm
   let unmapped: string | null = null;
   if (!(err instanceof ApiError) || err.status !== 422) return { fields, unmapped: null };
   if (!err.errors) return { fields, unmapped: err.code === "QUIZ_OPTIONS_INVALID" ? "Mỗi câu hỏi phải có đúng 4 đáp án và đúng 1 đáp án đúng." : null };
-  for (const [key, msgs] of Object.entries(err.errors)) {
+  for (const [key, msgs] of Object.entries(errorMessages(err))) {
     const msg = msgs[0];
     if (!msg) continue;
     const m = /^options\.(\d+)\.(content|is_correct)$/.exec(key);
@@ -58,7 +58,7 @@ export function quizFieldErrors(err: unknown): { fields: QuizFormErrors; unmappe
   if (!(err instanceof ApiError) || err.status !== 422) return { fields, unmapped: null };
   if (err.code === "QUIZ_PARENT_INVALID") return { fields: { parent: quizError(err) }, unmapped: null };
   let unmapped: string | null = null;
-  for (const [key, msgs] of Object.entries(err.errors ?? {})) {
+  for (const [key, msgs] of Object.entries(errorMessages(err))) {
     const msg = msgs[0];
     if (!msg) continue;
     if (key === "title") fields.title ??= msg;
