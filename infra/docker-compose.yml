@@ -46,6 +46,8 @@ services:
       # tường minh (Docker Desktop tự cấp DNS `host.docker.internal`). Không
       # cần giữ `0.0.0.0`.
       - "127.0.0.1:8000:80"
+      # Tên miền tĩnh local (STATIC_URL): ảnh người dùng tải lên (disk `uploads`).
+      - "127.0.0.1:8080:8080"
     networks:
       - vitaminvui
 
