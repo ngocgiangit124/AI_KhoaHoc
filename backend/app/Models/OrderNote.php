@@ -25,6 +25,9 @@ class OrderNote extends Model
 
     public const UPDATED_AT = null;
 
+    /** Nội dung thay cho `body` khi xoá theo chính sách lưu trữ (T38-2) hoặc khi xoá tài khoản; cột NOT NULL. */
+    public const PURGED_BODY = '[Đã xoá theo chính sách lưu trữ]';
+
     /** Chỉ thêm (append-only): chặn sửa/xoá qua Eloquent (bằng chứng ai duyệt/huỷ, khi nào). Xoá cascade do FK ở DB không đi qua đây. */
     protected static function booted(): void
     {

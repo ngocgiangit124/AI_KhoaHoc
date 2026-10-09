@@ -9,6 +9,7 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Enrollment;
 use App\Models\Order;
+use App\Models\OrderNote;
 use App\Models\PaymentAttempt;
 use App\Models\User;
 use App\Services\Enrollment\EnrollmentService;
@@ -81,11 +82,19 @@ class AccountDeletionFinalizer
 
             // US-022 (security S1): `customer_note` có thể chứa SĐT/Zalo bên thứ ba → xoá trên MỌI đơn của HS (đơn giữ làm chứng từ).
             // Ở pha B để đúng thứ tự khoá carts → orders (pha A giữ `users` X, khoá `orders` ở đó có thể vòng chờ với markPaid). Từng đơn khoá theo PK.
-            $noteIds = Order::query()->where('user_id', $userId)->whereNotNull('customer_note')->orderBy('id')->pluck('id');
+            // T38-2: cùng lúc xoá nội dung nhân viên tự nhập trên đơn đó (có thể nhắc SĐT/tên HS): refund_note, payment_reference,
+            // cancel_reason_public và order_notes.body (NOT NULL → chuỗi cố định; query builder có chủ đích, model OrderNote vẫn append-only).
+            $noteIds = Order::query()->where('user_id', $userId)->where(fn ($q) => $q
+                ->whereNotNull('customer_note')->orWhereNotNull('refund_note')->orWhereNotNull('payment_reference')->orWhereNotNull('cancel_reason_public'))
+                ->orderBy('id')->pluck('id');
             foreach ($noteIds as $noteId) {
                 Order::query()->whereKey($noteId)->lockForUpdate()->first();
-                Order::query()->whereKey($noteId)->update(['customer_note' => null]);
+                Order::query()->whereKey($noteId)->update(['customer_note' => null, 'refund_note' => null, 'payment_reference' => null, 'cancel_reason_public' => null]);
             }
+            DB::table('order_notes')
+                ->whereIn('order_id', Order::query()->where('user_id', $userId)->select('id'))
+                ->where('body', '<>', OrderNote::PURGED_BODY)
+                ->update(['body' => OrderNote::PURGED_BODY]);
 
             $ids = Order::query()->where('user_id', $userId)->where('status', OrderStatus::Pending->value)->orderBy('id')->pluck('id');
 

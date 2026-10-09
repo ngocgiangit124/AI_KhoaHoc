@@ -35,7 +35,7 @@ class ProductionConfigGuard
         'SESSION_SECURE_COOKIE', 'SESSION_COOKIE', 'SESSION_ADMIN_COOKIE', 'INTERNAL_API_TOKEN', 'INTERNAL_API_REQUIRED',
         'CAPTCHA_DRIVER', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET', 'AUTH_OTP_CHANNELS', 'AUTH_OTP_E2E_RELAXED',
         'PAYMENT_GATEWAYS', 'FEATURE_PAID_CHECKOUT', 'FEATURE_MANUAL_PAYMENT', 'ORDERS_MANUAL_PENDING_TTL_HOURS',
-        'ORDERS_MANUAL_APPROVAL_WINDOW_DAYS', 'ORDERS_MANUAL_PER_DAY', 'ORDERS_CUSTOMER_NOTE_RETENTION_DAYS', 'ORDERS_MANUAL_NOTIFY_EMAILS', 'PAYMENT_CONTACT_PHONE',
+        'ORDERS_MANUAL_APPROVAL_WINDOW_DAYS', 'ORDERS_MANUAL_PER_DAY', 'ORDERS_CUSTOMER_NOTE_RETENTION_DAYS', 'ORDERS_STAFF_TEXT_RETENTION_DAYS', 'ORDERS_MANUAL_NOTIFY_EMAILS', 'PAYMENT_CONTACT_PHONE',
         'PAYMENT_CONTACT_ZALO_URL', 'PAYMENT_CONTACT_EMAIL', 'PAYMENT_CONTACT_HOURS', 'FEATURE_STAFF_MFA', 'MOMO_ENDPOINT', 'MOMO_PAY_URL_HOSTS',
         'MOMO_ACCESS_KEY', 'MOMO_SECRET_KEY', 'MOMO_PARTNER_CODE', 'VIDEO_PROVIDER', 'VIDEO_ENABLED_PROVIDERS',
         'VIDEOLAB_ENABLED', 'VIDEOLAB_API_KEY', 'VIDEOLAB_TOKEN_KEY', 'VIDEOLAB_WEBHOOK_SECRET', 'VIDEOLAB_PUBLIC_URL',
@@ -107,6 +107,7 @@ class ProductionConfigGuard
         $this->guardPaidCheckout();
         $this->guardManualPayment();
         $this->guardCustomerNoteRetention();
+        $this->guardStaffTextRetention();
         $this->guardStaffMfa();
         $this->guardPolicyVersion();
         $this->guardParentNotices();
@@ -344,6 +345,29 @@ class ProductionConfigGuard
             ! is_int($value) || $value < 30 || $value > 3650,
             RuntimeException::class,
             "{$envKey} phải là số nguyên trong khoảng 30..3650."
+        );
+    }
+
+    /**
+     * T38-2: số ngày giữ nội dung nhân viên tự nhập trên đơn (độc lập cờ manual). Kiểm chuỗi THÔ như R5.
+     */
+    private function guardStaffTextRetention(): void
+    {
+        $envKey = 'ORDERS_STAFF_TEXT_RETENTION_DAYS';
+        $raw = $_ENV[$envKey] ?? $_SERVER[$envKey] ?? getenv($envKey);
+
+        throw_if(
+            is_string($raw) && $raw !== '' && preg_match('/^[0-9]{1,6}$/', $raw) !== 1,
+            RuntimeException::class,
+            "{$envKey} phải là số nguyên (không dấu, không chữ)."
+        );
+
+        $value = config('orders.manual.staff_text_retention_days');
+
+        throw_if(
+            ! is_int($value) || $value < 1 || $value > 3650,
+            RuntimeException::class,
+            "{$envKey} phải là số nguyên trong khoảng 1..3650."
         );
     }
 

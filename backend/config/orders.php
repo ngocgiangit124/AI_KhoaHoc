@@ -29,6 +29,9 @@ return [
         // T38-1: số ngày giữ `orders.customer_note` kể từ khi đơn kết thúc rồi tự xoá (đặt NULL). Guard production 30..3650.
         'customer_note_retention_days' => (int) env('ORDERS_CUSTOMER_NOTE_RETENTION_DAYS', 90),
 
+        // T38-2: số ngày giữ nội dung nhân viên tự nhập (order_notes.body, refund_note, payment_reference, cancel_reason_public) kể từ khi đơn kết thúc. Guard production 1..3650.
+        'staff_text_retention_days' => (int) env('ORDERS_STAFF_TEXT_RETENTION_DAYS', 7),
+
         // Nhãn "Sắp hết hạn" ở danh sách quản trị (AC15). Hằng, không có env.
         'expiring_soon_hours' => 12,
 

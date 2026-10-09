@@ -17,6 +17,13 @@
 - Link trong thư gửi học sinh: dẫn tới màn "Đơn đã gửi" `/thanh-toan/da-gui/{code}`.
 - `customer_note`: tự xoá (NULL) sau 90 ngày kể từ khi đơn kết thúc (đã thanh toán/huỷ/hết hạn/hoàn tiền); đơn, số tiền, lịch sử giữ nguyên (PO chọn phương án b) → task T38-1.
 
+## Quyết định PO 2026-10-09 (chiều)
+
+- Quản lý trang ĐƯỢC hoàn tiền (security T24-V1 S3 — giữ như hiện tại, không cần duyệt 2 bước).
+- Nội dung tự nhập của nhân viên trên đơn — `order_notes.body`, `refund_note`, `payment_reference`, `cancel_reason_public` — tự xoá sau **7 ngày** kể từ khi đơn kết thúc (paid/cancelled/refunded/failed); đơn, số tiền, trạng thái, người duyệt, thời điểm, lịch sử trạng thái giữ nguyên → task T38-2.
+- Nhật ký audit (`order.view_pii`, `order.search_contact`, approve/cancel/refund) GIỮ 24 tháng như audit chung (`audit:purge`).
+- `customer_note` giữ 90 ngày như T38-1.
+
 ## Câu hỏi cho PO (kèm mặc định đề xuất)
 
 Mỗi câu có mặc định. PO chưa trả lời thì đội làm theo mặc định. Đổi mặc định sau chỉ là sửa cấu hình hoặc thay đổi nhỏ, trừ các câu có ghi "ảnh hưởng thiết kế".

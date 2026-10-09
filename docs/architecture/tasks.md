@@ -794,6 +794,11 @@ Phụ thuộc T38. Thiết kế: `docs/tech/US-022.md` mục "Lưu giữ dữ li
 - Config + env `ORDERS_CUSTOMER_NOTE_RETENTION_DAYS` (90, 30..3650) trong `.env.example`, `.env.production.example`; `ProductionConfigGuard` kiểm chuỗi thô là số nguyên và khoảng hợp lệ.
 - **Xong khi:** mốc 89/90/91 ngày đúng cho paid/cancelled/refunded/failed; pending giữ; chạy 2 lần không đổi; chỉ cột `customer_note` đổi (kể cả `updated_at`), `order_notes` giữ; guard chặn ngoài khoảng/chuỗi rác; EXPLAIN ghi ở `docs/review/T38-1.md` (không cần index mới); `composer ci` xanh; reviewer + QA PASS.
 
+### T38-2 — Tự xoá nội dung nhân viên nhập sau 7 ngày (US-022, PO 2026-10-09 chiều)
+- Lệnh `orders:purge-staff-notes` (lịch 03:46) đặt NULL `orders.refund_note`, `payment_reference`, `cancel_reason_public` và thay `order_notes.body` bằng `[Đã xoá theo chính sách lưu trữ]` sau `orders.manual.staff_text_retention_days` ngày kể từ khi đơn kết thúc (mốc như T38-1). Pending không đụng; đơn/tiền/trạng thái/`confirmed_by`/status logs/audit/`updated_at` giữ. `OrderNote` vẫn append-only qua Eloquent.
+- Config + env `ORDERS_STAFF_TEXT_RETENTION_DAYS` (7, 1..3650) trong `.env.example`, `.env.production.example`; `ProductionConfigGuard` kiểm chuỗi thô và khoảng. Xoá tài khoản (pha B) xoá luôn các trường này trên mọi đơn của học sinh.
+- **Xong khi:** mốc 6/7/8 ngày đúng cho 4 trạng thái; pending giữ; idempotent; chỉ 4 trường đổi; guard; xoá tài khoản; EXPLAIN ở `docs/review/T38-2.md`; `composer ci` xanh; reviewer + QA PASS.
+
 ### T24-V1 — Admin đơn hàng, thu gọn cho thanh toán thủ công (backend, ~2 ngày) **[SEC] [DBA]** (US-022, US-010)
 Thay phạm vi T24 ở Giai đoạn 7 cho V1. Phụ thuộc T38 (T38.1 migration + factory; `ManualOrderService` để thêm `approvalState`), T28. **Không phụ thuộc T19.** Hợp đồng api-contract §2.5.1. Test ở `tests/Feature/T24`.
 - `OrderFilterRequest` + `AdminOrderQuery`: bộ lọc §2.5.1 (khoảng ngày bắt buộc ≤ 366 trừ `status[] = [pending]`; `payment_method`; `sort` newest/oldest; `q` 4 dạng, escape LIKE); luôn áp ngày/trạng thái trước; `cursorPaginate` theo `sort` + `COUNT(*)` riêng (DBA #9).

@@ -4,6 +4,13 @@ Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) 
 
 ## Tình trạng 2026-10-08
 
+### 2026-10-09 chiều: US-022 XONG (thanh toán "Liên hệ Quản trị viên") — 8 commit chưa push
+- `7ddf063` T38, `bb5c394` T38-1, `c353b88` Design, `ff3a8c7` T24-V1, `333e910` FW3, `fd7f31b` T39, `37a0a65` FA8, `c4ce8cc` sửa tên trường tiếng Việt. Mục TẠM DỪNG bên dưới đã xử lý.
+- QA FA8 chạy trọn luồng HS đặt đơn → QTV duyệt → HS vào học + thư; huỷ có lý do; nhả mã; duyệt muộn.
+- Dev server Docker macOS: route mới có thể 404 tới khi `touch page.tsx` (không cần restart).
+- Seed `seed-e2e-fa8.sh --clean` lỗi FK `coupons.created_by` nếu còn mã do admin e2e tạo → xoá mã trước.
+- Production: chỉ bật `FEATURE_MANUAL_PAYMENT` khi đã deploy T39 + FA8 (đã đủ). Chờ PO: quyền hoàn tiền QLT (S3), thời hạn lưu `refund_note`/`order_notes`/`payment_reference`/audit view_pii.
+
 ### TẠM DỪNG 2026-10-09 ~09:40 (PO yêu cầu) — chạy tiếp từ đây
 - Commit chưa push: `7ddf063` T38, `bb5c394` T38-1, `c353b88` Design US-022. Push khi PO bảo.
 - **T24-V1 (admin đơn hàng phần đọc + hoàn tiền):** review APPROVE, security PASS có điều kiện (S1, S2 đã sửa), QA PASS. Toàn bộ file T24-V1 ĐÃ NẰM TRONG GIT INDEX (30 file, kèm `docs/bao-cao-task.md`). CI sạch bị dừng giữa chừng (Pint/PHPStan đã sạch) → chạy lại CI backend từ index (`git write-tree`) rồi commit.
