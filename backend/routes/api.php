@@ -22,6 +22,8 @@ use App\Http\Controllers\Api\V1\Learn\LessonController as LearnLessonController;
 use App\Http\Controllers\Api\V1\Learn\MyCourseController;
 use App\Http\Controllers\Api\V1\Learn\PlaybackController;
 use App\Http\Controllers\Api\V1\Learn\ProgressController;
+use App\Http\Controllers\Api\V1\Order\MyOrderController;
+use App\Http\Controllers\Api\V1\Order\OrderCancelController;
 use App\Http\Controllers\Api\V1\Privacy\AccountDeletionController;
 use App\Http\Controllers\Api\V1\Privacy\ConsentController;
 use App\Http\Controllers\Api\V1\Privacy\DataExportController;
@@ -212,6 +214,17 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
                 ->middleware('throttle:checkout')
                 ->name('api.checkout.store');
         });
+        // US-022 (T38) — đơn của tôi + học sinh tự huỷ đơn thủ công. KHÔNG cần `account.verified` (xem/huỷ đơn không cần xác thực)
+        // và chạy được cả khi `FEATURE_MANUAL_PAYMENT` tắt (AC29). Tra đơn theo `code` + `user_id`: người khác nhận 404.
+        Route::get('/orders', [MyOrderController::class, 'index'])->middleware('throttle:orders-read')->name('api.orders.index');
+        Route::get('/orders/{code}', [MyOrderController::class, 'show'])
+            ->where('code', '[A-Za-z0-9]{1,20}')
+            ->middleware('throttle:orders-read')
+            ->name('api.orders.show');
+        Route::post('/orders/{code}/cancel', [OrderCancelController::class, 'store'])
+            ->where('code', '[A-Za-z0-9]{1,20}')
+            ->middleware('throttle:order-cancel')
+            ->name('api.orders.cancel');
         // T13 — học & tiến độ (US-006). Quyền kiểm trong LessonAccessService (mã COURSE_NOT_OWNED, khóa nháp 404).
         // `account.verified` KHÔNG gắn: chưa xác thực OTP vẫn học được (US-001 AC9). Heartbeat: 6/phút/user/bài.
         Route::get('/learn/courses/{course}', [LearnCourseController::class, 'show'])

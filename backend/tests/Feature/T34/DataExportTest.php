@@ -45,7 +45,7 @@ test('(b) file khop snapshot tap khoa §2.8.4 va gia tri dung', function () {
         ->and(array_keys($data['enrollments'][0]))->toBe(['course', 'status', 'source', 'requested_at', 'activated_at', 'revoked_at', 'rejection_reason'])
         ->and($data['enrollments'][0]['course'])->toBe(['id' => $seed['course']->id, 'title' => 'Toán 8 nâng cao'])
         ->and($data['orders'])->toHaveCount(1)
-        ->and(array_keys($data['orders'][0]))->toBe(['code', 'status', 'subtotal_amount', 'discount_amount', 'total_amount', 'coupon_code', 'payment_method', 'created_at', 'paid_at', 'cancelled_at', 'refunded_at', 'items'])
+        ->and(array_keys($data['orders'][0]))->toBe(['code', 'status', 'subtotal_amount', 'discount_amount', 'total_amount', 'coupon_code', 'payment_method', 'customer_note', 'created_at', 'paid_at', 'cancelled_at', 'refunded_at', 'items'])
         ->and($data['orders'][0]['total_amount'])->toBe(450000)
         ->and($data['orders'][0]['status'])->toBe('paid')
         ->and($data['orders'][0]['items'])->toBe([['course' => ['id' => $seed['course']->id, 'title' => 'Toán 8 nâng cao'], 'price' => 500000, 'discount_amount' => 50000, 'final_amount' => 450000]])

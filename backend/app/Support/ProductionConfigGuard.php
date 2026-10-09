@@ -34,7 +34,9 @@ class ProductionConfigGuard
         'STATIC_URL', 'SANCTUM_STATEFUL_DOMAINS', 'TRUSTED_PROXIES', 'SESSION_DRIVER', 'SESSION_ENCRYPT', 'SESSION_DOMAIN',
         'SESSION_SECURE_COOKIE', 'SESSION_COOKIE', 'SESSION_ADMIN_COOKIE', 'INTERNAL_API_TOKEN', 'INTERNAL_API_REQUIRED',
         'CAPTCHA_DRIVER', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET', 'AUTH_OTP_CHANNELS', 'AUTH_OTP_E2E_RELAXED',
-        'PAYMENT_GATEWAYS', 'FEATURE_PAID_CHECKOUT', 'FEATURE_STAFF_MFA', 'MOMO_ENDPOINT', 'MOMO_PAY_URL_HOSTS',
+        'PAYMENT_GATEWAYS', 'FEATURE_PAID_CHECKOUT', 'FEATURE_MANUAL_PAYMENT', 'ORDERS_MANUAL_PENDING_TTL_HOURS',
+        'ORDERS_MANUAL_APPROVAL_WINDOW_DAYS', 'ORDERS_MANUAL_PER_DAY', 'ORDERS_MANUAL_NOTIFY_EMAILS', 'PAYMENT_CONTACT_PHONE',
+        'PAYMENT_CONTACT_ZALO_URL', 'PAYMENT_CONTACT_EMAIL', 'PAYMENT_CONTACT_HOURS', 'FEATURE_STAFF_MFA', 'MOMO_ENDPOINT', 'MOMO_PAY_URL_HOSTS',
         'MOMO_ACCESS_KEY', 'MOMO_SECRET_KEY', 'MOMO_PARTNER_CODE', 'VIDEO_PROVIDER', 'VIDEO_ENABLED_PROVIDERS',
         'VIDEOLAB_ENABLED', 'VIDEOLAB_API_KEY', 'VIDEOLAB_TOKEN_KEY', 'VIDEOLAB_WEBHOOK_SECRET', 'VIDEOLAB_PUBLIC_URL',
         'VIDEOLAB_ACCEL_REDIRECT', 'BUNNY_LIBRARY_ID', 'BUNNY_API_KEY', 'BUNNY_CDN_HOST', 'BUNNY_TOKEN_KEY', 'BUNNY_WEBHOOK_TOKEN', 'BUNNY_API_BASE',
@@ -103,6 +105,7 @@ class ProductionConfigGuard
         $this->guardOtpRelaxed();
         $this->guardVideoLabSecrets();
         $this->guardPaidCheckout();
+        $this->guardManualPayment();
         $this->guardStaffMfa();
         $this->guardPolicyVersion();
         $this->guardParentNotices();
@@ -224,6 +227,111 @@ class ProductionConfigGuard
             RuntimeException::class,
             'FEATURE_PAID_CHECKOUT=true nhưng chưa có route IPN/đối soát (T19/T20): payments.ipn_ready=false.'
         );
+    }
+
+    /**
+     * US-022 (ADR-007 §11): bật thanh toán thủ công thì học sinh phải biết liên hệ ở đâu và Quản trị viên phải nhận được thông
+     * báo đơn mới. Guard của `FEATURE_PAID_CHECKOUT` + `ipn_ready` (MoMo) giữ nguyên, độc lập.
+     */
+    private function guardManualPayment(): void
+    {
+        if (! config('features.manual_payment')) {
+            return;
+        }
+
+        $contact = (array) config('orders.manual.contact', []);
+        $phone = $this->trimmedString($contact['phone'] ?? null);
+        $zalo = $this->trimmedString($contact['zalo_url'] ?? null);
+        $email = $this->trimmedString($contact['email'] ?? null);
+        $hours = $this->trimmedString($contact['hours'] ?? null);
+
+        throw_if(
+            $phone === null && $zalo === null && $email === null,
+            RuntimeException::class,
+            'FEATURE_MANUAL_PAYMENT=true nhưng chưa có kênh liên hệ nào (PAYMENT_CONTACT_PHONE / PAYMENT_CONTACT_ZALO_URL / PAYMENT_CONTACT_EMAIL).'
+        );
+
+        throw_if(
+            $zalo !== null && preg_match('#^https://zalo\.me/[A-Za-z0-9._-]+$#', $zalo) !== 1,
+            RuntimeException::class,
+            'PAYMENT_CONTACT_ZALO_URL phải có dạng https://zalo.me/<định-danh>.'
+        );
+
+        throw_if(
+            $email !== null && filter_var($email, FILTER_VALIDATE_EMAIL) === false,
+            RuntimeException::class,
+            'PAYMENT_CONTACT_EMAIL không phải địa chỉ email hợp lệ.'
+        );
+
+        throw_if(
+            $phone !== null && preg_match('/^\+?[0-9 .-]{8,20}$/', $phone) !== 1,
+            RuntimeException::class,
+            'PAYMENT_CONTACT_PHONE không phải số điện thoại hợp lệ (chỉ chữ số, khoảng trắng, dấu chấm, gạch ngang, + đầu; 8..20 ký tự).'
+        );
+
+        throw_if(
+            $phone !== null && strlen((string) preg_replace('/\D/', '', $phone)) < 8,
+            RuntimeException::class,
+            'PAYMENT_CONTACT_PHONE phải có ít nhất 8 chữ số.'
+        );
+
+        throw_if(
+            $hours !== null && (mb_strlen($hours) > 100 || preg_match('/[<>\p{Cc}\p{Cf}\x{2028}\x{2029}]/u', $hours) === 1),
+            RuntimeException::class,
+            'PAYMENT_CONTACT_HOURS dài tối đa 100 ký tự và không chứa HTML/ký tự điều khiển.'
+        );
+
+        $notify = (array) config('orders.manual.notify_emails', []);
+
+        throw_if(
+            $notify === [],
+            RuntimeException::class,
+            'FEATURE_MANUAL_PAYMENT=true nhưng ORDERS_MANUAL_NOTIFY_EMAILS rỗng: không ai nhận thông báo đơn mới.'
+        );
+
+        foreach ($notify as $address) {
+            throw_if(
+                ! is_string($address) || filter_var($address, FILTER_VALIDATE_EMAIL) === false,
+                RuntimeException::class,
+                'ORDERS_MANUAL_NOTIFY_EMAILS chứa địa chỉ email không hợp lệ.'
+            );
+        }
+
+        // R5: config đã ép (int) nên `abc` thành 0 và lọt; kiểm chuỗi THÔ của env phải là số nguyên không dấu.
+        foreach (['ORDERS_MANUAL_PENDING_TTL_HOURS', 'ORDERS_MANUAL_APPROVAL_WINDOW_DAYS', 'ORDERS_MANUAL_PER_DAY'] as $envKey) {
+            $raw = $_ENV[$envKey] ?? $_SERVER[$envKey] ?? getenv($envKey);
+
+            throw_if(
+                is_string($raw) && $raw !== '' && preg_match('/^[0-9]{1,6}$/', $raw) !== 1,
+                RuntimeException::class,
+                "{$envKey} phải là số nguyên (không dấu, không chữ)."
+            );
+        }
+
+        foreach ([
+            'ORDERS_MANUAL_PENDING_TTL_HOURS' => ['orders.manual.pending_ttl_hours', 1, 168],
+            'ORDERS_MANUAL_APPROVAL_WINDOW_DAYS' => ['orders.manual.approval_window_days', 0, 90],
+            'ORDERS_MANUAL_PER_DAY' => ['orders.manual.per_day', 1, 50],
+        ] as $env => [$key, $min, $max]) {
+            $value = config($key);
+
+            throw_if(
+                ! is_int($value) || $value < $min || $value > $max,
+                RuntimeException::class,
+                "{$env} phải là số nguyên trong khoảng {$min}..{$max}."
+            );
+        }
+    }
+
+    private function trimmedString(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
     }
 
     /** Token SSR (nếu bật) phải đủ dài; để trống = tắt (catalog throttle theo IP kết nối). */

@@ -73,6 +73,11 @@ Ngoại lệ duy nhất: `POST /auth/logout` và `POST /admin/auth/logout` chỉ
 | `coupon` | 10/phút, **30 lần sai/ngày**/user; **150 lần sai/ngày/IP** (`ORDERS_COUPON_FAILS_PER_IP_PER_DAY`, 0 = tắt; vượt → 429 `TOO_MANY_ATTEMPTS`, Sửa lỗi nhỏ 3) | 60/giờ |
 | `cart` (`GET /cart`, `POST /cart/items`, `DELETE /cart/items/{course}`, `DELETE /cart/coupon`, `GET /checkout/preview`; Sửa lỗi nhỏ 3, cụm 3 L2) | 60/phút/user (429 + `Retry-After`) | — |
 | `checkout`, `pay` | 10/phút/user | — |
+| Hạn mức đơn thủ công (US-022, T38; không phải limiter route) | `orders.manual.per_day` (5) đơn `manual` MỚI/ngày lịch Asia/Ho_Chi_Minh/HS, tính cả đơn đã huỷ, không tính đơn dùng lại. Vượt → 429 `MANUAL_ORDER_LIMIT` | — |
+| `orders-read` (US-022, T38: `GET /orders`, `GET /orders/{code}`) | 60/phút/user | — |
+| `order-cancel` (US-022, T38: `POST /orders/{code}/cancel`) | 10/phút/user | — |
+| `admin-order-read` (US-022, T24: `GET /admin/orders*`) | 120/phút/user | — |
+| `admin-order-action` (US-022, T24/T39: approve, cancel, notes, refund) | 30/phút/user | — |
 | `check-payment` | 1 lần/30s/đơn | — |
 | `playback` | 30/phút/user | — |
 | `heartbeat` | 6/phút/user/bài. Thêm (cụm 2 L1): tổng giây được CỘNG trên mọi bài ≤ 165 (`max_speed*(60+nhịp 20s)+slack`) trong cửa sổ 60 giây/user (`learning.heartbeat.user_credit_*`); phần vượt cộng 0, vẫn 200 | — |
@@ -109,7 +114,12 @@ Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $statu
 | 403 | `ACCOUNT_LOCKED` | Tài khoản bị khoá — ở login **chỉ trả khi mật khẩu đúng** (S20); route đã đăng nhập: `account.active`; phiên HS bị huỷ do khoá (tombstone `locked`) |
 | 403 | `ACCOUNT_NOT_VERIFIED` | Chưa xác thực OTP mà checkout/đăng ký học miễn phí |
 | 403 | `PARENT_CONSENT_REQUIRED` | **Không còn phát ra từ T29 (ADR-006, PO 2026-10-08: không cần phụ huynh đồng ý).** Giữ trong bảng để FE cũ không vỡ; FE mới không cần xử lý |
-| 409 | `ACCOUNT_HAS_PENDING_PAYMENT` | Xoá tài khoản khi còn đơn `pending` có giao dịch cổng `pending` chưa hết hạn (T34). `context.retry_after_at` (ISO 8601) = `expires_at` muộn nhất của các link đó |
+| 409 | `ACCOUNT_HAS_PENDING_PAYMENT` | Xoá tài khoản khi còn đơn `pending` có giao dịch cổng `pending` chưa hết hạn (T34). `context.retry_after_at` (ISO 8601) = `expires_at` muộn nhất của các link đó. **US-022 (T38):** cũng trả khi có đơn `manual` `pending` (mọi `expires_at`); khi đó `retry_after_at` = `expires_at` của đơn (lấy MAX nếu có cả link MoMo), thêm `errors.pending_order_code` và thông điệp gợi ý tự huỷ đơn trong "Đơn của tôi" |
+| 409 | `PENDING_ORDER_EXISTS` | US-022 (T38): `POST /checkout` khi đang có đơn `manual` `pending` chưa quá hạn, khác nội dung, mà không gửi `replace_pending: true`. `errors = {order_code, payment_method, total, created_at, expires_at}` |
+| 429 | `MANUAL_ORDER_LIMIT` | US-022 (T38): vượt `orders.manual.per_day` đơn thủ công/ngày. Header `Retry-After` (giây tới 00:00 giờ VN), `errors = {limit, resets_at}` |
+| 409 | `ORDER_STATUS_CHANGED` | US-022: thao tác trên đơn không còn ở trạng thái yêu cầu (vd duyệt khi HS vừa huỷ/đơn hết hạn; huỷ đơn đã `paid`). `errors = {status, status_reason, cancelled_at, can_approve_late, approval_window_until}` (2 khoá cuối chỉ có ở admin-api). FE tải lại đơn |
+| 409 | `ORDER_APPROVAL_WINDOW_PASSED` | US-022 (T39): duyệt muộn đơn đã huỷ quá `orders.manual.approval_window_days` (30) ngày. `errors = {cancelled_at, approval_window_until}` |
+| 409 | `ORDER_NOT_MANUAL` | US-022: duyệt/huỷ (admin) hoặc HS tự huỷ một đơn không phải `payment_method = manual` |
 | 429 | `DATA_EXPORT_LIMIT` | Đã tải dữ liệu cá nhân đủ 2 lần trong ngày (T34). Có header `Retry-After` (giây tới 00:00 giờ VN) và `context: {limit, resets_at}` (trong `errors`) |
 | 403 | `MFA_REQUIRED` | Staff chưa nhập OTP đăng nhập |
 | 403 | `PASSWORD_CHANGE_REQUIRED` | Staff phải đổi mật khẩu lần đầu |
@@ -120,8 +130,9 @@ Lỗi nghiệp vụ ném `App\Exceptions\DomainException($code, $message, $statu
 | 404 | `NOT_FOUND` | |
 | 409 | `CHECKOUT_CHANGED` | Giỏ/giá/mã thay đổi — kèm `preview` mới |
 | 409 | `COUPON_EXHAUSTED` | Hết chỗ mã khi tạo đơn/tạo link mới (ADR-001 §6) |
-| 409 | `ALREADY_IN_CART`, `ALREADY_OWNED`, `ENROLLMENT_PENDING`, `ALREADY_PROCESSED` | |
-| 409 | `COURSE_UNAVAILABLE` | Khóa đã xoá mềm: không duyệt được yêu cầu / không cấp quyền sau thanh toán (T14; T19 chuyển đơn needs_review/hoàn tiền) |
+| 409 | `ALREADY_IN_CART`, `ALREADY_OWNED`, `ENROLLMENT_PENDING`, `ALREADY_PROCESSED` | **US-022:** với thao tác trên đơn, `ALREADY_PROCESSED` nghĩa là đơn **đã ở đúng trạng thái đích** (duyệt đơn đã `paid`/`refunded`, huỷ đơn đã `cancelled`; bấm đúp, 2 người cùng bấm), `errors = {status, status_reason}`. Đơn ở trạng thái khác → `ORDER_STATUS_CHANGED` |
+| 503 | `PAYMENT_DISABLED` | `POST /checkout` tổng > 0 khi **không có phương thức thanh toán nào** đang bật (US-022: `PaymentMethods::available()` rỗng, tức `FEATURE_MANUAL_PAYMENT` tắt và MoMo tắt). Tắt chủ động, FE không tự thử lại |
+| 409 | `COURSE_UNAVAILABLE` | Khóa đã xoá mềm: không duyệt được yêu cầu / không cấp quyền sau thanh toán (T14; T19 chuyển đơn needs_review/hoàn tiền). **US-022 (T39):** duyệt đơn thủ công có khóa đã xoá → 409, đơn giữ nguyên (không duyệt một phần), `errors.courses = [{id, title}]` |
 | 422 | `COURSE_NOT_FREE` | Xin học miễn phí cho khóa có phí (T14) |
 | 409 | `SUBJECT_IN_USE` | Xoá chuyên đề đang gán khóa học (T06) |
 | 409 | `TEACHER_HOMEPAGE_LIMIT` | Bật hiển thị trang chủ khi đã có `teacher_profile.homepage_max` (6) giáo viên được bật (US-020, T36) |
@@ -167,7 +178,9 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
   "policy_version": "2026-10-tam",
   "parent_consent_age": 18,
   "parent_contact_required": false,
-  "paid_checkout_enabled": false
+  "paid_checkout_enabled": true,
+  "payment_methods": ["manual"],
+  "manual_payment": { "label": "Liên hệ Quản trị viên", "description": "…", "pending_ttl_hours": 72, "contact": { "phone": null, "zalo_url": null, "email": "hotro@vitaminvui.vn", "hours": null } }
 }
 ```
 **T29 (ADR-006, 2026-10-08):**
@@ -177,6 +190,25 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 - `parent_contact_required` (mới) luôn là `false`. FE không được chặn submit vì thiếu liên hệ phụ huynh.
 - `policy_version` là phiên bản Điều khoản + Chính sách dữ liệu đang hiện hành (bản TẠM `2026-10-tam`, đổi khi có bản pháp chế). FE hiển thị văn bản đúng phiên bản này.
 `paid_checkout_enabled` (thêm 2026-10-06): `false` khi cờ `FEATURE_PAID_CHECKOUT` tắt (V2 — chờ MoMo) → FE ẩn/vô hiệu nút "Mua"/"Thanh toán" cho khóa có phí. `viewer_state` giữ nguyên (không thêm giá trị mới).
+
+**US-022 (T38, ADR-007) — phương thức thanh toán:**
+- `paid_checkout_enabled` **đổi định nghĩa**: = "có ít nhất 1 phương thức thanh toán có tiền đang bật" (= `payment_methods` khác rỗng), không còn bằng cờ MoMo. FE giữ nguyên cách dùng (ẩn/hiện "Thêm vào giỏ"/"Mua" cho khóa có phí, US-022 BR3).
+- `payment_methods` (mới): mảng mã phương thức theo thứ tự hiển thị, phần tử đầu là mặc định. `manual` có mặt khi `FEATURE_MANUAL_PAYMENT` bật; tên cổng (`momo`) có mặt khi `FEATURE_PAID_CHECKOUT` bật và cổng nằm trong `PAYMENT_GATEWAYS`. Hiện tại: `["manual"]`.
+- `manual_payment` (mới): `null` khi `manual` không có trong `payment_methods`. Ngược lại:
+  ```json
+  "manual_payment": {
+    "label": "Liên hệ Quản trị viên",
+    "description": "Quản trị viên sẽ liên hệ hướng dẫn thanh toán và kích hoạt khóa học cho bạn",
+    "pending_ttl_hours": 72,
+    "contact": {
+      "phone": "0901 234 567",
+      "zalo_url": "https://zalo.me/0901234567",
+      "email": "hotro@vitaminvui.vn",
+      "hours": "8:00–21:00 hằng ngày"
+    }
+  }
+  ```
+  Mọi khoá trong `contact` luôn có mặt; kênh chưa cấu hình là `null` và FE **không hiển thị** (US-022 AC1 "kênh trống không xuất hiện"). Production luôn có ≥ 1 kênh (guard). `phone` là chuỗi hiển thị: FE tạo `tel:` từ các chữ số (giữ `+` đầu nếu có). `zalo_url` luôn `https://zalo.me/...`, mở tab mới `rel="noopener noreferrer"`. Thông tin này công khai, nằm trong cache 60 giây như các khoá khác.
 `captcha_site_key` = `null` khi chưa cấu hình Turnstile (local).
 
 ### 2.2 Xác thực học sinh (host api)
@@ -251,10 +283,152 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 | POST | /checkout | `Checkout\CheckoutController@store` | account.verified, throttle:checkout (T29 gỡ `parent.consent`) | `CheckoutRequest`: expected_total (int ≥ 0, tổng HS đã thấy ở preview), gateway (tuỳ chọn, ∈ `enabled_gateways`, mặc định cổng đầu) | **T18 chốt:** **201** đơn mới / **200** dùng lại đơn pending cũ cùng nội dung (cùng khóa, số tiền từng dòng, mã, cổng; chưa quá `expires_at`): `{order_code, status: pending\|paid, total, reused, payment: {gateway, pay_url, expires_at} \| null, link_expired}`. `payment` null khi (a) đơn **0đ**: đã `paid` ngay (`payment_method=none`, `status_reason=zero_amount`, cấp enrollment + ghi `coupon_usages`, dọn giỏ), không gọi cổng; cờ `FEATURE_ZERO_TOTAL_CHECKOUT` tắt → 422 `ZERO_TOTAL_DISABLED`; (b) `link_expired=true`: link cũ hết hạn nhưng chưa được cổng xác nhận → HS gọi `POST /orders/{code}/pay` (T20, đối soát rồi tạo link mới). Lỗi: **503 `PAYMENT_DISABLED`** ("Thanh toán trực tuyến đang tạm khoá." — cờ `FEATURE_PAID_CHECKOUT` tắt và tổng > 0; không tạo đơn/attempt; kiểm sau CHECKOUT_CHANGED; đây là tắt chủ động, không phải sự cố: FE KHÔNG auto-retry, hiển thị message và dùng `paid_checkout_enabled` của `/config/public` để ẩn nút mua) · 422 `CART_EMPTY` (giỏ trống/không còn khóa hợp lệ) · 422 `VALIDATION_ERROR` (expected_total sai kiểu; `gateway` ngoài allowlist: nếu `enabled_gateways` khác rỗng thì kiểm ở request, nếu rỗng thì chỉ kiểm khi tổng > 0, sau 409 và 503 — **đơn 0đ không cần cổng nên vẫn 201 khi `PAYMENT_GATEWAYS` rỗng**, cụm 3 M1) · 422 `AMOUNT_BELOW_GATEWAY_MIN`/`AMOUNT_ABOVE_GATEWAY_MAX` (kiểm trước khi tạo đơn) · **409 `CHECKOUT_CHANGED`**: `errors = {reasons: [PRICE_CHANGED\|COUPON_REMOVED\|COUPON_EXHAUSTED\|ITEMS_CHANGED], preview: <shape của GET /checkout/preview>}` (mã hết hạn/hết lượt/hết chỗ đã bị gỡ khỏi giỏ và commit; HS xem `preview` rồi gọi lại với `expected_total` mới) · 409 `PAYMENT_IN_PROGRESS` (request khác đang tạo giao dịch, thử lại sau vài giây) · **502 `PAYMENT_GATEWAY_UNAVAILABLE`** `errors = {order_code}` (đơn vẫn `pending`, attempt `error`; gọi lại POST /checkout sẽ dùng lại đơn và tạo attempt mới). Đã có đơn pending khác nội dung hoặc quá hạn → đơn cũ `cancelled` (`status_reason=superseded`), tạo đơn mới. Quyết định giá dưới khoá `carts → orders → courses(SHARE) → coupons`; giá/số tiền chốt vào `order_items`; `coupon_hold_until` = now + min(`link_ttl`, `payments.coupon_hold_minutes`=30). `used_count`/`coupon_usages` chỉ ghi khi đơn `paid` |
 | POST | /orders/{order:code}/pay | `Checkout\OrderPaymentController@store` | account.verified, throttle:pay · `OrderPolicy@pay` | — | {pay_url, expires_at}. Khoá `carts → orders` khi quyết định/tạo attempt; đối soát link cũ trước; kiểm lại sức chứa mã khi quá `coupon_hold_until` (ADR-001 §6, §7) |
 | POST | /orders/{order:code}/check-payment | `Checkout\OrderPaymentController@check` | throttle:check-payment · `OrderPolicy@view` | — | Đối soát ngay attempt mới nhất rồi trả trạng thái đơn |
-| GET | /orders | `Order\MyOrderController@index` | | page | Đơn của tôi |
-| GET | /orders/{order:code} | `Order\MyOrderController@show` | `OrderPolicy@view` | — | Chi tiết + `status`, `status_reason`, `expires_at`, `payment` {gateway, link_expired, can_retry} |
+| GET | /orders | `Order\MyOrderController@index` | throttle:orders-read | page | Đơn của tôi. **Chốt ở US-022 (T38), xem §2.3.1** |
+| GET | /orders/{order:code} | `Order\MyOrderController@show` | throttle:orders-read · `OrderPolicy@view` (không phải chủ → 404) | — | Chi tiết + `status`, `status_reason`, `expires_at`, `payment` {gateway, link_expired, can_retry}. **Chốt ở US-022 (T38), xem §2.3.1** |
+| POST | /orders/{order:code}/cancel | `Order\OrderCancelController@store` | throttle:order-cancel · `OrderPolicy@cancel` (không phải chủ → 404) | — | **US-022 (T38), §2.3.1.** HS tự huỷ đơn `manual` `pending` |
 
 `pay_url` chỉ được frontend mở khi host thuộc allowlist MoMo (S23).
+
+**US-022 bổ sung cho 2 dòng `GET /checkout/preview` và `POST /checkout` ở trên:** các field mới và hành vi nhánh `manual` ở §2.3.1. Quy tắc cũ (CHECKOUT_CHANGED, CART_EMPTY, đơn 0đ, thứ tự khoá) giữ nguyên. Riêng câu "Đã có đơn pending khác nội dung hoặc quá hạn → đơn cũ `cancelled` (`superseded`)" nay có ngoại lệ: đơn cũ là `manual` chưa quá hạn thì phải có `replace_pending: true`.
+
+#### 2.3.1 Thanh toán thủ công "Liên hệ Quản trị viên" — học sinh (US-022, T38, ADR-007)
+
+Nhóm route như §2.3 (`student` + `role:hoc_sinh`). `/checkout*` có thêm `account.verified`; `/orders*` thì không (xem/huỷ đơn không cần xác thực). Thời gian ISO 8601 có offset `+07:00`; tiền là số nguyên VNĐ.
+
+**`GET /checkout/preview`** — thêm 3 khoá (các khoá cũ giữ nguyên):
+```json
+{
+  "items": [ { "course_id": 12, "title": "Toán 9 nâng cao", "slug": "toan-9-nang-cao", "grade_level": 9, "thumbnail_url": "…", "price": 300000, "unavailable": false, "discount_amount": 30000, "final_amount": 270000, "added_at": "…" } ],
+  "removed_items": [],
+  "coupon": { "code": "HE2026", "…": "…" },
+  "pricing": { "subtotal": 550000, "discount": 50000, "total": 500000 },
+  "notices": [],
+  "can_checkout": true,
+  "requires_payment": true,
+  "payment_methods": [
+    { "code": "manual", "label": "Liên hệ Quản trị viên", "description": "Quản trị viên sẽ liên hệ hướng dẫn thanh toán và kích hoạt khóa học cho bạn" }
+  ],
+  "default_payment_method": "manual",
+  "pending_order": { "code": "VV261008K7M2QX", "payment_method": "manual", "total": 500000, "created_at": "2026-10-08T10:15:00+07:00", "expires_at": "2026-10-11T10:15:00+07:00" }
+}
+```
+- `payment_methods`: cùng danh sách với `/config/public.payment_methods` nhưng kèm nhãn. Rỗng khi không có phương thức nào.
+- `can_checkout` = có ≥ 1 khóa hợp lệ VÀ (tổng = 0 HOẶC `payment_methods` khác rỗng). Notice `PAYMENT_DISABLED` chỉ khi `requires_payment` và `payment_methods` rỗng.
+- `pending_order`: đơn `pending` hiện có của HS (mọi phương thức) hoặc `null`. FE dùng để báo trước "Bạn đang có đơn #… chờ duyệt"; quyết định cuối vẫn ở `POST /checkout`.
+
+**`POST /checkout`** — request:
+```json
+{ "expected_total": 500000, "payment_method": "manual", "customer_note": "Gọi sau 18h giúp em", "replace_pending": false }
+```
+| Field | Quy tắc |
+|---|---|
+| `expected_total` | Như cũ |
+| `payment_method` | Tuỳ chọn. `manual` hoặc tên cổng trong `PAYMENT_GATEWAYS`; ngoài allowlist → 422 `errors.payment_method`. Thiếu → dùng `gateway` (bí danh cũ, **deprecated**), thiếu cả hai → `default_payment_method`. Gửi cả `payment_method` và `gateway` khác nhau → 422 `errors.payment_method`. Đơn 0đ bỏ qua field này (`payment_method = none`) |
+| `customer_note` | Tuỳ chọn, `null`/chuỗi ≤ 500 ký tự, văn bản thuần nhiều dòng (`PlainText(allowNewlines)`: cấm `<`, `>`, ký tự điều khiển trừ `\n`, bidi/zero-width; `\r\n` được đổi thành `\n`; rỗng sau trim → `null`) → sai: 422 `errors.customer_note`. Chỉ lưu cho đơn `manual` mới tạo; đơn dùng lại giữ ghi chú cũ; MoMo/0đ bỏ qua |
+| `replace_pending` | Tuỳ chọn, boolean, mặc định `false`. `true` = đồng ý huỷ đơn `manual` đang chờ (khác nội dung) để tạo đơn mới |
+
+Thứ tự kiểm (QA dựa vào đây): giỏ không tồn tại/rỗng → 422 `CART_EMPTY` → giá/khóa/mã đổi → 409 `CHECKOUT_CHANGED` → tổng > 0 và không có phương thức nào → 503 `PAYMENT_DISABLED` → phương thức không đang bật → 422 `errors.payment_method` → (0đ) `ZERO_TOTAL_DISABLED` / (cổng) hạn mức min/max của cổng; `manual` **không** áp min/max → đơn chờ cùng nội dung → 200 dùng lại → đơn chờ `manual` chưa quá hạn, khác nội dung, `replace_pending` ≠ `true` → 409 `PENDING_ORDER_EXISTS` → (sắp tạo đơn `manual` mới) quá hạn mức ngày → 429 `MANUAL_ORDER_LIMIT` → huỷ đơn cũ (`superseded`) + tạo đơn.
+
+Response **201** (đơn mới) / **200** (dùng lại đơn đang chờ cùng nội dung — bấm 2 lần, 2 tab, mất mạng bấm lại; không gửi thêm thư):
+```json
+{
+  "order_code": "VV261008K7M2QX",
+  "status": "pending",
+  "payment_method": "manual",
+  "total": 500000,
+  "expires_at": "2026-10-11T10:15:00+07:00",
+  "reused": false,
+  "payment": null,
+  "link_expired": false
+}
+```
+`payment_method` và `expires_at` là khoá mới, có ở mọi response 200/201 (đơn 0đ: `payment_method = "none"`, `status = "paid"`). Với `manual`: `payment` luôn `null`, `link_expired` luôn `false`, `expires_at` = tạo + `pending_ttl_hours` (72 giờ). FE chuyển tới màn "Đơn đã gửi" (`/tai-khoan/don-hang/{code}`).
+
+Lỗi mới (ngoài các lỗi cũ):
+```json
+// 409 — đang có đơn thủ công chờ duyệt, nội dung khác
+{ "message": "Bạn đang có đơn #VV261008K7M2QX chờ Quản trị viên duyệt. Đặt đơn mới sẽ huỷ đơn cũ.", "code": "PENDING_ORDER_EXISTS",
+  "errors": { "order_code": "VV261008K7M2QX", "payment_method": "manual", "items_count": 2, "total": 500000, "created_at": "2026-10-08T10:15:00+07:00", "expires_at": "2026-10-11T10:15:00+07:00" }, "request_id": "…" }
+// 429 — quá 5 đơn thủ công trong ngày (header Retry-After: 49500)
+{ "message": "Bạn đã đặt quá nhiều đơn hôm nay, vui lòng liên hệ Quản trị viên.", "code": "MANUAL_ORDER_LIMIT",
+  "errors": { "limit": 5, "resets_at": "2026-10-09T00:00:00+07:00" }, "request_id": "…" }
+```
+`errors` của 409 `PENDING_ORDER_EXISTS` (chốt 2026-10-08 theo design US-022 §7) đủ để hộp thoại nói rõ đơn nào sẽ bị huỷ: `order_code`, `payment_method`, `items_count` (số khóa của đơn cũ), `total`, `created_at`, `expires_at`. Chỉ là đơn của chính HS gọi API. Sau 409 `PENDING_ORDER_EXISTS`: "Đặt đơn mới" → gửi lại cùng body + `replace_pending: true` (đơn cũ → `cancelled`/`superseded`); "Giữ đơn cũ" → không gọi gì, mở `/tai-khoan/don-hang/{order_code}`.
+
+Tác dụng phụ của đơn `manual` mới (sau commit, qua queue; lỗi gửi không ảnh hưởng response): thư "Đã nhận đơn" cho HS (nếu có email đã xác thực), thư "Đơn mới #mã" tới `ORDERS_MANUAL_NOTIFY_EMAILS` (chỉ mã đơn, tổng tiền, số khóa, thời điểm, link quản trị; **không** có tên/email/SĐT/ghi chú HS). Không tạo `payment_attempts`, không cấp quyền học, không xoá giỏ. Lượt mã được giữ chỗ tới `expires_at`.
+
+**`GET /orders`** — đơn của tôi, mới nhất trước (`created_at desc, id desc`), length-aware 10/trang, query `page` (≥ 1; sai → 422). Mọi trạng thái, mọi phương thức (kể cả đơn 0đ).
+```json
+{
+  "data": [
+    {
+      "code": "VV261008K7M2QX",
+      "status": "pending",
+      "status_reason": null,
+      "payment_method": "manual",
+      "items_count": 2,
+      "item_titles": ["Toán 9 nâng cao", "Ngữ văn 9"],
+      "subtotal": 550000,
+      "discount": 50000,
+      "total": 500000,
+      "created_at": "2026-10-08T10:15:00+07:00",
+      "expires_at": "2026-10-11T10:15:00+07:00",
+      "paid_at": null,
+      "cancelled_at": null,
+      "can_cancel": true,
+      "replaced_by_code": null
+    }
+  ],
+  "meta": { "current_page": 1, "per_page": 10, "total": 3, "last_page": 1 },
+  "links": { "next": null, "prev": null }
+}
+```
+`item_titles`: tối đa 3 tên (bản chụp `order_items.course_title`), `items_count` là tổng. `can_cancel` = `payment_method = manual` VÀ `status = pending`. `replaced_by_code`: cùng quy tắc với chi tiết (dưới đây), `null` khi `status_reason ≠ superseded`; tính cho cả trang bằng **1 truy vấn** (không N+1). Nhãn trạng thái tiếng Việt do FE dịch theo bảng (`status`, `status_reason`) của US-022 mục "Trạng thái đơn". `expires_at` luôn có nhưng FE chỉ hiện khi `pending`.
+
+**`GET /orders/{code}`** — chi tiết đơn của chính mình. Mã không tồn tại **hoặc của người khác** → 404 `NOT_FOUND` (cùng thông điệp, không lộ tồn tại; US-022 AC11).
+```json
+{
+  "code": "VV261008K7M2QX",
+  "status": "cancelled",
+  "status_reason": "admin_cancelled",
+  "payment_method": "manual",
+  "items": [
+    { "course_id": 12, "title": "Toán 9 nâng cao", "slug": "toan-9-nang-cao", "grade_level": 9, "unit_price": 300000, "discount_amount": 30000, "final_amount": 270000 }
+  ],
+  "coupon_code": "HE2026",
+  "subtotal": 550000,
+  "discount": 50000,
+  "total": 500000,
+  "customer_note": "Gọi sau 18h giúp em",
+  "cancel_reason": "Không liên hệ được qua SĐT và Zalo",
+  "replaced_by_code": null,
+  "created_at": "2026-10-08T10:15:00+07:00",
+  "expires_at": "2026-10-11T10:15:00+07:00",
+  "paid_at": null,
+  "cancelled_at": "2026-10-09T09:00:00+07:00",
+  "refunded_at": null,
+  "can_cancel": false,
+  "payment": null
+}
+```
+- `items[].title` là bản chụp lúc đặt; `slug` là `null` khi khóa đã xoá hoặc không còn `published` (FE không tạo link).
+- `cancel_reason`: chỉ khác `null` khi `status_reason = admin_cancelled` (lý do Quản trị viên nhập "gửi học sinh"). **Không bao giờ** có ghi chú nội bộ, người duyệt, mã giao dịch, `needs_review`.
+- `items[].grade_level`: lớp hiện tại của khóa (`null` khi khóa đã xoá).
+- `replaced_by_code`: khi `status_reason = superseded`, mã đơn kế tiếp của HS (đơn có `id` nhỏ nhất lớn hơn đơn này; đơn mới được tạo trong cùng transaction huỷ đơn cũ nên luôn tồn tại), ngược lại `null`. Có ở cả `GET /orders` và `GET /orders/{code}`; không thêm cột DB.
+- Tên field so với design US-022 §7 (FE dùng tên trong hợp đồng này): `cancel_reason` (design ghi `cancel_reason_public`, đó là tên cột DB); mã giảm giá là `coupon_code` + `discount` (không có object `coupon`).
+- `payment`: `null` với `manual`/`none`; đơn cổng (T20) giữ shape `{gateway, link_expired, can_retry}`.
+- Màn "Đơn đã gửi" (FW3) dùng chính endpoint này + `/config/public.manual_payment.contact`; đơn không còn `pending` thì không hiện hướng dẫn liên hệ.
+
+**`POST /orders/{code}/cancel`** — HS tự huỷ đơn `manual` `pending` của mình (US-022 BR14). Body rỗng. **200** = shape `GET /orders/{code}` với `status = cancelled`, `status_reason = user_cancelled`. Nhả chỗ lượt mã, giỏ giữ nguyên, không gửi thư, không audit (chỉ `order_status_logs`, actor `user`). Chạy được cả khi `FEATURE_MANUAL_PAYMENT` tắt (AC29).
+| Lỗi | Khi |
+|---|---|
+| 404 `NOT_FOUND` | Mã không tồn tại hoặc của HS khác |
+| 409 `ALREADY_PROCESSED` | Đơn đã `cancelled` (bấm lần 2), `errors = {status, status_reason}` |
+| 409 `ORDER_STATUS_CHANGED` | Đơn đã `paid`/`refunded`/`failed` (vd Quản trị viên vừa duyệt), `errors = {status, status_reason}` |
+| 409 `ORDER_NOT_MANUAL` | Đơn MoMo/0đ (bản này chưa cho HS huỷ đơn cổng) |
+| 429 `TOO_MANY_ATTEMPTS` | Quá `order-cancel` |
+
+Khoá: `carts` (của HS) → `orders` (FOR UPDATE) → kiểm lại; đua với Quản trị viên duyệt hoặc tác vụ hết hạn thì bên tới sau nhận 409.
 
 ### 2.4 Học sinh — học tập (host api, nhóm `student`)
 
@@ -353,9 +527,179 @@ Ví dụ `GET /api/v1/config/public` (phẳng — khớp giả định của FE0
 | GET | /admin/orders | `Admin\OrderController@index` | `OrderPolicy@viewAny` | `OrderFilterRequest`: from, to (**bắt buộc**, ≤ 366 ngày), status[], q, pending_older_than_hours, needs_review, cursor, per_page. **Cursor pagination** (§1.5). `q`: dạng mã đơn → `orders.code`; có `@` → email chính xác; toàn số → SĐT chuẩn hoá; còn lại → `users.name LIKE 'từ%'` (escape). Luôn áp bộ lọc ngày/trạng thái trước (DBA 2.4). **Email/SĐT HS che** (`09****123`, `ng***@gmail.com`) — S14 |
 | GET | /admin/orders/{order:code} | `show` | staff | Chi tiết + items + attempts + status logs; email/SĐT HS **đầy đủ**; ghi `audit_logs` `order.view_pii`. Không bao giờ trả thông tin phụ huynh |
 | POST | /admin/orders/{order:code}/refund | `Admin\OrderRefundController@store` | `OrderPolicy@refund` | note (tuỳ chọn, ≤ 1000), confirm=true. Lần 2 → 409. Ghi audit |
+| GET | /admin/orders/pending-count | `Admin\OrderController@pendingCount` | `OrderPolicy@viewAny` | **US-022 (T24).** §2.5.1 |
+| POST | /admin/orders/{order:code}/approve · /cancel · /notes | `Admin\OrderApprovalController`, `OrderCancellationController`, `OrderNoteController` | `OrderPolicy@approve`/`cancelAsStaff`/`addNote` | **US-022 (T39).** §2.5.1 |
+
+**US-022 chốt lại 4 dòng `/admin/orders*` ở trên (T24 thu gọn + T39): xem §2.5.1.** Chỗ nào §2.5.1 nói khác bảng này thì theo §2.5.1.
 | POST | /admin/order-exports | `Admin\OrderExportController@store` | `OrderPolicy@export`, throttle:export (10/ngày) | cùng bộ lọc + format (`csv`\|`xlsx`) + `include_contact` (**chỉ admin**, bắt buộc `reason`) → 202 {export_id}. Ghi audit (người, bộ lọc, IP). Cảnh báo log khi > 10.000 dòng |
 | GET | /admin/exports/{export} | `Admin\ExportController@show` | chủ export | trạng thái + `download_url` (temporary signed URL 10 phút, sinh đúng host admin-api sau proxy) |
 | GET | /admin/exports/{export}/download | `Admin\ExportController@download` | `signed` + staff + chủ export | Tên file `orders-YYYYMMDD-HHmm.csv/xlsx`, `Content-Disposition: attachment`. Ghi audit `export.download` |
+
+#### 2.5.1 Đơn hàng quản trị + duyệt thanh toán thủ công (US-022 — T24 thu gọn, T39; ADR-007)
+
+**Chung:**
+- Nhóm `staff`. Mọi route `/admin/orders*` chỉ cho **admin và quản lý trang** (`OrderPolicy`, `User::isStaff()`). Giáo viên → 403 `FORBIDDEN`, kiểm **trước** validate (payload sai vẫn 403).
+- `{order:code}` là mã đơn (`VV…`); không tồn tại → 404 `NOT_FOUND`.
+- Throttle: GET → `admin-order-read` (120/phút/user); approve, cancel, notes, refund → `admin-order-action` (30/phút/user).
+- Không bao giờ trả thông tin phụ huynh. Không có route sửa/xoá ghi chú.
+- Thao tác ghi (approve/cancel/notes/refund) khoá `carts` (của HS chủ đơn, nếu có) → `orders` FOR UPDATE rồi mới kiểm trạng thái; duyệt đi tiếp `courses → enrollments → coupons` trong `markPaid`.
+
+**`GET /admin/orders`** — query (`OrderFilterRequest`, sai → 422 `VALIDATION_ERROR`):
+| Tham số | Quy tắc |
+|---|---|
+| `from`, `to` | `YYYY-MM-DD` theo `created_at` (giờ app, gồm cả ngày `to`), `to − from ≤ 366` ngày. **Bắt buộc**, TRỪ khi `status[]` đúng bằng `["pending"]` (tab "Chờ duyệt": đơn chờ ít và tự hết hạn) |
+| `status[]` | ⊂ `pending, paid, failed, cancelled, refunded` |
+| `payment_method` | `none` \| `manual` \| `momo` (mới) |
+| `q` | Như bảng §2.5 (mã đơn / email chính xác / SĐT chuẩn hoá / tên `LIKE 'từ%'` escape) |
+| `needs_review` | `0`\|`1` |
+| `pending_older_than_hours` | int 1..720 (như cũ) |
+| `sort` | `newest` (mặc định: `created_at desc, id desc`) \| `oldest` (`created_at asc, id asc` — tab Chờ duyệt dùng giá trị này, US-022 AC15) (mới) |
+| `cursor`, `per_page` | Cursor theo `sort`; `per_page` 25 \| 50 |
+
+Response:
+```json
+{
+  "data": [
+    {
+      "code": "VV261008K7M2QX",
+      "status": "pending",
+      "status_reason": null,
+      "payment_method": "manual",
+      "items_count": 2,
+      "first_item_title": "Toán 9 nâng cao",
+      "subtotal": 550000,
+      "discount": 50000,
+      "total": 500000,
+      "needs_review": false,
+      "created_at": "2026-10-08T10:15:00+07:00",
+      "expires_at": "2026-10-11T10:15:00+07:00",
+      "expiring_soon": false,
+      "paid_at": null,
+      "cancelled_at": null,
+      "confirmed_by": null,
+      "student": { "id": 501, "name": "Nguyễn Văn An", "email_masked": "ng***@gmail.com", "phone_masked": "09****123", "is_deleted": false }
+    }
+  ],
+  "meta": { "per_page": 25, "next_cursor": "eyJ…", "prev_cursor": null, "total": 7 }
+}
+```
+- `items_count` (tổng số khóa) + `first_item_title` (bản chụp `order_items.course_title` của dòng `id` nhỏ nhất; FE hiện "Toán 9 nâng cao +1"): lấy bằng `withCount` + subquery chọn cột, không N+1, không đổi index.
+- `expiring_soon` = `status = pending` VÀ `expires_at − now < orders.manual.expiring_soon_hours` (12 giờ) (AC15 nhãn "Sắp hết hạn"). FE tự tính "còn bao lâu" từ `expires_at`.
+- `confirmed_by`: `{id, name}` người duyệt đơn `manual`, hoặc `null`.
+- `student.is_deleted = true` khi tài khoản đã ẩn danh: `name = "Tài khoản đã xoá"`, email/SĐT `null`.
+- Email/SĐT luôn **che** ở danh sách (S14).
+
+**`GET /admin/orders/pending-count`** — badge menu (US-022 AC15/Q14). Không cache; FE gọi khi tải layout, mỗi 60 giây khi tab đang mở và sau mỗi thao tác duyệt/huỷ.
+```json
+{ "pending_manual": 7, "expiring_soon": 2 }
+```
+Chỉ đếm đơn `payment_method = manual`, `status = pending` (đơn MoMo đang chờ trả tiền không cần người duyệt). **Đây là nguồn DUY NHẤT của badge menu** (chốt 2026-10-08): KHÔNG thêm vào `/admin/auth/me`, vì `me` là dữ liệu phiên FE chỉ gọi khi tải/đổi phiên (số sẽ cũ), lại trả cho cả giáo viên (không được biết số đơn). Giáo viên gọi endpoint này → 403; FE chỉ gọi khi `permissions.view_orders = true`.
+
+**`GET /admin/orders/{code}`** — chi tiết. Mỗi lần gọi ghi **đúng 1** audit `order.view_pii` (subject = đơn). FE không gọi lại vô cớ (không poll).
+```json
+{
+  "code": "VV261008K7M2QX",
+  "status": "pending",
+  "status_reason": null,
+  "payment_method": "manual",
+  "needs_review": false,
+  "needs_review_reasons": [],
+  "subtotal": 550000,
+  "discount": 50000,
+  "total": 500000,
+  "coupon_code": "HE2026",
+  "payment_reference": null,
+  "customer_note": "Gọi sau 18h giúp em",
+  "cancel_reason": null,
+  "created_at": "2026-10-08T10:15:00+07:00",
+  "expires_at": "2026-10-11T10:15:00+07:00",
+  "paid_at": null,
+  "cancelled_at": null,
+  "refunded_at": null,
+  "refund_note": null,
+  "confirmed_by": null,
+  "refunded_by": null,
+  "student": {
+    "id": 501, "name": "Nguyễn Văn An",
+    "email": "nguyenvanan@gmail.com", "email_verified": true,
+    "phone": "0901234123", "phone_verified": false,
+    "account_status": "active", "is_deleted": false
+  },
+  "items": [
+    { "course_id": 12, "title": "Toán 9 nâng cao", "unit_price": 300000, "discount_amount": 30000, "final_amount": 270000, "course_status": "published", "current_price": 300000 },
+    { "course_id": 15, "title": "Ngữ văn 9", "unit_price": 250000, "discount_amount": 20000, "final_amount": 230000, "course_status": "unpublished", "current_price": 250000 }
+  ],
+  "status_logs": [
+    { "from": null, "to": "pending", "reason": null, "actor_type": "user", "actor": { "id": 501, "name": "Nguyễn Văn An" }, "meta": { "items": 2 }, "created_at": "2026-10-08T10:15:00+07:00" }
+  ],
+  "notes": [
+    { "id": 31, "body": "Đã gọi 9h, hẹn chuyển khoản chiều nay", "author": { "id": 3, "name": "Trần Thị Bình" }, "created_at": "2026-10-08T09:05:00+07:00" }
+  ],
+  "attempts": [],
+  "approval": {
+    "can_approve": true,
+    "can_approve_late": false,
+    "can_cancel": true,
+    "approval_window_until": null,
+    "warnings": [ { "code": "COURSE_UNPUBLISHED", "course_id": 15, "title": "Ngữ văn 9" } ],
+    "late_approval_warnings": []
+  }
+}
+```
+- `student.phone_verified` / `email_verified`: boolean theo `*_verified_at` (SĐT chưa xác thực → FE gắn nhãn "chưa xác thực"). `student.account_status` ∈ `active|locked` (cột `users.status`); tài khoản đã ẩn danh: `is_deleted = true`, `account_status` giữ giá trị cột, `name = "Tài khoản đã xoá"`, email/SĐT `null`. Chi tiết luôn đầy đủ (không che), danh sách luôn che — không đổi.
+- `items[].course_status` ∈ `published|unpublished|draft|deleted` (khóa hiện tại, `withTrashed`), `current_price` = giá hiện tại (null nếu đã xoá) để FE hiện "giá hiện tại khác giá chốt" (Could).
+- `status_logs` cũ nhất trước; `actor` null với `system`/`gateway`; `meta` chỉ có khoá allowlist (`source`, `late`, `review`, `items`).
+- `notes` cũ nhất trước (append-only). `attempts` chỉ có với đơn cổng (shape T24), `[]` với `manual`.
+- `needs_review_reasons`: lấy từ `meta.review` của lần chuyển `paid` gần nhất (`late_payment`, `already_owned`, `coupon_over_limit`, `coupon_already_used`, `course_unavailable`); `[]` khi chưa `paid` hoặc không có.
+- `approval` (một nguồn sự thật với guard của approve/cancel, `ManualOrderService::approvalState`):
+  - `can_approve` = `manual` VÀ `pending`;
+  - `can_approve_late` = `manual` VÀ `cancelled` VÀ `status_reason ≠ account_deleted` VÀ `now ≤ cancelled_at + approval_window_days`;
+  - `approval_window_until` = `cancelled_at + approval_window_days` khi đơn `manual` `cancelled`, ngược lại `null`;
+  - `can_cancel` = `manual` VÀ `pending`;
+  - `warnings[].code` ∈ `COURSE_UNPUBLISHED` (vẫn duyệt được, AC23), `COURSE_DELETED` (duyệt sẽ bị 409, AC24), `ALREADY_OWNED` (HS đã có enrollment `active` cho khóa này từ nguồn khác), `ACCOUNT_LOCKED`, `ACCOUNT_DELETED`. Mỗi phần tử có `course_id`/`title` khi liên quan khóa.
+  - `late_approval_warnings[]` (chốt 2026-10-08 theo design §7): **dự báo** những gì sẽ thành cờ "Cần xem lại" nếu duyệt muộn **ngay lúc này**, để FE hiện trong hộp Duyệt muộn TRƯỚC khi bấm. Chỉ khác `[]` khi `can_approve_late = true`. Phần tử `{code, course_id?, title?, coupon_code?}`, `code` ∈ `ALREADY_OWNED` (HS đã có enrollment `active` cho khóa từ đơn/nguồn khác → giữ quyền cũ, hoàn tiền phần trùng ngoài hệ thống), `COUPON_OVER_LIMIT` (`used_count ≥ max_uses`), `COUPON_ALREADY_USED` (HS đã có `coupon_usages` cho mã này ở đơn khác). Khóa đã xoá KHÔNG nằm ở đây (là `warnings` `COURSE_DELETED`, duyệt sẽ bị 409). Đây là ảnh chụp đọc thường, không khoá: lúc duyệt server tính lại dưới khoá và `needs_review_reasons` sau duyệt là kết quả cuối (có thể khác nếu dữ liệu đổi giữa chừng). Cùng hàm tính với guard (`ManualOrderService::approvalState`).
+
+**`POST /admin/orders/{code}/approve`** — "Duyệt: đã nhận tiền" / "Duyệt muộn" (US-022 BR12, AC17–AC24). Request (`ApproveOrderRequest`):
+```json
+{ "confirm": true, "late": false, "payment_reference": "FT26100812345", "note": "Chuyển khoản Vietcombank 10:02" }
+```
+| Field | Quy tắc |
+|---|---|
+| `confirm` | Bắt buộc, phải `true` (`accepted`) → ngược lại 422 `errors.confirm` (AC18) |
+| `late` | Tuỳ chọn boolean, mặc định `false`. `false` = duyệt đơn `pending`; `true` = duyệt muộn đơn `cancelled` |
+| `payment_reference` | Tuỳ chọn, ≤ 100 ký tự, `PlainText` một dòng → `orders.payment_reference` |
+| `note` | Tuỳ chọn, ≤ 1000 ký tự, `PlainText(allowNewlines)` → thêm 1 dòng `order_notes` trong cùng transaction |
+
+**200** = shape `GET /admin/orders/{code}` sau khi duyệt (`status = paid`, `status_reason = manual_confirmed`, `confirmed_by`, `paid_at`; duyệt muộn có `needs_review = true`, `needs_review_reasons` chứa `late_payment`). Response này **không** ghi thêm `order.view_pii` (đã có `order.manual_approve`).
+
+Thứ tự kiểm dưới khoá `orders` (guard của `markPaid`):
+| # | Điều kiện | Lỗi |
+|---|---|---|
+| 1 | `payment_method ≠ manual` | 409 `ORDER_NOT_MANUAL` |
+| 2 | `status ∈ {paid, refunded}` | 409 `ALREADY_PROCESSED` `{status, status_reason}` (bấm đúp, 2 người cùng duyệt — AC19) |
+| 3 | `late = false` và `status ≠ pending` | 409 `ORDER_STATUS_CHANGED` `{status, status_reason, cancelled_at, can_approve_late, approval_window_until}` (AC21) |
+| 4 | `late = true` và `status ≠ cancelled` | 409 `ORDER_STATUS_CHANGED` (cùng shape) |
+| 5 | `late = true` và (`status_reason = account_deleted` hoặc `now > cancelled_at + approval_window_days`) | 409 `ORDER_APPROVAL_WINDOW_PASSED` `{cancelled_at, approval_window_until}` (AC22) |
+| 6 | Có khóa đã xoá mềm | 409 `COURSE_UNAVAILABLE` `{courses: [{id, title}]}` — rollback, không duyệt một phần (AC24) |
+
+Thành công: `markPaid` nguồn `manual` — enrollment `active` cho mọi khóa (khóa đã sở hữu từ nguồn khác: giữ quyền cũ, `needs_review` `already_owned`), `coupon_usages` + `used_count` (vượt lượt/trùng: `needs_review`), xoá các khóa khỏi giỏ HS, `order_status_logs` actor `staff`. Sau commit: `OrderPaidMail` cho HS (có email đã xác thực, chưa ẩn danh), thư phụ huynh theo ADR-006. Audit `order.manual_approve` `changes = {status: {from, to: "paid"}, late, needs_review, has_reference}` (không ghi nội dung ghi chú/mã giao dịch). Chạy được khi `FEATURE_MANUAL_PAYMENT` tắt (AC29).
+
+**`POST /admin/orders/{code}/cancel`** — Quản trị viên huỷ đơn `manual` `pending` (BR13, AC20). Request (`CancelOrderRequest`):
+```json
+{ "reason": "Không liên hệ được qua SĐT và Zalo", "note": "Gọi 3 lần 8/10, 9/10" }
+```
+- `reason`: bắt buộc, 5–500 ký tự (sau trim), `PlainText(allowNewlines)` → `orders.cancel_reason_public`, **hiện cho học sinh** và có trong thư. Thiếu/ngắn → 422 `errors.reason`.
+- `note`: tuỳ chọn ≤ 1000, ghi chú nội bộ (`order_notes`), HS không thấy.
+- **200** = chi tiết đơn (`cancelled`/`admin_cancelled`). Nhả chỗ mã, giỏ HS giữ nguyên. Sau commit: thư huỷ cho HS (kèm `reason`). Audit `order.manual_cancel` `changes = {status: {from: "pending", to: "cancelled"}}` (không ghi lý do).
+- Lỗi: 409 `ORDER_NOT_MANUAL`; 409 `ALREADY_PROCESSED` (đã `cancelled`); 409 `ORDER_STATUS_CHANGED` (đã `paid`/`refunded`); 422; 403; 404.
+
+**`POST /admin/orders/{code}/notes`** — ghi chú nội bộ (BR18, AC25), mọi đơn, mọi trạng thái, không đổi trạng thái. Request `{ "body": "Đã gọi 9h, hẹn chiều" }` (`body` bắt buộc, 1–1000 ký tự sau trim, `PlainText(allowNewlines)`). **201**:
+```json
+{ "id": 32, "body": "Đã gọi 9h, hẹn chiều", "author": { "id": 3, "name": "Trần Thị Bình" }, "created_at": "2026-10-08T09:05:00+07:00" }
+```
+Audit `order.note_add` `changes = {note_id}`. Không chống trùng ở server: FE khoá nút khi đang gửi.
+
+**`POST /admin/orders/{code}/refund`** — như bảng §2.5 (T24), áp cả đơn `manual` đã `paid` (AC26). **200** = chi tiết đơn (`refunded`). Đơn chưa `paid` → 409 `ORDER_STATUS_CHANGED`; đã `refunded` → 409 `ALREADY_PROCESSED`.
 
 #### Tài khoản staff + nhật ký thao tác (T33, US-016) — chỉ admin (Gate `manage-system`; QLT/GV → 403 `FORBIDDEN`, kiểm TRƯỚC validate)
 
@@ -794,7 +1138,10 @@ app/
   Support/              Like (escape LIKE), CsvCell (tiền tố `'` chống injection)
   Jobs/                 ExportOrdersJob, SyncVideoAssetStatusJob, ReconcilePaymentAttemptJob
   Mail/                 OtpMail (ShouldBeEncrypted), OrderPaidMail (ShouldBeEncrypted), ParentNoticeMail (ShouldBeEncrypted, T29),
-                        StaffNewDeviceMail, EnrollmentDecisionMail
+                        StaffNewDeviceMail, EnrollmentDecisionMail,
+                        ManualOrderReceivedMail, ManualOrderCancelledMail, NewManualOrderStaffMail (US-022, ShouldBeEncrypted)
+  (US-022, ADR-007)     Services/Orders/{PaymentMethods, ManualOrderService, AdminOrderQuery, RefundService, Data/FulfillmentOptions},
+                        Models/OrderNote, Policies/OrderPolicy, Console `orders:expire-manual` — chi tiết docs/tech/US-022.md
   Console/Commands/     staff:create|lock|unlock, orders:expire-pending, quizzes:auto-submit-expired,
                         payments:reconcile, payments:purge-webhook-events, counters:recount, exports:purge,
                         videos:check-stuck, otp:prune, users:purge-unverified, audit:purge
@@ -805,7 +1152,7 @@ config/                 features.php (+ parent_notices; bỏ parent_consent_enfo
                         parent_notice_daily_cap_per_address=5, notice_token_key, age_timezone), auth.php (otp.channels, ttl, limits), captcha.php
 ```
 
-**Trách nhiệm dễ đoán sai:** `LessonAccessService::canWatch` là nơi duy nhất chứa quy tắc xem video (không cache); `PricingCalculator` là hàm thuần dùng chung cho giỏ/checkout/đơn; `OrderFulfillmentService::markPaid` là đường duy nhất tạo enrollment từ đơn; `EnrollmentService` là nơi duy nhất đổi `enrollments.status`; `StudentSessionService` là nơi duy nhất ghi `current_session_id`; controller không gọi thẳng MoMo/VideoLab.
+**Trách nhiệm dễ đoán sai:** `PaymentMethods` là nơi duy nhất quyết định "mua khóa có phí được không / bằng phương thức nào" (US-022, ADR-007; không đọc thẳng `features.paid_checkout` ở chỗ khác, trừ guard và `/pay` MoMo); `LessonAccessService::canWatch` là nơi duy nhất chứa quy tắc xem video (không cache); `PricingCalculator` là hàm thuần dùng chung cho giỏ/checkout/đơn; `OrderFulfillmentService::markPaid` là đường duy nhất tạo enrollment từ đơn; `EnrollmentService` là nơi duy nhất đổi `enrollments.status`; `StudentSessionService` là nơi duy nhất ghi `current_session_id`; controller không gọi thẳng MoMo/VideoLab.
 
 ## 4. Hợp đồng nội dung người dùng tải lên / nhập (S2, S8)
 

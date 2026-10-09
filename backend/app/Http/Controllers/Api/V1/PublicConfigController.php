@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Services\Orders\PaymentMethods;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -13,12 +14,19 @@ use Illuminate\Http\JsonResponse;
  */
 class PublicConfigController extends Controller
 {
+    public function __construct(private readonly PaymentMethods $paymentMethods) {}
+
     public function show(): JsonResponse
     {
+        $methods = $this->paymentMethods->available();
+
         return response()->json([
             'referral_code_enabled' => (bool) config('features.referral_code'),
             'quiz_time_limit_enabled' => (bool) config('features.quiz_time_limit'),
-            'paid_checkout_enabled' => (bool) config('features.paid_checkout'),
+            // US-022 (ADR-007): = có ít nhất 1 phương thức thanh toán có tiền đang bật (không còn bằng cờ MoMo).
+            'paid_checkout_enabled' => $methods !== [],
+            'payment_methods' => $methods,
+            'manual_payment' => $this->paymentMethods->manualPublicConfig(),
             'otp' => [
                 'ttl_minutes' => config('auth.otp.ttl_minutes'),
                 'resend_cooldown_seconds' => config('auth.otp.cooldown_seconds'),

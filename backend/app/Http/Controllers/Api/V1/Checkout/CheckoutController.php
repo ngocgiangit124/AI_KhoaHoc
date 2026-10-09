@@ -9,6 +9,7 @@ use App\Http\Resources\CheckoutPreviewResource;
 use App\Models\User;
 use App\Services\Orders\CheckoutChangedException;
 use App\Services\Orders\CheckoutService;
+use App\Support\VnTime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,7 +26,8 @@ class CheckoutController extends Controller
     }
 
     /**
-     * 201 đơn mới / 200 dùng lại đơn pending cũ. `payment` null khi đơn 0đ (đã `paid`) hoặc link hết hạn chờ đối soát.
+     * 201 đơn mới / 200 dùng lại đơn pending cũ. `payment` null khi đơn 0đ (đã `paid`), đơn `manual` (US-022: không có link
+     * thanh toán) hoặc link hết hạn chờ đối soát.
      */
     public function store(CheckoutRequest $request): JsonResponse
     {
@@ -33,7 +35,13 @@ class CheckoutController extends Controller
         $user = $request->user();
 
         try {
-            $result = $this->checkout->checkout($user, (int) $request->validated('expected_total'), $request->gateway());
+            $result = $this->checkout->checkout(
+                $user,
+                (int) $request->validated('expected_total'),
+                $request->paymentMethod(),
+                $request->customerNote(),
+                $request->replacePending(),
+            );
         } catch (CheckoutChangedException $e) {
             throw new DomainException($e->code(), $e->getMessage(), $e->status(), [
                 'reasons' => $e->reasons,
@@ -47,7 +55,9 @@ class CheckoutController extends Controller
         return response()->json([
             'order_code' => $order->code,
             'status' => $order->status->value,
+            'payment_method' => $order->payment_method ?? 'none',
             'total' => $order->total_amount,
+            'expires_at' => VnTime::iso($order->expires_at),
             'reused' => $result->reused,
             'payment' => $attempt?->pay_url === null ? null : [
                 'gateway' => $attempt->gateway,

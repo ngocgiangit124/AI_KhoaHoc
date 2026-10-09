@@ -207,6 +207,9 @@ class AppServiceProvider extends ServiceProvider
         // Cụm 3 L2: giỏ hàng + preview checkout (mỗi lần mở transaction, khoá `carts`, đếm `orders`): 60/phút/người.
         RateLimiter::for('cart', fn (Request $request) => Limit::perMinute(60)->by('cart:'.$this->identity($request)));
         RateLimiter::for('checkout', fn (Request $request) => Limit::perMinute(10)->by($this->identity($request)));
+        // US-022 (T38): đơn của tôi (đọc) 60/phút, học sinh tự huỷ đơn 10/phút (api-contract §1.6).
+        RateLimiter::for('orders-read', fn (Request $request) => Limit::perMinute(60)->by('orders-read:'.$this->identity($request)));
+        RateLimiter::for('order-cancel', fn (Request $request) => Limit::perMinute(10)->by('order-cancel:'.$this->identity($request)));
         RateLimiter::for('pay', fn (Request $request) => Limit::perMinute(10)->by($this->identity($request)));
 
         RateLimiter::for('check-payment', function (Request $request) {

@@ -70,6 +70,9 @@
         <env name="BUNNY_TOKEN_KEY" value="" force="true"/>
         <env name="BUNNY_WEBHOOK_TOKEN" value="" force="true"/>
         <env name="NIGHTWATCH_ENABLED" value="false" force="true"/>
+        <!-- US-022: .env.example bật cờ này cho local; test cũ không được phụ thuộc vào đó. Test T38 tự config(). -->
+        <env name="FEATURE_MANUAL_PAYMENT" value="false" force="true"/>
+        <env name="VIDEO_BIND_IP" value="true" force="true"/>
 
         <server name="APP_ENV" value="testing" force="true"/>
         <server name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
@@ -104,5 +107,7 @@
         <server name="BUNNY_TOKEN_KEY" value="" force="true"/>
         <server name="BUNNY_WEBHOOK_TOKEN" value="" force="true"/>
         <server name="NIGHTWATCH_ENABLED" value="false" force="true"/>
+        <server name="FEATURE_MANUAL_PAYMENT" value="false" force="true"/>
+        <server name="VIDEO_BIND_IP" value="true" force="true"/>
     </php>
 </phpunit>

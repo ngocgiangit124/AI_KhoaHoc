@@ -48,7 +48,25 @@ class AccountAnonymizer
             throw new DomainException('ACCOUNT_NOT_VERIFIED', 'Bạn cần xác thực email trước khi xoá tài khoản.', 403);
         }
 
-        $retryAt = $this->livePaymentUntil((int) $user->getKey());
+        $userId = (int) $user->getKey();
+        $retryAt = $this->livePaymentUntil($userId);
+        $manualOrder = $this->pendingManualOrder($userId);
+
+        if ($manualOrder !== null) {
+            // US-022: đơn thủ công chờ duyệt CHẶN xoá tài khoản (BR16). `retry_after_at` = MAX(link MoMo sống, hạn đơn thủ công).
+            $manualUntil = CarbonImmutable::parse((string) $manualOrder->expires_at, (string) config('app.timezone'));
+            $retryAt = $retryAt === null || $manualUntil->gt($retryAt) ? $manualUntil : $retryAt;
+
+            throw new DomainException(
+                'ACCOUNT_HAS_PENDING_PAYMENT',
+                "Bạn đang có đơn #{$manualOrder->code} chờ Quản trị viên duyệt. Hãy huỷ đơn trong Đơn của tôi nếu không còn muốn mua, rồi thử lại.",
+                409,
+                [
+                    'retry_after_at' => $retryAt->setTimezone((string) config('privacy.age_timezone'))->toIso8601String(),
+                    'pending_order_code' => $manualOrder->code,
+                ],
+            );
+        }
 
         if ($retryAt !== null) {
             throw new DomainException(
@@ -146,6 +164,22 @@ class AccountAnonymizer
 
         // 6. Pha B chỉ chạy khi pha A đã commit.
         DB::afterCommit(fn () => FinalizeAccountDeletionJob::dispatch($userId));
+    }
+
+    /**
+     * Đơn `manual` đang `pending` còn hạn của học sinh (US-022): `{code, expires_at}` hoặc null. Đọc thường (không khoá):
+     * lần kiểm dưới khoá `users` X trong `anonymizeLocked` thấy mọi đơn đã commit (READ COMMITTED), còn checkout đi sau thì gặp
+     * `anonymized_at` (khoá SHARE `users`) nên không tạo được đơn mới.
+     */
+    private function pendingManualOrder(int $userId): ?object
+    {
+        return DB::table('orders')
+            ->where('user_id', $userId)
+            ->where('status', OrderStatus::Pending->value)
+            ->where('payment_method', 'manual')
+            ->where('expires_at', '>', now())
+            ->select(['code', 'expires_at'])
+            ->first();
     }
 
     /**

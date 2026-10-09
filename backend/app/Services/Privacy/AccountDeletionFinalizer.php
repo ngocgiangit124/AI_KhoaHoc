@@ -79,12 +79,28 @@ class AccountDeletionFinalizer
             // carts (khoá tuần tự hoá checkout) → orders (theo PK, kiểm lại trạng thái).
             Cart::query()->where('user_id', $userId)->lockForUpdate()->first();
 
+            // US-022 (security S1): `customer_note` có thể chứa SĐT/Zalo bên thứ ba → xoá trên MỌI đơn của HS (đơn giữ làm chứng từ).
+            // Ở pha B để đúng thứ tự khoá carts → orders (pha A giữ `users` X, khoá `orders` ở đó có thể vòng chờ với markPaid). Từng đơn khoá theo PK.
+            $noteIds = Order::query()->where('user_id', $userId)->whereNotNull('customer_note')->orderBy('id')->pluck('id');
+            foreach ($noteIds as $noteId) {
+                Order::query()->whereKey($noteId)->lockForUpdate()->first();
+                Order::query()->whereKey($noteId)->update(['customer_note' => null]);
+            }
+
             $ids = Order::query()->where('user_id', $userId)->where('status', OrderStatus::Pending->value)->orderBy('id')->pluck('id');
 
             foreach ($ids as $id) {
                 $order = Order::query()->whereKey($id)->lockForUpdate()->first();
 
                 if ($order === null || $order->status !== OrderStatus::Pending) {
+                    continue;
+                }
+
+                if ($order->payment_method === 'manual') {
+                    // US-022: đơn thủ công chờ duyệt (đua với pha A hoặc đã quá hạn nhưng job chưa chạy) → GIỮ nguyên. KHÔNG đặt
+                    // `$kept` (không phát lại job): `orders:expire-manual` sẽ huỷ khi hết hạn (không gửi thư cho tài khoản đã ẩn danh).
+                    Log::info('account_deletion.manual_order_kept', ['user_id' => $userId, 'order_id' => $order->getKey()]);
+
                     continue;
                 }
 

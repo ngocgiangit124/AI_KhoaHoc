@@ -32,6 +32,10 @@ return [
     // Tắt: POST /checkout tổng > 0 trả 503 PAYMENT_DISABLED, preview có can_checkout=false. Đơn 0đ/khóa miễn phí không ảnh hưởng.
     'paid_checkout' => (bool) env('FEATURE_PAID_CHECKOUT', false),
 
+    // US-022 (ADR-007): thanh toán thủ công "Liên hệ Quản trị viên". Độc lập với `paid_checkout` (MoMo). Mặc định TẮT trong code;
+    // `.env.example` bật cho local. Production bật sau cùng khi PO gửi kênh liên hệ thật (ProductionConfigGuard::guardManualPayment).
+    'manual_payment' => (bool) env('FEATURE_MANUAL_PAYMENT', false),
+
     'external_video_preview_only' => (bool) env('FEATURE_EXTERNAL_VIDEO_PREVIEW_ONLY', true),
 
 ];

@@ -30,6 +30,11 @@ use Illuminate\Support\Carbon;
  * @property bool $needs_review
  * @property Carbon $expires_at
  * @property Carbon|null $paid_at
+ * @property Carbon|null $cancelled_at
+ * @property Carbon|null $refunded_at
+ * @property string|null $customer_note Ghi chú của học sinh khi đặt đơn `manual` (US-022 BR9); không sửa được
+ * @property string|null $cancel_reason_public Lý do Quản trị viên huỷ, hiển thị cho học sinh (BR13); chỉ khi `admin_cancelled`
+ * @property int|null $confirmed_by Người duyệt đơn `manual` (BR12)
  */
 class Order extends Model
 {
@@ -57,6 +62,7 @@ class Order extends Model
             'paid_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'refunded_at' => 'datetime',
+            'confirmed_by' => 'integer',
         ];
     }
 
@@ -95,6 +101,22 @@ class Order extends Model
     public function statusLogs(): HasMany
     {
         return $this->hasMany(OrderStatusLog::class);
+    }
+
+    /**
+     * @return HasMany<OrderNote, $this>
+     */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(OrderNote::class);
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function confirmedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'confirmed_by');
     }
 
     /**

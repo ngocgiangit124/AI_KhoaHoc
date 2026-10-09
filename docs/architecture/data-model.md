@@ -384,20 +384,23 @@ Quyết định **không tách bảng `quiz_attempt_answers`** như story gợi 
 | code | varchar(20) | N | | **U** | `VV` + `yymmdd` + 6 ký tự Crockford base32 ngẫu nhiên; hiển thị cho HS/admin |
 | user_id | bigint | N | | FK users | |
 | status | varchar(20) | N | `pending` | | `pending` / `paid` / `failed` / `cancelled` / `refunded` |
-| status_reason | varchar(100) | Y | | | `expired_12h`, `superseded`, `gateway_failed:<code>`, `zero_amount`, `admin_refund`... (US-010 AC3) |
+| status_reason | varchar(100) | Y | | | `expired_12h`, `superseded`, `gateway_failed:<code>`, `zero_amount`, `admin_refund`, `account_deleted`; US-022: `manual_confirmed`, `user_cancelled`, `admin_cancelled`, `expired`... (US-010 AC3) |
 | subtotal_amount | int unsigned | N | | | Tổng giá chốt |
 | discount_amount | int unsigned | N | 0 | | |
 | total_amount | int unsigned | N | | | = subtotal − discount (CHECK ≥ 0 nhờ app + unsigned) |
 | coupon_id | bigint | Y | | FK coupons | |
 | coupon_code | varchar(50) | Y | | | Snapshot |
 | coupon_hold_until | datetime | Y | | | Đơn pending chỉ "giữ chỗ" lượt mã tới thời điểm này (= hạn link thanh toán, ≤ 30 phút — S18). Tạo link mới sau mốc này phải kiểm lại sức chứa (ADR-001 §6) |
-| payment_method | varchar(20) | Y | | | `momo` / `none` (đơn 0đ). Mở rộng được |
+| payment_method | varchar(20) | Y | | CHECK `chk_orders_payment_method` (US-022) | `momo` / `none` (đơn 0đ) / `manual` (US-022, ADR-007) / `fake` (local) |
 | payment_reference | varchar(100) | Y | | | Mã giao dịch cổng (MoMo `transId`) của attempt thành công |
 | needs_review | boolean | N | false | IX (needs_review, created_at) | Bật khi có bất thường tiền (lệch số tiền, thanh toán trùng, trả tiền muộn...) |
 | expires_at | datetime | N | | | created_at + `orders.pending_ttl_hours` (12) |
 | paid_at, cancelled_at, refunded_at | datetime | Y | | | |
 | refunded_by | bigint | Y | | FK users | |
 | refund_note | varchar(1000) | Y | | | |
+| customer_note | varchar(500) | Y | | | US-022: ghi chú HS khi đặt đơn `manual` (văn bản thuần nhiều dòng), không sửa được. Chỉ hiện ở chi tiết (HS chủ đơn; admin có audit `order.view_pii`) |
+| cancel_reason_public | varchar(500) | Y | | | US-022: lý do Quản trị viên huỷ, hiện cho HS (`status_reason = admin_cancelled`) |
+| confirmed_by | bigint | Y | | FK users restrict | US-022: staff duyệt đơn `manual` |
 | **pending_flag** | tinyint generated STORED | Y | | | `CASE WHEN status='pending' THEN 1 END` |
 | created_at, updated_at | | | | | |
 
@@ -407,7 +410,11 @@ Index: **U (user_id, pending_flag)** (mỗi HS tối đa 1 đơn pending — ch�
 
 **order_items**: id, `order_id` FK cascade, `course_id` FK, `course_title` varchar(255) snapshot, `unit_price` int (giá chốt), `discount_amount` int (phân bổ giảm giá theo tỷ lệ, phần dư dồn vào dòng cuối), `final_amount` int. **U (order_id, course_id)**, IX (course_id).
 
-**order_status_logs**: id, `order_id` FK cascade, `from_status` null, `to_status`, `reason` varchar(100) null, `actor_type` varchar(10) (`system`/`user`/`gateway`), `actor_id` null, `meta` json null, `created_at`. IX (order_id, id). Phục vụ "lịch sử trạng thái" + lý do huỷ (US-010 AC3).
+**order_status_logs**: id, `order_id` FK cascade, `from_status` null, `to_status`, `reason` varchar(100) null, `actor_type` varchar(10) (`system`/`user`/`gateway`/`staff` — `staff` từ US-022), `actor_id` null, `meta` json null, `created_at`. IX (order_id, id). Phục vụ "lịch sử trạng thái" + lý do huỷ (US-010 AC3). `meta` chỉ khoá allowlist (`source`, `late`, `review`, `items`), không PII.
+
+**Đơn thủ công (US-022, ADR-007, chi tiết `docs/tech/US-022.md`):** `payment_method = manual`, `expires_at = created_at + orders.manual.pending_ttl_hours` (72), `coupon_hold_until = expires_at` (giữ chỗ lượt mã suốt thời gian chờ). `status_reason` mới: `manual_confirmed`, `user_cancelled`, `admin_cancelled`, `expired`. Không có `payment_attempts`.
+
+**order_notes** (US-022, BR18 — ghi chú nội bộ, append-only): id, `order_id` FK cascade, `author_id` FK users restrict, `body` varchar(1000) N, `created_at` datetime N (không `updated_at`). IX (order_id, id). ≤ ~150k dòng/năm. HS không bao giờ thấy.
 
 **payment_attempts** — mỗi lần tạo link thanh toán với cổng (ADR-001)
 | Cột | Kiểu | Null | Index | Ghi chú |

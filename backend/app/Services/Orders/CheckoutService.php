@@ -6,6 +6,7 @@ use App\Enums\CourseStatus;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentAttemptStatus;
 use App\Exceptions\DomainException;
+use App\Exceptions\ManualOrderLimitException;
 use App\Models\Cart;
 use App\Models\Coupon;
 use App\Models\Course;
@@ -23,6 +24,7 @@ use App\Services\Payments\Data\PaymentRequest;
 use App\Services\Payments\Exceptions\AmountOutOfRangeException;
 use App\Services\Payments\Exceptions\GatewayUnavailableException;
 use App\Services\Payments\PaymentGatewayManager;
+use App\Support\VnTime;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -48,8 +50,11 @@ use Throwable;
  * Quyết định:
  *  - Giỏ/giá/mã đổi so với `expected_total` HS thấy → commit phần đã gỡ mã (nếu có) rồi 409 CHECKOUT_CHANGED + preview mới.
  *  - Mã hết chỗ (tính cả đơn pending còn hạn giữ chỗ của HS khác) → gỡ mã khỏi giỏ + 409 CHECKOUT_CHANGED (ADR-001 §6).
- *  - Đã có đơn pending: cùng nội dung (khóa, số tiền từng dòng, mã, cổng) → dùng lại (không tạo đơn mới); khác nội
- *    dung hoặc đã quá `expires_at` → huỷ (`superseded`), tạo đơn mới.
+ *  - Đã có đơn pending: cùng nội dung (khóa, số tiền từng dòng, mã, phương thức) → dùng lại (không tạo đơn mới); khác nội
+ *    dung hoặc đã quá `expires_at` → huỷ (`superseded`), tạo đơn mới. Ngoại lệ US-022: đơn chờ `manual` CHƯA quá hạn mà khác
+ *    nội dung chỉ bị thay khi HS gửi `replace_pending` (HS có thể đã chuyển khoản cho đơn cũ) → 409 PENDING_ORDER_EXISTS.
+ *  - US-022 (ADR-007): phương thức `manual` ("Liên hệ Quản trị viên") không qua cổng: không `payment_attempts`, không gọi mạng,
+ *    hạn 72 giờ, giữ chỗ mã tới hạn đơn, hạn mức đơn mới/ngày; thư gửi sau commit chỉ khi đơn MỚI tạo.
  *  - Không bao giờ tạo link mới khi còn attempt chưa được cổng xác nhận (tránh trả tiền 2 lần): link còn hạn → trả
  *    lại; link hết hạn chưa xác nhận → `linkExpired` (HS gọi POST /orders/{code}/pay của T20 để đối soát).
  */
@@ -69,6 +74,8 @@ class CheckoutService
         private readonly OrderCodeGenerator $codes,
         private readonly OrderFulfillmentService $fulfillment,
         private readonly PaymentGatewayManager $gateways,
+        private readonly PaymentMethods $methods,
+        private readonly ManualOrderNotifier $notifier,
     ) {}
 
     /**
@@ -94,22 +101,25 @@ class CheckoutService
     }
 
     /**
+     * @param  string|null  $paymentMethod  `manual` | tên cổng; null = phương thức mặc định (`PaymentMethods::default()`)
+     *
      * @throws DomainException CART_EMPTY 422 · ZERO_TOTAL_DISABLED 422 · AMOUNT_BELOW_GATEWAY_MIN/ABOVE_GATEWAY_MAX 422 ·
      *                         PAYMENT_IN_PROGRESS 409 · PAYMENT_GATEWAY_UNAVAILABLE 502 (đơn vẫn pending, `errors.order_code`) ·
      *                         CheckoutChangedException 409
-     * @throws ValidationException cổng không nằm trong `enabled_gateways` (chỉ khi tổng > 0, sau 409/503)
+     *                         PENDING_ORDER_EXISTS 409 · MANUAL_ORDER_LIMIT 429 · PAYMENT_DISABLED 503
+     * @throws ValidationException phương thức không đang bật (chỉ khi tổng > 0, sau 409/503)
      */
-    public function checkout(User $user, int $expectedTotal, string $gateway): CheckoutResult
+    public function checkout(User $user, int $expectedTotal, ?string $paymentMethod = null, ?string $customerNote = null, bool $replacePending = false): CheckoutResult
     {
-        // Cụm 3 M1: cổng chỉ được kiểm khi đơn cần thanh toán (tổng > 0, trong prepare()); đơn 0đ không cần gateway
-        // nên vẫn chạy khi PAYMENT_GATEWAYS rỗng (mẫu production V1).
-        $gateway = mb_strtolower($gateway);
+        // Cụm 3 M1: phương thức chỉ được kiểm khi đơn cần thanh toán (tổng > 0, trong prepare()); đơn 0đ không cần nên
+        // vẫn chạy khi không có phương thức nào bật (mẫu production V1).
+        $paymentMethod = $paymentMethod === null ? null : mb_strtolower($paymentMethod);
 
         if (Cart::query()->where('user_id', $user->getKey())->doesntExist()) {
             throw $this->cartEmpty();
         }
 
-        $plan = DB::transaction(fn (): array => $this->prepare($user, $expectedTotal, $gateway), self::DEADLOCK_ATTEMPTS);
+        $plan = DB::transaction(fn (): array => $this->prepare($user, $expectedTotal, $paymentMethod, $customerNote, $replacePending), self::DEADLOCK_ATTEMPTS);
 
         if ($plan['changed'] !== null) {
             $snapshot = $this->preview($user);
@@ -129,6 +139,11 @@ class CheckoutService
             return new CheckoutResult($this->fulfillment->markPaid($order, 'checkout'), null, $plan['reused']);
         }
 
+        if ($order->payment_method === PaymentMethods::MANUAL) {
+            // Đơn thủ công: không có giao dịch cổng. Thư (đơn mới) đã đăng ký afterCommit trong pha 1.
+            return new CheckoutResult($order, null, $plan['reused']);
+        }
+
         /** @var PaymentAttempt|null $attempt */
         $attempt = $plan['attempt'];
 
@@ -144,7 +159,7 @@ class CheckoutService
      *
      * @return array{changed: list<string>|null, order: ?Order, attempt: ?PaymentAttempt, attempt_new: bool, reused: bool, link_expired: bool}
      */
-    private function prepare(User $user, int $expectedTotal, string $gateway): array
+    private function prepare(User $user, int $expectedTotal, ?string $requestedMethod, ?string $customerNote, bool $replacePending): array
     {
         $now = now();
         $cart = $this->cart->lockCart($user);
@@ -214,17 +229,22 @@ class CheckoutService
             return $this->changed($reasons === [] ? ['PRICE_CHANGED'] : $reasons);
         }
 
-        if ($pricing->total > 0 && ! config('features.paid_checkout')) {
+        // US-022: "mua có tiền được không" do PaymentMethods quyết (cờ `manual` và cờ MoMo độc lập).
+        if ($pricing->total > 0 && $this->methods->available() === []) {
             throw new DomainException('PAYMENT_DISABLED', 'Thanh toán trực tuyến đang tạm khoá.', 503);
         }
 
-        if ($pricing->total > 0 && ! in_array($gateway, $this->gateways->enabled(), true)) {
-            throw ValidationException::withMessages(['gateway' => ['Phương thức thanh toán không được hỗ trợ.']]);
+        $method = 'none';
+        if ($pricing->total > 0) {
+            $method = $requestedMethod ?? (string) $this->methods->default();
+
+            if (! $this->methods->isAvailable($method)) {
+                throw ValidationException::withMessages(['payment_method' => ['Phương thức thanh toán không được hỗ trợ.']]);
+            }
         }
 
-        $this->assertPayable($pricing->total, $gateway);
+        $this->assertPayable($pricing->total, $method);
 
-        $method = $pricing->total === 0 ? 'none' : $gateway;
         $lines = [];
         foreach ($pricing->lines as $line) {
             $lines[$line->courseId] = $line->finalAmount;
@@ -248,20 +268,55 @@ class CheckoutService
                 if ($coupon !== null && ($order->coupon_hold_until === null || $order->coupon_hold_until->lte($now))) {
                     $order->forceFill(['coupon_hold_until' => $this->holdUntil($method, $now, $order->expires_at)])->save();
                 }
-            } else {
-                $this->states->transition($existing, OrderStatus::Cancelled, 'superseded', OrderStateMachine::ACTOR_USER, $user->getKey());
+            } elseif ($existing->payment_method === PaymentMethods::MANUAL && $existing->expires_at->gt($now) && ! $replacePending) {
+                // Đơn thủ công còn hạn, khác nội dung: HS có thể đã chuyển khoản cho nó → chỉ thay khi HS đồng ý. Ném trong
+                // transaction nên không ghi gì (việc gỡ mã chỉ xảy ra ở nhánh `changed`, đã return sớm ở trên).
+                throw new DomainException(
+                    'PENDING_ORDER_EXISTS',
+                    "Bạn đang có đơn #{$existing->code} chờ Quản trị viên duyệt. Đặt đơn mới sẽ huỷ đơn cũ.",
+                    409,
+                    [
+                        'order_code' => $existing->code,
+                        'payment_method' => $existing->payment_method,
+                        'items_count' => $existing->items()->count(),
+                        'total' => $existing->total_amount,
+                        'created_at' => VnTime::iso($existing->created_at),
+                        'expires_at' => VnTime::iso($existing->expires_at),
+                    ],
+                );
             }
         }
 
         if (! $reused) {
-            $order = $this->createOrder($user, $pricing, $coupon, $courses, $method, $now);
+            // Hạn mức ngày: kiểm TRƯỚC khi huỷ đơn cũ, dưới khoá `carts` (tuần tự theo HS) → đếm không bị race.
+            if ($method === PaymentMethods::MANUAL) {
+                $this->assertManualDailyLimit($user, $now);
+            }
+
+            if ($existing !== null) {
+                $this->states->transition($existing, OrderStatus::Cancelled, 'superseded', OrderStateMachine::ACTOR_USER, $user->getKey());
+            }
+
+            $order = $this->createOrder($user, $pricing, $coupon, $courses, $method, $now, $method === PaymentMethods::MANUAL ? $customerNote : null);
+
+            if ($method === PaymentMethods::MANUAL) {
+                $titles = array_map(fn ($line) => mb_substr((string) $courses->get($line->courseId)->title, 0, 255), $pricing->lines);
+                DB::afterCommit(function () use ($order, $user, $titles): void {
+                    $this->notifier->received($order, $user, $titles);
+                    $this->notifier->newOrderForStaff($order, count($titles));
+                });
+            }
         }
 
         if ($pricing->total === 0) {
             return ['changed' => null, 'order' => $order, 'attempt' => null, 'attempt_new' => false, 'reused' => $reused, 'link_expired' => false];
         }
 
-        [$attempt, $isNew, $linkExpired] = $this->resolveAttempt($order, $gateway, $now);
+        if ($method === PaymentMethods::MANUAL) {
+            return ['changed' => null, 'order' => $order, 'attempt' => null, 'attempt_new' => false, 'reused' => $reused, 'link_expired' => false];
+        }
+
+        [$attempt, $isNew, $linkExpired] = $this->resolveAttempt($order, $method, $now);
 
         return ['changed' => null, 'order' => $order, 'attempt' => $attempt, 'attempt_new' => $isNew, 'reused' => $reused, 'link_expired' => $linkExpired];
     }
@@ -314,9 +369,11 @@ class CheckoutService
     /**
      * @param  Collection<int, Course>  $courses
      */
-    private function createOrder(User $user, Pricing $pricing, ?Coupon $coupon, Collection $courses, string $method, Carbon $now): Order
+    private function createOrder(User $user, Pricing $pricing, ?Coupon $coupon, Collection $courses, string $method, Carbon $now, ?string $customerNote = null): Order
     {
-        $expiresAt = $now->copy()->addHours((int) config('orders.pending_ttl_hours', 12));
+        $expiresAt = $now->copy()->addHours($method === PaymentMethods::MANUAL
+            ? (int) config('orders.manual.pending_ttl_hours', 72)
+            : (int) config('orders.pending_ttl_hours', 12));
 
         $order = new Order;
         $order->forceFill([
@@ -330,6 +387,7 @@ class CheckoutService
             'coupon_code' => $coupon?->code,
             'coupon_hold_until' => $coupon !== null ? $this->holdUntil($method, $now, $expiresAt) : null,
             'payment_method' => $method,
+            'customer_note' => $customerNote,
             'needs_review' => false,
             'expires_at' => $expiresAt,
         ])->save();
@@ -351,6 +409,11 @@ class CheckoutService
     /** Hạn giữ chỗ lượt mã = min(hạn link thanh toán, `payments.coupon_hold_minutes`, hạn đơn) (ADR-001 §6, S18). */
     private function holdUntil(string $method, Carbon $now, Carbon $orderExpiresAt): Carbon
     {
+        // US-022 (Q15): đơn thủ công giữ chỗ lượt mã suốt thời gian chờ duyệt (= hạn đơn), không theo hạn link của cổng.
+        if ($method === PaymentMethods::MANUAL) {
+            return $orderExpiresAt->copy();
+        }
+
         $linkTtl = (int) config("payments.gateways.{$method}.link_ttl_minutes", 30);
         $minutes = min($linkTtl, (int) config('payments.coupon_hold_minutes', 30));
 
@@ -430,6 +493,29 @@ class CheckoutService
         return $scheme.'://'.config('app.api_host').'/api/v1/webhooks/payments/'.$gateway;
     }
 
+    /**
+     * Hạn mức số đơn `manual` MỚI mỗi ngày lịch giờ Việt Nam (tính cả đơn đã huỷ). Gọi dưới khoá `carts` của HS.
+     * Mốc ngày tính theo `privacy.age_timezone` rồi đổi về múi giờ app để so với cột `created_at`.
+     */
+    private function assertManualDailyLimit(User $user, Carbon $now): void
+    {
+        $limit = (int) config('orders.manual.per_day', 5);
+        $tz = (string) config('privacy.age_timezone', 'Asia/Ho_Chi_Minh');
+        $startLocal = $now->copy()->setTimezone($tz)->startOfDay();
+
+        $count = Order::query()
+            ->where('user_id', $user->getKey())
+            ->where('payment_method', PaymentMethods::MANUAL)
+            ->where('created_at', '>=', $startLocal->copy()->setTimezone((string) config('app.timezone')))
+            ->count();
+
+        if ($count >= $limit) {
+            $resetsAt = $startLocal->copy()->addDay();
+
+            throw new ManualOrderLimitException($limit, (string) VnTime::iso($resetsAt), (int) max(1, $now->diffInSeconds($resetsAt, true)));
+        }
+    }
+
     /** Hạn mức cổng + cờ đơn 0đ (ADR-001 §8). Kiểm TRƯỚC khi tạo đơn để không để lại đơn không thể thanh toán. */
     private function assertPayable(int $total, string $gateway): void
     {
@@ -439,6 +525,10 @@ class CheckoutService
             }
 
             return;
+        }
+
+        if ($gateway === PaymentMethods::MANUAL) {
+            return; // BR11: thanh toán thủ công không áp hạn mức min/max của cổng.
         }
 
         $min = config("payments.gateways.{$gateway}.min_amount");

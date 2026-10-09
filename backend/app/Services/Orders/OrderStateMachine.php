@@ -21,6 +21,9 @@ class OrderStateMachine
 
     public const ACTOR_GATEWAY = 'gateway';
 
+    /** US-022: Admin/Quản lý trang duyệt hoặc huỷ đơn `manual`. */
+    public const ACTOR_STAFF = 'staff';
+
     /** @var array<string, list<OrderStatus>> */
     private const ALLOWED = [
         'pending' => [OrderStatus::Paid, OrderStatus::Failed, OrderStatus::Cancelled],

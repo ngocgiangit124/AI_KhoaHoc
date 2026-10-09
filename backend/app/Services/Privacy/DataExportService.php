@@ -220,6 +220,8 @@ class DataExportService
                 'total_amount' => (int) $o->total_amount,
                 'coupon_code' => $o->coupon_code,
                 'payment_method' => $o->payment_method,
+                // US-022: ghi chú do chính học sinh nhập (không gồm ghi chú nội bộ `order_notes`).
+                'customer_note' => $o->customer_note,
                 'created_at' => $this->iso($o->created_at),
                 'paid_at' => $this->iso($o->paid_at),
                 'cancelled_at' => $this->iso($o->cancelled_at),

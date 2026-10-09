@@ -638,7 +638,13 @@ test('M1 cum 3: PAYMENT_GATEWAYS rong -> don 0d van 201 paid; tong > 0 va co tat
     vvCoCart($other, [vvCoCourse(100000)]);
     vvCoPost(100000)->assertStatus(503)->assertJsonPath('code', 'PAYMENT_DISABLED');
 
+    // US-022: cờ MoMo bật nhưng PAYMENT_GATEWAYS rỗng => PaymentMethods::available() rỗng => vẫn 503 (không còn 422).
     config(['features.paid_checkout' => true]);
-    vvCoPost(100000)->assertStatus(422)->assertJsonValidationErrors(['gateway']);
+    vvCoPost(100000)->assertStatus(503)->assertJsonPath('code', 'PAYMENT_DISABLED');
+
+    // Có cổng nhưng chọn cổng không bật => 422 errors.payment_method (tên field mới theo api-contract §2.3.1).
+    config(['payments.enabled_gateways' => ['fake']]);
+    test()->postJson(vvApiUrl('/checkout'), ['expected_total' => 100000, 'payment_method' => 'manual'], vvWebHeaders())
+        ->assertStatus(422)->assertJsonValidationErrors(['payment_method']);
     expect(Order::where('user_id', $other->id)->count())->toBe(0);
 });
