@@ -93,10 +93,23 @@ describe("navGroups (menu v2)", () => {
     const courses = items.find((i) => i.label === "Khóa học");
     expect(courses).toMatchObject({ href: "/quan-tri/khoa-hoc", current: false });
     expect(courses).not.toHaveProperty("disabledNote");
-    expect(items.find((i) => i.label === "Đơn hàng")).toMatchObject({ disabledNote: "V2", disabledReason: "Mở khi bật thanh toán trực tuyến" });
+    expect(items.find((i) => i.label === "Đơn hàng")).toMatchObject({ href: "/quan-tri/don-hang", current: false });
+    expect(items.find((i) => i.label === "Đơn hàng")).not.toHaveProperty("disabledNote");
+    expect(items.find((i) => i.label === "Đơn hàng")).not.toHaveProperty("count");
     expect(items.find((i) => i.label === "Mã giảm giá")).toMatchObject({ href: "/quan-tri/ma-giam-gia", current: false });
     expect(items.find((i) => i.label === "Tài khoản staff")).toMatchObject({ href: "/quan-tri/tai-khoan", current: false });
     expect(items.find((i) => i.label === "Nhật ký thao tác")?.disabledNote).toBe("Sắp có");
+  });
+  it("Đơn hàng: số đơn chờ gắn vào mục kèm câu đọc cho trình đọc màn hình; 0/null thì không hiện số", () => {
+    const find = (n: number | null) =>
+      navGroups({ role: "quan_ly_trang", permissions: null }, "/quan-tri/don-hang", { pendingOrders: n }).flatMap((g) => g.items).find((i) => i.label === "Đơn hàng");
+    expect(find(6)).toMatchObject({ current: true, count: 6, countLabel: "6 đơn chờ duyệt" });
+    expect(find(0)).not.toHaveProperty("count");
+    expect(find(null)).not.toHaveProperty("count");
+  });
+  it("giáo viên không thấy mục Đơn hàng (permissions.view_orders=false thắng role)", () => {
+    const items = navGroups({ role: "quan_ly_trang", permissions: { view_orders: false } }, "/quan-tri").flatMap((g) => g.items);
+    expect(items.find((i) => i.label === "Đơn hàng")).toBeUndefined();
   });
   it("giáo viên: chỉ nhóm Nội dung, ẩn hẳn mục không có quyền", () => {
     const groups = navGroups({ role: "giao_vien", permissions: null }, "/quan-tri");

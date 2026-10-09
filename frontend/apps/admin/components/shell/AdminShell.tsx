@@ -20,6 +20,8 @@ import {
 import { isNavActive, NAV_GROUP_LABELS, navForUser, type NavGroupKey, type NavItem } from "@/lib/nav";
 import { STAFF_ROLE_LABELS, type StaffUser } from "@/lib/auth/types";
 import { LegacyProfileProvider, useLegacyProfile } from "@/lib/teacher-profiles/legacy";
+import { canViewOrders } from "@/lib/orders/permissions";
+import { PendingOrdersProvider, usePendingOrders } from "@/lib/orders/PendingOrders";
 import { LogoutButton } from "./LogoutButton";
 
 const ICONS: Record<NavItem["icon"], ReactNode> = {
@@ -35,10 +37,15 @@ const ICONS: Record<NavItem["icon"], ReactNode> = {
   "user-check": <IconUserCheck size={18} />,
 };
 
+const ORDERS_PATH = "/quan-tri/don-hang";
 const GROUP_ORDER: readonly NavGroupKey[] = ["content", "sales", "system"];
 
 /** Menu theo vai trò (`navForUser`) → nhóm của `AdminFrame`; mục chưa có màn hiện mờ kèm nhãn, không phải link (tránh 404). */
-export function navGroups(user: Pick<StaffUser, "role" | "permissions">, pathname: string, opts: { legacyProfile?: boolean } = {}): AdminNavGroup[] {
+export function navGroups(
+  user: Pick<StaffUser, "role" | "permissions">,
+  pathname: string,
+  opts: { legacyProfile?: boolean; pendingOrders?: number | null } = {},
+): AdminNavGroup[] {
   const items = navForUser(user, opts);
   return GROUP_ORDER.flatMap((key) => {
     const inGroup = items.filter((i) => i.group === key);
@@ -49,6 +56,7 @@ export function navGroups(user: Pick<StaffUser, "role" | "permissions">, pathnam
       icon: ICONS[i.icon],
       current: i.ready && isNavActive(i.href, pathname),
       ...(i.ready ? {} : { disabledNote: i.pending?.note ?? "Sắp có", disabledReason: i.pending?.reason }),
+      ...(i.href === ORDERS_PATH && i.ready && opts.pendingOrders ? { count: opts.pendingOrders, countLabel: `${opts.pendingOrders} đơn chờ duyệt` } : {}),
     }));
     return [{ label: NAV_GROUP_LABELS[key], items: mapped }];
   });
@@ -67,8 +75,17 @@ export function AdminShell({ user, children }: { user: StaffUser; children: Reac
 }
 
 function ShellInner({ user, children }: { user: StaffUser; children: ReactNode }) {
+  return (
+    <PendingOrdersProvider enabled={canViewOrders(user)}>
+      <ShellFrame user={user}>{children}</ShellFrame>
+    </PendingOrdersProvider>
+  );
+}
+
+function ShellFrame({ user, children }: { user: StaffUser; children: ReactNode }) {
   const pathname = usePathname();
   const { hasData } = useLegacyProfile();
+  const { count } = usePendingOrders();
   return (
     <>
       <a
@@ -81,7 +98,7 @@ function ShellInner({ user, children }: { user: StaffUser; children: ReactNode }
         homeHref="/quan-tri"
         navLabel="Menu quản trị"
         userNameTestId="staff-name"
-        groups={navGroups(user, pathname, { legacyProfile: hasData })}
+        groups={navGroups(user, pathname, { legacyProfile: hasData, pendingOrders: count })}
         user={{ name: user.name, email: user.email ?? "", roleLabel: STAFF_ROLE_LABELS[user.role] }}
         logoutSlot={<LogoutButton />}
       >
