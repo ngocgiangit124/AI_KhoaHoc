@@ -37,8 +37,9 @@ describe("resolveCta", () => {
       label: "Đăng ký học miễn phí",
       busy: true,
     });
-    expect(resolveCta(viewer("can_buy")).kind).toBe("buy_waiting");
-    expect(resolveCta(viewer("in_cart")).kind).toBe("in_cart");
+    expect(resolveCta(viewer("can_buy"))).toEqual({ kind: "add_to_cart", label: "Thêm vào giỏ", busy: false });
+    expect(resolveCta({ ...viewer("can_buy"), addingToCart: true })).toEqual({ kind: "add_to_cart", label: "Thêm vào giỏ", busy: true });
+    expect(resolveCta(viewer("in_cart"))).toEqual({ kind: "in_cart", label: "Xem giỏ hàng", href: "/gio-hang" });
   });
 
   describe("paid_checkout_enabled = false (thanh toán tạm khoá)", () => {

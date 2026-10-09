@@ -29,6 +29,12 @@ export const routes = {
   /** Khóa học của tôi + tiến độ (FW6). `?trang=` phân trang danh sách. */
   myCourses: "/tai-khoan/khoa-hoc-cua-toi",
   myCourse: (courseId: number) => `/tai-khoan/khoa-hoc-cua-toi/${courseId}`,
+  /** Giỏ hàng, thanh toán, đơn hàng của tôi (FW3, US-022). `orderSent` = màn "Đơn đã gửi" (link trong thư cho học sinh). */
+  cart: "/gio-hang",
+  checkout: "/thanh-toan",
+  orderSent: (code: string) => `/thanh-toan/da-gui/${code}`,
+  myOrders: "/tai-khoan/don-hang",
+  myOrder: (code: string) => `/tai-khoan/don-hang/${code}`,
   /** Quyền dữ liệu cá nhân (FW7): đồng ý, thông tin phụ huynh, tải dữ liệu, xoá tài khoản. */
   privacyData: "/tai-khoan/quyen-du-lieu-ca-nhan",
   /** Công khai, link trong thư phụ huynh: `?t=<token>` (token bị gỡ khỏi URL ngay khi mở). */

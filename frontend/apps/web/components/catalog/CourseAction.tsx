@@ -20,7 +20,7 @@ function StatusBox({ tone, icon, title, children }: { tone: "warning" | "info"; 
 
 /**
  * Hành động chính theo `viewer_state` x `paid_checkout_enabled` (design-system-v2 §12.2; logic ở `lib/catalog/cta.ts`).
- * `compact`: bản rút gọn cho thanh dính đáy trên mobile. Khóa có phí khi thanh toán tạm khoá: giá + "Sắp mở bán", KHÔNG có nút mua.
+ * Khóa có phí đã đăng nhập: "Thêm vào giỏ" -> "Xem giỏ hàng" (FW3). `compact`: bản rút gọn cho thanh dính đáy trên mobile. Khóa có phí khi thanh toán tạm khoá: giá + "Sắp mở bán", KHÔNG có nút mua.
  */
 export function CourseAction({ compact = false }: { compact?: boolean }) {
   const { model, error, run, loginHref } = useCourseCta();
@@ -88,15 +88,28 @@ export function CourseAction({ compact = false }: { compact?: boolean }) {
         </div>
       );
       break;
-    case "buy_waiting":
-    case "in_cart":
-      // Giỏ hàng/thanh toán thuộc FW3 — nút chờ, chưa hoạt động, luôn kèm chữ giải thích (design §11.2 "Disabled").
+    case "add_to_cart":
       content = (
         <div className="flex flex-col gap-2">
-          <Button size="lg" block disabled>
+          <Button size="lg" block loading={model.busy} loadingText="Đang thêm…" onClick={run}>
             {model.label}
           </Button>
-          {!compact ? <p className="text-sm text-ink-soft">Giỏ hàng sắp mở.</p> : null}
+          {!compact ? <p className="text-sm text-ink-soft">Đặt mua một lần trong giỏ hàng. Bạn chưa phải trả tiền ở bước này.</p> : null}
+        </div>
+      );
+      break;
+    case "in_cart":
+      content = (
+        <div className="flex flex-col gap-2">
+          <ButtonLink href={model.href} size="lg" block>
+            {model.label}
+          </ButtonLink>
+          {!compact ? (
+            <p className="flex items-center gap-1.5 text-sm text-success">
+              <IconCheckCircle size={16} />
+              Khóa học này đã có trong giỏ hàng của bạn.
+            </p>
+          ) : null}
         </div>
       );
       break;

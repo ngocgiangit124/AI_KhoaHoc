@@ -9,6 +9,8 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import { useGateLive } from "@/lib/auth/useGateLive";
 import { mapFreeEnrollError, resolveCta, type CtaModel, type ViewerStatus } from "@/lib/catalog/cta";
 import { viewerStateSchema, type ViewerState } from "@/lib/catalog/schemas";
+import { addCartItem } from "@/lib/orders/api";
+import { mapAddToCartError } from "@/lib/orders/errors";
 
 export interface CtaCourse {
   id: number;
@@ -44,6 +46,7 @@ export function CourseCtaProvider({ course, children }: { course: CtaCourse; chi
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [viewerStatus, setViewerStatus] = useState<ViewerStatus>("idle");
   const [enrolling, setEnrolling] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   // Màn chặn (design-system-v2 §12.8): hộp thoại mở tại chỗ, giữ ngữ cảnh khóa học. Giữ gắn sau lần mở đầu để đóng/mở mượt.
@@ -80,6 +83,7 @@ export function CourseCtaProvider({ course, children }: { course: CtaCourse; chi
     isFree: course.isFree,
     courseId: course.id,
     enrolling,
+    addingToCart,
     paidCheckoutEnabled: course.paidCheckoutEnabled,
   });
 
@@ -115,6 +119,24 @@ export function CourseCtaProvider({ course, children }: { course: CtaCourse; chi
     }
   }, [course.id, toast]);
 
+  const addToCart = useCallback(async () => {
+    setAddingToCart(true);
+    setError(null);
+    try {
+      await addCartItem(course.id);
+      setViewer({ viewer_state: "in_cart", resume_lesson_id: null });
+      toast.show({ tone: "success", title: "Đã thêm vào giỏ hàng" });
+      void refresh(); // `cart_count` ở header
+    } catch (err) {
+      const outcome = mapAddToCartError(err);
+      if (outcome.type === "in_cart") setViewer({ viewer_state: "in_cart", resume_lesson_id: null });
+      else if (outcome.type === "owned") setReloadKey((k) => k + 1);
+      else setError(outcome.message);
+    } finally {
+      setAddingToCart(false);
+    }
+  }, [course.id, toast, refresh]);
+
   const run = useCallback(() => {
     switch (model.kind) {
       case "login":
@@ -127,10 +149,13 @@ export function CourseCtaProvider({ course, children }: { course: CtaCourse; chi
       case "register_free":
         if (!enrolling) void registerFree();
         break;
+      case "add_to_cart":
+        if (!addingToCart) void addToCart();
+        break;
       default:
         break;
     }
-  }, [model.kind, router, loginHref, auth.status, refresh, enrolling, registerFree]);
+  }, [model.kind, router, loginHref, auth.status, refresh, enrolling, registerFree, addingToCart, addToCart]);
 
   const value = useMemo<CtaContextValue>(
     () => ({

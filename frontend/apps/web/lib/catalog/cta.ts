@@ -13,6 +13,8 @@ export interface CtaInput {
   isFree: boolean;
   courseId: number;
   enrolling: boolean;
+  /** Đang gọi `POST /cart/items`. */
+  addingToCart?: boolean;
   /** `paid_checkout_enabled` của `/config/public`. */
   paidCheckoutEnabled: boolean;
 }
@@ -26,9 +28,10 @@ export type CtaModel =
   | { kind: "pending"; label: string }
   /** Khóa có phí khi thanh toán tạm khoá: giá + khối "Sắp mở bán", KHÔNG có nút mua (design §12.2). */
   | { kind: "coming_soon" }
-  /** Thanh toán đã bật nhưng giỏ hàng/checkout chưa dựng (FW3) — nút hiển thị, chưa hoạt động. */
-  | { kind: "buy_waiting"; label: string }
-  | { kind: "in_cart"; label: string }
+  /** Khóa có phí, chưa trong giỏ: "Thêm vào giỏ" (POST /cart/items). */
+  | { kind: "add_to_cart"; label: string; busy: boolean }
+  /** Khóa đã trong giỏ: liên kết "Xem giỏ hàng". */
+  | { kind: "in_cart"; label: string; href: string }
   | { kind: "owned"; label: string; href: string };
 
 export function learnHref(courseId: number, resumeLessonId: number | null): string {
@@ -59,9 +62,11 @@ export function resolveCta(input: CtaInput): CtaModel {
     case "can_register_free":
       return { kind: "register_free", label: "Đăng ký học miễn phí", busy: input.enrolling };
     case "in_cart":
-      return input.paidCheckoutEnabled ? { kind: "in_cart", label: "Xem giỏ hàng" } : { kind: "coming_soon" };
+      return input.paidCheckoutEnabled ? { kind: "in_cart", label: "Xem giỏ hàng", href: "/gio-hang" } : { kind: "coming_soon" };
     case "can_buy":
-      return input.paidCheckoutEnabled ? { kind: "buy_waiting", label: "Mua khóa học" } : { kind: "coming_soon" };
+      return input.paidCheckoutEnabled
+        ? { kind: "add_to_cart", label: "Thêm vào giỏ", busy: input.addingToCart ?? false }
+        : { kind: "coming_soon" };
   }
 }
 

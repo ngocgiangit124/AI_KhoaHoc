@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Alert, Badge, Button, ButtonLink, IconBookOpen, IconFileText, Sheet, useToast } from "@vitaminvui/ui/v2";
+import { Alert, Badge, Button, ButtonLink, IconBookOpen, IconFileText, IconReceipt, Sheet, useToast } from "@vitaminvui/ui/v2";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { routes } from "@/lib/routes";
@@ -48,9 +48,12 @@ export function AccountView() {
     <div className="flex flex-col gap-6">
       <h1 className="text-title font-extrabold tracking-heading text-ink">Tài khoản</h1>
 
-      <div>
+      <div className="flex flex-wrap gap-3">
         <ButtonLink href={routes.myCourses} variant="secondary" leadingIcon={<IconBookOpen size={18} />}>
           Khóa học của tôi
+        </ButtonLink>
+        <ButtonLink href={routes.myOrders} variant="secondary" leadingIcon={<IconReceipt size={18} />}>
+          Đơn hàng của tôi
         </ButtonLink>
       </div>
 

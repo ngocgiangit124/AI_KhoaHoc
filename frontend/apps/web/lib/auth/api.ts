@@ -22,6 +22,8 @@ export const authUserSchema = z.object({
     .optional(),
   /** `true` khi phiên bản chính sách đổi → hiện banner chấp nhận lại (FW7, chưa làm). Thiếu → `false`. */
   needs_policy_acceptance: z.boolean().optional(),
+  /** Số dòng trong giỏ (T16) cho biểu tượng giỏ ở header. Thiếu -> 0. */
+  cart_count: z.number().optional(),
 });
 
 /** User phẳng trong response register/login (api-contract §2.2, "Bổ sung từ T03"). */

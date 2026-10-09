@@ -77,13 +77,21 @@ export const EXPORT_LIMIT_TEXT = (limit: number, resetsAt: string | null): strin
 
 export type DeleteSendFailure =
   | { kind: "not-verified"; message: string }
-  | { kind: "pending-payment"; message: string }
+  | { kind: "pending-payment"; message: string; orderCode?: string }
   | { kind: "wait"; seconds: number; message: string }
   | { kind: "locked"; message: string }
   | { kind: "delivery"; message: string }
   | { kind: "other"; message: string };
 
+/** US-022: đơn thủ công đang chờ -> `errors.pending_order_code` (liên kết tới đơn để tự huỷ trong "Đơn của tôi"). */
+export function pendingOrderCode(err: ApiError): string | undefined {
+  const code = domainValue(err, "pending_order_code");
+  return code && /^[A-Za-z0-9]{6,32}$/.test(code) ? code : undefined;
+}
+
 export function pendingPaymentMessage(err: ApiError): string {
+  // Có đơn thủ công chờ duyệt: dùng thông điệp server ("Hãy huỷ đơn trong Đơn của tôi nếu không còn muốn mua, rồi thử lại").
+  if (pendingOrderCode(err) && err.message) return err.message;
   const when = formatVnDateTime(domainValue(err, "retry_after_at"));
   return when ? `Bạn đang có đơn chờ thanh toán. Hãy thử lại sau ${when}.` : "Bạn đang có đơn chờ thanh toán. Hãy hoàn tất hoặc đợi đơn hết hạn rồi thử lại.";
 }
@@ -92,7 +100,7 @@ export function pendingPaymentMessage(err: ApiError): string {
 export function classifyDeleteSendError(err: unknown): DeleteSendFailure {
   if (err instanceof ApiError) {
     if (err.code === "ACCOUNT_NOT_VERIFIED") return { kind: "not-verified", message: err.message || "Bạn cần xác thực email trước khi xoá tài khoản." };
-    if (err.code === "ACCOUNT_HAS_PENDING_PAYMENT") return { kind: "pending-payment", message: pendingPaymentMessage(err) };
+    if (err.code === "ACCOUNT_HAS_PENDING_PAYMENT") return { kind: "pending-payment", message: pendingPaymentMessage(err), orderCode: pendingOrderCode(err) };
   }
   return classifyOtpSendError(err);
 }

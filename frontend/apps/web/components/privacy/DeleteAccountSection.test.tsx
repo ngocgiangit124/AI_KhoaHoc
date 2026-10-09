@@ -69,6 +69,20 @@ describe("DeleteAccountSection", () => {
     expect(clearCsrfToken).not.toHaveBeenCalled();
   });
 
+  it("US-022 AC28: 409 có errors.pending_order_code -> thông điệp server + liên kết tới đơn để tự huỷ", async () => {
+    const user = await toOtpStep(async () => {
+      throw apiErr(409, {
+        message: "Bạn đang có đơn #VVFW3CANC001 chờ Quản trị viên duyệt. Hãy huỷ đơn trong Đơn của tôi nếu không còn muốn mua, rồi thử lại.",
+        code: "ACCOUNT_HAS_PENDING_PAYMENT",
+        errors: { retry_after_at: "2026-10-12T10:15:00+07:00", pending_order_code: "VVFW3CANC001" },
+      });
+    });
+    await user.click(screen.getByRole("button", { name: "Xoá tài khoản vĩnh viễn" }));
+    expect(await screen.findByText(/Hãy huỷ đơn trong Đơn của tôi/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Xem đơn VVFW3CANC001" })).toHaveAttribute("href", "/tai-khoan/don-hang/VVFW3CANC001");
+    expect(assign).not.toHaveBeenCalled();
+  });
+
   it("429 hết lượt nhập mã (không Retry-After): khoá nút xoá, chỉ còn gửi lại mã", async () => {
     const user = await toOtpStep(async () => {
       throw apiErr(429, { message: "m", code: "TOO_MANY_ATTEMPTS" });

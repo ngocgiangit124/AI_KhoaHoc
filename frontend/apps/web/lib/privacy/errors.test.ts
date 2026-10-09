@@ -36,6 +36,13 @@ describe("classifyExportError", () => {
 });
 
 describe("classifyDeleteSendError", () => {
+  it("ACCOUNT_HAS_PENDING_PAYMENT có errors.pending_order_code (đơn thủ công): dùng thông điệp server + mã đơn để dẫn link (US-022 AC28)", () => {
+    const f = classifyDeleteSendError(
+      err(409, { message: "Bạn đang có đơn #VV1 chờ Quản trị viên duyệt. Hãy huỷ đơn trong Đơn của tôi.", code: "ACCOUNT_HAS_PENDING_PAYMENT", errors: { retry_after_at: "2026-10-12T10:00:00+07:00", pending_order_code: "VVFW3CANC001" } }),
+    );
+    expect(f).toEqual({ kind: "pending-payment", message: "Bạn đang có đơn #VV1 chờ Quản trị viên duyệt. Hãy huỷ đơn trong Đơn của tôi.", orderCode: "VVFW3CANC001" });
+  });
+
   it("403 ACCOUNT_NOT_VERIFIED", () => {
     expect(classifyDeleteSendError(err(403, { message: "Bạn cần xác thực email trước khi xoá tài khoản.", code: "ACCOUNT_NOT_VERIFIED" })).kind).toBe("not-verified");
   });

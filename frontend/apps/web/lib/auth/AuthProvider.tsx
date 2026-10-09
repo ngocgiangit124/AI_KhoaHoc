@@ -28,8 +28,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async (): Promise<AuthState> => {
     setState((prev) => (prev.status === "error" ? { status: "loading" } : prev));
     const next = toState(await fetchCurrentUser());
-    setState(next);
-    return next;
+    // Lỗi tạm thời (mạng/5xx) khi đang có người dùng: giữ nguyên trạng thái cũ, không thay cả trang/header bằng màn lỗi.
+    let result = next;
+    setState((prev) => {
+      result = prev.status === "user" && next.status === "error" ? prev : next;
+      return result;
+    });
+    return result;
   }, []);
 
   useEffect(() => {

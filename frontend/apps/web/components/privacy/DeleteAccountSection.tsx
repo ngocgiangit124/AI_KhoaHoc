@@ -8,7 +8,7 @@ import { setAccountFlash } from "@/lib/auth/flash";
 import { OTP_LENGTH, secondsUntil } from "@/lib/auth/otp";
 import { routes } from "@/lib/routes";
 import { confirmAccountDeletion, sendDeleteOtp } from "@/lib/privacy/api";
-import { classifyDeleteSendError, pendingPaymentMessage } from "@/lib/privacy/errors";
+import { classifyDeleteSendError, pendingOrderCode, pendingPaymentMessage } from "@/lib/privacy/errors";
 
 /**
  * Khối "Xoá tài khoản" (api-contract §2.8.5): cảnh báo hậu quả -> gửi OTP email -> nhập mã -> xoá (ẩn danh hoá).
@@ -38,7 +38,7 @@ type Step = { name: "warn" } | { name: "otp"; destination: string; wait: number;
 
 function DeleteFlow({ onBusy, onClose }: { onBusy: (b: boolean) => void; onClose: () => void }) {
   const [step, setStep] = useState<Step>({ name: "warn" });
-  const [alert, setAlert] = useState<{ tone: "danger" | "warning" | "info"; body: string; verify?: boolean } | null>(null);
+  const [alert, setAlert] = useState<{ tone: "danger" | "warning" | "info"; body: string; verify?: boolean; orderCode?: string } | null>(null);
   const [pending, setPending] = useState(false);
   const [code, setCode] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -67,7 +67,7 @@ function DeleteFlow({ onBusy, onClose }: { onBusy: (b: boolean) => void; onClose
     } catch (err) {
       const f = classifyDeleteSendError(err);
       if (f.kind === "not-verified") setAlert({ tone: "danger", body: f.message, verify: true });
-      else if (f.kind === "pending-payment") setAlert({ tone: "warning", body: f.message });
+      else if (f.kind === "pending-payment") setAlert({ tone: "warning", body: f.message, orderCode: f.orderCode });
       else if (f.kind === "wait") {
         // Cooldown 60s: nếu đang ở bước mã thì chỉ đếm ngược lại.
         setAlert({ tone: "danger", body: f.message });
@@ -109,7 +109,7 @@ function DeleteFlow({ onBusy, onClose }: { onBusy: (b: boolean) => void; onClose
       setFocusSignal((n) => n + 1);
       if (err instanceof ApiError && err.code === "ACCOUNT_HAS_PENDING_PAYMENT") {
         setStep({ name: "warn" });
-        setAlert({ tone: "warning", body: pendingPaymentMessage(err) });
+        setAlert({ tone: "warning", body: pendingPaymentMessage(err), orderCode: pendingOrderCode(err) });
         return;
       }
       if (err instanceof ApiError && err.code === "ACCOUNT_NOT_VERIFIED") {
@@ -129,7 +129,13 @@ function DeleteFlow({ onBusy, onClose }: { onBusy: (b: boolean) => void; onClose
   const alertNode = alert ? (
     <Alert
       tone={alert.tone}
-      action={alert.verify ? <ButtonLink href={routes.verifyOtp} size="md">Xác thực email</ButtonLink> : undefined}
+      action={
+        alert.verify ? (
+          <ButtonLink href={routes.verifyOtp} size="md">Xác thực email</ButtonLink>
+        ) : alert.orderCode ? (
+          <ButtonLink href={routes.myOrder(alert.orderCode)} size="md">Xem đơn {alert.orderCode}</ButtonLink>
+        ) : undefined
+      }
     >
       {alert.body}
       {alert.verify ? " Hãy xác thực email của bạn trước, rồi quay lại đây." : null}

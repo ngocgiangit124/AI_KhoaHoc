@@ -123,11 +123,39 @@ describe("CourseCta", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("can_buy + thanh toán bật -> Mua khóa học chưa hoạt động (chờ FW3), có chữ giải thích", async () => {
-    viewerState("can_buy");
-    renderCta(false, true);
-    expect(await screen.findByRole("button", { name: "Mua khóa học" })).toBeDisabled();
-    expect(screen.getByText("Giỏ hàng sắp mở.")).toBeInTheDocument();
+  describe("thêm vào giỏ (FW3)", () => {
+    function setup(addResult: "ok" | ApiError) {
+      authFetch.mockImplementation((path: string, opts?: { method?: string }) => {
+        if (path.endsWith("/viewer-state")) return Promise.resolve({ viewer_state: "can_buy", resume_lesson_id: null });
+        if (path === "/api/v1/cart/items" && opts?.method === "POST") {
+          return addResult === "ok" ? Promise.resolve({ items: [], coupon: null, pricing: { subtotal: 0, discount: 0, total: 0 }, notices: [] }) : Promise.reject(addResult);
+        }
+        return Promise.reject(new Error(path));
+      });
+      renderCta(false, true);
+    }
+
+    it("can_buy + thanh toán bật -> nút Thêm vào giỏ; bấm xong thành liên kết Xem giỏ hàng và làm mới số giỏ", async () => {
+      setup("ok");
+      await userEvent.click(await screen.findByRole("button", { name: "Thêm vào giỏ" }));
+      const link = await screen.findByRole("link", { name: "Xem giỏ hàng" });
+      expect(link).toHaveAttribute("href", "/gio-hang");
+      expect(authFetch).toHaveBeenCalledWith("/api/v1/cart/items", expect.objectContaining({ method: "POST", body: JSON.stringify({ course_id: 7 }) }));
+      expect(refreshAuth).toHaveBeenCalled();
+    });
+
+    it("409 ALREADY_IN_CART coi như đã trong giỏ", async () => {
+      setup(new ApiError(409, { message: "x", code: "ALREADY_IN_CART" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Thêm vào giỏ" }));
+      expect(await screen.findByRole("link", { name: "Xem giỏ hàng" })).toBeInTheDocument();
+    });
+
+    it("lỗi khác -> thông báo lỗi, nút vẫn bấm lại được", async () => {
+      setup(new ApiError(500, { message: "x" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Thêm vào giỏ" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Không thêm được vào giỏ hàng");
+      expect(screen.getByRole("button", { name: "Thêm vào giỏ" })).toBeEnabled();
+    });
   });
 
   it("can_buy / in_cart + thanh toán tạm khoá -> Sắp mở bán, không nút", async () => {
@@ -143,7 +171,7 @@ describe("CourseCta", () => {
     const retry = await screen.findByRole("button", { name: "Thử lại" });
     viewerState("can_buy");
     await userEvent.click(retry);
-    expect(await screen.findByRole("button", { name: "Mua khóa học" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Thêm vào giỏ" })).toBeInTheDocument();
   });
 
   describe("đăng ký miễn phí", () => {
