@@ -73,7 +73,7 @@ test('token chua cau hinh thi tat', function () {
 
 test('ProductionConfigGuard: token qua ngan bi chan, de trong hoac du dai thi qua', function () {
     config([
-        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
+        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'cache.limiter' => 'redis-limiter', 'captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app',
         'internal.ssr_token' => 'ngan',
     ]);
     app()->detectEnvironment(fn () => 'production');

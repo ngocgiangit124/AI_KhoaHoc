@@ -49,6 +49,7 @@ test('(e) chi co SDT da xac thuc (khong co email) cung bi chan', function () {
 });
 
 test('(e) don pending co attempt pending con han -> 409 ACCOUNT_HAS_PENDING_PAYMENT + retry_after_at (+07:00 = expires_at muon nhat)', function () {
+    $this->freezeSecond(); // so sánh tới giây với now(): tránh đỏ giả khi máy chậm vượt ranh giới giây
     $otp = vvFakeOtp();
     $me = vvT34Student();
     $order = vvT34PendingOrder($me, 'pending', now()->addMinutes(10));

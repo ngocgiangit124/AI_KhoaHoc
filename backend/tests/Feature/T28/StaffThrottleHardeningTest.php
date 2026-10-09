@@ -36,7 +36,7 @@ test('staff: IP vuot nguong -> 429 khong tang bo dem tai khoan', function () {
     }
 
     foreach (range(1, 5) as $i) {
-        vvAdminLogin((string) $teacher->email, 'sai')->assertStatus(429);
+        vvAdminLogin((string) $teacher->email, 'sai')->assertStatus(422)->assertJsonPath('code', 'CAPTCHA_REQUIRED'); // GL-A2 V2-3b
     }
 
     expect(RateLimiter::attempts('staff-login-fail:u:'.$teacher->getKey()))->toBe(0)

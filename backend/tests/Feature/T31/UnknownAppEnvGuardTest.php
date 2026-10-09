@@ -35,7 +35,7 @@ test('APP_ENV la (uat, prod) bi chan du moi cau hinh khac deu dung (C4-M2); prod
     config([
         'app.debug' => false,
         'session.secure' => true, 'session.encrypt' => true,
-        'captcha.driver' => 'turnstile',
+        'cache.limiter' => 'redis-limiter', 'captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app',
         'auth.otp.channels' => ['email'],
         'auth.otp.e2e_relaxed' => false,
         'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net',

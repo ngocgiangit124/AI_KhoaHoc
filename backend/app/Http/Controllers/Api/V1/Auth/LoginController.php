@@ -21,7 +21,7 @@ class LoginController extends Controller
 
         $validated = $request->validated();
 
-        $user = $login->attempt($validated['login'], $validated['password'], $request);
+        $user = $login->attempt($validated['login'], $validated['password'], $request, $validated['captcha_token'] ?? null);
 
         return (new UserResource($user))->response();
     }

@@ -99,7 +99,8 @@ test('R1 IP da vuot 50 luot: 15 request vao tai khoan X deu 429 nhung bo dem X k
     }
 
     for ($i = 0; $i < 15; $i++) {
-        vvLogin(['login' => 'hs@example.com', 'password' => 'sai'])->assertStatus(429);
+        // GL-A2 V2-3b: không captcha mà chạm trần IP -> 422 CAPTCHA_REQUIRED (không để lại lượt ở tài khoản).
+        vvLogin(['login' => 'hs@example.com', 'password' => 'sai'])->assertStatus(422)->assertJsonPath('code', 'CAPTCHA_REQUIRED');
     }
 
     expect(RateLimiter::attempts('login-fail:u:'.$user->getKey()))->toBe(0)

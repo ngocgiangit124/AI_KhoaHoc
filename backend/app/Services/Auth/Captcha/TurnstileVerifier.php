@@ -22,7 +22,8 @@ class TurnstileVerifier implements CaptchaVerifier
 
         try {
             $response = Http::asForm()
-                ->timeout(5)
+                ->connectTimeout(2)
+                ->timeout(3)
                 ->post(self::ENDPOINT, array_filter([
                     'secret' => $secret,
                     'response' => $token,

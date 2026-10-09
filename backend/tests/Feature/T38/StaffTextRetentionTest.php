@@ -190,7 +190,7 @@ describe('guard production', function () {
     beforeEach(function () {
         app()->detectEnvironment(fn () => 'production');
         config([
-            'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
+            'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'cache.limiter' => 'redis-limiter', 'captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app',
             'auth.otp.channels' => ['email'], 'auth.otp.e2e_relaxed' => false,
             'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net',
             'app.url' => 'https://api.vitaminvui.vn', 'app.frontend_url' => 'https://vitaminvui.vn', 'app.admin_url' => 'https://admin.vitaminvui.vn',

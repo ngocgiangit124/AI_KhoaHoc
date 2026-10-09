@@ -6,6 +6,7 @@ use App\Enums\OtpPurpose;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Exceptions\DomainException;
+use App\Exceptions\LoginChallengeException;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
@@ -16,6 +17,7 @@ use Illuminate\Auth\SessionGuard;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -38,21 +40,40 @@ class StaffAuthService
     /**
      * @return array{user: User, mfa_required: bool, resend_available_at: CarbonImmutable|null}
      *
-     * @throws ValidationException sai thông tin (thông điệp chung)
+     * @throws LoginChallengeException sai thông tin (thông điệp chung) / CAPTCHA_REQUIRED / CAPTCHA_INVALID (GL-A2)
      * @throws DomainException WRONG_PORTAL / ACCOUNT_LOCKED (chỉ sau khi mật khẩu ĐÚNG — S20), OTP_DELIVERY_FAILED
      * @throws ThrottleRequestsException
      */
-    public function login(string $login, #[\SensitiveParameter] string $password, Request $request): array
+    public function login(string $login, #[\SensitiveParameter] string $password, Request $request, ?string $captchaToken = null): array
     {
         // M2/M3 (như LoginService::attempt): khoá theo user id, đếm nguyên tử trước khi so mật khẩu.
         $user = LoginService::findByLogin($login);
         $accountKey = 'staff-login-fail:'.LoginService::throttleSubject($login, $user);
         $ipKey = 'staff-login-fail-ip:'.$request->ip();
 
-        LoginService::reserveAttempts([
-            [$accountKey, (int) config('auth.staff.login_max_failures_per_account')],
-            [$ipKey, (int) config('auth.staff.login_max_failures_per_ip')],
-        ]);
+        // GL-A2: từ ngưỡng lần sai phải kèm captcha thay vì bị khoá; trần cứng → 429. MFA ở bước sau KHÔNG bị bỏ qua.
+        try {
+            ['count' => $count, 'keys' => $reserved] = LoginService::reserveWithCaptchaGate(
+                $accountKey,
+                (int) config('auth.staff.login_max_failures_per_account'),
+                $ipKey,
+                (int) config('auth.staff.login_max_failures_per_ip'),
+                (int) config('auth.staff.login_captcha_threshold'),
+                $captchaToken,
+                $request->ip(),
+                'staff-login-captcha-reject',
+                'staff-login-fail-ip-captcha:'.$request->ip(),
+                (int) config('auth.staff.login_max_captcha_failures_per_ip'),
+            );
+        } catch (LoginChallengeException $e) {
+            // R2/S7: không audit từng lượt `captcha_required` (bị bỏ qua), chỉ `captcha_invalid` và tối đa 1 dòng/10 phút/tài khoản.
+            if ($e->errorCode === LoginChallengeException::INVALID
+                && Cache::store(config('cache.limiter'))->add('staff-login-captcha-audit:'.LoginService::throttleSubject($login, $user), 1, 600)) {
+                $this->audit->log('staff.login_failed', $user, ['reason' => 'captcha_invalid']);
+            }
+
+            throw $e;
+        }
 
         // Luôn băm 1 lần dù không có tài khoản: thời gian phản hồi không lộ tài khoản tồn tại.
         $passwordOk = Hash::check($password, $user !== null ? $user->password : LoginService::dummyHash());
@@ -60,11 +81,14 @@ class StaffAuthService
         if ($user === null || ! $passwordOk) {
             $this->audit->log('staff.login_failed', $user, ['reason' => 'bad_credentials']);
 
-            throw ValidationException::withMessages(['login' => self::GENERIC_FAILURE]);
+            throw LoginChallengeException::badCredentials(
+                self::GENERIC_FAILURE,
+                LoginService::captchaNeededAfter($count, (int) config('auth.staff.login_captcha_threshold')),
+            );
         }
 
         // Chỉ đếm lượt SAI: mật khẩu đúng thì hoàn lượt đã giữ chỗ.
-        LoginService::releaseAttempts($accountKey, $ipKey);
+        LoginService::releaseAttempts(...$reserved);
 
         if ($user->role === UserRole::Student) {
             $this->audit->log('staff.login_failed', $user, ['reason' => 'wrong_portal']);

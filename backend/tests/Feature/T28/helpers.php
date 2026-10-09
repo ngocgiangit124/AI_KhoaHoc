@@ -34,6 +34,10 @@ function vvStaffUser(string $state = 'teacher', array $attrs = []): User
 /** Gọi login quản trị (chưa gắn cookie phiên cho request sau — dùng vvAdminFollow). */
 function vvAdminLogin(string $login, string $password = 'password', array $headers = [], array $extra = []): TestResponse
 {
+    // GL-A2: tắt cổng captcha (ngưỡng 1000) và giữ trần cũ (10 lượt/tài khoản, 50/IP) để test T28 kiểm cơ chế bộ đếm/trần;
+    // cổng captcha được kiểm ở tests/Feature/GL/LoginCaptchaGateTest.php.
+    config(['auth.staff.login_captcha_threshold' => 1000, 'auth.staff.login_max_failures_per_account' => 10, 'auth.staff.login_max_failures_per_ip' => 50, 'auth.login.captcha_rejects_per_minute' => 1000, 'auth.login.captcha_rejects_per_minute_ip' => 1000]);
+
     return test()->postJson(vvAdminUrl('/admin/auth/login'), array_merge([
         'login' => $login,
         'password' => $password,

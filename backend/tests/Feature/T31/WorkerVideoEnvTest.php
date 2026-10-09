@@ -11,6 +11,8 @@ test('env mau worker-video o APP_ENV=production khong lam guard nem loi', functi
     $path = base_path('../infra/production/.env.worker-video.example');
     $vars = Dotenv::parse((string) file_get_contents($path));
     expect($vars)->toHaveKey('APP_ENV', 'production');
+    // Ép khoá Turnstile không phải khoá test (.env local có 1x0000…); worker không dùng captcha nhưng guard chặn khoá test ở mọi tiến trình.
+    $vars = array_merge($vars, ['TURNSTILE_SITE_KEY' => '0x4AAAAAAAsite', 'TURNSTILE_SECRET' => '0x4AAAAAAAsecret', 'CACHE_LIMITER' => 'redis-limiter']);
 
     $backup = [];
     foreach ($vars as $k => $v) {
@@ -21,7 +23,7 @@ test('env mau worker-video o APP_ENV=production khong lam guard nem loi', functi
 
     try {
         $loaded = [];
-        foreach (['app', 'session', 'sanctum', 'captcha', 'payments', 'video', 'videolab', 'internal', 'auth', 'features'] as $name) {
+        foreach (['app', 'session', 'sanctum', 'captcha', 'payments', 'video', 'videolab', 'internal', 'auth', 'features', 'database', 'mail', 'services', 'cache'] as $name) {
             $loaded[$name] = require config_path("{$name}.php");
         }
         config($loaded);

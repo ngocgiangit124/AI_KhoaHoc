@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Exceptions\DomainException;
+use App\Exceptions\LoginChallengeException;
 use App\Exceptions\OtpValidationException;
 use App\Services\Auth\StudentSessionService;
 use Illuminate\Auth\AuthenticationException;
@@ -41,6 +42,11 @@ class ApiExceptionRenderer
             'request_id' => $requestId,
         ], static fn ($value) => $value !== null);
 
+        if ($e instanceof LoginChallengeException) {
+            // GL-A2: FE cần biết có phải hiện captcha cho lần đăng nhập sau (api-contract §2.1/§7).
+            $payload['captcha_required'] = $e->captchaRequired;
+        }
+
         $response = response()->json($payload, $status);
 
         if ($requestId) {
@@ -68,7 +74,7 @@ class ApiExceptionRenderer
         }
 
         if ($e instanceof ValidationException) {
-            return [422, $e instanceof OtpValidationException ? $e->errorCode : 'VALIDATION_ERROR', 'Dữ liệu gửi lên không hợp lệ.', $e->errors()];
+            return [422, $e instanceof OtpValidationException || $e instanceof LoginChallengeException ? $e->errorCode : 'VALIDATION_ERROR', 'Dữ liệu gửi lên không hợp lệ.', $e->errors()];
         }
 
         if ($e instanceof AuthenticationException) {

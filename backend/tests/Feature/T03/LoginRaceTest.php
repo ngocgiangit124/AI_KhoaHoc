@@ -14,7 +14,7 @@ function vvLoginRacePrefix(): string
     return $prefix ??= 'racetest-'.bin2hex(random_bytes(4)).'-';
 }
 
-function vvLoginRaceWorker(array $args, ?string $prefix = null): Process
+function vvLoginRaceWorker(array $args, ?string $prefix = null, array $env = []): Process
 {
     $p = new Process([PHP_BINARY, base_path('tests/Support/login_race_worker.php'), ...array_map('strval', $args)], base_path(), [
         'APP_ENV' => 'testing',
@@ -27,8 +27,15 @@ function vvLoginRaceWorker(array $args, ?string $prefix = null): Process
         'QUEUE_CONNECTION' => 'sync',
         'SESSION_DRIVER' => 'array',
         'BCRYPT_ROUNDS' => '4',
+        // GL-A2: mặc định giữ hành vi cũ (tắt cổng captcha, trần 10 lượt/tài khoản); test GL ghi đè qua `$env`.
+        'CAPTCHA_DRIVER' => 'fake',
+        'AUTH_LOGIN_CAPTCHA_THRESHOLD' => '1000',
+        'AUTH_STAFF_LOGIN_CAPTCHA_THRESHOLD' => '1000',
+        'AUTH_LOGIN_MAX_FAILURES' => '10',
+        'AUTH_STAFF_LOGIN_MAX_FAILURES' => '10',
         // Prefix riêng: khoá limiter của race test không trùng khoá của DB dev (id user trùng nhau).
         'CACHE_PREFIX' => $prefix ?? vvLoginRacePrefix(),
+        ...$env,
     ]);
     $p->setTimeout(180);
 

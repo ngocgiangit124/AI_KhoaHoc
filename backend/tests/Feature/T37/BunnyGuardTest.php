@@ -8,7 +8,7 @@ function bzGuardBase(string $env = 'production', array $bunny = []): void
 {
     app()->detectEnvironment(fn () => $env);
     config([
-        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
+        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'cache.limiter' => 'redis-limiter', 'captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app',
         'sanctum.stateful' => ['vitaminvui.vn'], 'app.trusted_proxies' => '10.0.0.1', 'app.static_url' => 'https://static.vitaminvui-media.net',
         'payments.enabled_gateways' => ['momo'], 'payments.gateways.momo.endpoint' => 'https://payment.momo.vn/x',
     ]);

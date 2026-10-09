@@ -31,6 +31,22 @@ if redis.call('TTL', KEYS[1]) < 0 then redis.call('EXPIRE', KEYS[1], ARGV[2]) en
 return v
 LUA;
 
+    /** Tất-cả-hoặc-không: có khoá nào đã >= trần thì KHÔNG cộng khoá nào; trả {0, vị trí khoá bị chặn} hoặc {1, số mới...}. */
+    // Redis Cluster: các khoá của 1 lần gọi phải cùng hash slot (CROSSSLOT) — xem docs/ops/production-checklist.md §4 (GL-A2/V2-5).
+    private const HIT_ALL = <<<'LUA'
+for i = 1, #KEYS do
+  local v = tonumber(redis.call('GET', KEYS[i])) or 0
+  if v >= tonumber(ARGV[i + 1]) then return {0, i} end
+end
+local out = {1}
+for i = 1, #KEYS do
+  local v = redis.call('INCR', KEYS[i])
+  if v == 1 then redis.call('EXPIRE', KEYS[i], ARGV[1]) end
+  out[#out + 1] = v
+end
+return out
+LUA;
+
     private const RELEASE = <<<'LUA'
 local v = tonumber(redis.call('GET', KEYS[1]))
 if v and v > 0 then return redis.call('DECR', KEYS[1]) end
@@ -49,6 +65,41 @@ LUA;
 
         // @phpstan-ignore-next-line (Connection::eval là phương thức Laravel, PHPStan đọc nhầm chữ ký của client Redis thô)
         return (int) self::connection($store)->eval(self::HIT, 1, $store->getPrefix().$key, $decaySeconds);
+    }
+
+    /**
+     * GL-A2 (S1/R3): cộng 1 vào MỌI khoá theo kiểu tất-cả-hoặc-không. Khoá nào đã đạt trần (`>= max`, kiểm TRƯỚC khi cộng)
+     * thì không khoá nào bị cộng (request bị chặn không để lại lượt ở khoá nào), kể cả khi đua nhiều tiến trình
+     * (1 script Lua). Đặt khoá "rộng" (IP) trước khoá tài khoản để IP bị chặn không chạm bộ đếm tài khoản.
+     *
+     * @param  list<array{0: string, 1: int}>  $limits  [khoá, trần]
+     * @return array{blocked: ?string, counts: list<int>} `blocked` = khoá đầu tiên chạm trần (null nếu đã cộng)
+     */
+    public static function hitAll(array $limits, int $decaySeconds): array
+    {
+        $store = self::redisStore();
+
+        if ($store === null) {
+            foreach ($limits as [$key, $max]) {
+                if (self::attempts($key) >= $max) {
+                    return ['blocked' => $key, 'counts' => []];
+                }
+            }
+
+            return ['blocked' => null, 'counts' => array_map(fn (array $l): int => self::hit($l[0], $decaySeconds), $limits)];
+        }
+
+        $keys = array_map(fn (array $l): string => $store->getPrefix().self::clean($l[0]), $limits);
+        $args = [$decaySeconds, ...array_map(fn (array $l): int => $l[1], $limits)];
+
+        // @phpstan-ignore-next-line (như hit())
+        $result = self::connection($store)->eval(self::HIT_ALL, count($keys), ...$keys, ...$args);
+
+        if ((int) $result[0] === 0) {
+            return ['blocked' => $limits[(int) $result[1] - 1][0], 'counts' => []];
+        }
+
+        return ['blocked' => null, 'counts' => array_map('intval', array_slice($result, 1))];
     }
 
     /**

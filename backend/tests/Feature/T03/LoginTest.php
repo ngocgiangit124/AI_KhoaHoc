@@ -7,6 +7,10 @@ require_once __DIR__.'/helpers.php';
 
 function vvLogin(array $payload, array $headers = [])
 {
+    // GL-A2: các test T03 kiểm cơ chế bộ đếm/trần cũ nên tắt cổng captcha (ngưỡng 1000) và giữ trần cũ (10 lượt/tài khoản,
+    // 50/IP); hành vi cổng captcha được kiểm ở tests/Feature/GL/LoginCaptchaGateTest.php.
+    config(['auth.login.captcha_threshold' => 1000, 'auth.login.max_failures_per_account' => 10, 'auth.login.max_failures_per_ip' => 50, 'auth.login.captcha_rejects_per_minute' => 1000, 'auth.login.captcha_rejects_per_minute_ip' => 1000]);
+
     return test()->postJson(vvApiUrl('/auth/login'), $payload, vvWebHeaders($headers));
 }
 
@@ -186,7 +190,7 @@ describe('throttle 2 lop (S10)', function () {
         }
 
         vvLogin(['login' => 'nguoi51@example.com', 'password' => 'sai'], ['X-Forwarded-For' => '198.51.100.200'])
-            ->assertStatus(429);
+            ->assertStatus(422)->assertJsonPath('code', 'CAPTCHA_REQUIRED'); // GL-A2 V2-3b: trần IP -> đòi captcha
     });
 });
 

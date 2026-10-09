@@ -43,6 +43,12 @@ function qaRunGuardWithEnv(array $overrides, string $appEnv): array
     $path = base_path('../infra/production/.env.production.example');
     $valid = [
         'APP_KEY' => 'base64:'.base64_encode(str_repeat('k', 32)),
+        // GL-1: .env.example/.env local mang khoá test Turnstile (1x0000…) và Redis không mật khẩu: test tự cấp giá trị hợp lệ.
+        'TURNSTILE_SITE_KEY' => '0x4AAAAAAAsite',
+        'TURNSTILE_SECRET' => '0x4AAAAAAAsecret',
+        'REDIS_PASSWORD' => 'redis-secret-test',
+        // GL-A2 V2-5: phpunit ép CACHE_LIMITER=array; production mặc định redis-limiter (env mẫu không đặt).
+        'CACHE_LIMITER' => 'redis-limiter',
         'TRUSTED_PROXIES' => '10.0.0.1,10.0.0.2',
         'INTERNAL_API_TOKEN' => str_repeat('a', 64),
         'VIDEOLAB_API_KEY' => str_repeat('a', 64),
@@ -54,7 +60,7 @@ function qaRunGuardWithEnv(array $overrides, string $appEnv): array
 
     try {
         $loaded = [];
-        foreach (['app', 'session', 'sanctum', 'captcha', 'payments', 'video', 'videolab', 'internal', 'auth', 'features'] as $name) {
+        foreach (['app', 'session', 'sanctum', 'captcha', 'payments', 'video', 'videolab', 'internal', 'auth', 'features', 'database', 'mail', 'services', 'cache'] as $name) {
             $loaded[$name] = require config_path("{$name}.php");
         }
         config($loaded);

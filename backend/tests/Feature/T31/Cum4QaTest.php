@@ -14,7 +14,7 @@ function c4qaProductionConfig(): void
 {
     app()->detectEnvironment(fn () => 'production');
     config([
-        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
+        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'cache.limiter' => 'redis-limiter', 'captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app',
         'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net', 'app.trusted_proxies' => '10.0.0.1',
         'payments.enabled_gateways' => [], 'video.provider' => 'internal', 'video.enabled_providers' => ['internal'],
         'internal.required' => false, 'internal.ssr_token' => null, 'features.paid_checkout' => false,

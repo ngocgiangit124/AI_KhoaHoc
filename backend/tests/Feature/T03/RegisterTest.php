@@ -146,7 +146,7 @@ test('captcha fake tu choi token rong', function () {
 });
 
 test('khong co Origin hop le thi khong goi Cloudflare (R4)', function () {
-    config(['captcha.driver' => 'turnstile', 'services.turnstile.secret' => 's']);
+    config(['captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app', 'services.turnstile.secret' => 's']);
     Http::fake();
 
     $this->postJson(vvApiUrl('/auth/register'), vvRegisterPayload(['captcha_token' => 'tok']))
@@ -272,7 +272,7 @@ describe('captcha', function () {
     });
 
     test('driver turnstile: thieu token -> CAPTCHA_FAILED; Cloudflare tra success=false -> CAPTCHA_FAILED; success=true -> 201', function () {
-        config(['captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'secret-test']);
+        config(['captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app', 'services.turnstile.secret' => 'secret-test']);
         Http::fake(['challenges.cloudflare.com/*' => Http::sequence()
             ->push(['success' => false])
             ->push(['success' => true])]);
@@ -290,14 +290,14 @@ describe('captcha', function () {
     });
 
     test('driver turnstile: loi mang -> fail-closed', function () {
-        config(['captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'secret-test']);
+        config(['captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app', 'services.turnstile.secret' => 'secret-test']);
         Http::fake(['challenges.cloudflare.com/*' => Http::response('boom', 500)]);
 
         vvRegister(['captcha_token' => 'tok'])->assertStatus(422)->assertJsonPath('code', 'CAPTCHA_FAILED');
     });
 
     test('driver turnstile khong co secret -> fail-closed', function () {
-        config(['captcha.driver' => 'turnstile', 'services.turnstile.secret' => '']);
+        config(['captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app', 'services.turnstile.secret' => '']);
         Http::fake();
 
         vvRegister(['captcha_token' => 'tok'])->assertStatus(422)->assertJsonPath('code', 'CAPTCHA_FAILED');

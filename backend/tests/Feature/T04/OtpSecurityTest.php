@@ -87,7 +87,7 @@ test('S9 production: kenh sms duoc bat trong cau hinh -> app khong boot (guard)'
     config([
         'app.debug' => false,
         'session.secure' => true, 'session.encrypt' => true,
-        'captcha.driver' => 'turnstile',
+        'cache.limiter' => 'redis-limiter', 'captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app',
         'sanctum.stateful' => ['vitaminvui.vn'],
         'app.static_url' => 'https://static.vitaminvui-media.net',
         'app.trusted_proxies' => '10.0.0.1',

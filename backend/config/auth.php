@@ -149,16 +149,39 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Đăng nhập học sinh: đòi captcha thay vì khoá (GL-A2, api-contract §1.6)
+    |--------------------------------------------------------------------------
+    | Dưới `captcha_threshold` lần sai/giờ/tài khoản (đếm theo định danh đã chuẩn hoá, mọi IP): đăng nhập bình thường. Từ
+    | ngưỡng: phải kèm `captcha_token` hợp lệ (422 CAPTCHA_REQUIRED / CAPTCHA_INVALID), KHÔNG khoá tài khoản. Trần cứng
+    | `max_failures_per_account` (kể cả có captcha) và `max_failures_per_ip` → 429. Staff: khoá `auth.staff.*` bên dưới.
+    */
+    'login' => [
+        'captcha_threshold' => (int) env('AUTH_LOGIN_CAPTCHA_THRESHOLD', 5),
+        'max_failures_per_account' => (int) env('AUTH_LOGIN_MAX_FAILURES', 100),
+        // R1 (NAT lớp học): khoá IP CHỈ đếm lượt sai KHÔNG kèm captcha hợp lệ; mặc định 200/giờ (CHỜ PO XÁC NHẬN SỐ).
+        'max_failures_per_ip' => (int) env('AUTH_LOGIN_MAX_FAILURES_IP', 200),
+        // V2-2: trần IP riêng, cao, cho lượt sai CÓ captcha hợp lệ (chặn trên tốc độ stuffing kèm dịch vụ giải captcha).
+        'max_captcha_failures_per_ip' => (int) env('AUTH_LOGIN_MAX_CAPTCHA_FAILURES_IP', 1000),
+        // R2/S7 + V2-3a: lượt bị captcha từ chối (thiếu/sai) mỗi phút theo cặp IP+tài khoản (thấp) và theo IP (cao, chống đốt
+        // quota siteverify/giữ worker); dùng chung 2 host (khoá limiter riêng từng host).
+        'captcha_rejects_per_minute' => (int) env('AUTH_LOGIN_CAPTCHA_REJECTS_PER_MINUTE', 10),
+        'captcha_rejects_per_minute_ip' => (int) env('AUTH_LOGIN_CAPTCHA_REJECTS_PER_MINUTE_IP', 120),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Phiên quản trị (T28, ADR-004 §2.2)
     |--------------------------------------------------------------------------
     | Idle 120 phút và tối đa 12 giờ kể từ lúc đăng nhập bước mật khẩu; quá hạn → 401
     | STAFF_IDLE_TIMEOUT (middleware `staff.idle`). Giới hạn đăng nhập sai theo api-contract §1.6.
     */
     'staff' => [
+        'login_captcha_threshold' => (int) env('AUTH_STAFF_LOGIN_CAPTCHA_THRESHOLD', 5),
         'idle_minutes' => (int) env('AUTH_STAFF_IDLE_MINUTES', 120),
         'absolute_hours' => (int) env('AUTH_STAFF_ABSOLUTE_HOURS', 12),
-        'login_max_failures_per_account' => (int) env('AUTH_STAFF_LOGIN_MAX_FAILURES', 10),
-        'login_max_failures_per_ip' => (int) env('AUTH_STAFF_LOGIN_MAX_FAILURES_IP', 50),
+        'login_max_failures_per_account' => (int) env('AUTH_STAFF_LOGIN_MAX_FAILURES', 100),
+        'login_max_failures_per_ip' => (int) env('AUTH_STAFF_LOGIN_MAX_FAILURES_IP', 200),
+        'login_max_captcha_failures_per_ip' => (int) env('AUTH_STAFF_LOGIN_MAX_CAPTCHA_FAILURES_IP', 1000),
     ],
 
     /*

@@ -50,6 +50,8 @@ function c4ParseRawEnv(string $content): array
 /** Nạp biến vào env thật, nạp lại config, đặt môi trường như APP_ENV thô rồi chạy guard. Trả thông báo lỗi hoặc null. */
 function c4RunGuardRaw(array $vars): ?string
 {
+    // GL-A2 V2-5: phpunit ép CACHE_LIMITER=array; mặc định production là redis-limiter.
+    $vars += ['CACHE_LIMITER' => 'redis-limiter'];
     $backup = [];
 
     foreach ($vars as $k => $v) {
@@ -60,7 +62,7 @@ function c4RunGuardRaw(array $vars): ?string
 
     try {
         $loaded = [];
-        foreach (['app', 'session', 'sanctum', 'captcha', 'payments', 'video', 'videolab', 'internal', 'auth', 'features'] as $name) {
+        foreach (['app', 'session', 'sanctum', 'captcha', 'payments', 'video', 'videolab', 'internal', 'auth', 'features', 'database', 'mail', 'services', 'cache'] as $name) {
             $loaded[$name] = require config_path("{$name}.php");
         }
         config($loaded);
@@ -94,6 +96,12 @@ function c4ValidInfra(): array
 {
     return [
         'APP_KEY' => 'base64:'.base64_encode(str_repeat('k', 32)),
+        // GL-1: .env.example/.env local mang khoá test Turnstile (1x0000…) và Redis không mật khẩu: test tự cấp giá trị hợp lệ.
+        'TURNSTILE_SITE_KEY' => '0x4AAAAAAAsite',
+        'TURNSTILE_SECRET' => '0x4AAAAAAAsecret',
+        'REDIS_PASSWORD' => 'redis-secret-test',
+        // GL-A2 V2-5: phpunit ép CACHE_LIMITER=array; production mặc định redis-limiter (env mẫu không đặt).
+        'CACHE_LIMITER' => 'redis-limiter',
         'TRUSTED_PROXIES' => '10.0.0.1,10.0.0.2',
         'INTERNAL_API_TOKEN' => str_repeat('ab', 32),
         'VIDEOLAB_API_KEY' => str_repeat('a', 64),
@@ -144,7 +152,7 @@ test('M2: APP_ENV khong hop le bi chan truoc moi kiem tra khac', function (strin
 test('M2: bien env quan trong chua " #" bi chan (guard doc gia tri tho)', function (string $key, string $value) {
     app()->detectEnvironment(fn () => 'production');
     config([
-        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
+        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'cache.limiter' => 'redis-limiter', 'captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app',
         'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net', 'app.trusted_proxies' => '10.0.0.1',
         'payments.enabled_gateways' => [], 'video.provider' => 'internal', 'video.enabled_providers' => ['internal'],
         'internal.required' => false, 'internal.ssr_token' => null, 'features.paid_checkout' => false,
@@ -170,7 +178,7 @@ test('M2: bien env quan trong chua " #" bi chan (guard doc gia tri tho)', functi
 test('M1: guard bat buoc SESSION_ENCRYPT=true ngoai local/testing', function () {
     app()->detectEnvironment(fn () => 'production');
     config([
-        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => false, 'captcha.driver' => 'turnstile',
+        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => false, 'cache.limiter' => 'redis-limiter', 'captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app',
         'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net', 'app.trusted_proxies' => '10.0.0.1',
         'payments.enabled_gateways' => [], 'video.provider' => 'internal', 'video.enabled_providers' => ['internal'],
         'internal.required' => false, 'features.paid_checkout' => false, 'videolab.enabled' => false,
@@ -442,7 +450,7 @@ test('R3: local/testing khong bi ep tat debug', function (string $env) {
 test('R4: mat khau hop le chua # sat chu (ab#cd, #abc, a#b) khong bi chan; " #" va khoang trang dau/cuoi bi chan', function (string $value, bool $blocked) {
     app()->detectEnvironment(fn () => 'production');
     config([
-        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'captcha.driver' => 'turnstile',
+        'app.debug' => false, 'session.secure' => true, 'session.encrypt' => true, 'cache.limiter' => 'redis-limiter', 'captcha.driver' => 'turnstile', 'services.turnstile.secret' => 'ts-secret', 'services.turnstile.site_key' => 'ts-site', 'mail.default' => 'smtp', 'database.redis.default.password' => 'redis-secret', 'database.redis.video.password' => 'redis-secret', 'database.connections.mysql.username' => 'vv_app',
         'sanctum.stateful' => ['vitaminvui.vn', 'admin.vitaminvui.vn'], 'app.static_url' => 'https://static.vitaminvui-media.net', 'app.trusted_proxies' => '10.0.0.1',
         'payments.enabled_gateways' => [], 'video.provider' => 'internal', 'video.enabled_providers' => ['internal'],
         'internal.required' => false, 'internal.ssr_token' => null, 'features.paid_checkout' => false,

@@ -32,9 +32,14 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 - [ ] Next.js (`next start`) chỉ nghe loopback/mạng nội bộ, KHÔNG mở cổng 3000/3001 ra Internet: Next lấy IP khách từ `X-Forwarded-For` do Nginx ghi đè, gọi thẳng Next thì khách giả được IP (né hạn mức tìm kiếm theo IP)
 - [ ] `DB_*` dùng user `vv_app` (không root), `REDIS_PASSWORD` đã đặt (app dùng user Redis `default` trong `redis/users.acl`)
 - [ ] PHP: `php -i | grep -E '^(display_errors|display_startup_errors|log_errors|expose_php)'` ra `Off`, `Off`, `On`, `Off` trên CẢ CLI và FPM (`php-fpm -i`) (C4-L3). Image build từ `infra/php/Dockerfile` (có `php.ini-production`); nếu dựng PHP kiểu khác thì tự làm tương đương. Lỗi trước khi Laravel boot (vendor hỏng khi đổi symlink release, lỗi cú pháp) phải chỉ vào log, không vào response
-- [ ] `MAIL_*` là SMTP thật; gửi thử một OTP về hộp thư thật
-- [ ] `CAPTCHA_DRIVER=turnstile`, `TURNSTILE_SITE_KEY` và `TURNSTILE_SECRET` là key thật của Cloudflare (không phải key test `1x0000...`). Guard chưa kiểm secret rỗng (L4): kiểm tay bằng đăng ký thử
+- [ ] `MAIL_*` là SMTP thật, `MAIL_MAILER` KHÔNG là `log`/`array` (guard chặn, GL-1/D6); gửi thử một OTP về hộp thư thật
+- [ ] `CAPTCHA_DRIVER=turnstile`, `TURNSTILE_SITE_KEY` và `TURNSTILE_SECRET` là key thật của Cloudflare (không phải key test `1x0000...`). Guard chặn `TURNSTILE_SECRET` rỗng hoặc chỉ khoảng trắng khi `CAPTCHA_DRIVER=turnstile` (GL-1/D6); guard không phân biệt được key test với key thật nên vẫn kiểm tay bằng đăng ký thử
+- [ ] Widget Turnstile chỉ cho phép hostname production; staging dùng widget và key riêng (server không kiểm `hostname`/`action`, nên giới hạn ở phía Cloudflare). Guard chặn khoá test `1x0000…`/`2x0000…`/`3x0000…` (site key lẫn secret) và `TURNSTILE_SECRET` rỗng (GL-1/A5)
+- [ ] `REDIS_PASSWORD` không rỗng và `DB_USERNAME` không phải `root` (guard chặn cả hai, GL-1/A5); worker-video dùng user Redis/DB riêng của nó
+- [ ] Không dùng lại token/mật khẩu của máy dev ở staging/production: `INTERNAL_API_TOKEN` trong `frontend/apps/web/playwright.fw8qa.config.ts`, mật khẩu tài khoản demo (mặc định `DEMO_ACCOUNT_PASSWORD` trong `config/auth.php`, và các tài liệu board/QA). KHÔNG chạy `db:seed` (seeder chỉ chạy ở `local`); nếu staging buộc phải có tài khoản mẫu thì đặt `DEMO_ACCOUNT_PASSWORD` riêng
 - [ ] `AUTH_OTP_CHANNELS=email`
+- [ ] Thư thông báo phụ huynh (ADR-006/T29): `PRIVACY_NOTICE_TOKEN_KEY` đặt riêng >= 32 byte, không xoay (guard chặn khi thiếu/ngắn); `PRIVACY_PARENT_NOTICE_DAILY_CAP` trong 1..20 (guard); `PRIVACY_PARENT_NOTICE_GLOBAL_HOURLY_CAP` (mẫu 500); `PRIVACY_POLICY_VERSION` không rỗng (guard); `PRIVACY_PARENT_CONTACT_SUGGEST_AGE`. Mẫu: `infra/production/.env.production.example`
+- [ ] Đơn thủ công (US-022/T38), các biến `ORDERS_*` do guard kiểm khi khởi động: `ORDERS_CUSTOMER_NOTE_RETENTION_DAYS` (30..3650, mẫu 90) và `ORDERS_STAFF_TEXT_RETENTION_DAYS` (1..3650, mẫu 7) luôn được kiểm (độc lập cờ). Khi `FEATURE_MANUAL_PAYMENT=true` thì thêm: `ORDERS_MANUAL_PENDING_TTL_HOURS` (1..168), `ORDERS_MANUAL_APPROVAL_WINDOW_DAYS` (0..90), `ORDERS_MANUAL_PER_DAY` (1..50) phải là số nguyên không dấu (guard so chuỗi thô, `abc` bị chặn); `ORDERS_MANUAL_NOTIFY_EMAILS` (danh sách email hợp lệ, không rỗng; nếu bỏ trống code lùi về `SUPPORT_EMAIL`); ít nhất một kênh `PAYMENT_CONTACT_PHONE` / `PAYMENT_CONTACT_ZALO_URL` (dạng `https://zalo.me/<id>`) / `PAYMENT_CONTACT_EMAIL` (hợp lệ); `PAYMENT_CONTACT_HOURS` tối đa 100 ký tự, không HTML. Code lùi `PAYMENT_CONTACT_EMAIL` về `SUPPORT_EMAIL` nên kênh email gần như luôn có: xác nhận số điện thoại/Zalo thật trước khi bật. Mẫu env để `FEATURE_MANUAL_PAYMENT=false`
 - [ ] `QUEUE_CONNECTION=redis`, `CACHE_STORE=redis`
 - [ ] `VIDEO_PROVIDER=internal`, `VIDEO_ENABLED_PROVIDERS=internal`
 - [ ] `VIDEOLAB_*`: xem mục 2
@@ -47,6 +52,7 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 | `APP_DEBUG=true` | lộ stack trace, secret | có; guard ép `app.debug=false` trước khi ném lỗi nên route ngoài `api/*` cũng không render trang debug (C4-L4) |
 | `SESSION_SECURE_COOKIE=false` | cookie phiên đi qua HTTP | có |
 | `CAPTCHA_DRIVER=fake` (mọi kiểu viết hoa) | bỏ qua chống bot | có (T31: thêm staging) |
+| `CACHE_LIMITER` trỏ store không phải `redis`; `AUTH_*LOGIN_*` ngoài khoảng cho phép (ngưỡng captcha 1..20, trần tài khoản >= 20 và > ngưỡng+10, trần IP >= 20, trần IP có captcha >= 100); `AUTH_LOGIN_CAPTCHA_REJECTS_PER_MINUTE[_IP]` < 10 | bộ đếm đăng nhập không nguyên tử / env rỗng = 0 làm sập hoặc khoá đăng nhập (GL-A2) | có (GL-A2) |
 | `PAYMENT_GATEWAYS` chứa `fake` | cổng giả | có |
 | `AUTH_OTP_CHANNELS` chứa `sms` | chưa có nhà cung cấp SMS (S9) | có |
 | `TRUSTED_PROXIES=*` | giả mạo IP | có |
@@ -63,14 +69,18 @@ Mẫu đầy đủ: `infra/production/.env.production.example`. Worker video: `i
 | `FEATURE_PAID_CHECKOUT=true` khi `payments.ipn_ready=false` (chưa có IPN T19/đối soát T20) | HS trả tiền nhưng không được ghi danh | có (cụm 3 L1; T19 đổi hằng `ipn_ready` trong `config/payments.php`) |
 | `FEATURE_STAFF_MFA=false` | bỏ MFA quản trị | có (cụm 1 L1) |
 | `TRUSTED_PROXIES` rỗng ở tiến trình web | mọi người dùng chung IP proxy | có (minor-fixes-3 R2) |
-| (lưu ý R9) Guard miễn kiểm `TRUSTED_PROXIES` cho tiến trình console dựa vào `runningInConsole()` | nếu chuyển web sang Octane/Swoole/RoadRunner (chạy bằng CLI) thì guard bị vô hiệu cho cả web: phải xem lại điều kiện miễn (vd. chỉ miễn `queue:work`, `schedule:*`) trước khi đổi | không (kiểm tay khi đổi runtime) |
+| (lưu ý R9) Guard miễn kiểm `TRUSTED_PROXIES` rỗng, `TURNSTILE_SECRET` rỗng và `REDIS_PASSWORD` của connection `default` cho tiến trình console (chung cờ `app.trusted_proxies_console_exempt`) dựa vào `runningInConsole()` | nếu chuyển web sang Octane/Swoole/RoadRunner (chạy bằng CLI) thì guard bị vô hiệu cho cả web, mất CÙNG LÚC cả ba lớp kiểm: phải xem lại điều kiện miễn (vd. chỉ miễn `queue:work`, `schedule:*`) trước khi đổi | không (kiểm tay khi đổi runtime) |
 | `MOMO_ENDPOINT` khác `https://payment.momo.vn` | sandbox lọt production | chỉ production (staging được dùng sandbox) |
 | `MOMO_PAY_URL_HOSTS` khác đúng `payment.momo.vn` | chuyển hướng sang host lạ (T17-2) | chỉ production (T31) |
 | `AWS_*` thừa, `FAKE_*`, Telescope/Debugbar cài ở production | bề mặt thừa | không: kiểm tay (`composer install --no-dev`) |
 | Dùng lại khoá/mật khẩu production ở staging (và ngược lại) | staging bị lộ kéo theo production | không: kiểm tay |
+| `TURNSTILE_SECRET` rỗng/khoảng trắng khi `CAPTCHA_DRIVER=turnstile` | captcha không xác minh được | có (GL-1/D6); tiến trình console được miễn (xem lưu ý R9) |
+| `TURNSTILE_SECRET`/`TURNSTILE_SITE_KEY` bắt đầu bằng `1x0000`, `2x0000`, `3x0000` (khoá test Cloudflare) | khoá `1x` luôn thành công: mất lớp chống bot | có (GL-1/A5), mọi tiến trình |
+| `MAIL_MAILER` là `log`/`array` (hoặc rỗng) | OTP, thư phụ huynh, thư đơn không tới người nhận | có (GL-1/D6) |
+| Mật khẩu Redis rỗng: `default` (web) và `video` (web và worker-video; chấp nhận mật khẩu trong `REDIS_URL`/`REDIS_VIDEO_URL`) | Redis không xác thực | có (GL-1/A5); worker chỉ cần `REDIS_VIDEO_PASSWORD` |
+| `DB_USERNAME=root` | ứng dụng chạy bằng quyền tối đa | có (GL-1/A5) |
 
-Guard CHƯA kiểm (kiểm tay, hoặc thêm khi có yêu cầu): `TURNSTILE_SECRET` rỗng, `MAIL_MAILER` là `log`/`array`, `REDIS_PASSWORD` rỗng,
-`APP_URL` không https, user DB là root. Lý do chưa thêm: các test cũ của guard (T01, T04, T11) dựng baseline tối thiểu không có các giá trị này.
+Guard CHƯA kiểm (kiểm tay): `MAIL_HOST` rỗng khi `MAIL_MAILER=smtp`, khoá Turnstile thật hay giả (chỉ chặn khoá test của Cloudflare).
 
 - [ ] Chạy `php artisan about --only=environment` rồi khởi động thử: app không ném `RuntimeException` từ `ProductionConfigGuard`
 
@@ -86,8 +96,16 @@ Guard CHƯA kiểm (kiểm tay, hoặc thêm khi có yêu cầu): `TURNSTILE_SEC
 | `FEATURE_STAFF_MFA` | true | **true** | Không tắt ở production (guard chặn khi false ở mọi môi trường trừ local/testing) |
 | `FEATURE_PARENT_NOTICES` | true | **true** | Thư THÔNG BÁO cho phụ huynh (ADR-006, T29): khi tạo tài khoản, thêm/đổi email phụ huynh, đơn có tiền đã thanh toán. **Mail thật (SMTP + queue worker) phải chạy trước go-live.** `false` = công tắc tắt khẩn (không gửi thư, request gốc vẫn thành công). Đã bỏ `FEATURE_PARENT_CONSENT_ENFORCED` |
 | `FEATURE_EXTERNAL_VIDEO_PREVIEW_ONLY` | true | true | Link ngoài chỉ cho bài học thử |
+| `FEATURE_MANUAL_PAYMENT` | false | **false** khi deploy, rồi **true** ở bước 2 (V1 cần cờ này bật) | US-022: thanh toán thủ công (học sinh đặt đơn, QTV duyệt tay). Mẫu production để `false`. Chỉ bật sau: T39 + FA8 đã deploy, `PAYMENT_CONTACT_*` + `ORDERS_MANUAL_NOTIFY_EMAILS` là thật và hộp thư có người trực, scheduler chạy `orders:expire-manual`, QTV được hướng dẫn quy trình duyệt/huỷ. Bật mà thiếu kênh liên hệ hoặc danh sách nhận thư: guard chặn khởi động. Tắt khẩn: đặt `false` rồi `config:cache` + `queue:restart` (đơn cũ vẫn duyệt/huỷ được; xác nhận trên staging) |
 
 - [ ] Từng cờ đã đối chiếu bảng trên; `GET /api/v1/config/public` trả `paid_checkout_enabled=false`
+
+**Thứ tự bật cờ (K3).** Deploy với `FEATURE_PAID_CHECKOUT=false`, `FEATURE_MANUAL_PAYMENT=false`, `FEATURE_PARENT_NOTICES=false`, `VIDEO_PROVIDER=internal`; migration xong và smoke test đăng nhập/học đạt; sau đó từng bước, mỗi bước có người ký:
+
+- [ ] Bước 1 `FEATURE_PARENT_NOTICES=true`, chỉ khi: SMTP gửi thật OK + queue worker chạy, trang FW7 `/phu-huynh/huy-nhan-thong-bao` đã lên, `PRIVACY_NOTICE_TOKEN_KEY` đã đặt, Nginx đã che `?t=` (mục 3, GL-1/D1) và log Next/LB đã kiểm, pháp chế đã xem nội dung thư. Sau khi đổi: `config:cache` + `queue:restart`
+- [ ] Bước 2 `FEATURE_MANUAL_PAYMENT=true`, điều kiện ở dòng cờ trên
+- [ ] Bước 3 `VIDEO_PROVIDER=bunny`, chỉ sau khi Bunny C1–C9 đạt trên staging (mục 2.1); giữ `internal` ở V1
+- [ ] `FEATURE_PAID_CHECKOUT` KHÔNG bật ở V1
 
 ## 2. Secret và khoá VideoLab
 
@@ -142,6 +160,10 @@ Mẫu: `infra/production/nginx/`. Sáu server block: 4 host ứng dụng (web, a
 - [ ] Tên miền tĩnh (`STATIC_URL`) trả đủ 3 header: `Content-Security-Policy: default-src 'none'; img-src 'self'; sandbox`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline`; `X-Robots-Tag: noindex, noimageindex` (US-020 M1); KHÔNG có `Set-Cookie`; chỉ GET/HEAD; không PHP; không liệt kê thư mục
 - [ ] Tên miền tĩnh là tên miền đăng ký riêng (không dùng subdomain của `vitaminvui.vn`) để không nhận cookie (S2) — PO mua tên miền
 - [ ] **US-020 (T36), trước khi deploy:** kiểm dữ liệu hồ sơ cũ bị backfill: `SELECT COUNT(*) FROM users WHERE role='giao_vien' AND (bio IS NOT NULL OR avatar_path IS NOT NULL);` phải bằng 0 (dự kiến, chưa từng có đường ghi). Nếu khác 0: rà tay `users.bio` (HTML, ký tự ẩn, `\r\n`) vì migration chép NGUYÊN VĂN (cắt 600 ký tự) mà không qua `PlainText`; bio "bẩn" sẽ công khai khi giáo viên tick đồng ý mà không sửa. Làm sạch bằng SQL hoặc cho giáo viên nhập lại trước khi đồng ý
+- [ ] **Che token huỷ nhận thư phụ huynh (GL-1/D1, K4):** link trong thư là `https://<web>/phu-huynh/huy-nhan-thong-bao?t=<token HMAC>`. Mẫu Nginx có `location = /phu-huynh/huy-nhan-thong-bao` ghi `access_log` bằng `log_format vv_noargs` (chỉ `$uri`, không query, không Referer). API nhận token (`POST /api/v1/parent-notices/unsubscribe`) nhận token trong body, không trong URL, nên access log API không chứa token. Kiểm tay TRƯỚC khi bật `FEATURE_PARENT_NOTICES`: (a) bấm thử một link rồi `grep -rE '[?&]t=' /var/log/nginx/` (cả access lẫn error) không ra token; (b) log của Next.js (`next start`, stdout, Docker, journal systemd) không ghi URL đầy đủ; (c) log của load balancer/CDN/WAF phía trước Nginx (nếu có) đã tắt ghi query hoặc che tham số `t`; (d) `error_log` Nginx vẫn có thể ghi `request: "GET /...?t=..."` khi upstream lỗi và KHÔNG che được bằng cấu hình: giữ mức `error`, hạn chế người đọc, xoay vòng ngắn; (e) mẫu đã qua `nginx -t` (nginx:1.27) với IP thật
+- [ ] Host admin `admin.vitaminvui.vn` có `limit_req` zone `vv_admin` (mẫu 5r/s, burst 100; RL-2); theo dõi 429 ở access log và chỉnh sau khi đo staging
+- [ ] Phản hồi do chính Nginx trả (403, 404, 413, 429) không có `nosniff`/`X-Frame-Options` của Laravel: thêm `add_header X-Content-Type-Options nosniff always;` (và `X-Frame-Options DENY always`) ở cấp `server` cho các host API; kiểm các header API vẫn xuất hiện đúng 1 lần
+- [ ] HSTS: Next gửi `includeSubDomains; preload`; chỉ nộp hstspreload sau khi MỌI subdomain đã HTTPS. Bật OCSP stapling; `ssl_ciphers` đang để mặc định, xem lại cùng lúc
 - [ ] Header nội bộ `X-Internal-Token` và `X-Client-IP` bị xoá ở mọi host công khai (T26-3); kiểm bằng `curl -H 'X-Client-IP: 1.2.3.4' ...` không đổi IP trong log
 - [ ] Server nội bộ `:8081` (mẫu có sẵn): chỉ nghe IP mạng nội bộ, `allow` đúng IP Next server + `deny all`, chỉ GET/HEAD `/api/v1/`, ép `HTTP_HOST` = host api (ADR-004 §2.8), có `access_log` riêng. Kiểm: từ máy khác Next server → 403. Từ Next server, kèm token đúng: có `X-Client-IP` thì request thứ 121/phút cùng IP → 429; KHÔNG có `X-Client-IP` thì 200 request/phút vẫn 200 (chỉ trần tổng `CATALOG_SSR_TOTAL_PER_MINUTE`)
 - [ ] Firewall chặn cổng 8081 từ ngoài mạng nội bộ
@@ -150,7 +172,8 @@ Mẫu: `infra/production/nginx/`. Sáu server block: 4 host ứng dụng (web, a
 ### 3.1 VideoLab (T12-4, T12-5, review T12 R7)
 
 - [ ] `/videolab/library/` chỉ cho IP app server CỤ THỂ (`allow <IP_APP_SERVER>; deny all;`), không dải private rộng như local
-- [ ] `real_ip` đúng (`set_real_ip_from` = IP load balancer, `real_ip_header X-Forwarded-For`) để allow-list và token CDN ràng IP so IP khách thật; kiểm: gọi `/videolab/library/` từ máy ngoài app server trả 403
+- [ ] `real_ip` đúng (ADR-008 "Quyết định PO 2026-10-09", có Cloudflare proxy): `infra/production/nginx/snippets/vv-real-ip.conf` có `set_real_ip_from` đủ dải IPv4 + IPv6 Cloudflare hiện hành và `real_ip_header CF-Connecting-IP`; cron hàng tuần chạy `infra/production/scripts/update-cloudflare-ips.sh /etc/nginx/snippets/vv-real-ip.conf` (tự `nginx -t` + reload, lỗi thì khôi phục). Firewall origin CHỈ mở 80/443 cho dải Cloudflare (nếu không, ai cũng tự đặt được `CF-Connecting-IP` để giả IP). Mẫu đã qua `nginx -t` (nginx:1.27). Kiểm: gọi `/videolab/library/` từ máy ngoài app server trả 403; (GL-A2/S3) đăng nhập sai từ 2 máy khác mạng thì access log/audit thấy 2 IP khác nhau và không phải IP Cloudflare; 200 lượt sai/giờ từ máy A không làm máy B bị 429
+- [ ] **GL-A2: BE chỉ deploy cùng FE** (form đăng nhập web và admin đã có widget Turnstile, gửi `captcha_token` khi `captcha_required`/`CAPTCHA_*`). BE lên trước thì người ngoài chỉ cần 5 lượt sai/giờ để chặn người thật đăng nhập từ UI. Giá trị `AUTH_LOGIN_*`/`AUTH_STAFF_LOGIN_*` (ngưỡng 5, trần tài khoản 100, trần IP 200 — chờ PO xác nhận) nằm trong khoảng guard cho phép
 - [ ] `TRUSTED_PROXIES` khớp IP load balancer: kiểm `Location` trả về từ TUS (`POST /videolab/tus`) dùng `https://`
 - [ ] `VIDEOLAB_ACCEL_REDIRECT=true` và có `location /_protected_hls/ { internal; alias .../videolab/hls/; }`; kiểm: gọi trực tiếp `/_protected_hls/<guid>/playlist.m3u8` từ ngoài trả 404
 - [ ] `limit_req` cho `/videolab/cdn/` (mẫu: 30 r/s, burst 60) và `/videolab/tus`; đo lại với một buổi học thật ở staging rồi chỉnh để player không bị 429
@@ -164,6 +187,7 @@ Mẫu: `infra/production/nginx/`. Sáu server block: 4 host ứng dụng (web, a
 - [ ] Chạy `infra/production/redis/check-acl.sh <host> <port> <PREFIX> <CACHE_PREFIX> vv_worker_video "$MAT_KHAU_WORKER"` (`SKIP_SIGNALS=1` với instance riêng): phải in `ACL đạt.`. Nội dung kiểm: user worker bị `NOPERM`: `GET`/`SCAN` ở DB 1 (phiên), `LPUSH`/`RPUSH <PREFIX>queues:default x`, `EVAL "return redis.call('rpush','<PREFIX>queues:default','x')" 0`, `SET` hay `DEL` bất kỳ. Và chạy được: `queue:work redis_video` (pop, release, delete, đọc 3 key tín hiệu restart/pause). Sau mỗi lần nâng cấp Laravel (đổi Lua queue hoặc khoá tín hiệu) chạy lại kiểm này
 - [ ] Redis có `requirepass` (mật khẩu mạnh) hoặc ACL ở trên, chỉ nghe mạng nội bộ (`bind` IP nội bộ, firewall chặn 6379 từ ngoài), `protected-mode yes`
 - [ ] DB tách: session=1, cache=2, queue=3, limiter=4 (`REDIS_DB_SESSION`, `REDIS_CACHE_DB`, `REDIS_QUEUE_DB`, `REDIS_LIMITER_DB`); `cache:clear` không làm mất phiên (T05-2)
+- [ ] (GL-A2/V2-5) `CACHE_LIMITER=redis-limiter` (guard ép driver redis): bộ đếm đăng nhập sai dùng script Lua nhiều khoá (`AtomicCounter::hitAll`) chỉ nguyên tử trên Redis. Hiện Redis 1 node. NẾU chuyển Redis Cluster: các khoá của 1 lần gọi (IP + tài khoản) khác slot sẽ báo `CROSSSLOT` (đăng nhập lỗi 500) -> phải đặt tên khoá có hash tag chung hoặc tách script trước khi chuyển
 - [ ] Staging và production KHÔNG chung một instance Redis; nếu bắt buộc chung thì `REDIS_PREFIX` và số DB khác nhau
 - [ ] `REDIS_PREFIX` của app và worker-video giống nhau trong cùng môi trường
 - [ ] Persistence phù hợp: phiên học sinh nằm ở Redis; chấp nhận mất phiên khi Redis restart hoặc bật AOF (`appendonly yes`) nếu PO không muốn học sinh bị đăng xuất
@@ -189,8 +213,11 @@ Mẫu: `infra/production/supervisor/vitaminvui.conf`.
 - [ ] Worker `worker-video` (`queue:work redis_video --queue=video --timeout=3600`) chạy tách máy/container với image build sẵn (mục 7); `retry_after` (3900) > `--timeout` (3600)
 - [ ] Scheduler: một tiến trình `schedule:work` (hoặc cron `* * * * * php artisan schedule:run`) mỗi máy; các lệnh đã `onOneServer`, cần cache Redis dùng chung
 - [ ] Deploy xong chạy `php artisan queue:restart`
-- [ ] `php artisan schedule:list` có đủ: `counters:recount`, `videos:check-stuck`, `videos:prune-orphans`, `videolab:notify` (mỗi phút, C4-M1), `videolab:cleanup`, `quizzes:auto-submit-expired`, `otp:prune`, `audit:purge`, `users:purge-unverified`, `queue:prune-failed`, `queue:monitor`, `ops:health`
+- [ ] `php artisan schedule:list` có đủ: `counters:recount`, `videos:check-stuck`, `videos:prune-orphans`, `videolab:notify` (mỗi phút, C4-M1), `images:prune-orphans` (04:10, US-020), `videolab:cleanup`, `quizzes:auto-submit-expired`, `orders:expire-manual` (mỗi 15 phút, US-022), `otp:prune`, `audit:purge`, `orders:purge-customer-notes` (03:45), `orders:purge-staff-notes` (03:46), `users:purge-unverified`, `queue:prune-failed`, `queue:monitor`, `ops:health` (đối chiếu `OperationsServiceProvider`)
 - [ ] `php artisan ops:health` báo worker và scheduler còn sống; cảnh báo của kênh log lỗi được nối vào kênh thông báo của hạ tầng (email/chat)
+- [ ] Probe sống/sẵn sàng của LB và giám sát dùng `ops:health`, KHÔNG dùng `/api/v1/health` (luôn trả `ok` kể cả khi DB sập)
+- [ ] NTP/chrony chạy trên mọi máy (ân hạn nộp bài quiz so giờ giữa các app server)
+- [ ] Cảnh báo khi log `Gửi OTP thất bại.` vượt N lần/giờ (SMTP hỏng hoặc bị dò mã) và khi số log `parent_notice.sent` vượt ngưỡng/giờ (thư gửi cho bên thứ ba)
 - [ ] `failed_jobs` trống hoặc dưới ngưỡng `OPS_FAILED_JOBS_MAX`; có người xem hằng ngày
 
 ## 7. worker-video (image build sẵn)
@@ -202,6 +229,8 @@ Mẫu: `infra/production/supervisor/vitaminvui.conf`.
 - [ ] Worker đặt `VIDEOLAB_ENABLED=false` nên KHÔNG có khoá `VIDEOLAB_*` của app; ProductionConfigGuard chạy cả trong `queue:work` nên env worker vẫn phải có `SESSION_SECURE_COOKIE=true`, `SANCTUM_STATEFUL_DOMAINS` hợp lệ (đã có trong mẫu). Test `tests/Feature/T31/WorkerVideoEnvTest.php` bị Skipped trong container `php` (không mount `infra/`); trước khi lên staging kiểm tay: nạp env worker rồi chạy `php artisan about` trong container worker, không được ném lỗi `ProductionConfigGuard`
 - [ ] DB user `vv_worker_video` (mục 5) và Redis user `vv_worker_video` (mục 4, `REDIS_USERNAME`/`REDIS_PASSWORD` trong env worker); mạng chỉ tới Redis/MySQL nội bộ, không ra Internet. Worker KHÔNG dispatch/gọi webhook: video xong/lỗi thì `videolab:notify` (scheduler của app, mỗi phút) dispatch `SendVideoLabWebhookJob` vào queue `default` và worker `queue` của app gửi (C4-M1). Env worker không có `REDIS_DB_SESSION`/`REDIS_LIMITER_DB`. Worker không ghi nhịp `ops:health` (listener `Looping` bỏ qua connection `redis_video`)
 - [ ] Chỉ mount volume `videolab` (đọc/ghi)
+- [ ] Rebuild image worker-video mỗi tháng và khi có CVE ffmpeg (demuxer); ghi ngày build gần nhất
+- [ ] Giám sát `vl_videos` status 1–3 kẹt quá 2 giờ (job mất khi Redis bị flush); xử lý tay, V2 sẽ sửa bằng code
 - [ ] Gửi thử một video nhỏ: upload TUS, transcode xong, phát được, webhook về app trong ~1 phút (qua `videolab:notify`); `vl_videos.notified_at` được điền; `redis-cli` bằng user app: `LLEN <PREFIX>queues:default` không tăng do worker
 - [ ] `videolab:cleanup` chạy (scheduler) và dung lượng đĩa `videolab` được giám sát
 - [ ] (R8 review cụm 4) Nếu tách Redis riêng cho `video`: app và worker PHẢI cùng trỏ một Redis video (cùng `REDIS_VIDEO_HOST/PORT/DB`, cùng `REDIS_PREFIX`). Lệch cấu hình thì job kẹt âm thầm, không có lỗi. Sau khi gửi thử video: `redis-cli -h <redis-video> --user vv_worker_video ... LLEN <PREFIX>queues:video` phải về `0` và video có `status=4`; giám sát định kỳ `LLEN` queue `video` (cảnh báo nếu > 0 quá 15 phút)
@@ -216,10 +245,13 @@ Mẫu: `infra/production/supervisor/vitaminvui.conf`.
 | Kênh `learning` (thời gian xử lý, để đo p95) | 14 ngày mặc định; theo `LOG_DAILY_DAYS` nếu biến này đặt | `max_files` của kênh | Đặt 90 hay 14 do PO quyết; không chứa IP |
 | `audit_logs` (IP, user-agent) | 24 tháng | `OPS_AUDIT_RETENTION_MONTHS=24`, lệnh `audit:purge` | Pháp chế (V2) xác nhận 24 tháng |
 | `otp_codes` | 7 ngày | `OPS_OTP_RETENTION_DAYS` | `otp:prune` |
-| `failed_jobs` | 720 giờ | `OPS_FAILED_JOBS_RETENTION_HOURS` | `queue:prune-failed` |
+| `failed_jobs` | **168 giờ** (mặc định code 720; đặt `OPS_FAILED_JOBS_RETENTION_HOURS=168` vì `exception` có thể chứa email người nhận khi SMTP lỗi, T29-S4) | `OPS_FAILED_JOBS_RETENTION_HOURS` | `queue:prune-failed` |
+| `orders.customer_note` (lời nhắn học sinh) | 90 ngày kể từ khi đơn kết thúc | `ORDERS_CUSTOMER_NOTE_RETENTION_DAYS` (30..3650) | `orders:purge-customer-notes` (có `--dry-run`); đơn pending không bị đụng. **Chờ PO chốt thời hạn** |
+| Nội dung nhân viên nhập: `orders.refund_note`, `payment_reference`, `cancel_reason_public`, `order_notes.body` | 7 ngày kể từ khi đơn kết thúc | `ORDERS_STAFF_TEXT_RETENTION_DAYS` (1..3650) | `orders:purge-staff-notes` (có `--dry-run`); `order_notes.body` thay bằng chuỗi cố định, đơn/tiền/trạng thái/audit giữ nguyên. **Chờ PO chốt thời hạn** |
 | Tài khoản chưa xác thực | 7 ngày | `OPS_UNVERIFIED_ACCOUNT_DAYS` | `users:purge-unverified`; pháp chế xác nhận xoá cả `consents` |
 
 - [ ] `LOG_STACK=daily` (không `single`), `LOG_LEVEL=warning` hoặc cao hơn ở production. Kênh `payments`, `playback`, `learning` cố định mức `info` (không bị `LOG_LEVEL` làm mất, C4-L1); kiểm: phát một bài rồi `storage/logs/playback-*.log` có dòng mới
+- [ ] File log tạo quyền 0640 (đặt `permission => 0640` trong `config/logging.php` nếu cần; mặc định 0644) và thư mục 0750
 - [ ] `logrotate`/`max_files` đã áp; thư mục `storage/logs` quyền 0750; log không gửi sang dịch vụ ngoài chưa được duyệt
 - [ ] Không log body `/auth/*`, không log mật khẩu/OTP/token/chữ ký (kiểm lại bằng một lượt đăng ký + đăng nhập ở staging, đọc log)
 - [ ] Tài liệu chính sách lưu log (có IP) đã công bố nội bộ; bản công khai thuộc T34 (V2)
@@ -251,6 +283,9 @@ Mẫu: `infra/production/supervisor/vitaminvui.conf`.
 - [ ] Sao lưu `.env`/secret ở nơi an toàn riêng (không chung kho mã), có quy trình khôi phục
 - [ ] Triển khai theo release có symlink (`current` -> `releases/<id>`): giữ >= 3 bản release gần nhất
 - [ ] Trước deploy: bản sao lưu DB mới; `php artisan down` nếu có migration phá cấu trúc
+- [ ] (K7, T29) Chỉ khi bảng `users` đã có dữ liệu: TRƯỚC migration backfill T29 tạo bảng sao `users_parent_consent_bak_t29` (id, parent_consent_status) theo script ở `docs/review/T29.md` mục DBA; giữ khoảng 30 ngày. SAU deploy: `SELECT COUNT(*) FROM users WHERE parent_consent_status <> 'not_required';` phải bằng 0 (còn thì chạy lại UPDATE theo lô). Lần go-live đầu (DB trống) bỏ qua bước sao
+- [ ] (K7, T36) Trước deploy: `SELECT COUNT(*) FROM users WHERE role='giao_vien' AND (bio IS NOT NULL OR avatar_path IS NOT NULL);` (xem mục 3)
+- [ ] Bật `SESSION_ENCRYPT` và đổi tên cookie `__Host-` (mục 1.1) trong CÙNG một lần deploy để học sinh/staff chỉ bị đăng xuất một lần; thông báo bảo trì trước
 - [ ] Migration luôn có `down()`; migration phá dữ liệu (xoá cột/bảng) phải tách thành hai bước (deploy mã trước, xoá cột sau)
 - [ ] Quy trình rollback đã diễn tập ở staging: đổi symlink về release trước -> `php artisan queue:restart` -> (nếu cần) `php artisan migrate:rollback --step=N` bằng user `vv_migrate` -> xoá cache cấu hình -> kiểm `ops:health`
 - [ ] Rollback KHÔNG chạy `migrate:fresh`, `migrate:reset`, `db:wipe` trên môi trường thật
@@ -261,7 +296,7 @@ Mẫu: `infra/production/supervisor/vitaminvui.conf`.
 - [ ] `composer install --no-dev --optimize-autoloader`; `php artisan config:cache route:cache event:cache view:cache`
 - [ ] `php artisan migrate --status` không còn migration chưa chạy
 - [ ] Không có Telescope/Debugbar/Pulse bị lộ; nếu có Horizon thì gate chỉ cho admin
-- [ ] Tài khoản admin đầu tiên tạo bằng `php artisan staff:create`, đổi mật khẩu lần đầu, bật MFA; không còn tài khoản mẫu/seed
+- [ ] Tài khoản admin đầu tiên tạo bằng `php artisan staff:create`, đổi mật khẩu lần đầu, bật MFA; không còn tài khoản mẫu/seed. KHÔNG chạy `db:seed`, seed demo hay dữ liệu e2e ở production/staging (tài khoản demo có mật khẩu công khai trong board)
 - [ ] `security review` T31 (laravel-security) đã chạy trên staging
 - [ ] Thử xoá cờ: tắt `FEATURE_PAID_CHECKOUT` và chắc chắn `/checkout` đơn có tiền trả 503, đơn 0đ vẫn hoạt động
 
@@ -271,12 +306,24 @@ Không chặn go-live MVP nếu PO chấp nhận rủi ro; ghi lại ở đây �
 
 - [ ] Thời hạn giữ `audit_logs` 24 tháng và log `playback` 90 ngày (có IP + UA): pháp chế xác nhận
 - [ ] Xoá `consents` khi `users:purge-unverified` xoá tài khoản chưa xác thực: pháp chế xác nhận
-- [ ] T29 (ADR-006): không còn luồng phụ huynh đồng ý; chỉ gửi thư thông báo (`FEATURE_PARENT_NOTICES`). Pháp chế xác nhận lại việc không cần phụ huynh đồng ý và nội dung thư. **Chỉ bật `FEATURE_PARENT_NOTICES=true` khi trang FW7 `/phu-huynh/huy-nhan-thong-bao` đã lên** (link huỷ nhận trong thư trỏ tới trang này; thiếu trang → 404, vi phạm one-click unsubscribe). T34 (quyền dữ liệu cá nhân, chính sách công khai): chưa làm
+- [ ] T29 (ADR-006): không còn luồng phụ huynh đồng ý; chỉ gửi thư thông báo (`FEATURE_PARENT_NOTICES`). Pháp chế xác nhận lại việc không cần phụ huynh đồng ý và nội dung thư. **Chỉ bật `FEATURE_PARENT_NOTICES=true` khi trang FW7 `/phu-huynh/huy-nhan-thong-bao` đã lên** (link huỷ nhận trong thư trỏ tới trang này; thiếu trang → 404, vi phạm one-click unsubscribe). T34 (quyền dữ liệu cá nhân) và FW7 đã commit; `PRIVACY_POLICY_VERSION` mẫu (`2026-10-tam`) và chính sách công khai hiện là BẢN TẠM: pháp chế phải thay bằng chính sách thật (và đổi `PRIVACY_POLICY_VERSION`) trước khi mở đăng ký rộng
 - [ ] `PRIVACY_NOTICE_TOKEN_KEY` đặt riêng >= 32 byte (guard chặn khởi động nếu thiếu), lưu cùng secrets, **không bao giờ xoay** (xoay = danh sách huỷ nhận `parent_notice_suppressions` và token đã gửi mất hiệu lực); `PRIVACY_PARENT_NOTICE_DAILY_CAP` trong 1..20
+- [ ] Chính sách thật thay bản tạm trước go-live (xem dòng T29 ở trên)
 - [ ] Mẫu `.env` production không còn `FEATURE_PARENT_CONSENT_ENFORCED`/`PRIVACY_PARENT_CONSENT_AGE` (đã đổi thành `PRIVACY_PARENT_CONTACT_SUGGEST_AGE`)
 - [ ] `PRIVACY_POLICY_VERSION` khớp văn bản chính sách thực tế khi công bố
 - [ ] Điều khoản thanh toán, hoàn tiền và nội dung pháp lý MoMo (V2): cần trước khi bật `FEATURE_PAID_CHECKOUT`
 - [ ] Đăng ký thông báo xử lý dữ liệu cá nhân (nếu luật yêu cầu) và lưu trữ dữ liệu trong nước: pháp chế xác nhận
+
+## 13b. Frontend production (K9)
+
+Chi tiết đóng gói còn chờ D2/D3 của `docs/ops/go-live-readiness.md`; các điều kiện dưới đây áp dụng bất kể cách đóng gói.
+
+- [ ] `apps/web` và `apps/admin` build với `NODE_ENV=production`; `NEXT_PUBLIC_*` được nhúng LÚC BUILD (đổi giá trị = build lại). `apps/web`: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_STATIC_URL` (bắt buộc, URL hợp lệ, https), `NEXT_PUBLIC_VIDEO_HOSTS`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (key thật), `NEXT_PUBLIC_MOMO_HOSTS` (mặc định trong code là host sandbox `test-payment.momo.vn`: đặt giá trị đúng hoặc xác nhận CSP không còn host sandbox, D5). `apps/admin`: `NEXT_PUBLIC_ADMIN_API_URL`, `NEXT_PUBLIC_ADMIN_URL`, `NEXT_PUBLIC_STATIC_URL`, `NEXT_PUBLIC_VIDEO_UPLOAD_URL`
+- [ ] GL-A2: `apps/admin` build với `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = site key Turnstile THẬT, trùng `TURNSTILE_SITE_KEY` của backend (nhúng lúc build; thiếu thì người bị đòi captcha sau khi sai mật khẩu nhiều lần không đăng nhập được từ giao diện). Release CÙNG backend GL-A2 (web đã lấy khoá từ `/config/public`)
+- [ ] `V2_PREVIEW` để TRỐNG ở production (bản xem trước design v2 `/v2/...` chỉ mở khi `V2_PREVIEW=1`, dành cho staging); biến chỉ ở server, không dùng tiền tố `NEXT_PUBLIC_`
+- [ ] Biến chỉ-server của web: `INTERNAL_API_TOKEN` (giống backend) và `API_INTERNAL_URL` (mục 1.1); không biến bí mật nào mang tiền tố `NEXT_PUBLIC_`
+- [ ] `next start` nghe loopback/mạng nội bộ (mục 1.1), chạy dưới Supervisor/systemd/container bằng user không phải root, tự khởi động lại
+- [ ] Log của Next.js không ghi URL đầy đủ của `/phu-huynh/huy-nhan-thong-bao` (mục 3)
 
 ## 14. Cần PO hoặc hạ tầng cung cấp trước khi làm các mục trên
 

@@ -93,6 +93,7 @@ class ProductionConfigGuard
         );
 
         $this->guardCaptcha();
+        $this->guardLoginCaptchaGate();
         $this->guardOtpChannels();
         $this->guardUrlsHttps();
         $this->guardStaticUrl();
@@ -111,6 +112,8 @@ class ProductionConfigGuard
         $this->guardStaffMfa();
         $this->guardPolicyVersion();
         $this->guardParentNotices();
+        $this->guardCaptchaSecretAndMailer();
+        $this->guardInfraCredentials();
     }
 
     /**
@@ -407,6 +410,69 @@ class ProductionConfigGuard
         );
     }
 
+    /**
+     * GL-A2 (S6) — ngưỡng/trần đăng nhập sai: env rỗng/gõ sai cho ra 0 (trần 0 → mọi đăng nhập 429); ngưỡng >= trần tài khoản
+     * thì captcha không bao giờ được đòi (quay về khoá cứng); trần quá thấp thì người ngoài khoá được người thật.
+     */
+    private function guardLoginCaptchaGate(): void
+    {
+        foreach ([
+            ['AUTH_LOGIN', 'auth.login.captcha_threshold', 'auth.login.max_failures_per_account', 'auth.login.max_failures_per_ip', 'auth.login.max_captcha_failures_per_ip'],
+            ['AUTH_STAFF_LOGIN', 'auth.staff.login_captcha_threshold', 'auth.staff.login_max_failures_per_account', 'auth.staff.login_max_failures_per_ip', 'auth.staff.login_max_captcha_failures_per_ip'],
+        ] as [$prefix, $thresholdKey, $accountKey, $ipKey, $ipCaptchaKey]) {
+            $threshold = (int) config($thresholdKey);
+
+            throw_if(
+                $threshold < 1 || $threshold > 20,
+                RuntimeException::class,
+                "{$prefix}_CAPTCHA_THRESHOLD phải trong khoảng 1..20 ở production/staging (GL-A2)."
+            );
+
+            $account = (int) config($accountKey);
+
+            throw_if(
+                $account < 20 || $account <= $threshold + 10,
+                RuntimeException::class,
+                "{$prefix}_MAX_FAILURES phải >= 20 và lớn hơn {$prefix}_CAPTCHA_THRESHOLD + 10 ở production/staging (GL-A2)."
+            );
+
+            throw_if(
+                (int) config($ipKey) < 20,
+                RuntimeException::class,
+                "{$prefix}_MAX_FAILURES_IP phải >= 20 ở production/staging (GL-A2)."
+            );
+
+            // V2-2/V2-4: trần IP cho lượt sai CÓ captcha phải cao (NAT lớp học không bao giờ chạm tới); 0/rỗng sẽ chặn mọi lượt có captcha.
+            throw_if(
+                (int) config($ipCaptchaKey) < 100,
+                RuntimeException::class,
+                "{$prefix}_MAX_CAPTCHA_FAILURES_IP phải >= 100 ở production/staging (GL-A2)."
+            );
+        }
+
+        // V2-4: limiter lượt captcha bị từ chối (env rỗng = 0 → `tooManyAttempts` luôn đúng → khoá cứng mọi người có token).
+        foreach ([
+            'auth.login.captcha_rejects_per_minute' => 'AUTH_LOGIN_CAPTCHA_REJECTS_PER_MINUTE',
+            'auth.login.captcha_rejects_per_minute_ip' => 'AUTH_LOGIN_CAPTCHA_REJECTS_PER_MINUTE_IP',
+        ] as $key => $env) {
+            throw_if(
+                (int) config($key) < 10,
+                RuntimeException::class,
+                "{$env} phải >= 10 ở production/staging (GL-A2)."
+            );
+        }
+
+        // V2-5: `AtomicCounter::hitAll` chỉ nguyên tử trên Redis; store khác (file/database/array) mở lại race S1.
+        // Redis Cluster: script nhiều khoá cần cùng slot (hash tag), xem comment `AtomicCounter` + checklist.
+        $limiterStore = (string) config('cache.limiter');
+
+        throw_if(
+            config("cache.stores.{$limiterStore}.driver") !== 'redis',
+            RuntimeException::class,
+            'CACHE_LIMITER phải trỏ tới store dùng driver redis ở production/staging (GL-A2).'
+        );
+    }
+
     private function guardCaptcha(): void
     {
         $driver = mb_strtolower((string) config('captcha.driver'));
@@ -415,6 +481,88 @@ class ProductionConfigGuard
             $driver === 'fake',
             RuntimeException::class,
             'CAPTCHA_DRIVER=fake bị cấm ở production/staging (M4, T31).'
+        );
+    }
+
+    /**
+     * GL-1 (D6) — captcha turnstile phải có secret (rỗng thì mọi lần xác minh đều lỗi/không có bảo vệ) và mail không được
+     * là driver `log`/`array` (thư OTP, thông báo phụ huynh, đơn hàng sẽ không tới người nhận).
+     */
+    private function guardCaptchaSecretAndMailer(): void
+    {
+        $driver = mb_strtolower((string) config('captcha.driver'));
+
+        // Captcha chỉ dùng ở request HTTP: tiến trình console (worker-video không có TURNSTILE_SECRET) được miễn kiểm secret
+        // rỗng, cùng cờ với TRUSTED_PROXIES. Khoá test thì chặn ở mọi tiến trình khi có giá trị.
+        $consoleExempt = app()->runningInConsole() && (bool) config('app.trusted_proxies_console_exempt', true);
+        $secret = $this->trimmedString(config('services.turnstile.secret'));
+        $siteKey = $this->trimmedString(config('services.turnstile.site_key'));
+
+        throw_if(
+            $driver === 'turnstile' && $secret === null && ! $consoleExempt,
+            RuntimeException::class,
+            'TURNSTILE_SECRET không được rỗng khi CAPTCHA_DRIVER=turnstile ở production/staging (GL-1).'
+        );
+
+        // Khoá test của Cloudflare (1x0000…/2x0000…/3x0000…): `1x` luôn thành công nên mất hẳn lớp chống bot.
+        throw_if(
+            $driver === 'turnstile' && ($this->isTurnstileTestKey($secret) || $this->isTurnstileTestKey($siteKey)),
+            RuntimeException::class,
+            'TURNSTILE_SECRET/TURNSTILE_SITE_KEY là khoá test của Cloudflare (1x0000…/2x0000…/3x0000…): dùng khoá thật ở production/staging (GL-1).'
+        );
+
+        $mailer = mb_strtolower(trim((string) config('mail.default')));
+
+        throw_if(
+            in_array($mailer, ['', 'log', 'array'], true),
+            RuntimeException::class,
+            'MAIL_MAILER không được là log/array ở production/staging (thư sẽ không tới người nhận) (GL-1).'
+        );
+    }
+
+    private function isTurnstileTestKey(?string $key): bool
+    {
+        return $key !== null && preg_match('/^[123]x0000/i', $key) === 1;
+    }
+
+    private function redisConnectionHasPassword(string $name): bool
+    {
+        if ($this->trimmedString(config("database.redis.{$name}.password")) !== null) {
+            return true;
+        }
+
+        $url = $this->trimmedString(config("database.redis.{$name}.url"));
+        $pass = $url === null ? null : parse_url($url, PHP_URL_PASS);
+
+        return is_string($pass) && trim($pass) !== '';
+    }
+
+    /** GL-1 (A5) — Redis phải có mật khẩu và ứng dụng không được kết nối DB bằng tài khoản root. */
+    private function guardInfraCredentials(): void
+    {
+        // Kiểm theo connection thực sự dùng. Tiến trình web cần `default` (session/cache/limiter) và `video`;
+        // tiến trình console được miễn như TRUSTED_PROXIES (worker-video chỉ có REDIS_VIDEO_*, không có REDIS_PASSWORD của Redis chính)
+        // nên chỉ cần `video`. Mật khẩu có thể nằm trong `url` (REDIS_URL / REDIS_VIDEO_URL).
+        $consoleExempt = app()->runningInConsole() && (bool) config('app.trusted_proxies_console_exempt', true);
+        $required = $consoleExempt ? ['video'] : ['default', 'video'];
+
+        foreach ($required as $name) {
+            throw_unless(
+                $this->redisConnectionHasPassword($name),
+                RuntimeException::class,
+                $name === 'video'
+                    ? 'REDIS_VIDEO_PASSWORD (hoặc REDIS_PASSWORD) không được rỗng ở production/staging (GL-1).'
+                    : 'REDIS_PASSWORD không được rỗng ở production/staging (GL-1).'
+            );
+        }
+
+        $connection = (string) config('database.default');
+        $dbUser = mb_strtolower(trim((string) config("database.connections.{$connection}.username")));
+
+        throw_if(
+            $dbUser === 'root',
+            RuntimeException::class,
+            'DB_USERNAME không được là root ở production/staging: dùng user riêng của ứng dụng (GL-1).'
         );
     }
 

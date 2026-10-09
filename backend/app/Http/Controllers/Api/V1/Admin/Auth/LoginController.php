@@ -21,7 +21,7 @@ class LoginController extends Controller
 
         $validated = $request->validated();
 
-        $result = $auth->login($validated['login'], $validated['password'], $request);
+        $result = $auth->login($validated['login'], $validated['password'], $request, $validated['captcha_token'] ?? null);
 
         if ($result['mfa_required']) {
             return response()->json([

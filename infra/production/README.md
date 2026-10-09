@@ -10,7 +10,8 @@ bằng giá trị thật trước khi dùng; không commit giá trị thật. Qu
 | `nginx/snippets/vv-deny.conf` | Chặn file nhạy cảm và `/index.php/` (dùng cho cả host video) |
 | `nginx/snippets/vv-videolab-tus.conf` | Cấu hình location TUS (dùng cho `/videolab/tus` và `/videolab/tus/`) |
 | `nginx/snippets/vv-tls.conf` | TLS dùng chung |
-| `nginx/snippets/vv-real-ip.conf` | `real_ip` sau load balancer (điền IP LB) |
+| `nginx/snippets/vv-real-ip.conf` | `real_ip` sau Cloudflare (`CF-Connecting-IP` + dải IP Cloudflare) |
+| `scripts/update-cloudflare-ips.sh` | Cập nhật dải IP Cloudflare trong `vv-real-ip.conf` (cron hàng tuần, tự `nginx -t` + reload) |
 | `supervisor/vitaminvui.conf` | queue `default,exports`, `worker-video` (máy riêng), scheduler |
 | `mysql/grants.sql` | User DB: app, worker-video, migrate |
 | `redis/users.acl` | Redis ACL: user `default` (app) và `vv_worker_video` (chỉ queue `video`), cụm 4 M1 |

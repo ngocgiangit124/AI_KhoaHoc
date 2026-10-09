@@ -43,8 +43,8 @@ function vvT24Post(string $path, array $payload = [])
     return test()->postJson(vvAdminUrl($path), $payload, vvAdminHeaders());
 }
 
-/** Khoảng ngày bao hôm nay để danh sách luôn thấy đơn vừa tạo. */
+/** Khoảng ngày bao hôm nay và 2 ngày trước (đơn "30 giờ trước" vẫn lọt khi test chạy lúc 0h–6h) để danh sách luôn thấy đơn vừa tạo. */
 function vvT24Range(): string
 {
-    return 'from='.now()->subDay()->format('Y-m-d').'&to='.now()->addDay()->format('Y-m-d');
+    return 'from='.now()->subDays(2)->format('Y-m-d').'&to='.now()->addDay()->format('Y-m-d');
 }
