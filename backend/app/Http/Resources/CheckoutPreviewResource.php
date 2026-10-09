@@ -2,11 +2,9 @@
 
 namespace App\Http\Resources;
 
-use App\Enums\OrderStatus;
-use App\Models\Order;
 use App\Services\Cart\Data\CartSnapshot;
 use App\Services\Orders\PaymentMethods;
-use App\Support\VnTime;
+use App\Services\Orders\PendingOrderPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -53,27 +51,7 @@ class CheckoutPreviewResource extends JsonResource
             'requires_payment' => $requiresPayment,
             'payment_methods' => $methods->describe(),
             'default_payment_method' => $methods->default(),
-            'pending_order' => $this->pendingOrder($request),
-        ];
-    }
-
-    /** @return array<string, mixed>|null */
-    private function pendingOrder(Request $request): ?array
-    {
-        $userId = $request->user()?->getAuthIdentifier();
-
-        if ($userId === null) {
-            return null;
-        }
-
-        $order = Order::query()->where('user_id', $userId)->where('status', OrderStatus::Pending->value)->first();
-
-        return $order === null ? null : [
-            'code' => $order->code,
-            'payment_method' => $order->payment_method,
-            'total' => $order->total_amount,
-            'created_at' => VnTime::iso($order->created_at),
-            'expires_at' => VnTime::iso($order->expires_at),
+            'pending_order' => app(PendingOrderPresenter::class)->forUser($request->user()?->getAuthIdentifier()),
         ];
     }
 }

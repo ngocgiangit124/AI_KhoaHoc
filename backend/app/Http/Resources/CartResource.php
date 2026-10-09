@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Models\CartItem;
 use App\Services\Cart\Data\CartSnapshot;
 use App\Services\Content\ImageUploadService;
+use App\Services\Orders\PendingOrderPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,6 +17,16 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class CartResource extends JsonResource
 {
+    private bool $withPendingOrder = false;
+
+    /** GET /cart (T16-1): thêm `pending_order` (cùng shape checkout preview). */
+    public function withPendingOrder(): static
+    {
+        $this->withPendingOrder = true;
+
+        return $this;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -41,7 +52,7 @@ class CartResource extends JsonResource
 
         $coupon = $snapshot->coupon;
 
-        return [
+        $out = [
             'items' => $rows,
             'coupon' => $coupon === null ? null : [
                 'code' => $coupon->code,
@@ -54,6 +65,12 @@ class CartResource extends JsonResource
             'pricing' => $snapshot->pricing->toArray(),
             'notices' => $snapshot->notices,
         ];
+
+        if ($this->withPendingOrder) {
+            $out['pending_order'] = app(PendingOrderPresenter::class)->forUser($request->user()?->getAuthIdentifier());
+        }
+
+        return $out;
     }
 
     /**

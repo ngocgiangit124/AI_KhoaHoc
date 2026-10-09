@@ -18,6 +18,6 @@ class CartController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        return (new CartResource($this->cart->view($user)))->response();
+        return (new CartResource($this->cart->view($user)))->withPendingOrder()->response();
     }
 }

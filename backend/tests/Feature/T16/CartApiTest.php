@@ -45,7 +45,7 @@ beforeEach(function () {
 test('gio rong: items rong, pricing 0, khong tao gio (AC5)', function () {
     vvCartGet()->assertOk()->assertExactJson([
         'items' => [], 'coupon' => null,
-        'pricing' => ['subtotal' => 0, 'discount' => 0, 'total' => 0], 'notices' => [],
+        'pricing' => ['subtotal' => 0, 'discount' => 0, 'total' => 0], 'notices' => [], 'pending_order' => null,
     ]);
 
     expect(Cart::count())->toBe(0);
