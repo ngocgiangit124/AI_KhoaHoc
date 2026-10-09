@@ -3,6 +3,7 @@
 namespace App\Services\Audit;
 
 use App\Models\AuditLog;
+use App\Models\Order;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Request;
@@ -102,10 +103,26 @@ class AuditLogger
             'action' => $action,
             'subject_type' => $subject?->getMorphClass(),
             'subject_id' => $subject?->getKey(),
-            'changes' => $this->sanitize($changes),
+            'changes' => $this->withOrderCode($action, $subject, $this->sanitize($changes)),
             'ip' => Request::ip(),
             'user_agent' => Str::limit((string) Request::userAgent(), 255, ''),
         ]);
+    }
+
+    /**
+     * T33-1: audit `order.*` trên một đơn luôn mang `changes.code` (mã đơn, không phải PII) để FE link tới đơn. Khoá `code` bị
+     * `FORBIDDEN_EXACT_KEYS` lọc (mã OTP) nên KHÔNG đi qua `sanitize()`: gắn ở đây, lấy từ chính model, chỉ cho action `order.*`.
+     *
+     * @param  array<array-key, mixed>  $changes
+     * @return array<array-key, mixed>
+     */
+    private function withOrderCode(string $action, ?Model $subject, array $changes): array
+    {
+        if ($subject instanceof Order && str_starts_with($action, 'order.')) {
+            return ['code' => $subject->code] + $changes;
+        }
+
+        return $changes;
     }
 
     /**

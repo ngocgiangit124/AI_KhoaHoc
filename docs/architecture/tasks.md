@@ -802,6 +802,11 @@ Phụ thuộc T38. Thiết kế: `docs/tech/US-022.md` mục "Lưu giữ dữ li
 - Config + env `ORDERS_STAFF_TEXT_RETENTION_DAYS` (7, 1..3650) trong `.env.example`, `.env.production.example`; `ProductionConfigGuard` kiểm chuỗi thô và khoảng. Xoá tài khoản (pha B) xoá luôn các trường này trên mọi đơn của học sinh.
 - **Xong khi:** mốc 6/7/8 ngày đúng cho 4 trạng thái; pending giữ; idempotent; chỉ 4 trường đổi; guard; xoá tài khoản; EXPLAIN ở `docs/review/T38-2.md`; `composer ci` xanh; reviewer + QA PASS.
 
+### T33-1 — `changes.code` cho audit `order.*` + tham số `page` của nhật ký (đề xuất từ FA12, 2026-10-09)
+- Mọi audit `order.manual_approve|manual_cancel|refund|note_add|view_pii` ghi thêm `changes.code` (mã đơn, không phải PII; `AuditLogger` gắn tự động vì khoá `code` bị bộ lọc OTP loại nếu truyền từ nơi gọi) để FE link `/quan-tri/don-hang/{code}`. `order.search_contact` không có đơn (subject null) nên không đổi. Audit cũ không sửa (bảng bất biến).
+- `GET /admin/audit-logs` nhận `page` (integer 1..10000); api-contract §2 đã ghi.
+- **Xong khi:** mỗi action order.* có `changes.code` đúng mã đơn (test T24, T39, T33); `page=0|abc|10001` → 422; Pint + PHPStan xanh; reviewer + QA PASS.
+
 ### T24-V1 — Admin đơn hàng, thu gọn cho thanh toán thủ công (backend, ~2 ngày) **[SEC] [DBA]** (US-022, US-010)
 Thay phạm vi T24 ở Giai đoạn 7 cho V1. Phụ thuộc T38 (T38.1 migration + factory; `ManualOrderService` để thêm `approvalState`), T28. **Không phụ thuộc T19.** Hợp đồng api-contract §2.5.1. Test ở `tests/Feature/T24`.
 - `OrderFilterRequest` + `AdminOrderQuery`: bộ lọc §2.5.1 (khoảng ngày bắt buộc ≤ 366 trừ `status[] = [pending]`; `payment_method`; `sort` newest/oldest; `q` 4 dạng, escape LIKE); luôn áp ngày/trạng thái trước; `cursorPaginate` theo `sort` + `COUNT(*)` riêng (DBA #9).

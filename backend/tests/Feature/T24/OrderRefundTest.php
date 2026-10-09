@@ -67,7 +67,7 @@ test('AC26: hoan tien don manual da paid -> refunded, thu hoi enrollment cua don
     $audit = AuditLog::query()->where('action', 'order.refund')->where('subject_id', $order->id)->first();
     expect(AuditLog::query()->where('action', 'order.refund')->count())->toBe($auditBefore + 1)
         ->and($audit->actor_id)->toBe($staff->id)
-        ->and($audit->changes)->toMatchArray(['enrollments_revoked' => 2, 'has_note' => true, 'pii_fields' => ['contact', 'customer_note', 'internal_notes']])
+        ->and($audit->changes)->toMatchArray(['code' => $order->code, 'enrollments_revoked' => 2, 'has_note' => true, 'pii_fields' => ['contact', 'customer_note', 'internal_notes']])
         ->and(json_encode($audit->changes))->not->toContain('chuyển khoản');
 });
 

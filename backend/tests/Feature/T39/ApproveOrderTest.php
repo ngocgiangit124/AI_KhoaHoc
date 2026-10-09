@@ -67,7 +67,7 @@ test('(a) duyet pending: paid, ma giao dich, confirmed_by, enrollment active moi
     expect(AuditLog::query()->where('action', 'order.manual_approve')->count())->toBe($audits + 1)
         ->and($audit)->toHaveCount(1)
         ->and($audit[0]->actor_id)->toBe($admin->id)
-        ->and($audit[0]->changes)->toMatchArray(['status' => ['from' => 'pending', 'to' => 'paid'], 'late' => false, 'needs_review' => false, 'has_reference' => true, 'pii_fields' => ['contact', 'customer_note', 'internal_notes']])
+        ->and($audit[0]->changes)->toMatchArray(['code' => $order->code, 'status' => ['from' => 'pending', 'to' => 'paid'], 'late' => false, 'needs_review' => false, 'has_reference' => true, 'pii_fields' => ['contact', 'customer_note', 'internal_notes']])
         ->and(json_encode($audit[0]->changes))->not->toContain('FT26100812345')->not->toContain('VCB');
     // Response chi tiết KHÔNG ghi thêm order.view_pii
     expect(AuditLog::query()->where('action', 'order.view_pii')->where('subject_id', $order->id)->count())->toBe(0);
@@ -278,7 +278,7 @@ test('(f) huy: ly do 4 ky tu / thieu -> 422; hop le -> admin_cancelled, cancel_r
 
     $audit = AuditLog::query()->where('action', 'order.manual_cancel')->where('subject_id', $order->id)->get();
     expect($audit)->toHaveCount(1)
-        ->and($audit[0]->changes)->toMatchArray(['status' => ['from' => 'pending', 'to' => 'cancelled'], 'pii_fields' => ['contact', 'customer_note', 'internal_notes']])
+        ->and($audit[0]->changes)->toMatchArray(['code' => $order->code, 'status' => ['from' => 'pending', 'to' => 'cancelled'], 'pii_fields' => ['contact', 'customer_note', 'internal_notes']])
         ->and(json_encode($audit[0]->changes))->not->toContain('Zalo')->not->toContain('Gọi 3');
 
     // Nhả chỗ mã: mã chỉ 1 lượt, đơn đã huỷ không còn giữ chỗ
@@ -324,7 +324,7 @@ test('(g) ghi chu: 201, don khong doi trang thai, audit; HS khong thay; don MoMo
         ->and((array) DB::table('orders')->where('id', $order->id)->first())->toBe($before)
         ->and(DB::table('order_status_logs')->where('order_id', $order->id)->count())->toBe(0);
     $audit = AuditLog::query()->where('action', 'order.note_add')->where('subject_id', $order->id)->get();
-    expect($audit)->toHaveCount(1)->and($audit[0]->changes)->toMatchArray(['note_id' => $r->json('id')])
+    expect($audit)->toHaveCount(1)->and($audit[0]->changes)->toMatchArray(['code' => $order->code, 'note_id' => $r->json('id')])
         ->and(json_encode($audit[0]->changes))->not->toContain('Đã gọi');
 
     vvT39Post($momo, 'notes', ['body' => 'ghi chú MoMo'])->assertCreated();

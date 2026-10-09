@@ -26,6 +26,7 @@ class AuditLogIndexRequest extends FormRequest
             'subject_id' => ['nullable', 'integer', 'min:1'],
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'page' => ['nullable', 'integer', 'min:1', 'max:10000'],
             'per_page' => ['nullable', 'integer', Rule::in([25, 50, 100])],
         ];
     }
@@ -42,6 +43,9 @@ class AuditLogIndexRequest extends FormRequest
             'from.date_format' => 'Ngày bắt đầu phải có dạng YYYY-MM-DD.',
             'to.date_format' => 'Ngày kết thúc phải có dạng YYYY-MM-DD.',
             'to.after_or_equal' => 'Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.',
+            'page.integer' => 'Trang không hợp lệ.',
+            'page.min' => 'Trang không hợp lệ.',
+            'page.max' => 'Trang không hợp lệ.',
             'per_page.in' => 'Số dòng mỗi trang chỉ nhận 25, 50 hoặc 100.',
         ];
     }

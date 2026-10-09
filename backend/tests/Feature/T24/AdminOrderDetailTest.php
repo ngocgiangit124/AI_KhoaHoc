@@ -70,7 +70,7 @@ test('chi tiet: day du khoa theo contract, email/SDT day du, KHONG co thong tin 
     vvT24Detail($order)->assertOk();
     expect(vvT24ViewPiiCount($order))->toBe($before + 2);
     $log = AuditLog::query()->where('action', 'order.view_pii')->where('subject_id', $order->id)->latest('id')->first();
-    expect($log->actor_role)->toBe('quan_ly_trang')->and(json_encode($log->changes))->not->toContain('nguyenvanan')->not->toContain('Gọi sau');
+    expect($log->actor_role)->toBe('quan_ly_trang')->and($log->changes['code'])->toBe($order->code)->and(json_encode($log->changes))->not->toContain('nguyenvanan')->not->toContain('Gọi sau');
 });
 
 test('chi tiet: ma khong ton tai -> 404 NOT_FOUND; lan loi khong ghi audit', function () {
