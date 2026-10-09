@@ -24,6 +24,8 @@ class ParentNotifier
 {
     private const CAP_WINDOW_SECONDS = 86400;
 
+    private const GLOBAL_CAP_WINDOW_SECONDS = 3600;
+
     public function __construct(
         private readonly AuditLogger $audit,
         private readonly ParentNoticeSuppression $suppression,
@@ -163,8 +165,20 @@ class ParentNotifier
             return;
         }
 
+        // T29-S6 (R1): trần TỔNG mọi thư gửi bên thứ ba mỗi giờ (chống spam hàng loạt qua nhiều tài khoản). Kiểm TRƯỚC bộ đếm theo
+        // địa chỉ để thư bị trần tổng chặn không tốn lượt 5/ngày của phụ huynh thật. Fail-closed khi cấu hình < 1.
+        $globalCap = (int) config('privacy.parent_notice_global_hourly_cap');
+
+        if ($globalCap < 1 || RateLimiter::tooManyAttempts('parent-notice:global', $globalCap)) {
+            $this->globalCapReached($kind, $globalCap);
+
+            return;
+        }
+
         // Trần theo ĐỊA CHỈ nhận, tính trên mọi học sinh (khoá chỉ chứa hash). `hit()` tăng nguyên tử rồi mới so sánh.
-        if (RateLimiter::hit('parent-notice:'.ParentNoticeToken::addressHash($email), self::CAP_WINDOW_SECONDS) > $cap) {
+        $addressKey = 'parent-notice:'.ParentNoticeToken::addressHash($email);
+
+        if (RateLimiter::hit($addressKey, self::CAP_WINDOW_SECONDS) > $cap) {
             Log::warning('parent_notice.daily_cap_reached', ['kind' => $kind, 'user_id' => $user->getKey()]);
 
             return;
@@ -173,6 +187,15 @@ class ParentNotifier
         $token = ParentNoticeToken::make($user);
 
         if ($token === null) {
+            return;
+        }
+
+        // Chỉ thư thật sự sắp gửi mới tính vào trần tổng. `hit()` nguyên tử: nếu nhiều tiến trình cùng vượt trần sau lần kiểm
+        // ở trên thì thư vượt bị bỏ và hoàn lại lượt của địa chỉ.
+        if (RateLimiter::hit('parent-notice:global', self::GLOBAL_CAP_WINDOW_SECONDS) > $globalCap) {
+            RateLimiter::decrement($addressKey);
+            $this->globalCapReached($kind, $globalCap);
+
             return;
         }
 
@@ -195,5 +218,10 @@ class ParentNotifier
         ));
 
         $this->audit->logAsSystem('parent_notice.sent', $user, ['kind' => $kind]);
+    }
+
+    private function globalCapReached(string $kind, int $cap): void
+    {
+        Log::warning('parent_notice.global_cap_reached', ['kind' => $kind, 'cap' => $cap]);
     }
 }

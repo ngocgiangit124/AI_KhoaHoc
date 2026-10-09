@@ -648,7 +648,7 @@ Cài ở task sau:
 
 Story do BA viết sau khi chốt task MVP (PO 2026-10-06). Architect đã chốt mã task ngày 2026-10-06 (chờ PO duyệt ở cổng #2 của US-020).
 
-- **T35 không thuộc US-020.** PO đã dành mã này cho "image staging + CI build". Backend US-020 dùng **T36**.
+- **T35 không thuộc US-020.** PO đã dành mã này cho "image staging + CI build". Backend US-020 dùng **T36**. Định nghĩa chi tiết: mục **T35** bên dưới (ADR-008, chia T35-1, T35-2, T35-3).
 - Câu hỏi mở của US-019/US-020 chưa có trả lời thì dùng mặc định ghi trong từng story.
 
 | Story | Task | Phụ thuộc | Ghi chú |
@@ -808,6 +808,25 @@ Phụ thuộc T38. Thiết kế: `docs/tech/US-022.md` mục "Lưu giữ dữ li
 - `GET /admin/audit-logs` nhận `page` (integer 1..10000); api-contract §2 đã ghi.
 - **Xong khi:** mỗi action order.* có `changes.code` đúng mã đơn (test T24, T39, T33); `page=0|abc|10001` → 422; Pint + PHPStan xanh; reviewer + QA PASS.
 
+### BE-backlog-1 — Gói việc backend nhỏ trước go-live (backend, ~2 ngày) (nguồn: `docs/bao-cao-task.md` 2.1, `docs/security/backlog-v2.md` T29)
+1. **FW6** `best_attempt_id` trong `quizzes[]` của `GET /me/courses/{course}/progress` (id lượt đã nộp điểm cao nhất của HS; hoà → nộp sớm nhất; null nếu chưa có; không N+1).
+2. **FA5** `has_attempts` ở `QuizResource` và `QuizQuestionResource` (admin soạn quiz); `quiz_time_limit_enabled` trong `GET /admin/auth/me`.
+3. **FA7** `GET /admin/coupons/cheapest-course-price` → `{cheapest_course_price}` (thay FE quét ≤200 khóa).
+4. **FA10** `released_courses: [{id,title}]` ở `PATCH /admin/staff/{id}/role` (giữ `released_course_ids`).
+5. **T29-S4** che email trong lỗi gửi `ParentNoticeMail`; **T29-S6** trần tổng thư gửi bên thứ ba `PRIVACY_PARENT_NOTICE_GLOBAL_HOURLY_CAP` (mặc định 500/giờ).
+6. Race T18: tiến trình con dọn đủ người tạo khóa/mã (giáo viên từng khóa, admin tạo mã) để không rò sang DB test.
+- **Xong khi:** test Pest `tests/Feature/BEB1/*` xanh; Pint + PHPStan xanh; không có migration; reviewer + QA PASS. Hợp đồng: api-contract (đánh dấu "BE-backlog-1").
+
+### GL-A34 — Giảm PII trong log `QueryException` + throttle route học sinh/ghi (backend, ~1,5 ngày) (nguồn: `docs/security/go-live-triage.md` A3, A4)
+- **A3:** hook `report` trong `bootstrap/app.php` ghi `db.query_failed` chỉ với SQL placeholder, `sqlstate`, `driver_code`, `connection`, vị trí gọi trong `app/`; không `getMessage()`, không bindings; chặn report mặc định.
+- **A4:** limiter `free-enrollment` (10/phút + 30/ngày/user) cho `free-enrollments`; `learn-read` (120/phút/user) cho `GET /learn/courses/{course}` và `GET /learn/lessons/{lesson}`; `admin-write` (120/phút/user, chỉ method ghi) cho nhóm `staff` của admin-api (T09/T21 chưa có throttle). Test kiến trúc: mọi route ghi có `throttle:*` (ngoại lệ: 2 logout).
+- **Xong khi:** test `tests/Feature/GL/*` xanh; Pint + PHPStan xanh; không migration; reviewer + QA PASS. Hợp đồng: api-contract §1.6 (đánh dấu "GL-A34").
+
+### GL-A2 — Đăng nhập sai nhiều thì đòi captcha thay vì khoá (backend, ~0,5 ngày) **[SEC]** (nguồn: `docs/security/go-live-triage.md` A2 + "Quyết định PO 2026-10-09"; backlog T03-M1, T28-1)
+- `LoginService::reserveWithCaptchaGate` (dùng chung học sinh + `StaffAuthService`): đếm nguyên tử trước; lượt thứ N+1 (N = `AUTH_LOGIN_CAPTCHA_THRESHOLD`/`AUTH_STAFF_LOGIN_CAPTCHA_THRESHOLD`, mặc định 5) phải kèm `captcha_token` Turnstile, thiếu/sai → 422 `CAPTCHA_REQUIRED`/`CAPTCHA_INVALID` (hoàn lượt, chưa so mật khẩu). Trần cứng theo tài khoản 100/giờ (`AUTH_LOGIN_MAX_FAILURES`, staff `AUTH_STAFF_LOGIN_MAX_FAILURES`) và IP 50/giờ → 429. Mọi 422 đăng nhập có `captcha_required: bool`.
+- `LoginChallengeException` + `ApiExceptionRenderer`; `captcha_token` ở `LoginRequest`/`StaffLoginRequest`; env mẫu; test `tests/Feature/GL/LoginCaptchaGateTest.php`, `LoginCaptchaRaceTest.php` (group race); T03/T28 chỉnh để giữ trần 10 và gửi captcha.
+- **Xong khi:** test GL + T03/T04/T05/T27/T28 xanh; Pint + PHPStan xanh; không migration; reviewer + QA PASS; FE (nextjs-dev) hiện Turnstile ở web + admin. Hợp đồng: api-contract §1.6, §2.1, admin login (đánh dấu "GL-A2"). Ghi chú guard: `ProductionConfigGuard` chưa kiểm cấu hình mới (xem `docs/review/GL-A2.md`).
+
 ### T24-V1 — Admin đơn hàng, thu gọn cho thanh toán thủ công (backend, ~2 ngày) **[SEC] [DBA]** (US-022, US-010)
 Thay phạm vi T24 ở Giai đoạn 7 cho V1. Phụ thuộc T38 (T38.1 migration + factory; `ManualOrderService` để thêm `approvalState`), T28. **Không phụ thuộc T19.** Hợp đồng api-contract §2.5.1. Test ở `tests/Feature/T24`.
 - `OrderFilterRequest` + `AdminOrderQuery`: bộ lọc §2.5.1 (khoảng ngày bắt buộc ≤ 366 trừ `status[] = [pending]`; `payment_method`; `sort` newest/oldest; `q` 4 dạng, escape LIKE); luôn áp ngày/trạng thái trước; `cursorPaginate` theo `sort` + `COUNT(*)` riêng (DBA #9).
@@ -862,6 +881,74 @@ Phụ thuộc T24-V1, T39, Design US-022. Hợp đồng api-contract §2.5.1. Th
 - Lỗi: 409 `ALREADY_PROCESSED`/`ORDER_STATUS_CHANGED` → thông báo + tải lại chi tiết (hiện nút "Duyệt muộn" nếu `can_approve_late`); `ORDER_APPROVAL_WINDOW_PASSED`, `COURSE_UNAVAILABLE` (liệt kê khóa) → thông báo; 403 → trang không có quyền.
 - Nội dung do người dùng nhập hiển thị dạng text, cấm `dangerouslySetInnerHTML`.
 - **Xong khi:** Vitest (form, mapping lỗi, đếm ngược hạn); Playwright với backend thật cho AC15–AC26, AC31 (gồm 2 tab cùng duyệt → 1 thành công, tab kia hiện 409 và trạng thái mới; GV không thấy menu và URL trực tiếp → 403); lint, typecheck, test, build xanh; review + QA.
+
+## T35 — Đóng gói & triển khai staging/production (ADR-008, 2026-10-09) **[SEC] [DBA]**
+
+Giải quyết readiness H1, H2, D2, D3, D5 (`docs/ops/go-live-readiness.md`). Thiết kế: **ADR-008** (Proposed, chờ PO các mục "Điểm chờ PO"). Không đổi cấu trúc mẫu T31 (Nginx, `grants.sql`, ACL): chỉ điền giá trị theo ADR-008 §8.4.
+
+**Hợp đồng chung (2 dev làm song song phải khớp, nguồn: ADR-008 §8.2–8.6):**
+
+| Mục | Giá trị |
+|---|---|
+| Registry | `ghcr.io/ngocgiangit124` (CI); local/smoke `vv-local` (biến `VV_REGISTRY`) |
+| Image | `vitaminvui-backend:<sha>`, `vitaminvui-worker-video:<sha>`, `vitaminvui-web:<env>-<sha>`, `vitaminvui-admin:<env>-<sha>`; `<env>` ∈ `staging`, `production`; local tag `dev` (`vitaminvui-web:production-dev`...) |
+| Bake | `infra/production/docker-bake.hcl` (target `php-base`, `backend`, `worker-video`; biến `VV_REGISTRY`, `IMAGE_TAG`); `frontend/docker-bake.hcl` (target `web`, `admin`; biến `VV_REGISTRY`, `IMAGE_TAG`, `VV_ENV`, các `NEXT_PUBLIC_*`) |
+| Label | `org.opencontainers.image.revision`, `vv.compose-version` (backend, worker-video), `vv.env` (web, admin) |
+| Compose | `infra/production/docker-compose.yml`, project `vvstack`; service `php`, `queue` (x2), `scheduler`, `worker-video`, `migrate` (profile `tools`), `mysql`, `redis`, `redis-video`, `web`, `admin` |
+| Cổng host | `127.0.0.1:9000` php, `127.0.0.1:3000` web, `127.0.0.1:3001` admin; Nginx host `10.231.10.1:8081` (SSR); không publish gì khác |
+| Mạng | `front` 10.231.10.0/24 (gateway .1), `app` 10.231.11.0/24, `video` 10.231.12.0/24 `internal` |
+| UID | backend/worker `10001:10001`; Next user `node` |
+| Thư mục host = container | `/var/www/backend/storage/app`, `/var/www/backend/storage/logs`, `/var/www/uploads`; cấu hình `/opt/vitaminvui/{env,conf}`; dữ liệu `/srv/vitaminvui/{mysql,redis,redis-video,backups}` |
+| Env file server | `env/app.env`, `env/migrate.env`, `env/worker-video.env`, `env/mysql.env`, `env/web.env`, `env/admin.env`; `/opt/vitaminvui/.env` (biến compose) |
+| Biến chạy web | `API_INTERNAL_URL=http://10.231.10.1:8081`, `INTERNAL_API_TOKEN`, `V2_PREVIEW` (production trống); admin: `V2_PREVIEW` |
+| Smoke local | thư mục `infra/production/smoke/`, project `vvsmoke`, subnet `10.231.20-22.0/24`, Nginx smoke `127.0.0.1:18080`, env sinh vào `infra/production/smoke/.generated/` (gitignore) |
+
+Thứ tự: T35-1 ∥ T35-2 (theo hợp đồng trên) → T35-3 phần image. T35-3 phần test (job `backend-*`, `frontend`) làm song song ngay từ đầu. Sau cả 3: dựng staging theo `docs/ops/production-checklist.md` (việc hạ tầng, chờ PO P1–P4 và các điểm chờ của ADR-008).
+
+### T35-1 — Image backend + compose production + deploy script (`laravel-dev`, ~2 ngày) **[SEC] [DBA]**
+- `infra/php/Dockerfile.prod` + `infra/php/Dockerfile.prod.dockerignore`, `infra/php/prod/{zz-opcache.ini, zz-fpm-pool.conf, entrypoint.sh}` theo ADR-008 §8.8. KHÔNG sửa `infra/php/Dockerfile` (local dùng tiếp); `infra/worker-video/Dockerfile` không sửa, nhận `BASE_IMAGE` = image backend.
+- `infra/production/docker-bake.hcl` (target `php-base` build `infra/php/Dockerfile` với `UID=10001 GID=10001`; `backend` dùng named context `vv-php-base`; `worker-video` dùng named context `vv-backend`). Nền tảng `linux/amd64`; base image ghim bản vá + digest.
+- `infra/production/docker-compose.yml` đủ 10 service theo bảng ADR-008 §8.3 (gồm khối `web`, `admin` đúng image/cổng/env file của hợp đồng; T35-2 chỉ sửa 2 khối này nếu cần). Healthcheck: php (FPM ping qua `cgi-fcgi`), mysql (`mysqladmin ping`), redis (`redis-cli ping` có xác thực), web/admin (gọi `http://127.0.0.1:<port>/robots.txt` hoặc tương đương bằng `node -e`). Anchor chung cho log `json-file` 20m x 5, `cap_drop`, `no-new-privileges`.
+- Mẫu mới: `infra/production/compose.env.example`, `.env.migrate.example`, `.env.mysql.example`, `mysql/my.cnf` (utf8mb4/`utf8mb4_0900_ai_ci`, `READ-COMMITTED`, `binlog_format=ROW`, `binlog_expire_logs_seconds` 7 ngày, `skip-name-resolve`, KHÔNG ghi `log_bin_trust_function_creators`), `redis/redis.conf` và `redis/redis-video.conf` (`aclfile`, `protected-mode yes`, `appendonly yes`), `systemd/nginx.service.d/after-docker.conf`.
+- Sửa mẫu: `.env.production.example` và `.env.worker-video.example` theo ADR-008 §8.6 (`DB_HOST=mysql`, `REDIS_HOST=redis`, `REDIS_VIDEO_*` → `redis-video`, `APP_MAINTENANCE_DRIVER=cache` + `APP_MAINTENANCE_STORE=redis`, worker `CACHE_STORE=array`); dòng đầu `supervisor/vitaminvui.conf` ghi "thay bởi compose (ADR-008), giữ làm tham chiếu". KHÔNG đổi cấu trúc file Nginx/`grants.sql`/ACL.
+- `infra/production/deploy.sh` (`deploy <sha>`, `rollback`, `status`, cờ `--maintenance`, `--ack-irreversible`, `--skip-backup`, `--worker-video=graceful|skip`, `--force-schema-ahead`, `--local`) và `infra/production/backup-db.sh` đúng ADR-008 §8.11–8.12. `set -euo pipefail`; `trap` luôn trả `log_bin_trust_function_creators` về 0; không có `docker compose down`; không in giá trị secret ra log.
+- Dấu `// VV-IRREVERSIBLE: backfill không hoàn tác (T29)` ở dòng đầu migration `2026_10_20_110000_backfill_parent_consent_status` (chỉ thêm ghi chú, không đổi hành vi).
+- `infra/production/smoke/`: `make-env.sh` (sinh env từ các mẫu, secret bằng `openssl rand`, `APP_ENV=staging`, tên miền `*.vvsmoke.test`, `TRUSTED_PROXIES=10.231.20.0/24`), `docker-compose.smoke.yml` (ghi đè subnet sang 10.231.20-22, thêm `nginx-smoke` (nginx 1.27) dùng NGUYÊN `snippets/vv-api-common.conf` + `vv-deny.conf` của production, nghe `127.0.0.1:18080` cho host api/admin-api và `:8081` trong mạng front cho SSR; thêm `mailpit`), `grants.smoke.sh` (điền `grants.sql` bằng mật khẩu đã sinh), `smoke.sh` (chạy toàn bộ kiểm bên dưới), `check-images.sh`.
+- Cập nhật tài liệu: `infra/production/README.md` (bảng file mới; mục "Dựng server lần đầu": Docker Engine repo chính thức, Nginx >= 1.25.1 từ nginx.org, certbot webroot, user `vvdeploy`/`vvapp` (10001), thư mục + quyền theo ADR-008 §8.5, ufw chỉ 22/80/443, `docker login ghcr.io`); checklist §1.1 (kiểm PHP bằng `docker compose exec php php -i` và `php-fpm -i`), §6, §7, §11 (tag thay symlink, quy trình deploy/rollback mới).
+- **Xong khi** (tất cả chạy được trên máy local, Docker Desktop):
+  - (a) `docker buildx bake -f infra/production/docker-bake.hcl --load backend worker-video` (`VV_REGISTRY=vv-local IMAGE_TAG=dev`) xanh.
+  - (b) `check-images.sh` đạt: backend chạy UID 10001; `php -m` có `Zend OPcache`, `redis`, `pdo_mysql`, `gd`, `intl`, `bcmath`, `pcntl`, `exif`, `zip`; `php -i` và `php-fpm -i` ra `display_errors=Off`, `display_startup_errors=Off`, `log_errors=On`, `expose_php=Off`; FPM `opcache.validate_timestamps=0`; không có `/var/www/backend/.env`, `tests/`, `phpunit*.xml`, `vendor/pestphp`, `vendor/larastan`, `vendor/laravel/pint`, `.git`, `node_modules`; `env` của image không có `APP_ENV`/`APP_KEY`; `ffmpeg` chỉ có trong worker-video; label `revision`, `vv.compose-version` đúng; `docker history --no-trunc` không có chuỗi secret nào của smoke env.
+  - (c) `smoke.sh` (project `vvsmoke`) chạy hết không lỗi: dựng mysql/redis/redis-video → `grants.smoke.sh` → `deploy.sh deploy --local dev`. Kiểm: preflight `about` qua cho cả env app và env worker; migrate bằng `vv_migrate` xong, sau đó `SELECT @@GLOBAL.log_bin_trust_function_creators` = 0 (kể cả khi cố tình làm migrate lỗi); `SHOW TRIGGERS LIKE 'audit_logs'` có 2 trigger; `UPDATE audit_logs ...` bằng `vv_app` lỗi; đăng nhập `vv_worker_video` `SELECT * FROM users` → 1142; trong worker-video: không phân giải được `redis` (Redis chính), không ra Internet (kết nối ra ngoài thất bại), `LLEN` queue video qua `redis-video` chạy được; `check-acl.sh` với `SKIP_SIGNALS=1` in `ACL đạt.` trên `redis-video`.
+  - (d) Qua `nginx-smoke`: `Host: api.vvsmoke.test` `/up` 200, `/api/v1/config/public` 200 có `paid_checkout_enabled=false`, `/.env` và `/index.php/x` không trả 200; `php artisan down` chạy trong container `scheduler` làm request qua php trả 503, `up` trả lại 200 (chứng minh driver bảo trì `cache` dùng chung).
+  - (e) `php artisan schedule:list` trong `scheduler` có đủ lệnh ở readiness §5; sau 2 phút `php artisan ops:health` không báo worker/scheduler chết; một mail test (OTP đăng ký) tới `mailpit` qua queue.
+  - (f) Rollback: build lại với `IMAGE_TAG=dev2` kèm một migration giả, deploy `dev2`, rồi `deploy.sh rollback` → dừng vì "DB có migration image cũ không biết"; thêm `--force-schema-ahead` → mọi service về `dev`, `releases.log` ghi đủ 2 lần. Migration giả mang dấu `VV-IRREVERSIBLE` làm `deploy` dừng khi thiếu `--ack-irreversible`.
+  - (g) `docker compose -p vvsmoke restart php` → dữ liệu `/var/www/uploads`, `storage/app` còn nguyên; `grep -n "compose down" infra/production/*.sh` rỗng; `shellcheck` (image `koalaman/shellcheck`) 0 lỗi cho mọi script.
+  - (h) `composer ci` xanh (nếu chỉ thêm ghi chú migration thì chạy Pint + test T29). Review; DBA review `my.cnf`, `backup-db.sh`, cách bật/tắt `log_bin_trust_function_creators`; Security review (image, quyền file, mạng worker, script không lộ secret); QA chạy lại `smoke.sh` trên máy sạch.
+
+### T35-2 — Image frontend standalone + mẫu env production (`nextjs-dev`, ~1 ngày) **[SEC]**
+- `apps/web/next.config.ts`, `apps/admin/next.config.ts`: `output: "standalone"`, `outputFileTracingRoot` = gốc `frontend/`. Đọc `node_modules/next/dist/docs/` của Next 16.3.6 về standalone trong monorepo trước khi sửa (AGENTS.md). Giữ nguyên `distDir`/`NEXT_DIST_DIR` cho e2e.
+- `frontend/Dockerfile` + `frontend/.dockerignore` (loại `**/.env*` trừ `*.example`, `.next*`, `node_modules`, `.pnpm-store`, `e2e`, `loadtest`, `test-results`) + `frontend/docker-bake.hcl` (target `web`, `admin`, tag `${VV_REGISTRY}/vitaminvui-<app>:${VV_ENV}-${IMAGE_TAG}`, label `vv.env`) theo ADR-008 §8.9. Mọi `ARG NEXT_PUBLIC_*` mặc định `""`; KHÔNG có `ARG`/`ENV` cho `INTERNAL_API_TOKEN` hay biến server-only nào khác.
+- Mẫu env production: `apps/web/.env.production.example`, `apps/admin/.env.production.example`, mỗi file 2 phần có tiêu đề rõ: "BUILD (GitHub Environment vars, nhúng vào bundle)" và "RUNTIME (`/opt/vitaminvui/env/web.env`, không nhúng)". Giá trị production: web `NEXT_PUBLIC_API_URL=https://api.vitaminvui.vn`, `NEXT_PUBLIC_SITE_URL=https://vitaminvui.vn`, `NEXT_PUBLIC_STATIC_URL=https://static.vitaminvui-media.net`, `NEXT_PUBLIC_VIDEO_HOSTS=https://video.vitaminvui.vn`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY=<site key production>`, `NEXT_PUBLIC_MOMO_HOSTS=` (rỗng); runtime `API_INTERNAL_URL=http://10.231.10.1:8081`, `INTERNAL_API_TOKEN=` (giống backend), `V2_PREVIEW=` (trống). Admin `NEXT_PUBLIC_ADMIN_API_URL=https://admin-api.vitaminvui.vn`, `NEXT_PUBLIC_ADMIN_URL=https://admin.vitaminvui.vn`, `NEXT_PUBLIC_STATIC_URL=https://static.vitaminvui-media.net`, `NEXT_PUBLIC_VIDEO_UPLOAD_URL=https://video.vitaminvui.vn` (Bunny thì `https://video.bunnycdn.com`). Ghi chú dòng riêng cho staging (`*-staging.vn`, `static.vitaminvui-staging-media.net`, key Turnstile staging; `V2_PREVIEW=1` được phép ở staging). Không chú thích cuối dòng.
+- `apps/web/env.ts`: mặc định `NEXT_PUBLIC_MOMO_HOSTS` thành rỗng (readiness E2, D5); `.env.example` local vẫn đặt rõ `test-payment.momo.vn`. Sửa `env.test.ts` (undefined → `[]`, `""` → `[]`). Rà `proxy.ts` web: danh sách MoMo rỗng thì CSP không sinh token rỗng/thừa dấu cách.
+- Build không cần backend: `next build` không được gọi API hay đòi biến runtime thật (CI không có backend). Nếu `env.server.ts` bắt buộc biến lúc build thì sửa để chỉ kiểm lúc chạy, không truyền giá trị thật vào build.
+- Cập nhật `frontend/README.md` (mục "Production image": build, chạy, biến BUILD/RUNTIME, readiness gọi `/khoa-hoc` sau khởi động).
+- **Xong khi** (local):
+  - (a) `docker buildx bake -f frontend/docker-bake.hcl --load web admin` với `VV_REGISTRY=vv-local IMAGE_TAG=dev VV_ENV=production` và các biến nạp từ phần BUILD của 2 mẫu `.env.production.example` → xanh; lặp lại với `VV_ENV=staging` + giá trị staging.
+  - (b) Image chạy user `node`; `find /app -name '.env*'` rỗng; `grep -rE "test-payment\.momo\.vn|api\.localhost|localhost:8000|video\.localhost" /app` trong image production rỗng; `docker history --no-trunc` không có `INTERNAL_API_TOKEN`; label `vv.env` đúng.
+  - (c) `docker run --rm -p 127.0.0.1:3000:3000 --env-file <web runtime env> vv-local/vitaminvui-web:production-dev`: `curl -sI http://127.0.0.1:3000/` có `Content-Security-Policy` chứa `nonce-` và `https://video.vitaminvui.vn`, KHÔNG chứa `momo` hay `localhost`; `/_next/static/...` 200; `/v2` và `/%76%32/khoa-hoc` 404 có CSP; `-e V2_PREVIEW=1` → `/v2` 200 (không build lại). Admin tương tự ở cổng 3001 (`/dang-nhap` 200, CSP `connect-src` có `NEXT_PUBLIC_ADMIN_API_URL` và `NEXT_PUBLIC_VIDEO_UPLOAD_URL`). Bản staging: CSP chỉ có host staging.
+  - (d) Với stack smoke của T35-1 đang chạy (`smoke.sh` có tuỳ chọn bật web/admin): web SSR gọi `API_INTERNAL_URL` của `nginx-smoke` → `/khoa-hoc` 200 (hoặc trang "Hệ thống đang bận" có `noindex` nếu chưa seed, không 500), log `:8081` của `nginx-smoke` có request mang `X-Internal-Token`; `/_next/image?url=<STATIC_URL>/...` không trả 500 (sharp có trong standalone).
+  - (e) `frontend/scripts/pnpm.sh run lint|typecheck|test|build` xanh; review; Security review (CSP, không lộ biến server-only, image không có secret); QA lặp lại (c).
+
+### T35-3 — GitHub Actions CI + build/push image GHCR (`laravel-dev`, ~1 ngày) **[SEC]**
+- `.github/workflows/ci.yml` và `.github/workflows/release-images.yml` đúng ADR-008 §8.10. Bước dài viết thành script `scripts/ci/backend-prepare.sh` (hosts, SQL tạo DB/user, `SET GLOBAL transaction_isolation`/`log_bin_trust_function_creators`, `.env` từ `.env.example` + `key:generate`, mật khẩu khớp service) để chạy lại được ngoài GitHub (giống `scripts/cloud-setup.sh`).
+- Job `images` gọi đúng 2 file bake của T35-1/T35-2 với `--push`, `VV_REGISTRY=ghcr.io/ngocgiangit124`, `IMAGE_TAG=${{ github.sha }}`, cache `type=gha`; `NEXT_PUBLIC_*` lấy từ `vars` của GitHub Environment `staging` (job image staging) và `production` (`release-images.yml`, có người duyệt). Ghi vào `infra/production/README.md` danh sách `vars` cần tạo ở mỗi Environment (tên giống hệt build arg của ADR-008 §8.9).
+- Bảo mật workflow: `permissions: contents: read` mặc định, `packages: write` chỉ ở job image; không `pull_request_target`; PR không bao giờ push image; action ghim commit SHA (ghi phiên bản ở chú thích); không echo biến; `concurrency` cho `main`.
+- **Xong khi:**
+  - (a) Local: `actionlint` (image `rhysd/actionlint`) 0 lỗi; `shellcheck` cho `scripts/ci/*.sh` 0 lỗi.
+  - (b) Local: chạy `scripts/ci/backend-prepare.sh` trong một container `ubuntu:24.04` có `mysql:8.4` + `redis:7` cạnh bên (hoặc trên Claude Code on the web), rồi `vendor/bin/pest --exclude-group=race` và `--group=race` xanh; lệnh frontend giống job `frontend` xanh qua `frontend/scripts/pnpm.sh`.
+  - (c) Local: lệnh bake y hệt job `images` nhưng `--load` thay `--push` chạy được (dùng lại (a) của T35-1, T35-2).
+  - (d) Trên GitHub (cần PO push nhánh/mở PR): PR chạy `backend-static`, `backend-test`, `backend-race`, `frontend` xanh và KHÔNG chạy `images`; sau merge vào `main`, GHCR có 4 image (`vitaminvui-backend:<sha>`, `vitaminvui-worker-video:<sha>`, `vitaminvui-web:staging-<sha>`, `vitaminvui-admin:staging-<sha>`), package private, label `revision` = SHA; `release-images.yml` với SHA đó chờ duyệt rồi tạo `production-<sha>`. Tổng thời gian CI ghi vào báo cáo.
+  - (e) Review; Security review (quyền workflow, token, nguồn biến). QA không bắt buộc ngoài (d).
 
 ## Thứ tự & ước lượng
 

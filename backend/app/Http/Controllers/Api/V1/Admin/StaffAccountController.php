@@ -84,7 +84,7 @@ class StaffAccountController extends Controller
 
     public function updateRole(StaffRoleRequest $request, string $staff): JsonResponse
     {
-        ['user' => $user, 'released_course_ids' => $released] = $this->accounts->changeRoleDetailed(
+        ['user' => $user, 'released_course_ids' => $released, 'released_courses' => $releasedCourses] = $this->accounts->changeRoleDetailed(
             $this->find($staff),
             UserRole::from($request->string('role')->toString()),
             $this->actor($request),
@@ -93,6 +93,7 @@ class StaffAccountController extends Controller
         return response()->json([
             ...(new StaffAccountResource($user))->resolve(),
             'released_course_ids' => $released,
+            'released_courses' => $releasedCourses,
         ]);
     }
 

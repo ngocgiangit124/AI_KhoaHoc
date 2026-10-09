@@ -246,6 +246,18 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('quiz', fn (Request $request) => Limit::perMinute(30)->by($this->identity($request).':quiz'));
         RateLimiter::for('quiz-read', fn (Request $request) => Limit::perMinute(60)->by($this->identity($request).':quiz-read'));
 
+        // GL-A34: xin học khóa miễn phí 10/phút + 30/ngày/người (chặn vòng xin -> bị từ chối -> xin lại sinh lịch sử vô hạn).
+        RateLimiter::for('free-enrollment', fn (Request $request) => [
+            Limit::perMinute(10)->by('free-enrollment:'.$this->identity($request)),
+            Limit::perDay(30)->by('free-enrollment-day:'.$this->identity($request)),
+        ]);
+        // GL-A34: trần chung 120/phút/người cho thao tác ghi của staff/GV; method đọc (GET/HEAD/OPTIONS) không bị đếm.
+        RateLimiter::for('admin-write', fn (Request $request) => $request->isMethodSafe()
+            ? Limit::none()
+            : Limit::perMinute(120)->by('admin-write:'.$this->identity($request)));
+        // GL-A34: đọc màn học (khóa/bài) 120/phút/người; một bài học bình thường chỉ vài request nên không chặn người học thật.
+        RateLimiter::for('learn-read', fn (Request $request) => Limit::perMinute(120)->by('learn-read:'.$this->identity($request)));
+
         // T23: Khóa học của tôi / tiến độ (đọc, tổng hợp nhiều bảng): 60/phút/người.
         RateLimiter::for('me-courses', fn (Request $request) => Limit::perMinute(60)->by($this->identity($request).':me-courses'));
 

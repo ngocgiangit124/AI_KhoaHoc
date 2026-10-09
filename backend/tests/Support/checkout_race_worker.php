@@ -13,6 +13,7 @@ use App\Services\Orders\CheckoutService;
 use App\Services\Orders\OrderFulfillmentService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 require __DIR__.'/../../vendor/autoload.php';
 $app = require __DIR__.'/../../bootstrap/app.php';
@@ -152,11 +153,30 @@ $out = match ($mode) {
         DB::table('order_items')->whereIn('order_id', $orderIds)->delete();
         DB::table('orders')->whereIn('id', $orderIds)->delete();
         DB::table('carts')->whereIn('user_id', $userIds)->delete();
+
+        // BE-backlog-1: người tạo khóa/mã do factory sinh (giáo viên cho MỖI khóa, admin cho mã) cũng phải dọn, nếu không
+        // chúng rò sang DB test và làm các test đếm/liệt kê giáo viên (T36/AdminTeacherProfilesTest) đỏ khi chạy sau T18.
+        // Lấy từ DB (không tin `creator` do test truyền) vì `setup_multi` tạo 3 khóa/3 giáo viên và mã có `created_by` riêng.
+        $courseIds = array_values(array_filter(explode(',', (string) $args[1])));
+        $creatorIds = DB::table('courses')->whereIn('id', $courseIds)->pluck('created_by')->all();
         if ($args[2] ?? null) {
+            $creatorIds = [...$creatorIds, ...DB::table('coupons')->where('id', $args[2])->pluck('created_by')->all()];
+            DB::table('coupon_usages')->where('coupon_id', $args[2])->delete();
             DB::table('coupons')->where('id', $args[2])->delete();
         }
-        DB::table('courses')->whereIn('id', explode(',', $args[1]))->delete();
-        DB::table('users')->whereIn('id', [...$userIds, $args[3]])->delete();
+        if ($args[3] ?? null) {
+            $creatorIds[] = $args[3];
+        }
+        DB::table('course_teacher')->whereIn('course_id', $courseIds)->delete();
+        DB::table('courses')->whereIn('id', $courseIds)->delete();
+
+        $doomed = array_values(array_unique(array_map('intval', array_filter([...$userIds, ...$creatorIds]))));
+        foreach (['course_teacher', 'teacher_profiles'] as $table) {
+            if (Schema::hasTable($table)) {
+                DB::table($table)->whereIn('user_id', $doomed)->delete();
+            }
+        }
+        DB::table('users')->whereIn('id', $doomed)->delete();
 
         return ['ok' => true];
     })(),

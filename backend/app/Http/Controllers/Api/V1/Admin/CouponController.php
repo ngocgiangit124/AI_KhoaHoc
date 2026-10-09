@@ -39,6 +39,17 @@ class CouponController extends Controller
         return CouponResource::collection($query->paginate((int) $request->input('per_page', 25))->withQueryString());
     }
 
+    /**
+     * BE-backlog-1 (FA7): giá khóa rẻ nhất đang bán (cùng định nghĩa với kiểm mã "giảm hết" S18 ở server) để FE báo sớm,
+     * thay vì quét tối đa 200 khóa. Null nếu chưa có khóa có phí đang bán.
+     */
+    public function cheapestCoursePrice(): JsonResponse
+    {
+        Gate::authorize('viewAny', Coupon::class);
+
+        return response()->json(['cheapest_course_price' => $this->coupons->cheapestSellingPrice()]);
+    }
+
     public function show(Coupon $coupon): CouponResource
     {
         Gate::authorize('view', $coupon);

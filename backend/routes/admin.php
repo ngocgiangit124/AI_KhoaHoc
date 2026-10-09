@@ -97,6 +97,8 @@ Route::domain(config('app.admin_api_host'))
         Route::middleware([
             'auth:sanctum', $staffRoles, SanctumAuthenticateSession::class, 'account.active', 'staff.idle',
             'staff.mfa_passed', 'staff.password_fresh', 'no_store',
+            // GL-A34: trần chung cho thao tác GHI của staff (GET/HEAD không bị đếm); route nhạy cảm có limiter riêng chặt hơn.
+            'throttle:admin-write',
         ])->group(function (): void {
             Route::get('/admin/auth/me', StaffMeController::class)->name('admin.auth.me');
 
@@ -171,6 +173,7 @@ Route::domain(config('app.admin_api_host'))
 
             // T15 — Mã giảm giá (US-013). Quyền theo CouponPolicy: chỉ staff (admin, quản lý trang).
             Route::get('/admin/coupons', [CouponController::class, 'index'])->name('admin.coupons.index');
+            Route::get('/admin/coupons/cheapest-course-price', [CouponController::class, 'cheapestCoursePrice'])->name('admin.coupons.cheapest-course-price');
             Route::post('/admin/coupons', [CouponController::class, 'store'])->name('admin.coupons.store');
             Route::get('/admin/coupons/{coupon}', [CouponController::class, 'show'])->name('admin.coupons.show');
             Route::put('/admin/coupons/{coupon}', [CouponController::class, 'update'])->name('admin.coupons.update');

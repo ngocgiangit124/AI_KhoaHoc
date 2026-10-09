@@ -24,6 +24,7 @@ class QuizQuestionResource extends JsonResource
             'content' => $this->content,
             'explanation' => $this->getAttribute('explanation'),
             'position' => $this->position,
+            'has_attempts' => $this->when(array_key_exists('has_attempts', $this->getAttributes()), fn () => (bool) $this->getAttribute('has_attempts')),
             'options' => $this->whenLoaded('options', fn () => $this->options->map(fn ($o) => [
                 'id' => $o->id,
                 'content' => $o->content,

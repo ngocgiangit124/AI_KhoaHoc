@@ -11,6 +11,10 @@ class MeController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
     {
-        return (new StaffUserResource($request->user()))->response()->setStatusCode(200);
+        // BE-backlog-1 (FA5): cờ để màn soạn quiz ẩn ô thời gian khi FEATURE_QUIZ_TIME_LIMIT tắt (cùng nguồn với /config).
+        return response()->json([
+            ...(new StaffUserResource($request->user()))->resolve($request),
+            'quiz_time_limit_enabled' => (bool) config('features.quiz_time_limit'),
+        ]);
     }
 }

@@ -17,6 +17,7 @@ use App\Http\Middleware\StaffIdleTimeout;
 use App\Http\Middleware\TrustHosts;
 use App\Support\ApiExceptionRenderer;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -24,6 +25,7 @@ use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -149,6 +151,29 @@ return Application::configure(basePath: dirname(__DIR__))
         // Lỗi nghiệp vụ (4xx/503 do ta chủ động ném) là phản hồi bình thường, không report kèm stack trace:
         // trace có đối số hàm (mã OTP người dùng gõ) — S21.
         $exceptions->dontReport([DomainException::class]);
+
+        // GL-A34 (A3, T03-L2): `QueryException::getMessage()` chứa SQL đã nội suy bindings (email, SĐT, hash mật khẩu, liên hệ
+        // phụ huynh) và `errorInfo[2]` chứa giá trị trùng ("Duplicate entry '...'"). Report mặc định sẽ ghi hết vào laravel.log.
+        // Chỉ ghi SQL placeholder + mã lỗi + connection + vị trí gọi trong app/ (không có đối số hàm); `return false` chặn report mặc định.
+        $exceptions->report(function (QueryException $e): bool {
+            $location = null;
+            foreach ($e->getTrace() as $frame) {
+                if (isset($frame['file'], $frame['line']) && str_starts_with($frame['file'], app_path())) {
+                    $location = str_replace(base_path().'/', '', $frame['file']).':'.$frame['line'];
+                    break;
+                }
+            }
+
+            Log::error('db.query_failed', [
+                'sql' => $e->getSql(),
+                'sqlstate' => $e->errorInfo[0] ?? null,
+                'driver_code' => $e->errorInfo[1] ?? null,
+                'connection' => $e->getConnectionName(),
+                'location' => $location,
+            ]);
+
+            return false;
+        });
 
         $exceptions->dontFlash([
             'password',

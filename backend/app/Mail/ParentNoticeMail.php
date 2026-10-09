@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Support\Mask;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -10,6 +11,9 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Mailables\Headers;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
+use Throwable;
 
 /**
  * Thư THÔNG BÁO gửi cho phụ huynh (HTML + text thuần, KHÔNG markdown: mọi chuỗi động đi qua `e()`) (ADR-006, api-contract §2.8.2). Phụ huynh không phải làm gì.
@@ -51,6 +55,26 @@ class ParentNoticeMail extends Mailable implements ShouldBeEncrypted, ShouldQueu
         public readonly ?int $totalAmount = null,
     ) {
         $this->afterCommit();
+    }
+
+    /**
+     * T29-S4: lỗi transport SMTP thường kèm địa chỉ nhận trong thông điệp. Bắt mọi lỗi lúc gửi và ném lại một exception MỚI
+     * (không `previous`) với thông điệp đã che email, để `failed_jobs.exception` và log của worker không chứa địa chỉ phụ huynh.
+     * Vẫn là lỗi nên cơ chế retry/backoff giữ nguyên.
+     */
+    public function send($mailer)
+    {
+        try {
+            return parent::send($mailer);
+        } catch (Throwable $e) {
+            throw new RuntimeException(class_basename($e).': '.Mask::emailsInText($e->getMessage()));
+        }
+    }
+
+    /** Gọi khi hết lượt thử; `$e` đã được che ở `send()`, che lại một lần nữa phòng lỗi phát sinh ngoài `send()`. */
+    public function failed(Throwable $e): void
+    {
+        Log::warning('parent_notice.mail_failed', ['kind' => $this->kind, 'error' => Mask::emailsInText($e->getMessage())]);
     }
 
     public function envelope(): Envelope

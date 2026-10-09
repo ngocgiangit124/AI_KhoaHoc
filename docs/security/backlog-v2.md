@@ -8,7 +8,7 @@ Task có cờ [SEC] trong `tasks.md` vẫn đi qua dev → reviewer → QA, ch�
 
 | Mã | Mức | Nội dung | Trạng thái |
 |---|---|---|---|
-| M1 | Medium | Khoá được tài khoản người khác (10 lượt sai/giờ theo tài khoản; 50 lượt/IP khoá cả trường dùng chung NAT). Đề xuất: khoá theo tài khoản+IP, vượt ngưỡng thì bắt captcha ở login thay vì 429; sửa contract §1.6 | Hoãn v2 (cần PO chọn) |
+| M1 | Medium | Khoá được tài khoản người khác (10 lượt sai/giờ theo tài khoản; 50 lượt/IP khoá cả trường dùng chung NAT). Đề xuất: khoá theo tài khoản+IP, vượt ngưỡng thì bắt captcha ở login thay vì 429; sửa contract §1.6 | **Đã sửa 2026-10-09 (GL-A2)**: từ 5 lượt sai đòi captcha Turnstile (không khoá), trần cứng 100/giờ/tài khoản; còn lại: trần IP 50 vẫn khoá cả NAT dùng chung (T03-L1 IPv6 /64 chưa làm) |
 | M2 | Medium | Né giới hạn theo tài khoản bằng email có dấu (collation `utf8mb4_0900_ai_ci`, `accountKey()` tạo bộ đếm khác nhau). Sửa: đếm theo user id / ASCII-fold | **Đã sửa 2026-10-06 ("Sửa lỗi nhỏ 2")**: `LoginService::attempt` tìm user trước, khoá đếm theo user id (`login-fail:u:{id}`), không có tài khoản thì `accountKey()` bỏ dấu (`Str::ascii`) + hạ chữ; áp cả đăng nhập staff. Test `tests/Feature/T03/LoginThrottleHardeningTest.php` |
 | M3 | Medium | Bộ đếm không nguyên tử (kiểm trước, đếm sau) nên request đồng thời vượt ngưỡng. Sửa: `RateLimiter::hit()` trước khi so mật khẩu | **Đã sửa 2026-10-06 ("Sửa lỗi nhỏ 2")**: `RateLimiter::hit()` (INCR nguyên tử) TRƯỚC khi so mật khẩu, vượt ngưỡng → 429; mật khẩu đúng thì `decrement` hoàn lượt (vẫn chỉ đếm lượt sai). Ngưỡng giữ nguyên (10/tài khoản, 50/IP; staff theo config). Áp cả staff (`StaffAuthService`) |
 | L1 | Low | Khoá IPv6 theo địa chỉ đầy đủ, nên gộp /64 | Hoãn v2 |
@@ -57,7 +57,7 @@ R1, R2 (Medium) đã sửa: `LoginService::reserveAttempts()` kiểm chỉ-đọ
 
 | Mã | Mức | Nội dung | Trạng thái |
 |---|---|---|---|
-| T28-1 | Low | Throttle đăng nhập sai quản trị cũng khoá được tài khoản staff từ người ngoài (10 lần/giờ), như M1 của T03; chưa có captcha/cảnh báo khi chạm ngưỡng; request bị 429 chưa ghi audit | Hoãn v2 |
+| T28-1 | Low | Throttle đăng nhập sai quản trị cũng khoá được tài khoản staff từ người ngoài (10 lần/giờ), như M1 của T03; chưa có captcha/cảnh báo khi chạm ngưỡng; request bị 429 chưa ghi audit | **Đã sửa phần khoá + captcha 2026-10-09 (GL-A2)**; còn lại hoãn v2: 429 (trần cứng) chưa ghi audit, chưa cảnh báo QTV khi chạm ngưỡng |
 | T28-2 | Low | MFA dùng chung trần OTP 5/giờ, 10/ngày với mọi purpose: admin đăng nhập nhiều lần/ngày có thể tự khoá MFA; chưa có "khoá xác thực 24h" có audit | Hoãn v2 |
 | T28-3 | Low | Session cũ sau đổi mật khẩu/regenerate (`regenerate(false)`) còn nằm ở store đến hết TTL (bị AuthenticateSession huỷ khi dùng lại); không có tombstone để báo `SESSION_REVOKED` cho staff | Hoãn v2 |
 | T28-4 | Low | Nhận diện thiết bị mới của giáo viên dựa vào `X-Device-Id` do client tự khai (kẻ có mật khẩu có thể tái dùng UUID đã biết để tránh email cảnh báo; cookie thiết bị ký phía server sẽ tốt hơn) | Hoãn v2 |
@@ -339,7 +339,7 @@ Còn lại (không sửa trong T36):
 
 ## T29 (security review 2026-10-08) — chuyển sang backlog
 - **T29-S4 (Low):** lỗi gửi `ParentNoticeMail` có thể ghi địa chỉ phụ huynh vào `failed_jobs.exception` và log worker (thông điệp transport SMTP). Việc cần làm: che email (regex → `***`) trong exception của `Symfony\Component\Mailer\Exception\*` hoặc `failed()` của mailable; giữ `queue:prune-failed --hours=168` (T30) chạy theo lịch. Kiểm chứng: transport giả ném exception chứa email thì `failed_jobs`/log không có `@`.
-- **T29-S6 (Low):** chưa có trần tổng/cảnh báo cho thư gửi bên thứ ba. Việc cần làm: limiter toàn cục `parent-notice:global` (ví dụ 500/giờ, vượt thì bỏ thư + `Log::warning`), cân nhắc trần 3 địa chỉ phụ huynh khác nhau/tài khoản/ngày, đưa số `parent_notice.sent`/giờ vào cảnh báo (T26).
+- **T29-S6 (Low):** chưa có trần tổng/cảnh báo cho thư gửi bên thứ ba. Việc cần làm: limiter toàn cục `parent-notice:global` (ví dụ 500/giờ, vượt thì bỏ thư + `Log::warning`), cân nhắc trần 3 địa chỉ phụ huynh khác nhau/tài khoản/ngày, đưa số `parent_notice.sent`/giờ vào cảnh báo (T26). **Đã làm một phần (BE-backlog-1, 2026-10-09):** limiter tổng, PO 2026-10-09 chốt 500/giờ (env `PRIVACY_PARENT_NOTICE_GLOBAL_HOURLY_CAP`); T29-S4 (che email trong lỗi gửi) đã xong. Còn: trần 3 địa chỉ/tài khoản/ngày và chỉ số vào cảnh báo T26.
 
 ## US-022 (T38, T24-V1 — 2026-10-09) — chuyển sang backlog
 - **T38-S5 (Low, PO chấp nhận V1):** nhiều tài khoản có thể spam hộp thư QTV (5 thư/ngày/tài khoản). Việc cần làm: trần toàn cục thư "đơn mới" + gộp thư theo lô.
@@ -351,3 +351,7 @@ Còn lại (không sửa trong T36):
 - **T39-S3 (Pháp chế/PO):** `order_notes.body`, `cancel_reason_public`, `payment_reference` có thể chứa PII, chưa có thời hạn lưu và không xoá khi xoá tài khoản (gộp với T24-V1-S6).
 - **T39-S4 mở rộng (DBA):** `order_notes`, `order_status_logs` chỉ chặn sửa/xoá qua Eloquent; cân nhắc trigger MySQL chặn UPDATE/DELETE như bằng chứng bất biến.
 - **T39-S2 (chấp nhận):** duyệt muộn đọc `anonymized_at` không khoá (READ COMMITTED) → cửa sổ ngắn có thể cấp quyền cho tài khoản vừa ẩn danh; có `Log::warning('manual_order.approved_deleted_account')` để vận hành hoàn tiền.
+
+## GL-A34 (review 2026-10-09) — chuyển sang backlog
+- **GL-A34-R2 (Low, PII):** `failed_jobs.exception` (queue `database-uuids`) lưu `getMessage()` đầy đủ của QueryException (SQL kèm bindings: email, SĐT, hash) và trace. Hook `report` của A3 chỉ che log file, không che đường worker ghi bảng. Đề xuất: (1) giữ `OPS_FAILED_JOBS_RETENTION_HOURS=168` (7 ngày) ở production, ghi vào checklist go-live khi GL-1 xong `docs/ops/production-checklist.md` (file đó chưa sửa trong GL-A34); (2) về lâu dài, `FailedJobProvider` tuỳ biến che message QueryException về `db.query_failed sqlstate=... code=...`, hoặc job bắt QueryException rồi ném exception chung không kèm message gốc; (3) hạn chế người đọc bảng `failed_jobs` (quyền DB, màn admin nếu có).
+- **GL-A34-R3 (Info):** (a) hook `report` chỉ khớp khi chính exception là `QueryException`. Nếu code bọc (`throw new X(..., previous: $queryException)`) thì report mặc định in cả chuỗi previous có bindings. Hiện `app/` không có chỗ bọc nào; quy ước: không bọc QueryException, hoặc bọc thì không kèm `previous`. Đề xuất mở rộng hook: duyệt `getPrevious()` và xử lý tương tự. (b) SQL có literal nội suy trực tiếp (`whereRaw` nối chuỗi) sẽ lọt vào trường `sql`; dự án đã quy ước binding, nên thêm quy tắc kiểm tĩnh (grep/PHPStan) cấm nối chuỗi vào `whereRaw/selectRaw/DB::raw`.

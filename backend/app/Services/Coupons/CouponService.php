@@ -277,7 +277,7 @@ class CouponService
     }
 
     /** Giá của khóa rẻ nhất đang bán: đã xuất bản, chưa xoá mềm, có phí (price > 0). Null nếu chưa có khóa nào. */
-    protected function cheapestSellingPrice(): ?int
+    public function cheapestSellingPrice(): ?int
     {
         $price = DB::table('courses')
             ->where('status', CourseStatus::Published->value)

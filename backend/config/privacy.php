@@ -22,6 +22,10 @@ return [
     // Trần thư thông báo gửi tới MỘT địa chỉ phụ huynh mỗi ngày (tính trên mọi học sinh).
     'parent_notice_daily_cap_per_address' => (int) env('PRIVACY_PARENT_NOTICE_DAILY_CAP', 5),
 
+    // T29-S6: trần TỔNG thư thông báo gửi tới bên thứ ba (mọi địa chỉ, mọi học sinh) mỗi giờ. Vượt trần thì bỏ thư +
+    // Log::warning('parent_notice.global_cap_reached'). Mặc định 500/giờ; PO/vận hành chỉnh theo quy mô thật. Giá trị < 1 → không gửi (fail-closed).
+    'parent_notice_global_hourly_cap' => (int) env('PRIVACY_PARENT_NOTICE_GLOBAL_HOURLY_CAP', 500),
+
     // Khoá HMAC của token huỷ nhận thông báo. Mặc định dẫn xuất từ APP_KEY với nhãn riêng (xem `ParentNoticeToken`).
     'notice_token_key' => env('PRIVACY_NOTICE_TOKEN_KEY'),
 

@@ -32,6 +32,7 @@ class QuizResource extends JsonResource
             'title' => $this->title,
             'time_limit_minutes' => $this->time_limit_minutes,
             'position' => $this->position,
+            'has_attempts' => $this->when(array_key_exists('has_attempts', $this->getAttributes()), fn () => (bool) $this->getAttribute('has_attempts')),
             'questions_count' => $this->whenCounted('questions'),
             'questions' => $this->whenLoaded('questions', fn () => QuizQuestionResource::collection($this->questions)->resolve($request)),
             'created_at' => $this->created_at?->toIso8601String(),

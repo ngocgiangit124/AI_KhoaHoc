@@ -283,6 +283,30 @@ class QuizAttemptService
             ->all();
     }
 
+    /**
+     * BE-backlog-1 (FW6): id lượt làm điểm cao nhất của học sinh, theo quiz (hoà điểm → lượt nộp sớm nhất, rồi id nhỏ).
+     * 1 truy vấn theo (user_id, course_id) — index `quiz_attempts_user_course_index`; chỉ đọc 3 cột.
+     *
+     * @param  list<int>|null  $quizIds  null = mọi quiz của khóa
+     * @return array<int, int> quiz_id => attempt_id
+     */
+    public function bestAttemptIdsForCourse(int $userId, int $courseId, ?array $quizIds = null): array
+    {
+        $rows = QuizAttempt::query()
+            ->where('user_id', $userId)->where('course_id', $courseId)
+            ->whereNotNull('submitted_at')->whereNotNull('score')
+            ->when($quizIds !== null, fn ($q) => $q->whereIn('quiz_id', $quizIds))
+            ->orderByDesc('score')->orderBy('submitted_at')->orderBy('id')
+            ->get(['id', 'quiz_id']);
+
+        $best = [];
+        foreach ($rows as $row) {
+            $best[(int) $row->quiz_id] ??= (int) $row->id;
+        }
+
+        return $best;
+    }
+
     public function isExpired(QuizAttempt $attempt): bool
     {
         return $attempt->expires_at !== null

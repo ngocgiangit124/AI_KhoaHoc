@@ -189,7 +189,7 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         // T14 — xin học khóa miễn phí (US-012). `account.verified` chỉ gắn ở route này (US-001 AC9: chặn
         // đăng ký miễn phí/checkout, KHÔNG chặn xem/học). ADR-006 (T29): không còn middleware phụ huynh đồng ý.
         Route::post('/courses/{course}/free-enrollments', [FreeEnrollmentController::class, 'store'])
-            ->middleware('account.verified')
+            ->middleware(['account.verified', 'throttle:free-enrollment'])
             ->name('api.courses.free-enrollments.store');
 
         // T16 — giỏ hàng (US-004). Không cần `account.verified` (xem/sửa giỏ không bị chặn; chỉ checkout T18 chặn).
@@ -229,9 +229,11 @@ Route::domain(config('app.api_host'))->prefix('v1')->group(function (): void {
         // `account.verified` KHÔNG gắn: chưa xác thực OTP vẫn học được (US-001 AC9). Heartbeat: 6/phút/user/bài.
         Route::get('/learn/courses/{course}', [LearnCourseController::class, 'show'])
             ->whereNumber('course')
+            ->middleware('throttle:learn-read')
             ->name('api.learn.courses.show');
         Route::get('/learn/lessons/{lesson}', [LearnLessonController::class, 'show'])
             ->whereNumber('lesson')
+            ->middleware('throttle:learn-read')
             ->name('api.learn.lessons.show');
         Route::get('/learn/lessons/{lesson}/playback', [PlaybackController::class, 'show'])
             ->whereNumber('lesson')

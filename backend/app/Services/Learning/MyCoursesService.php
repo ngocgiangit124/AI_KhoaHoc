@@ -119,6 +119,7 @@ class MyCoursesService
             ->orderBy('position')->orderBy('id')
             ->get();
         $best = $this->quizAttempts->bestScoresForCourse($userId, $courseId, $quizRows->pluck('id')->map(fn ($i): int => (int) $i)->all());
+        $bestAttemptIds = $this->quizAttempts->bestAttemptIdsForCourse($userId, $courseId, $quizRows->pluck('id')->map(fn ($i): int => (int) $i)->all());
         $attemptCounts = DB::table('quiz_attempts')
             ->where('user_id', $userId)->where('course_id', $courseId)->whereNotNull('submitted_at')
             ->groupBy('quiz_id')->selectRaw('quiz_id, COUNT(*) as n')->pluck('n', 'quiz_id');
@@ -164,6 +165,7 @@ class MyCoursesService
             'attempted' => isset($best[$q->id]),
             'attempts_count' => (int) ($attemptCounts[$q->id] ?? 0),
             'best_score' => isset($best[$q->id]) ? round($best[$q->id], 2) : null,
+            'best_attempt_id' => $bestAttemptIds[$q->id] ?? null,
         ])->values()->all();
 
         $enrollment = Enrollment::query()

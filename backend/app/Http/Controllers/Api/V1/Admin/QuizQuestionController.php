@@ -9,6 +9,7 @@ use App\Http\Resources\QuizQuestionResource;
 use App\Models\Course;
 use App\Models\Quiz;
 use App\Models\QuizQuestion;
+use App\Services\Quiz\QuizAttemptUsage;
 use App\Services\Quiz\QuizContentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,22 +18,28 @@ use Illuminate\Support\Facades\Gate;
 
 class QuizQuestionController extends Controller
 {
-    public function __construct(private readonly QuizContentService $content) {}
+    public function __construct(private readonly QuizContentService $content, private readonly QuizAttemptUsage $usage) {}
 
     public function index(Request $request, Course $course, Quiz $quiz): JsonResponse
     {
         Gate::authorize('manageContent', $course);
 
+        $list = $this->content->list($quiz);
+        $this->usage->markQuestions($list);
+
         return response()->json([
-            'data' => QuizQuestionResource::collection($this->content->list($quiz))->resolve($request),
+            'data' => QuizQuestionResource::collection($list)->resolve($request),
         ]);
     }
 
     /** SLN7: đổi thứ tự câu; chỉ đổi position, id giữ nguyên. */
     public function reorder(QuizQuestionOrderRequest $request, Course $course, Quiz $quiz): JsonResponse
     {
+        $list = $this->content->reorder($course, $quiz, $request->questionIds());
+        $this->usage->markQuestions($list);
+
         return response()->json([
-            'data' => QuizQuestionResource::collection($this->content->reorder($course, $quiz, $request->questionIds()))->resolve($request),
+            'data' => QuizQuestionResource::collection($list)->resolve($request),
         ]);
     }
 
@@ -40,12 +47,18 @@ class QuizQuestionController extends Controller
     {
         Gate::authorize('manageContent', $course);
 
-        return new QuizQuestionResource($question->load('options'));
+        $question->load('options');
+        $this->usage->markQuestions([$question]);
+
+        return new QuizQuestionResource($question);
     }
 
     public function store(QuizQuestionRequest $request, Course $course, Quiz $quiz): JsonResponse
     {
-        return (new QuizQuestionResource($this->content->create($course, $quiz, $request->payload())))
+        $created = $this->content->create($course, $quiz, $request->payload());
+        $created->setAttribute('has_attempts', false);
+
+        return (new QuizQuestionResource($created))
             ->response($request)->setStatusCode(201);
     }
 
@@ -53,7 +66,10 @@ class QuizQuestionController extends Controller
     public function update(QuizQuestionRequest $request, Course $course, Quiz $quiz, QuizQuestion $question): JsonResponse
     {
         // Luôn 200 (kể cả copy-on-write tạo bản ghi mới) để client xử lý một kiểu.
-        return (new QuizQuestionResource($this->content->update($course, $quiz, $question, $request->payload())))
+        $updated = $this->content->update($course, $quiz, $question, $request->payload());
+        $this->usage->markQuestions([$updated]);
+
+        return (new QuizQuestionResource($updated))
             ->response($request)->setStatusCode(200);
     }
 
