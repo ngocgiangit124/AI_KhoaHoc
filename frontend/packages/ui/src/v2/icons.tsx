@@ -268,3 +268,13 @@ export const IconKeyRound = createIcon(
   </>,
 );
 export const IconSigma = createIcon("Sigma", <path d="M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2" />);
+/* Bổ sung 2026-10-08 (US-022 thanh toán thủ công: kênh liên hệ, phương thức). */
+export const IconPhone = createIcon(
+  "Phone",
+  <path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384" />,
+);
+export const IconMessageCircle = createIcon("MessageCircle", <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />);
+export const IconBanknote = createIcon(
+  "Banknote",
+  <><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" /></>,
+);

@@ -29,6 +29,11 @@ export const routes = {
   myCourse: (courseId: number) => `${P}/tai-khoan/khoa-hoc-cua-toi/${courseId}`,
   account: `${P}/tai-khoan`,
   cart: `${P}/gio-hang`,
+  /** US-022: thanh toán (chọn phương thức), màn "Đơn đã gửi", đơn của tôi. Route thật: `/thanh-toan`, `/tai-khoan/don-hang`. */
+  checkout: `${P}/thanh-toan`,
+  orderSent: (code: string) => `${P}/thanh-toan/da-gui/${code}`,
+  myOrders: `${P}/tai-khoan/don-hang`,
+  myOrder: (code: string) => `${P}/tai-khoan/don-hang/${code}`,
   terms: `${P}/dieu-khoan`,
   privacy: `${P}/chinh-sach-du-lieu`,
   forgot: `${P}/quen-mat-khau`,

@@ -18,6 +18,8 @@ export interface AdminNavItem {
   disabledReason?: string;
   /** Số việc chờ (ví dụ yêu cầu duyệt). */
   count?: number;
+  /** Câu đọc cho trình đọc màn hình thay cho số trần, ví dụ "6 đơn chờ duyệt". Mặc định "{count} việc chờ". */
+  countLabel?: string;
 }
 
 export interface AdminNavGroup {
@@ -70,9 +72,12 @@ function NavList({ groups }: { groups: AdminNavGroup[] }) {
                     {item.icon}
                     <span className="flex-1">{item.label}</span>
                     {item.count ? (
-                      <span className="num rounded-full bg-accent px-2 text-xs font-extrabold text-on-accent" aria-label={`${item.count} việc chờ`}>
-                        {item.count}
-                      </span>
+                      <>
+                        <span aria-hidden="true" className="num rounded-full bg-accent px-2 text-xs font-extrabold text-on-accent">
+                          {item.count}
+                        </span>
+                        <span className="sr-only">{`, ${item.countLabel ?? `${item.count} việc chờ`}`}</span>
+                      </>
                     ) : null}
                   </UiLink>
                 )}

@@ -64,4 +64,6 @@ export type { ResendCodeProps } from "./ResendCode";
 export { SessionEndedDialog } from "./SessionEndedDialog";
 export type { SessionEndedDialogProps, SessionEndedReason } from "./SessionEndedDialog";
 export { Sheet } from "./Sheet";
+export { CopyButton } from "./CopyButton";
+export type { CopyButtonProps } from "./CopyButton";
 export type { SheetProps } from "./Sheet";

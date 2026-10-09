@@ -15,6 +15,7 @@ import {
   type AdminNavGroup,
 } from "@vitaminvui/ui/v2";
 import { PENDING_REQUESTS, ROLE_LABEL, STAFF, type StaffRole, type StaffUser } from "@/lib/mock/v2/data";
+import { PENDING_ORDERS } from "@/lib/mock/v2/orders";
 
 export type AdminSection = "courses" | "subjects" | "requests" | "teachers" | "coupons" | "orders" | "staff" | "audit" | "profile";
 
@@ -26,7 +27,7 @@ export function roleFrom(v: string | string[] | undefined): StaffRole {
 
 /**
  * Menu theo quyền UI của `/admin/auth/me` (`permissions`), ẩn hẳn mục không có quyền.
- * Đơn hàng: thanh toán chuyển V2 → hiện mờ "V2" cho người có quyền xem đơn.
+ * Đơn hàng (US-022): mở cho Admin/QLT, kèm số đơn chờ duyệt; giáo viên không thấy.
  */
 export function navFor(user: StaffUser, current: AdminSection, q: string): AdminNavGroup[] {
   const p = user.permissions;
@@ -56,7 +57,10 @@ export function navFor(user: StaffUser, current: AdminSection, q: string): Admin
       label: "Bán hàng",
       items: [
         ...(p.manage_coupons ? [{ href: href("ma-giam-gia"), label: "Mã giảm giá", icon: <IconTicket size={18} />, current: current === "coupons" }] : []),
-        ...(p.view_orders ? [{ href: href("don-hang"), label: "Đơn hàng", icon: <IconReceipt size={18} />, disabledNote: "V2", disabledReason: "Mở khi bật thanh toán trực tuyến" }] : []),
+        // US-022: mở menu Đơn hàng cho thanh toán thủ công; số trên menu = đơn đang chờ duyệt.
+        ...(p.view_orders
+          ? [{ href: href("don-hang"), label: "Đơn hàng", icon: <IconReceipt size={18} />, current: current === "orders", count: PENDING_ORDERS, countLabel: `${PENDING_ORDERS} đơn chờ duyệt` }]
+          : []),
       ],
     });
   }

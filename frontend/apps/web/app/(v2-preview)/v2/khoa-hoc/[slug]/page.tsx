@@ -79,6 +79,7 @@ export default async function CourseDetailPreview({ params, searchParams }: Page
       loggedIn={loggedIn}
       paidCheckoutEnabled={paidEnabled}
       hideBottomNav
+      reserveBottomBar
       preview={<PreviewBar variants={variants} note={`Vai: ${VIEWER_LABEL[viewer]}${paidEnabled ? " · thanh toán bật" : " · thanh toán tạm khoá"}`} />}
     >
       <div className="mx-auto max-w-6xl px-4 pb-32 pt-6 sm:px-6 lg:pb-16">

@@ -1,4 +1,5 @@
-import { Alert, Badge, ButtonLink, IconFileText, IconLogOut } from "@vitaminvui/ui/v2";
+import Link from "next/link";
+import { Alert, Badge, ButtonLink, IconChevronRight, IconFileText, IconLogOut, IconReceipt } from "@vitaminvui/ui/v2";
 import { ChangeContactForm, ChangePasswordForm, type ContactDemoError } from "@/components/v2/my/AccountForms";
 import { PreviewBar } from "@/components/v2/PreviewBar";
 import { StudentShell } from "@/components/v2/StudentShell";
@@ -79,6 +80,24 @@ export default async function AccountPreview({ searchParams }: PageProps<"/v2/ta
           <div className="mt-4">
             <ChangePasswordForm />
           </div>
+        </section>
+
+        <section aria-labelledby="don-hang" className={section}>
+          <h2 id="don-hang" className="text-heading font-extrabold tracking-heading text-ink">
+            Đơn hàng
+          </h2>
+          <ul className="mt-3 flex flex-col">
+            <li>
+              <Link href={routes.myOrders} className="focus-ring flex min-h-12 items-center gap-3 rounded-control px-2 text-ink hover:bg-sunken">
+                <IconReceipt />
+                <span className="flex-1 text-base font-semibold">Đơn hàng của tôi</span>
+                <Badge tone="warning" size="sm">
+                  1 đơn chờ duyệt
+                </Badge>
+                <IconChevronRight className="text-ink-soft" />
+              </Link>
+            </li>
+          </ul>
         </section>
 
         <section aria-labelledby="du-lieu" className={section}>

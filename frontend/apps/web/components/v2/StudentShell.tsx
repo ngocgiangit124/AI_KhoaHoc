@@ -12,7 +12,7 @@ import {
 import { publicConfig } from "@/lib/mock/v2/catalog";
 import { routes, sampleStudent } from "@/lib/v2/routes";
 
-export type ShellSection = "home" | "catalog" | "my-courses" | "account" | "auth";
+export type ShellSection = "home" | "catalog" | "my-courses" | "account" | "auth" | "cart";
 
 export interface StudentShellProps {
   current: ShellSection;
@@ -25,6 +25,10 @@ export interface StudentShellProps {
   searchDefault?: string;
   /** Giả lập `paid_checkout_enabled` (mặc định theo config/public mẫu: false). */
   paidCheckoutEnabled?: boolean;
+  /** Số khóa trong giỏ hiện ở icon giỏ trên header (mặc định 1). */
+  cartCount?: number;
+  /** Trang có thanh dính đáy trên mobile (giỏ, thanh toán, chi tiết khóa): chừa chỗ dưới footer để không bị che. */
+  reserveBottomBar?: boolean;
   /** Trang có thanh hành động dính đáy (chi tiết khóa học) thì không hiện bottom-nav. */
   hideBottomNav?: boolean;
   /**
@@ -43,7 +47,9 @@ export function StudentShell({
   minimal = false,
   searchDefault,
   paidCheckoutEnabled,
+  cartCount = 1,
   hideBottomNav = false,
+  reserveBottomBar = false,
   background = "oly",
 }: StudentShellProps) {
   const showBottomNav = loggedIn && !minimal && !hideBottomNav;
@@ -69,7 +75,7 @@ export function StudentShell({
         registerHref={routes.register}
         searchAction={routes.catalog}
         searchDefault={searchDefault}
-        cart={paid && loggedIn ? { href: routes.cart, count: 1 } : null}
+        cart={paid && loggedIn ? { href: routes.cart, count: cartCount } : null}
         minimal={minimal}
       />
       <main id="noi-dung" className={cx("flex-1", minimal && "flex flex-col", background === "oly" ? "bg-oly-page" : "bg-paper", showBottomNav && "pb-20 md:pb-0")}>
@@ -100,6 +106,7 @@ export function StudentShell({
           note="© 2026 VitaminVui. Bản xem trước — nội dung và số liệu là dữ liệu mẫu."
         />
       )}
+      {reserveBottomBar ? <div aria-hidden="true" className="h-24 shrink-0 lg:hidden" /> : null}
       {showBottomNav ? (
         <BottomNav
           items={[

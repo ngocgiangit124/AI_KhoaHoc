@@ -17,5 +17,6 @@ export const ADMIN_SCREENS: Array<{ title: string; path: string; story: string; 
   { title: "Sửa mã đã dùng", path: "/v2/quan-tri/ma-giam-gia/32", story: "US-013", note: "Khoá mã/loại/giá trị, tắt/bật lại, không xoá được." },
   { title: "Tài khoản staff", path: "/v2/quan-tri/tai-khoan", story: "US-016", note: "Tạo, mật khẩu một lần, khoá, đặt lại, đổi vai trò (released_course_ids)." },
   { title: "Nhật ký thao tác", path: "/v2/quan-tri/nhat-ky", story: "US-016", note: "Chỉ đọc, lọc ngày/hành động/người, trang trước/sau." },
-  { title: "Đơn hàng", path: "/v2/quan-tri/don-hang", story: "V2", note: "Menu khoá; trang giữ chỗ “Sẽ có ở V2”." },
+  { title: "Đơn hàng — tab Chờ duyệt — mới", path: "/v2/quan-tri/don-hang", story: "US-022, US-010", note: "Số đơn chờ trên menu, cũ nhất trước, nhãn Sắp hết hạn; tab khác lọc ngày/phương thức/cần xem lại." },
+  { title: "Chi tiết đơn: Duyệt / Duyệt muộn / Huỷ / ghi chú — mới", path: "/v2/quan-tri/don-hang/VV2610077K3QPM", story: "US-022", note: "Tick “Đã nhận đủ”, duyệt muộn 2 bước, lý do gửi HS tách ghi chú nội bộ, 409 khi người khác đã xử lý." },
 ];

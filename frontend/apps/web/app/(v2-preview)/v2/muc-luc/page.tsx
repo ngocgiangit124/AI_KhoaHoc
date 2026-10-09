@@ -22,7 +22,10 @@ const WEB: Array<{ title: string; href: string; story: string; note: string }> =
   { title: "Khóa học của tôi", href: routes.myCourses, story: "US-008, US-012", note: "Học tiếp, đang học / chờ duyệt / không được duyệt." },
   { title: "Tiến độ một khóa", href: routes.myCourse(101), story: "US-008", note: "Bảng điểm bài kiểm tra, trạng thái từng bài." },
   { title: "Tài khoản", href: routes.account, story: "US-015, Bảo mật cụm 1", note: "Đổi email/SĐT bắt buộc mật khẩu hiện tại; sai mật khẩu, 429, email trùng, vừa đổi email (chưa xác thực)." },
-  { title: "Giỏ hàng (giữ chỗ V2)", href: routes.cart, story: "V2", note: "Thanh toán tạm khoá: trang giải thích thay cho 404." },
+  { title: "Giỏ hàng — mới", href: routes.cart, story: "US-004, US-022", note: "Xoá khóa, mã giảm giá (sai/tự gỡ), khóa ngừng bán, đang có đơn chờ, rỗng, đang tải, lỗi." },
+  { title: "Thanh toán: chọn phương thức — mới", href: routes.checkout, story: "US-022", note: "Chỉ “Liên hệ Quản trị viên” (thiết kế sẵn chỗ MoMo), ghi chú, 409 thay đơn / giá đổi, 429, 503, đơn 0đ." },
+  { title: "Đơn đã gửi — chờ Quản trị viên liên hệ — mới", href: routes.orderSent("VV2610077K3QPM"), story: "US-022", note: "Mã đơn + sao chép, kênh liên hệ (kênh trống ẩn), hạn 72 giờ, không hiện số tài khoản." },
+  { title: "Đơn hàng của tôi — mới", href: routes.myOrders, story: "US-022", note: "Danh sách + chi tiết theo mọi trạng thái, huỷ đơn có xác nhận, 409 khi vừa được duyệt." },
   { title: "Điều khoản / Chính sách dữ liệu (giữ chỗ)", href: routes.terms, story: "V2 pháp chế", note: "Đích của ô đồng ý ở form đăng ký." },
   { title: "Thành phần giao diện", href: routes.gallery, story: "design system", note: "Màu, chữ, công thức, nút, ô nhập, nhãn, hộp thoại, toast." },
 ];
@@ -37,6 +40,8 @@ const ADMIN: Array<{ title: string; path: string; note: string }> = [
   { title: "Mã giảm giá", path: "/v2/quan-tri/ma-giam-gia", note: "US-013." },
   { title: "Tài khoản staff", path: "/v2/quan-tri/tai-khoan", note: "US-016 — mật khẩu một lần, đổi vai trò." },
   { title: "Nhật ký thao tác", path: "/v2/quan-tri/nhat-ky", note: "US-016 — chỉ đọc." },
+  { title: "Đơn hàng — Chờ duyệt — mới", path: "/v2/quan-tri/don-hang", note: "US-022 — số đơn chờ trên menu, nhãn Sắp hết hạn, lọc." },
+  { title: "Chi tiết đơn: Duyệt / Duyệt muộn / Huỷ — mới", path: "/v2/quan-tri/don-hang/VV2610077K3QPM", note: "US-022 — tick “Đã nhận đủ”, xác nhận 2 lần, lý do gửi HS, 409." },
   { title: "Bài tập của khóa (danh sách quiz) — mới", path: "/v2/quan-tri/khoa-hoc/101/sua?tab=bai-tap", note: "FA5 — quiz theo chương/bài, số câu, thời gian." },
   { title: "Soạn quiz — mới", path: "/v2/quan-tri/khoa-hoc/101/bai-tap/502", note: "FA5 — danh sách câu, form 4 đáp án, xem trước công thức, \\lt/\\gt, lỗi/đang lưu." },
 ];
