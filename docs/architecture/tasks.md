@@ -951,6 +951,10 @@ Thứ tự: T35-1 ∥ T35-2 (theo hợp đồng trên) → T35-3 phần image. T
   - (d) Trên GitHub (cần PO push nhánh/mở PR): PR chạy `backend-static`, `backend-test`, `backend-race`, `frontend` xanh và KHÔNG chạy `images`; sau merge vào `main`, GHCR có 4 image (`vitaminvui-backend:<sha>`, `vitaminvui-worker-video:<sha>`, `vitaminvui-web:staging-<sha>`, `vitaminvui-admin:staging-<sha>`), package private, label `revision` = SHA; `release-images.yml` với SHA đó chờ duyệt rồi tạo `production-<sha>`. Tổng thời gian CI ghi vào báo cáo.
   - (e) Review; Security review (quyền workflow, token, nguồn biến). QA không bắt buộc ngoài (d).
 
+### T35-4 — CI/deploy mô hình một server (`laravel-dev`, ~0,5 ngày)
+- PO 2026-10-10: chỉ 1 server (Vultr 1 vCPU / 2 GB, `VV_SIZE=small`), không staging. Biến repo `VV_DEPLOY_MODE=single|staged` (mặc định `single`): `ci.yml` job `images` chọn Environment/`VV_ENV` theo biến; `single` build `production-<sha>` không cần duyệt; `staged` như T35-3. Viết lại `docs/ops/ci.md` (quy trình phát hành, mục "Khi có staging"), `infra/production/README.md`, ADR-008 (bổ sung 3). `deploy.sh`/compose không đổi.
+- **Xong khi:** actionlint 0 lỗi; shellcheck `scripts/ci/*.sh` 0 lỗi; `bake --print` ra đúng tag cả hai mode; (d) trên GitHub: push `main` ở mode `single` tạo `vitaminvui-web:production-<sha>` mà không chờ duyệt. Báo cáo `docs/review/T35-4.md`.
+
 ## Thứ tự & ước lượng
 
 ```

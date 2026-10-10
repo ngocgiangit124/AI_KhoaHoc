@@ -304,3 +304,8 @@ Các điểm khác thiết kế ban đầu ở trên, theo thứ tự bảng §8
 - **Cỡ máy `VV_SIZE=small|large` (PO bổ sung 2):** bộ giá trị ở `infra/production/sizes/{small,large}.env` (MySQL pool/connections/mem, FPM children, opcache, số queue, mem_limit, `NODE_OPTIONS`, Redis `maxmemory`); `deploy.sh` nạp trước `.env`. Small = ~1,78 GB tổng trần, VideoLab phải tắt.
 - **Chống flood/slowloris (security V3-1):** `limit_req`/`limit_conn`/timeout cho `api.`/`admin-api.` (ngưỡng tính cả lớp ~40 học sinh chung NAT); chuẩn hoá `X-Forwarded-Host`/`X-Real-IP`/`Forwarded` ở khối proxy tới Next (V3-3); `VV_COSIGN_VERIFY=1` mặc định production (V3-4).
 - **Rollback (R17):** image tag đích còn trên server thì không pull; thiếu thì bắt buộc digest như deploy.
+
+## Quyết định PO 2026-10-10 (bổ sung 3): một server
+- PO chỉ có 1 server Vultr $12 (1 vCPU / 2 GB), chạy production với `VV_SIZE=small`; không có staging. Thay các chỗ trong thân ADR giả định staging riêng và bước duyệt production.
+- CI có biến repo `VV_DEPLOY_MODE`: `single` (mặc định) hoặc `staged`. `single`: push `main` > 4 job xanh > job `images` build backend + web/admin bằng vars Environment `production`, tag `production-<sha>`, ghi `images-production.lock`, ký cosign; Environment `production` không bật required reviewers (cổng chất lượng = bảo vệ nhánh `main` + CI). `staged` giữ hành vi cũ. `release-images.yml` còn dùng để build lại một SHA cũ. `deploy.sh` và compose không đổi (`VV_ENV=production` ghép tag `production-<sha>`).
+- Rủi ro chấp nhận: không có môi trường thử trước production; checklist Bunny C1-C9 và mọi kiểm tra "trên staging" nay chạy bằng smoke local/CI và QA trên chính production có kiểm soát; rollback bằng `deploy.sh rollback` và snapshot.

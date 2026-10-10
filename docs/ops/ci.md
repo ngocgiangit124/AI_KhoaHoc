@@ -1,6 +1,6 @@
 # CI và build image (T35-3, ADR-008 §8.10)
 
-Workflow: `.github/workflows/ci.yml` (PR + push `main`) và `.github/workflows/release-images.yml` (chạy tay, build bản production). GitHub KHÔNG deploy: người vận hành chạy `deploy.sh <sha>` trên server qua SSH (ADR-008 §8.11).
+Workflow: `.github/workflows/ci.yml` (PR + push `main`) và `.github/workflows/release-images.yml` (chạy tay: build lại web/admin production của một SHA cũ, hoặc dùng ở mô hình `staged`). Biến repo `VV_DEPLOY_MODE` chọn mô hình: `single` (một server, mặc định khi rỗng) hoặc `staged` (staging + production). GitHub KHÔNG deploy: người vận hành chạy `deploy.sh <sha>` trên server qua SSH (ADR-008 §8.11).
 
 ## Job trong `ci.yml`
 
@@ -10,7 +10,7 @@ Workflow: `.github/workflows/ci.yml` (PR + push `main`) và `.github/workflows/r
 | `backend-test` | PR, main | MySQL 8.4 + Redis 7 (service), `scripts/ci/backend-prepare.sh all`, `pest --exclude-group=race` |
 | `backend-race` | PR, main, sau `backend-test` | như trên, `pest --group=race`, tự chạy lại đúng 1 lần nếu lỗi (kèm `::warning::`) |
 | `frontend` | PR, main | Node 22, pnpm 9.15.9 (corepack), `pnpm install --frozen-lockfile`, `lint`, `typecheck`, `test`, `pnpm audit --prod --audit-level=high` (chặn) |
-| `images` | CHỈ push `main`, sau 4 job trên xanh | bake + push GHCR: backend (+ worker-video nếu `VV_VIDEOLAB=1`) (`<sha>`), web, admin (`staging-<sha>`). Environment `staging` |
+| `images` | CHỈ push `main`, sau 4 job trên xanh | bake + push GHCR: backend (+ worker-video nếu `VV_VIDEOLAB=1`) (`<sha>`), web, admin (`<env>-<sha>`). `single` (mặc định): Environment `production`, tag `production-<sha>`. `staged`: Environment `staging`, tag `staging-<sha>` |
 
 - Quyền: `permissions: {}` toàn workflow; mỗi job `contents: read`; chỉ `images` (và `release`) thêm `packages: write`.
 - Không `pull_request_target`. PR (kể cả từ fork) không chạy `images`, không đọc `vars`/`secrets` của Environment.
@@ -28,7 +28,7 @@ Workflow: `.github/workflows/ci.yml` (PR + push `main`) và `.github/workflows/r
   # ref ghcr.io/ngocgiangit124/vitaminvui-backend@sha256:<64 hex>
   ...
   ```
-  Staging: `IMAGE_DIGEST_BACKEND`, `_WEB`, `_ADMIN` (thêm `_WORKER_VIDEO` chỉ khi `VV_VIDEOLAB=1`). Production: web và admin của lần release; backend dùng digest của lần staging cùng SHA (worker-video chỉ khi bật VideoLab).
+  `single`: `images-production.lock` có đủ `IMAGE_DIGEST_BACKEND`, `_WEB`, `_ADMIN` (thêm `_WORKER_VIDEO` chỉ khi `VV_VIDEOLAB=1`). `staged`: `images-staging.lock` đủ bộ như trên; `images-production.lock` của `release-images` chỉ có web và admin, backend dùng digest của lần staging cùng SHA.
 - Người vận hành chép các dòng `IMAGE_DIGEST_*` (không cần dòng `# ref`) vào `/opt/vitaminvui/.env` trên server trước `deploy.sh deploy <sha>`; deploy.sh dừng nếu image kéo về lệch digest. Digest lấy qua kênh khác server (tab Summary của GitHub), không lấy từ chính registry.
 - Mỗi image được ký cosign keyless (Sigstore, định danh OIDC của workflow; `id-token: write` chỉ ở job `images`/`release`). Kiểm trước khi deploy (máy có cosign):
   ```
@@ -41,7 +41,7 @@ Workflow: `.github/workflows/ci.yml` (PR + push `main`) và `.github/workflows/r
 
 ## Tuỳ chọn VideoLab (worker-video)
 
-PO 2026-10-10: video qua Bunny, VideoLab mặc định tắt. Image `vitaminvui-worker-video` chỉ được build, đẩy và ký khi biến `VV_VIDEOLAB` = `1` (vars của repo hoặc Environment `staging`; T35-1 dùng cùng tên). Không đặt thì chỉ backend + web + admin; `collect-digests.sh` nhận `REQUIRED_TARGETS` và thoát lỗi nếu thiếu digest của bất kỳ image nào trong danh sách (nên không có chuyện image không được ký mà job vẫn xanh).
+PO 2026-10-10: video qua Bunny, VideoLab mặc định tắt. Image `vitaminvui-worker-video` chỉ được build, đẩy và ký khi biến `VV_VIDEOLAB` = `1` (vars của repo; T35-1 dùng cùng tên). Không đặt thì chỉ backend + web + admin; `collect-digests.sh` nhận `REQUIRED_TARGETS` và thoát lỗi nếu thiếu digest của bất kỳ image nào trong danh sách (nên không có chuyện image không được ký mà job vẫn xanh).
 
 ## Theo dõi retry race và xử lý audit
 
@@ -62,10 +62,8 @@ Trong mạng Docker: đặt `MYSQL_HOST`/`REDIS_ADDR` là tên container (script
 
 1. Đẩy repo lên `github.com/ngocgiangit124/AI_KhoaHoc` (hoặc đổi `VV_REGISTRY` trong 2 workflow và label `source` trong `infra/production/docker-bake.hcl` nếu tên khác).
 2. Settings > Actions > General: Workflow permissions = "Read repository contents and packages permissions" (token mặc định chỉ đọc; workflow tự xin thêm). Tắt "Allow GitHub Actions to create and approve pull requests" nếu bật.
-3. Settings > Environments, tạo 2 Environment:
-   - `staging`: không cần người duyệt (có thể giới hạn nhánh `main`).
-   - `production`: bật **Required reviewers** (người PO chỉ định), "Deployment branches" = chỉ `main`. Bật "Prevent self-review" nếu có từ 2 người.
-4. Mỗi Environment, tab **Variables** (không phải Secrets; giá trị công khai vì nhúng vào bundle), tên giống hệt build arg ADR-008 §8.9:
+3. Settings > Environments: tạo Environment **`production`**. Mô hình một server: KHÔNG bật Required reviewers (job `images` chạy thẳng sau CI xanh; an toàn dựa vào bảo vệ nhánh `main` ở bước 6). Có thể giới hạn "Deployment branches" = chỉ `main`. (Mô hình `staged`: thêm Environment `staging` không cần duyệt và bật Required reviewers cho `production`, xem mục "Khi có staging".)
+4. Environment `production`, tab **Variables** (không phải Secrets; giá trị công khai vì nhúng vào bundle), tên giống hệt build arg ADR-008 §8.9:
 
 | Var | Dùng cho | Bắt buộc |
 |---|---|---|
@@ -79,22 +77,37 @@ Trong mạng Docker: đặt `MYSQL_HOST`/`REDIS_ADDR` là tên container (script
 | `NEXT_PUBLIC_ADMIN_URL` | admin | có (https) |
 | `NEXT_PUBLIC_VIDEO_UPLOAD_URL` | admin | có (https) |
 
+   Biến repo (Settings > Secrets and variables > Actions > Variables, không phải Environment): `VV_DEPLOY_MODE` (bỏ trống = `single`), `VV_VIDEOLAB` (bỏ trống = tắt).
+
    Giá trị mẫu: `frontend/apps/{web,admin}/.env.production.example` (phần BUILD). Bước `scripts/ci/check-frontend-vars.sh` dừng build khi thiếu var, URL không phải https, hoặc chứa `localhost`/`REPLACE`/khoá thử/`test-payment`. Chỉ in tên var lỗi, không in giá trị.
 5. Secrets: KHÔNG tạo secret nào cho CI. Image dùng `GITHUB_TOKEN` tự cấp. Secret ứng dụng (APP_KEY, mật khẩu DB/Redis, SMTP, `INTERNAL_API_TOKEN`...) chỉ nằm ở `/opt/vitaminvui/env/*.env` trên server (ADR-008 §8.6, §8.13).
 6. Settings > Branches: bảo vệ `main`, bắt buộc 4 check `backend-static`, `backend-test`, `backend-race`, `frontend` xanh trước khi merge.
 7. Package GHCR: lần push đầu tạo package ở chế độ private, gắn repo nhờ label `org.opencontainers.image.source`. Kiểm ở Packages: visibility private; nếu package chưa liên kết repo, vào Package settings > "Manage Actions access" thêm repo với quyền Write (để lần sau `GITHUB_TOKEN` đẩy được).
 
-## Quy trình phát hành
+## Quy trình phát hành (một server, `VV_DEPLOY_MODE=single`)
 
-1. Merge vào `main` > CI xanh > `images` đẩy `vitaminvui-backend:<sha>`, (`vitaminvui-worker-video:<sha>` chỉ khi `vars.VV_VIDEOLAB=1`), `vitaminvui-web:staging-<sha>`, `vitaminvui-admin:staging-<sha>`. Ghi `<sha>` (40 ký tự).
-2. Deploy staging trên server: `deploy.sh deploy <sha>`.
-3. Production: Actions > `release-images` > Run workflow (nhánh `main`), nhập `sha`. Workflow kiểm: sha đủ 40 hex, thuộc lịch sử `main`, image backend `<sha>` đã có trên GHCR; chờ người duyệt Environment `production`; build `vitaminvui-web:production-<sha>`, `vitaminvui-admin:production-<sha>` từ đúng commit đó với `vars` của `production`.
-4. Deploy production trên server: `deploy.sh deploy <sha>` (backend dùng chung image với staging).
+Cấu hình GitHub một lần (mục "Cấu hình GitHub" ở trên): Environment `production` + vars `NEXT_PUBLIC_*`, bảo vệ nhánh `main`, PAT `read:packages` cho server (mục dưới).
+
+Mỗi lần phát hành:
+1. Merge PR vào `main`. Chờ CI xanh: 4 job test rồi `images` (không cần ai duyệt). Image đẩy lên GHCR: `vitaminvui-backend:<sha>`, (`vitaminvui-worker-video:<sha>` chỉ khi `VV_VIDEOLAB=1`), `vitaminvui-web:production-<sha>`, `vitaminvui-admin:production-<sha>`, đã ký cosign.
+2. Mở run `images` > Summary, chép các dòng `IMAGE_DIGEST_*` (hoặc tải artifact `images-production.lock`) và `<sha>` 40 ký tự. Run bị thay bởi commit mới hơn (GitHub chỉ giữ run chờ mới nhất) thì dùng SHA đã có image.
+3. Nếu bản này có migration: chụp snapshot Vultr trước (khuyến nghị; `deploy.sh` chỉ nhắc, không đòi).
+4. SSH vào server, dán `IMAGE_DIGEST_*` vào `/opt/vitaminvui/.env` (`VV_ENV=production`), chạy `./deploy.sh deploy <sha>`. Digest lệch hoặc cosign lỗi thì dừng, chưa đổi gì.
+5. Lỗi sau deploy: `./deploy.sh rollback` (về `PREVIOUS_TAG`). Migration đã chạy không tự đảo: xem snapshot.
+
+Build lại một SHA cũ (ví dụ image hết hạn cache, hoặc đổi vars `NEXT_PUBLIC_*` mà không có commit mới): Actions > `release-images` > Run workflow (nhánh `main`), nhập `sha`; workflow kiểm sha 40 hex, thuộc lịch sử `main`, image backend `<sha>` đã có, rồi build web/admin `production-<sha>` với vars `production`. Ở mô hình `single`, Environment `production` không có người duyệt nên workflow này chạy ngay. Lưu ý: vars `NEXT_PUBLIC_*` được nhúng lúc build; muốn đổi giá trị phải build lại bằng cách này (hoặc commit mới) rồi lấy digest mới.
+
+## Khi có staging (`VV_DEPLOY_MODE=staged`)
+
+Đặt biến repo `VV_DEPLOY_MODE=staged`. Hai server: staging và production.
+- Cấu hình thêm: Environment `staging` (không cần duyệt; có vars `NEXT_PUBLIC_*` giá trị staging) và bật Required reviewers + "Deployment branches = main" cho `production`; PAT `read:packages` riêng cho mỗi server.
+- Merge vào `main` > CI xanh > `images` (Environment `staging`) đẩy `vitaminvui-backend:<sha>`, `vitaminvui-web:staging-<sha>`, `vitaminvui-admin:staging-<sha>`, artifact `images-staging.lock`. Deploy staging: `deploy.sh deploy <sha>` (`VV_ENV=staging`).
+- Production: Actions > `release-images` > Run workflow (nhánh `main`), nhập `sha`; chờ người duyệt Environment `production`; build `production-<sha>` từ đúng commit. Deploy production: `deploy.sh deploy <sha>` (`VV_ENV=production`, backend dùng chung image với staging, digest backend lấy từ `images-staging.lock`).
 
 ## PAT cho server kéo image
 
 - PAT **classic**, chỉ scope `read:packages` (GHCR chưa nhận fine-grained). Tài khoản sở hữu: PO quyết (tài khoản máy riêng được khuyến nghị) và phải có quyền đọc package.
-- Tạo riêng một PAT cho staging và một cho production, hết hạn 90 ngày (đặt nhắc lịch gia hạn).
+- Hết hạn 90 ngày (mô hình `staged`: một PAT riêng cho mỗi server) (đặt nhắc lịch gia hạn).
 - Trên server, user `vvdeploy`: `echo "<PAT>" | docker login ghcr.io -u <tài khoản> --password-stdin` (không đặt PAT trên dòng lệnh; file `~vvdeploy/.docker/config.json` chmod 0600).
 - Mất PAT: thu hồi ở GitHub, tạo lại, đăng nhập lại.
 
