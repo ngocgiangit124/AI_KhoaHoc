@@ -50,9 +50,12 @@ Làm theo thứ tự; staging và production giống hệt nhau (khác giá tr�
    install -d -o vvapp -g vvapp -m 0750 /var/www/backend/storage/logs
    # S6: dữ liệu MySQL/Redis (phiên, job, PII) chỉ root đọc được. Không còn thư mục backups (backup = snapshot nhà cung cấp).
    install -d -o root -g root -m 0700 /srv/vitaminvui
-   install -d -o root -g root -m 0700 /srv/vitaminvui/mysql /srv/vitaminvui/redis
-   getent group 999   # GID 999 của image mysql/redis: kiểm không trùng group hệ thống nào có thành viên lạ
-   # Chỉ khi bật VideoLab (VV_VIDEOLAB=1): install -d -o root -g root -m 0700 /srv/vitaminvui/redis-video
+   install -d -o root -g root -m 0700 /srv/vitaminvui/mysql
+   # Redis chạy bằng user 999:999 (compose `user:`), không có bước chown của entrypoint: thư mục dữ liệu phải thuộc 999 sẵn.
+   install -d -o 999 -g 999 -m 0700 /srv/vitaminvui/redis
+   getent group 999; getent passwd 999   # UID/GID 999 của image mysql/redis: kiểm không trùng group/user hệ thống nào có thành viên lạ (thư mục cha 0700 root vẫn chặn)
+   # Nâng cấp server đã có /srv/vitaminvui/redis owner root (trước T35-5): `chown -R 999:999 /srv/vitaminvui/redis` (và redis-video) TRƯỚC khi chạy compose mới.
+   # Chỉ khi bật VideoLab (VV_VIDEOLAB=1): install -d -o 999 -g 999 -m 0700 /srv/vitaminvui/redis-video
    ```
    **Kiểm quyền bằng đúng user vận hành** (không root, không user cá nhân): `sudo -u vvdeploy test -w /opt/vitaminvui && echo ok`; chạy `sudo -u vvdeploy /opt/vitaminvui/deploy.sh status` (phải qua, không lỗi quyền khoá/`.env`/`releases.log`); `sudo -u nobody ls /srv/vitaminvui/redis` phải bị từ chối. `vvdeploy` chỉ cần ghi được `/opt/vitaminvui` (hết nhu cầu truy cập `/srv/vitaminvui`). Smoke trên máy dev chạy bằng một user nên KHÔNG bắt được lỗi quyền kiểu này.
    Trên host KHÔNG có mã và KHÔNG tạo `/var/www/backend/public` (Nginx chỉ dùng `fastcgi_pass`, đường dẫn SCRIPT_FILENAME là đường dẫn trong container). `storage/framework` không mount.

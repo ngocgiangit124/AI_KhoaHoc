@@ -27,7 +27,7 @@ Không có Critical hay High. Có 3 Medium, 6 Low và một số Info. Lên stag
   - Frontend: không có ARG/ENV cho biến server-only. `INTERNAL_API_TOKEN` chỉ được đọc trong `apps/web/env.server.ts` và `lib/api.server.ts` (có `import "server-only"`). Không bật `productionBrowserSourceMaps`.
 - **Non-root, bất biến:**
   - Backend chạy UID 10001. Mã (`app/`, `config/`, `vendor/`, `public/`) thuộc root, UID 10001 không ghi được (thử `touch` bị từ chối). Chỉ `storage/` và `bootstrap/cache` ghi được.
-  - Mọi service đều có `cap_drop: [ALL]` và `no-new-privileges`. MySQL/Redis chỉ `cap_add` tối thiểu cho entrypoint.
+  - Mọi service đều có `cap_drop: [ALL]` và `no-new-privileges`. MySQL chỉ `cap_add` tối thiểu cho entrypoint; Redis chạy `user: "999:999"`, không cap nào (T35-5).
   - worker-video có `read_only`, `tmpfs /tmp`, `init`, giới hạn CPU/RAM/PID.
 - **Mạng:**
   - Chỉ publish `127.0.0.1:9000/3000/3001`. MySQL/Redis không publish.

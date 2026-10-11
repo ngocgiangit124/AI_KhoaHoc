@@ -175,7 +175,10 @@ services:
   redis:
     <<: *hardening
     image: redis:7.4.11@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85
-    cap_add: [CHOWN, SETUID, SETGID]
+    # Chạy thẳng bằng UID/GID 999 (user redis của image): entrypoint bỏ bước `find . -exec chown` (bước này chạy bằng root KHÔNG có
+    # DAC_OVERRIDE nên lỗi Permission denied với thư mục 0700 của redis trên Linux thật, cài server 2026-10-11) và không cần cap nào.
+    # Thư mục dữ liệu trên host phải thuộc 999:999 (README mục 3); redis.conf/users.acl 0400 owner 999.
+    user: "999:999"
     # maxmemory 0 = không giới hạn (large); small đặt 64mb (noeviction: đầy thì từ chối ghi, không mất job).
     command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--maxmemory", "${VV_REDIS_MAXMEM:-0}"]
     mem_limit: ${VV_REDIS_MEM:-1g}
@@ -196,7 +199,8 @@ services:
     <<: *hardening
     profiles: [videolab]
     image: redis:7.4.11@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85
-    cap_add: [CHOWN, SETUID, SETGID]
+    # Như service redis: chạy bằng 999:999, không cap.
+    user: "999:999"
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     volumes:
       - ${VV_DATA_DIR:-/srv/vitaminvui}/redis-video:/data
