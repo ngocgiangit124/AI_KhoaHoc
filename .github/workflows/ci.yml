@@ -50,6 +50,9 @@ jobs:
       - name: composer install
         working-directory: backend
         run: composer install --no-interaction --prefer-dist --no-progress
+        # Chưa có backend/.env lúc này: config/app.php mặc định APP_ENV=production và ProductionConfigGuard chặn package:discover.
+        env:
+          APP_ENV: testing
       - name: Tạo backend/.env (cho larastan khởi động app)
         run: scripts/ci/backend-prepare.sh env
       - name: Pint
@@ -106,6 +109,9 @@ jobs:
       - name: composer install
         working-directory: backend
         run: composer install --no-interaction --prefer-dist --no-progress
+        # Chưa có backend/.env lúc này: config/app.php mặc định APP_ENV=production và ProductionConfigGuard chặn package:discover.
+        env:
+          APP_ENV: testing
       - name: Chuẩn bị DB, hosts, .env
         run: scripts/ci/backend-prepare.sh all
       - name: Pest (loại nhóm race)
@@ -157,6 +163,9 @@ jobs:
       - name: composer install
         working-directory: backend
         run: composer install --no-interaction --prefer-dist --no-progress
+        # Chưa có backend/.env lúc này: config/app.php mặc định APP_ENV=production và ProductionConfigGuard chặn package:discover.
+        env:
+          APP_ENV: testing
       - name: Chuẩn bị DB, hosts, .env
         run: scripts/ci/backend-prepare.sh all
       - name: Pest nhóm race
