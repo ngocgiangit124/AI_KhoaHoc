@@ -1,8 +1,14 @@
 # Bảng theo dõi VitaminVui
 
-Cập nhật: 2026-10-06. Phiên tiếp theo (kể cả Claude Code on the web) đọc file này trước tiên.
+Cập nhật: 2026-10-11. Phiên tiếp theo (kể cả Claude Code on the web) đọc file này trước tiên.
 
 ## Tình trạng 2026-10-08
+
+### 2026-10-11: ĐÃ LÊN PRODUCTION — chạy tiếp từ đây
+- Server Vultr `207.148.75.60` (1 vCPU/2 GB, Ubuntu 22.04, `VV_SIZE=small`), SSH bằng key máy PO: `root@` (quản trị) và `vvdeploy@` (deploy). Cài theo `infra/production/README.md`; thư mục `/opt/vitaminvui`.
+- Deploy đầu `5d13576` (2026-10-11): https://vitaminvui.asia, admin.vitaminvui.asia, api., admin-api.; static qua pull zone Bunny `vitaminvui-static.b-cdn.net` (origin static.vitaminvui.asia + header `X-VV-Origin`, README 12b). Mail: Gmail `ngocgiangit124@gmail.com` (App Password, ~500 thư/ngày). Turnstile thật; Bunny dùng chung library với dev (nên tách library dev).
+- Phát hành: push main > CI xanh > lấy `images-production.lock` (artifact mới nhất của run) > dán `IMAGE_DIGEST_*` vào `/opt/vitaminvui/.env` > `ssh vvdeploy@... ./deploy.sh deploy <sha40>`. `gh` cài ở `~/.local/bin/gh` (đã login).
+- Còn lại: PO tạo admin đầu (`staff:create --role=admin`) và thử mail OTP; bật snapshot tự động Vultr; xoay secret Turnstile (đã lộ qua chat); thử upload video để kiểm webhook Bunny; SSH 22 đang mở mọi IP (V3-2); pháp chế Turnstile/Bunny.
 
 ### 2026-10-10: chuẩn bị go-live — chạy tiếp từ đây
 - Commit chưa push (9): `a43b07c` T16-1, `66ff847` T33-1, `35d62f9` FW3-1, `b500ba6` FA12, `0109129` ảnh tĩnh local, `6783c71` GL-A1, `f4588b1` BE-backlog-1 + GL-A34, `910bb26` GL-1 + GL-A2, `9603b02` GL-A2-FE. `origin/main` = `51114b5`. Nhóm bảo mật bắt buộc trước go-live A1–A5 xong.
