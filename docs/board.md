@@ -4,6 +4,8 @@ Cập nhật: 2026-10-11. Phiên tiếp theo (kể cả Claude Code on the web) 
 
 ## Tình trạng 2026-10-08
 
+### 2026-10-11: PO chốt **V1 HOÀN THÀNH** (chạy trên server thử, admin đầu đã đăng nhập được, OTP mail Gmail chạy)
+
 ### 2026-10-11: server THỬ (PO: tạm để thử, sau dựng lại ở server mới) — chạy tiếp từ đây
 - Server Vultr `207.148.75.60` (1 vCPU/2 GB, Ubuntu 22.04, `VV_SIZE=small`), SSH bằng key máy PO: `root@` (quản trị) và `vvdeploy@` (deploy). Cài theo `infra/production/README.md`; thư mục `/opt/vitaminvui`.
 - Deploy đầu `5d13576` (2026-10-11): https://vitaminvui.asia, admin.vitaminvui.asia, api., admin-api.; static qua pull zone Bunny `vitaminvui-static.b-cdn.net` (origin static.vitaminvui.asia + header `X-VV-Origin`, README 12b). Mail: Gmail `ngocgiangit124@gmail.com` (App Password, ~500 thư/ngày). Turnstile thật; Bunny dùng chung library với dev (nên tách library dev).
