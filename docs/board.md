@@ -4,7 +4,7 @@ Cập nhật: 2026-10-11. Phiên tiếp theo (kể cả Claude Code on the web) 
 
 ## Tình trạng 2026-10-08
 
-### 2026-10-11: ĐÃ LÊN PRODUCTION — chạy tiếp từ đây
+### 2026-10-11: server THỬ (PO: tạm để thử, sau dựng lại ở server mới) — chạy tiếp từ đây
 - Server Vultr `207.148.75.60` (1 vCPU/2 GB, Ubuntu 22.04, `VV_SIZE=small`), SSH bằng key máy PO: `root@` (quản trị) và `vvdeploy@` (deploy). Cài theo `infra/production/README.md`; thư mục `/opt/vitaminvui`.
 - Deploy đầu `5d13576` (2026-10-11): https://vitaminvui.asia, admin.vitaminvui.asia, api., admin-api.; static qua pull zone Bunny `vitaminvui-static.b-cdn.net` (origin static.vitaminvui.asia + header `X-VV-Origin`, README 12b). Mail: Gmail `ngocgiangit124@gmail.com` (App Password, ~500 thư/ngày). Turnstile thật; Bunny dùng chung library với dev (nên tách library dev).
 - Phát hành: push main > CI xanh > lấy `images-production.lock` (artifact mới nhất của run) > dán `IMAGE_DIGEST_*` vào `/opt/vitaminvui/.env` > `ssh vvdeploy@... ./deploy.sh deploy <sha40>`. `gh` cài ở `~/.local/bin/gh` (đã login).
